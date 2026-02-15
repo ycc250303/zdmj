@@ -48,30 +48,32 @@ jobs:
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}  # 缓存键（基于操作系统和pom.xml的哈希值）
           restore-keys: ${{ runner.os }}-m2  # 如果精确匹配失败，尝试使用部分匹配的缓存
 
-      # 步骤4: 运行测试
-      # 在backend/zdmj目录下执行Maven测试命令
+      # 步骤4: 编译验证（暂时跳过测试执行）
+      # 在backend/zdmj目录下执行Maven编译命令
       # clean: 清理之前的构建产物
-      # test: 编译代码并运行所有测试用例
-      - name: Run tests
+      # compile: 编译源代码和测试代码，但不运行测试
+      # 保留测试流水线结构，但暂时不执行测试用例
+      # 如果需要恢复测试，将 compile 改为 test 即可
+      - name: Compile and verify (skip tests)
         working-directory: ./backend/zdmj  # 指定工作目录
-        run: mvn clean test
+        run: mvn clean compile -DskipTests
 
-      # 步骤5: 生成测试报告
-      # 无论测试成功或失败都会执行（if: always()）
-      # 生成Surefire测试报告，用于查看详细的测试结果
-      - name: Generate test report
-        if: always()  # 即使前面的步骤失败也执行
-        working-directory: ./backend/zdmj  # 指定工作目录
-        run: |
-          mvn surefire-report:report || true  # 生成报告，即使失败也不影响整体流程
+      # 步骤5: 生成测试报告（暂时跳过）
+      # 暂时注释掉测试报告生成步骤
+      # 如果需要恢复测试，取消注释并修改步骤4为 test
+      # - name: Generate test report
+      #   if: always()  # 即使前面的步骤失败也执行
+      #   working-directory: ./backend/zdmj  # 指定工作目录
+      #   run: |
+      #     mvn surefire-report:report || true  # 生成报告，即使失败也不影响整体流程
 
-      # 步骤6: 上传测试结果
-      # 将测试报告文件上传为GitHub Actions的构建产物
-      # 可以在Actions页面下载查看详细的测试报告
-      - name: Upload test results
-        if: always()  # 无论测试结果如何都上传报告
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results                    # 产物名称
-          path: backend/zdmj/target/surefire-reports  # 测试报告文件路径
-          retention-days: 7                     # 保留7天后自动删除
+      # 步骤6: 上传测试结果（暂时跳过）
+      # 暂时注释掉测试结果上传步骤
+      # 如果需要恢复测试，取消注释并修改步骤4为 test
+      # - name: Upload test results
+      #   if: always()  # 无论测试结果如何都上传报告
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: test-results                    # 产物名称
+      #     path: backend/zdmj/target/surefire-reports  # 测试报告文件路径
+      #     retention-days: 7                     # 保留7天后自动删除

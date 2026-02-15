@@ -63,9 +63,9 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAME }}  # 镜像名称
           tags: |
+            type=raw,value=latest,priority=1  # 始终使用latest标签（优先级最高）
             type=ref,event=branch                    # 使用分支名作为标签
             type=sha,prefix={{branch}}-              # 使用分支名-提交SHA作为标签
-            type=raw,value=latest,enable={{is_default_branch}}  # main分支使用latest标签
 
       # 步骤6: 构建Docker镜像
       # 使用Dockerfile构建Docker镜像
@@ -86,7 +86,26 @@ jobs:
       # 方便后续通过SCP传输到服务器
       - name: Save Docker image
         run: |
-          docker save ${{ env.IMAGE_NAME }}:latest -o image.tar
+          # 列出所有镜像，确认构建的镜像标签
+          echo "Available images:"
+          docker images | grep ${{ env.IMAGE_NAME }} || true
+          # 尝试使用latest标签，如果不存在则使用第一个找到的标签
+          if docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^${{ env.IMAGE_NAME }}:latest$"; then
+            IMAGE_TAG="${{ env.IMAGE_NAME }}:latest"
+          else
+            # 获取第一个可用的标签
+            IMAGE_TAG=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "^${{ env.IMAGE_NAME }}:" | head -n1)
+            if [ -z "$IMAGE_TAG" ]; then
+              echo "Error: No image found with name ${{ env.IMAGE_NAME }}"
+              docker images
+              exit 1
+            fi
+          fi
+          echo "Using image tag: $IMAGE_TAG"
+          # 使用获取到的标签保存镜像
+          docker save $IMAGE_TAG -o image.tar
+          # 验证tar文件是否创建成功
+          ls -lh image.tar
 
       # 步骤8: 将镜像文件复制到服务器
       # 使用SCP协议将镜像tar文件传输到目标服务器
