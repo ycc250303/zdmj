@@ -1,0 +1,3 @@
+deploy/.env
+deploy/nginx.conf
+deploy/docker-compose.yml

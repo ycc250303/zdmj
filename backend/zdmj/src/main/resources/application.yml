@@ -1,0 +1,70 @@
+spring:
+  application:
+    name: zdmj
+  
+  # PostgreSQL 数据库配置
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://111.229.81.45:5432/zdmj?currentSchema=public&stringtype=unspecified
+    username: zdmj
+    password: zdmj
+  
+  # Redis 配置
+  data:
+    redis:
+      host: 111.229.81.45
+      port: 6379
+      password: zdmj
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          
+    # MongoDB 配置
+    mongodb:
+      host: 111.229.81.45
+      port: 27017
+      username: zdmj
+      password: zdmj
+      authentication-database: admin
+      database: zdmj
+  
+  # 邮件配置（163邮箱）
+  mail:
+    host: smtp.163.com  # 163邮箱SMTP服务器
+    port: 465  # SSL端口，也可以使用587（TLS）
+    username: zdmj123456@163.com  # 发送邮件的163邮箱
+    password: XCtkmZ9FMRPVcNCi  # 163邮箱授权码（不是登录密码，需要在邮箱设置中开启SMTP服务获取）
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true  # 启用SSL（使用465端口时需要）
+            required: true
+          starttls:
+            enable: false  # 使用SSL时，starttls设为false
+            required: false
+
+# MyBatis 配置
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  type-aliases-package: com.zdmj.userauthservice.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+
+# 服务器配置
+server:
+  port: 8080
+
+# Actuator 配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

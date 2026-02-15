@@ -1,0 +1,77 @@
+# CI工作流：后端自动化测试
+# 当代码推送到backend或main分支，或创建PR到这些分支时自动触发
+name: CI - Backend Tests
+
+# 触发条件配置
+on:
+  # 当代码推送到backend或main分支时触发
+  push:
+    branches:
+      - backend
+      - main
+  # 当创建或更新PR到backend或main分支时触发
+  pull_request:
+    branches:
+      - backend
+      - main
+
+jobs:
+  # 测试任务
+  test:
+    name: Run Tests
+    # 使用GitHub提供的Ubuntu最新版本作为运行环境
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 步骤1: 检出代码
+      # 将仓库代码下载到GitHub Actions运行器中
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 步骤2: 设置Java开发环境
+      # 安装JDK 21，使用Eclipse Temurin发行版（OpenJDK的免费版本）
+      # 同时配置Maven缓存以加速后续构建
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'          # Java版本
+          distribution: 'temurin'     # JDK发行版（Eclipse Temurin）
+          cache: maven                # 启用Maven依赖缓存
+
+      # 步骤3: 缓存Maven依赖
+      # 将Maven本地仓库（~/.m2）缓存起来，避免每次构建都重新下载依赖
+      # 如果pom.xml文件未变化，则直接使用缓存的依赖，大幅提升构建速度
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2                 # Maven本地仓库路径
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}  # 缓存键（基于操作系统和pom.xml的哈希值）
+          restore-keys: ${{ runner.os }}-m2  # 如果精确匹配失败，尝试使用部分匹配的缓存
+
+      # 步骤4: 运行测试
+      # 在backend/zdmj目录下执行Maven测试命令
+      # clean: 清理之前的构建产物
+      # test: 编译代码并运行所有测试用例
+      - name: Run tests
+        working-directory: ./backend/zdmj  # 指定工作目录
+        run: mvn clean test
+
+      # 步骤5: 生成测试报告
+      # 无论测试成功或失败都会执行（if: always()）
+      # 生成Surefire测试报告，用于查看详细的测试结果
+      - name: Generate test report
+        if: always()  # 即使前面的步骤失败也执行
+        working-directory: ./backend/zdmj  # 指定工作目录
+        run: |
+          mvn surefire-report:report || true  # 生成报告，即使失败也不影响整体流程
+
+      # 步骤6: 上传测试结果
+      # 将测试报告文件上传为GitHub Actions的构建产物
+      # 可以在Actions页面下载查看详细的测试报告
+      - name: Upload test results
+        if: always()  # 无论测试结果如何都上传报告
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results                    # 产物名称
+          path: backend/zdmj/target/surefire-reports  # 测试报告文件路径
+          retention-days: 7                     # 保留7天后自动删除
