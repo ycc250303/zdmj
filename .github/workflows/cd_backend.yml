@@ -92,7 +92,7 @@ jobs:
       # 使用SCP协议将镜像tar文件传输到目标服务器
       # 需要配置SSH_PRIVATE_KEY密钥（在GitHub Secrets中设置）
       - name: Copy image to server
-        uses: appleboy/scp-action@v1.0.3
+        uses: appleboy/scp-action@master
         with:
           host: ${{ env.SERVER_HOST }}         # 服务器IP地址
           username: ${{ env.SERVER_USER }}     # SSH用户名
@@ -105,7 +105,7 @@ jobs:
       # 通过SSH连接到服务器，执行部署脚本
       # 包括：加载镜像、停止旧容器、启动新容器、清理临时文件
       - name: Deploy to server
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@master
         with:
           host: ${{ env.SERVER_HOST }}         # 服务器IP地址
           username: ${{ env.SERVER_USER }}     # SSH用户名
@@ -145,7 +145,7 @@ jobs:
       # 检查容器是否正常运行，并查看最近的日志
       # 确认部署是否成功
       - name: Verify deployment
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@master
         with:
           host: ${{ env.SERVER_HOST }}         # 服务器IP地址
           username: ${{ env.SERVER_USER }}     # SSH用户名
