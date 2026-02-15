@@ -1,5 +1,16 @@
 # CD工作流：后端自动化部署
 # 当代码合并到main分支时自动构建Docker镜像并部署到服务器
+#
+# 前置要求：
+# 1. 在GitHub仓库的Settings > Secrets and variables > Actions中配置SSH_PRIVATE_KEY
+# 2. SSH密钥格式要求：
+#    - 包含完整的私钥内容（包括 -----BEGIN OPENSSH PRIVATE KEY----- 和 -----END OPENSSH PRIVATE KEY-----）
+#    - 或者包含 -----BEGIN RSA PRIVATE KEY----- 和 -----END RSA PRIVATE KEY-----
+#    - 确保密钥有访问服务器的权限（公钥已添加到服务器的 ~/.ssh/authorized_keys）
+# 3. 生成SSH密钥对（如果还没有）：
+#    ssh-keygen -t rsa -b 4096 -C "github-actions"
+#    然后将私钥添加到GitHub Secrets，公钥添加到服务器
+#
 name: CD - Deploy Backend
 
 # 触发条件配置
@@ -115,8 +126,10 @@ jobs:
           username: ${{ env.SERVER_USER }}     # SSH用户名
           key: ${{ secrets.SSH_PRIVATE_KEY }}  # SSH私钥（从GitHub Secrets读取）
           port: 22                             # SSH端口
+          timeout: 60s                         # 连接超时时间
           source: "image.tar"                  # 本地文件路径
           target: "/tmp/"                      # 服务器目标目录
+          strip_components: 0                  # 不剥离路径组件
 
       # 步骤9: 部署到服务器
       # 通过SSH连接到服务器，执行部署脚本
@@ -128,6 +141,7 @@ jobs:
           username: ${{ env.SERVER_USER }}     # SSH用户名
           key: ${{ secrets.SSH_PRIVATE_KEY }}  # SSH私钥
           port: 22                             # SSH端口
+          timeout: 60s                         # 连接超时时间
           script: |
             # 加载Docker镜像到本地Docker环境
             docker load -i /tmp/image.tar
@@ -168,6 +182,7 @@ jobs:
           username: ${{ env.SERVER_USER }}     # SSH用户名
           key: ${{ secrets.SSH_PRIVATE_KEY }}  # SSH私钥
           port: 22                             # SSH端口
+          timeout: 60s                         # 连接超时时间
           script: |
             # 等待10秒，让容器完全启动
             sleep 10
