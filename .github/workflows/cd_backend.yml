@@ -65,6 +65,7 @@ jobs:
           context: ./backend/zdmj              # Docker构建上下文目录
           file: ./backend/zdmj/Dockerfile      # Dockerfile文件路径
           push: false                          # 不推送到远程仓库，仅本地构建
+          load: true                           # 将镜像加载到本地Docker环境（重要！）
           tags: ${{ env.IMAGE_NAME }}:latest    # 直接使用latest标签
           cache-from: type=gha                 # 从GitHub Actions缓存读取
           cache-to: type=gha,mode=max          # 将构建缓存保存到GitHub Actions
