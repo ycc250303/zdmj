@@ -54,58 +54,55 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 步骤5: 提取镜像元数据
-      # 自动生成Docker镜像的标签（tag）和标签（label）
-      # 根据分支名、提交SHA等信息生成有意义的镜像标签
-      - name: Extract metadata
-        id: meta  # 设置步骤ID，后续步骤可以通过steps.meta引用
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.IMAGE_NAME }}  # 镜像名称
-          tags: |
-            type=raw,value=latest,priority=1  # 始终使用latest标签（优先级最高）
-            type=ref,event=branch                    # 使用分支名作为标签
-            type=sha,prefix={{branch}}-              # 使用分支名-提交SHA作为标签
-
-      # 步骤6: 构建Docker镜像
+      # 步骤5: 构建Docker镜像
       # 使用Dockerfile构建Docker镜像
+      # 直接使用latest标签，简化流程
       # 使用GitHub Actions缓存机制加速构建（如果Dockerfile或依赖未变化）
       - name: Build Docker image
         uses: docker/build-push-action@v5
+        id: build
         with:
           context: ./backend/zdmj              # Docker构建上下文目录
           file: ./backend/zdmj/Dockerfile      # Dockerfile文件路径
           push: false                          # 不推送到远程仓库，仅本地构建
-          tags: ${{ steps.meta.outputs.tags }}  # 使用元数据步骤生成的标签
-          labels: ${{ steps.meta.outputs.labels }}  # 使用元数据步骤生成的标签
+          tags: ${{ env.IMAGE_NAME }}:latest    # 直接使用latest标签
           cache-from: type=gha                 # 从GitHub Actions缓存读取
           cache-to: type=gha,mode=max          # 将构建缓存保存到GitHub Actions
+
+      # 步骤6: 验证镜像构建成功
+      # 检查镜像是否成功构建
+      - name: Verify image build
+        run: |
+          echo "Checking if image was built successfully..."
+          # 列出所有镜像
+          docker images
+          # 检查目标镜像是否存在
+          if docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^${{ env.IMAGE_NAME }}:latest$"; then
+            echo "✓ Image ${{ env.IMAGE_NAME }}:latest found successfully"
+            docker images | grep ${{ env.IMAGE_NAME }}
+          else
+            echo "✗ Error: Image ${{ env.IMAGE_NAME }}:latest not found"
+            echo "All available images:"
+            docker images
+            exit 1
+          fi
 
       # 步骤7: 保存Docker镜像为tar文件
       # 将构建好的Docker镜像导出为tar压缩文件
       # 方便后续通过SCP传输到服务器
       - name: Save Docker image
         run: |
-          # 列出所有镜像，确认构建的镜像标签
-          echo "Available images:"
-          docker images | grep ${{ env.IMAGE_NAME }} || true
-          # 尝试使用latest标签，如果不存在则使用第一个找到的标签
-          if docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^${{ env.IMAGE_NAME }}:latest$"; then
-            IMAGE_TAG="${{ env.IMAGE_NAME }}:latest"
-          else
-            # 获取第一个可用的标签
-            IMAGE_TAG=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "^${{ env.IMAGE_NAME }}:" | head -n1)
-            if [ -z "$IMAGE_TAG" ]; then
-              echo "Error: No image found with name ${{ env.IMAGE_NAME }}"
-              docker images
-              exit 1
-            fi
-          fi
-          echo "Using image tag: $IMAGE_TAG"
-          # 使用获取到的标签保存镜像
-          docker save $IMAGE_TAG -o image.tar
+          echo "Saving Docker image to tar file..."
+          # 直接使用latest标签保存镜像
+          docker save ${{ env.IMAGE_NAME }}:latest -o image.tar
           # 验证tar文件是否创建成功
-          ls -lh image.tar
+          if [ -f image.tar ]; then
+            echo "✓ Image saved successfully"
+            ls -lh image.tar
+          else
+            echo "✗ Error: Failed to save image"
+            exit 1
+          fi
 
       # 步骤8: 将镜像文件复制到服务器
       # 使用SCP协议将镜像tar文件传输到目标服务器
