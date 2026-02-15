@@ -1,6 +1,5 @@
 package com.zdmj.config;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -16,8 +15,16 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableWebSecurity
 public class SecurityConfig {
 
-    @Autowired
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    /**
+     * 构造函数注入（推荐方式）
+     *
+     * @param jwtAuthenticationFilter JWT认证过滤器
+     */
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -35,12 +42,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 允许匿名访问的接口
                         .requestMatchers(
-                                "/api/users/send-verification-code", // 发送验证码
-                                "/api/users/register", // 用户注册
+                                "/api/users", // 用户注册（POST）
                                 "/api/users/login", // 用户登录
-                                "/api/users/reset-password", // 重置密码（忘记密码）
-                                "/api/users/check-username", // 检查用户名
-                                "/api/users/check-email", // 检查邮箱
+                                "/api/users/verification-codes", // 发送验证码
+                                "/api/users/password", // 重置密码（PUT）
+                                "/api/users/validation/**", // 验证用户名/邮箱
                                 "/actuator/health", // 健康检查
                                 "/actuator/info" // 应用信息
                         ).permitAll()

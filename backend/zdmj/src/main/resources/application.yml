@@ -5,7 +5,10 @@ spring:
   # PostgreSQL 数据库配置
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://111.229.81.45:5432/zdmj?currentSchema=public&stringtype=unspecified
+    # 时区配置：确保Java的LocalDateTime与PostgreSQL的TIMESTAMP WITH TIME ZONE正确转换
+    # Asia/Shanghai: 中国时区（UTC+8）
+    # 当数据库使用TIMESTAMP WITH TIME ZONE时，PostgreSQL会自动转换为连接时区
+    url: jdbc:postgresql://111.229.81.45:5432/zdmj?currentSchema=public&stringtype=unspecified&TimeZone=Asia/Shanghai
     username: zdmj
     password: zdmj
   
@@ -61,6 +64,10 @@ mybatis:
 # 服务器配置
 server:
   port: 8080
+
+# JVM时区配置（通过环境变量或启动参数设置）
+# 建议在启动时添加：-Duser.timezone=Asia/Shanghai
+# 或者在Dockerfile中设置：ENV TZ=Asia/Shanghai
 
 # Actuator 配置
 management:

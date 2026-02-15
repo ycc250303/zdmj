@@ -3,7 +3,6 @@ package com.zdmj.userAuthService.service.impl;
 import com.zdmj.userAuthService.service.EmailService;
 import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -16,14 +15,19 @@ import org.springframework.stereotype.Service;
 @Service
 public class EmailServiceImpl implements EmailService {
 
-    @Autowired
-    private JavaMailSender mailSender;
+    private final JavaMailSender mailSender;
+    private final String fromEmail;
 
     /**
-     * 发件人邮箱（从配置文件读取，必须与SMTP认证用户名一致）
+     * 构造函数注入（推荐方式）
+     *
+     * @param mailSender 邮件发送器
+     * @param fromEmail 发件人邮箱（从配置文件读取）
      */
-    @Value("${spring.mail.username}")
-    private String fromEmail;
+    public EmailServiceImpl(JavaMailSender mailSender, @Value("${spring.mail.username}") String fromEmail) {
+        this.mailSender = mailSender;
+        this.fromEmail = fromEmail;
+    }
 
     @Override
     public void sendEmail(String to, String subject, String content) {

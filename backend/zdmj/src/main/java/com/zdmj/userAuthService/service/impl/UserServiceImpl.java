@@ -1,5 +1,6 @@
 package com.zdmj.userAuthService.service.impl;
 
+import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.util.JwtUtil;
 import com.zdmj.common.util.PasswordUtil;
 import com.zdmj.exception.BusinessException;
@@ -14,7 +15,6 @@ import com.zdmj.userAuthService.service.UserService;
 import com.zdmj.userAuthService.service.VerificationCodeService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,11 +27,19 @@ import java.time.LocalDateTime;
 @Service
 public class UserServiceImpl implements UserService {
 
-    @Autowired
-    private UserMapper userMapper;
+    private final UserMapper userMapper;
+    private final VerificationCodeService verificationCodeService;
 
-    @Autowired
-    private VerificationCodeService verificationCodeService;
+    /**
+     * 构造函数注入（推荐方式）
+     *
+     * @param userMapper              用户Mapper
+     * @param verificationCodeService 验证码服务
+     */
+    public UserServiceImpl(UserMapper userMapper, VerificationCodeService verificationCodeService) {
+        this.userMapper = userMapper;
+        this.verificationCodeService = verificationCodeService;
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -56,8 +64,10 @@ public class UserServiceImpl implements UserService {
         user.setUsername(registerDTO.getUsername());
         user.setPassword(PasswordUtil.encode(registerDTO.getPassword())); // 加密密码
         user.setEmail(registerDTO.getEmail());
-        user.setCreateAt(LocalDateTime.now());
-        user.setUpdateAt(LocalDateTime.now());
+        // 使用统一的日期时间工具类，确保时区一致性
+        LocalDateTime now = DateTimeUtil.now();
+        user.setCreateAt(now);
+        user.setUpdateAt(now);
 
         // 5. 保存到数据库
         int result = userMapper.insert(user);

@@ -3,7 +3,6 @@ package com.zdmj.userAuthService.service.impl;
 import com.zdmj.userAuthService.service.EmailService;
 import com.zdmj.userAuthService.service.VerificationCodeService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -17,11 +16,19 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class VerificationCodeServiceImpl implements VerificationCodeService {
 
-    @Autowired
-    private StringRedisTemplate redisTemplate;
+    private final StringRedisTemplate redisTemplate;
+    private final EmailService emailService;
 
-    @Autowired
-    private EmailService emailService;
+    /**
+     * 构造函数注入（推荐方式）
+     *
+     * @param redisTemplate Redis模板
+     * @param emailService 邮件服务
+     */
+    public VerificationCodeServiceImpl(StringRedisTemplate redisTemplate, EmailService emailService) {
+        this.redisTemplate = redisTemplate;
+        this.emailService = emailService;
+    }
 
     /**
      * Redis key 前缀

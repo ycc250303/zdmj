@@ -15,6 +15,13 @@ FROM eclipse-temurin:21-jre-alpine
 # 设置工作目录为 /opt/zdmj
 WORKDIR /opt/zdmj
 
+# 设置时区为Asia/Shanghai（UTC+8）
+# 这确保JVM和应用程序使用正确的时区
+ENV TZ=Asia/Shanghai
+RUN apk add --no-cache tzdata && \
+    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
+    echo $TZ > /etc/timezone
+
 # 创建非root用户
 RUN addgroup -S spring && adduser -S spring -G spring
 USER spring:spring
@@ -30,4 +37,5 @@ EXPOSE 8080
 #   CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/health || exit 1
 
 # 启动应用
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# -Duser.timezone=Asia/Shanghai: 显式设置JVM时区（与ENV TZ保持一致）
+ENTRYPOINT ["java", "-Duser.timezone=Asia/Shanghai", "-jar", "app.jar"]

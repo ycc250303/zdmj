@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import java.util.stream.Collectors;
 
 /**
@@ -79,6 +80,30 @@ public class GlobalExceptionHandler {
                 .collect(Collectors.joining(", "));
         log.warn("参数校验失败: {}", message);
         return Result.error(400, "参数校验失败: " + message);
+    }
+
+    /**
+     * 处理JSON解析异常（如日期格式错误、类型不匹配等）
+     * 
+     * @param e JSON解析异常
+     * @return Result对象
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Result<?> handleHttpMessageNotReadableException(HttpMessageNotReadableException e) {
+        String message = e.getMessage();
+        // 提取更友好的错误信息
+        if (message != null) {
+            if (message.contains("LocalDate") || message.contains("LocalDateTime")) {
+                log.warn("日期格式错误: {}", message);
+                return Result.error(400, "日期格式错误，请使用 yyyy-MM-dd 格式（例如：2024-09-01）");
+            } else if (message.contains("Cannot deserialize")) {
+                log.warn("JSON反序列化失败: {}", message);
+                return Result.error(400, "请求参数格式错误，请检查数据类型是否正确");
+            }
+        }
+        log.warn("JSON解析失败: {}", message);
+        return Result.error(400, "请求参数格式错误: " + (message != null ? message : "未知错误"));
     }
 
     /**
