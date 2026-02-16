@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import java.util.stream.Collectors;
 
 /**
@@ -83,7 +85,38 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 处理JSON解析异常（如日期格式错误、类型不匹配等）
+     * 处理缺少必需的请求参数异常（@RequestParam 参数缺失）
+     * 
+     * @param e 缺少请求参数异常
+     * @return Result对象
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Result<?> handleMissingServletRequestParameterException(MissingServletRequestParameterException e) {
+        String parameterName = e.getParameterName();
+        String parameterType = e.getParameterType();
+        log.warn("缺少必需的请求参数: {} (类型: {})", parameterName, parameterType);
+        return Result.error(400, String.format("缺少必需的请求参数: %s", parameterName));
+    }
+
+    /**
+     * 处理请求参数类型不匹配异常（如将字符串传给需要数字的参数）
+     * 
+     * @param e 参数类型不匹配异常
+     * @return Result对象
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Result<?> handleMethodArgumentTypeMismatchException(MethodArgumentTypeMismatchException e) {
+        String parameterName = e.getName();
+        String requiredType = e.getRequiredType() != null ? e.getRequiredType().getSimpleName() : "未知类型";
+        Object value = e.getValue();
+        log.warn("请求参数类型不匹配: {} = {} (期望类型: {})", parameterName, value, requiredType);
+        return Result.error(400, String.format("请求参数类型错误: %s 应为 %s 类型", parameterName, requiredType));
+    }
+
+    /**
+     * 处理JSON解析异常（如日期格式错误、类型不匹配、请求体为空等）
      * 
      * @param e JSON解析异常
      * @return Result对象
@@ -94,12 +127,27 @@ public class GlobalExceptionHandler {
         String message = e.getMessage();
         // 提取更友好的错误信息
         if (message != null) {
+            // 处理请求体为空的情况
+            if (message.contains("Required request body is missing") 
+                || message.contains("I/O error while reading input message")
+                || message.contains("Required request body")) {
+                log.warn("请求体为空");
+                return Result.error(400, "请求体不能为空，请提供有效的JSON数据");
+            }
+            // 处理日期格式错误
             if (message.contains("LocalDate") || message.contains("LocalDateTime")) {
                 log.warn("日期格式错误: {}", message);
                 return Result.error(400, "日期格式错误，请使用 yyyy-MM-dd 格式（例如：2024-09-01）");
-            } else if (message.contains("Cannot deserialize")) {
+            }
+            // 处理JSON反序列化失败
+            if (message.contains("Cannot deserialize")) {
                 log.warn("JSON反序列化失败: {}", message);
                 return Result.error(400, "请求参数格式错误，请检查数据类型是否正确");
+            }
+            // 处理JSON格式错误
+            if (message.contains("JSON parse error") || message.contains("Unexpected character")) {
+                log.warn("JSON格式错误: {}", message);
+                return Result.error(400, "JSON格式错误，请检查请求体格式是否正确");
             }
         }
         log.warn("JSON解析失败: {}", message);

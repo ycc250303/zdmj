@@ -1,5 +1,8 @@
 package com.zdmj.userAuthService.entity;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import com.zdmj.common.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -10,11 +13,13 @@ import lombok.EqualsAndHashCode;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
+@TableName("users")
 public class User extends BaseEntity {
 
     /**
-     * 用户ID（主键）
+     * 用户ID（主键，自增）
      */
+    @TableId(type = IdType.AUTO)
     private Long id;
 
     /**

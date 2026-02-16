@@ -57,7 +57,7 @@ public class UserController {
     public Result<UserDTO> getUserById(@PathVariable Long id) {
         log.info("查询用户信息: {}", id);
         UserDTO userDTO = userService.getUserById(id);
-        return Result.success(userDTO);
+        return Result.success("查询成功", userDTO);
     }
 
     /**

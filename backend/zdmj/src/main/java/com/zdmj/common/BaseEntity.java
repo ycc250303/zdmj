@@ -1,5 +1,6 @@
 package com.zdmj.common;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -17,11 +18,13 @@ public abstract class BaseEntity {
      * 创建时间
      */
     @JsonIgnore
-    private LocalDateTime createAt;
+    @TableField("created_at")
+    private LocalDateTime createdAt;
 
     /**
      * 更新时间
      */
     @JsonIgnore
-    private LocalDateTime updateAt;
+    @TableField("updated_at")
+    private LocalDateTime updatedAt;
 }

@@ -1,5 +1,7 @@
 package com.zdmj.userAuthService.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.util.JwtUtil;
 import com.zdmj.common.util.PasswordUtil;
@@ -66,8 +68,8 @@ public class UserServiceImpl implements UserService {
         user.setEmail(registerDTO.getEmail());
         // 使用统一的日期时间工具类，确保时区一致性
         LocalDateTime now = DateTimeUtil.now();
-        user.setCreateAt(now);
-        user.setUpdateAt(now);
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
 
         // 5. 保存到数据库
         int result = userMapper.insert(user);
@@ -128,22 +130,26 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public User getUserByUsername(String username) {
-        return userMapper.selectByUsername(username);
+        return userMapper.selectOne(new LambdaQueryWrapper<User>()
+                .eq(User::getUsername, username));
     }
 
     @Override
     public User getUserByEmail(String email) {
-        return userMapper.selectByEmail(email);
+        return userMapper.selectOne(new LambdaQueryWrapper<User>()
+                .eq(User::getEmail, email));
     }
 
     @Override
     public boolean existsByUsername(String username) {
-        return userMapper.countByUsername(username) > 0;
+        return userMapper.selectCount(new LambdaQueryWrapper<User>()
+                .eq(User::getUsername, username)) > 0;
     }
 
     @Override
     public boolean existsByEmail(String email) {
-        return userMapper.countByEmail(email) > 0;
+        return userMapper.selectCount(new LambdaQueryWrapper<User>()
+                .eq(User::getEmail, email)) > 0;
     }
 
     @Override
@@ -163,8 +169,11 @@ public class UserServiceImpl implements UserService {
         // 3. 加密新密码
         String encodedPassword = PasswordUtil.encode(resetPasswordDTO.getNewPassword());
 
-        // 4. 更新密码
-        int result = userMapper.updatePassword(user.getId(), encodedPassword);
+        // 4. 使用 MyBatis-Plus 的 LambdaUpdateWrapper 更新密码
+        int result = userMapper.update(null, new LambdaUpdateWrapper<User>()
+                .eq(User::getId, user.getId())
+                .set(User::getPassword, encodedPassword)
+                .set(User::getUpdatedAt, DateTimeUtil.now()));
         if (result <= 0) {
             throw new BusinessException(500, "密码修改失败");
         }
