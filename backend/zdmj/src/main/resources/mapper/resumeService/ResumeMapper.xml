@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zdmj.resumeService.mapper.ResumeMapper">
+    <!-- 根据用户ID查询所有简历 -->
+    <select id="selectByUserId" resultType="com.zdmj.resumeService.entity.Resume">
+        SELECT id, user_id, name, skill_id, projects, careers, educations, resume_matched_ids, created_at, updated_at
+        FROM resumes
+        WHERE user_id = #{userId}
+        ORDER BY created_at DESC
+    </select>
+</mapper>

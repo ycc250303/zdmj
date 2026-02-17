@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zdmj.resumeService.mapper.CareerMapper">
+    <!-- 
+        注意：基础 CRUD 方法（insert, selectById, updateById, deleteById）已由 MyBatis-Plus 的 BaseMapper 自动提供
+        无需在此 XML 中定义，MyBatis-Plus 会自动生成对应的 SQL
+    -->
+
+    <!-- 根据用户ID查询所有工作经历 -->
+    <select id="selectByUserId" resultType="com.zdmj.resumeService.entity.Career"> SELECT id,
+        user_id, company, position, start_date, end_date, visible, details, created_at, updated_at
+        FROM careers WHERE user_id = #{userId} <if test="visible != null"> AND visible = #{visible} </if>
+        ORDER BY start_date DESC </select>
+
+
+    <!-- 根据用户ID查询工作经历ID列表 -->
+    <select id="selectCareerIds" resultType="java.lang.Long"> SELECT id FROM careers WHERE user_id =
+        #{userId} <if test="visible != null"> AND visible = #{visible} </if> ORDER BY start_date
+        DESC </select>
+
+    <!-- 根据简历ID查询工作经历列表 -->
+    <select id="selectByResumeId" resultType="com.zdmj.resumeService.entity.Career"> SELECT c.* FROM
+        resumes r CROSS JOIN LATERAL jsonb_array_elements_text(r.careers) AS career_id LEFT JOIN
+        careers c ON c.id = career_id::BIGINT WHERE r.id = #{resumeId} </select>
+</mapper>

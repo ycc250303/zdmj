@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zdmj.resumeService.mapper.SkillMapper">
+
+    <!-- 根据用户ID查询所有技能列表 -->
+    <select id="selectByUserId" resultType="com.zdmj.resumeService.entity.Skill"> SELECT id,
+        user_id, name,content,created_at, updated_at FROM skills WHERE user_id = #{userId} ORDER BY
+        created_at DESC </select>
+
+    <!-- 根据用户ID查询技能ID列表 -->
+    <select id="selectSkillIds" resultType="java.lang.Long"> SELECT id FROM skills WHERE user_id =
+        #{userId} ORDER BY created_at DESC </select>
+
+    <!-- 查询包含特定技能类型的技能 -->
+    <select id="selectBySkillType" resultType="com.zdmj.resumeService.entity.Skill"> SELECT id,
+        user_id, name,content,created_at, updated_at FROM skills WHERE content @> '[{"type":
+        #{type}}]'::jsonb AND user_id = #{userId} </select>
+    <select id="selectByResumeId" resultType="com.zdmj.resumeService.entity.Skill"></select>
+
+</mapper>
