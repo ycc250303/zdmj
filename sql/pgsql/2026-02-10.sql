@@ -1,6 +1,8 @@
 -- 安装 pgvector 扩展
 CREATE EXTENSION IF NOT EXISTS vector;
--- 用户模块
+--
+-- ==========================用户模块==========================
+--
 -- 用户表
 CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,
@@ -17,7 +19,9 @@ CREATE TABLE IF NOT EXISTS users (
 );
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
--- 简历模块
+--
+-- ==========================简历模块==========================
+--
 -- 教育经历表
 CREATE TABLE IF NOT EXISTS educations (
     id BIGSERIAL PRIMARY KEY,
@@ -150,3 +154,6 @@ CREATE TABLE IF NOT EXISTS resumes (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_resumes_user_id_name ON resumes(user_id, name);
 CREATE INDEX IF NOT EXISTS idx_resumes_user_id ON resumes(user_id);
 CREATE INDEX IF NOT EXISTS idx_resumes_skill_id ON resumes(skill_id);
+--
+-- ==========================项目模块==========================
+--
