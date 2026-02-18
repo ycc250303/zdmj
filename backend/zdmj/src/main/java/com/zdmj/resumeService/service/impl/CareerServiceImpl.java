@@ -84,6 +84,7 @@ public class CareerServiceImpl implements CareerService {
         if (result <= 0) {
             throw new BusinessException(500, "更新工作经历失败");
         }
+
         log.info("更新工作经历成功: {}", career.getCompany());
         return career;
     }
@@ -96,6 +97,7 @@ public class CareerServiceImpl implements CareerService {
         if (result <= 0) {
             throw new BusinessException(500, "删除工作经历失败");
         }
+
         log.info("删除工作经历成功: {}", career.getCompany());
     }
 

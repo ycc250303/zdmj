@@ -2,10 +2,12 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.zdmj.resumeService.mapper.ResumeMapper">
     <!-- 根据用户ID查询所有简历 -->
-    <select id="selectByUserId" resultType="com.zdmj.resumeService.entity.Resume">
-        SELECT id, user_id, name, skill_id, projects, careers, educations, resume_matched_ids, created_at, updated_at
-        FROM resumes
-        WHERE user_id = #{userId}
-        ORDER BY created_at DESC
+    <select id="selectByUserId" resultType="com.zdmj.resumeService.entity.Resume"> SELECT id,
+        user_id, name, skill_id, projects, careers, educations, resume_matched_ids, created_at,
+        updated_at FROM resumes WHERE user_id = #{userId} ORDER BY created_at DESC </select>
+
+    <!-- 检查用户是否存在同名简历 -->
+    <select id="existsByName" resultType="boolean"> SELECT COUNT(*) > 0 FROM resumes WHERE user_id =
+        #{userId} AND name = #{name} <if test="excludeId != null"> AND id != #{excludeId} </if>
     </select>
 </mapper>

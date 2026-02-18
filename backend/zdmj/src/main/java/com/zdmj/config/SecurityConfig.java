@@ -7,6 +7,12 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Spring Security 配置类
@@ -32,6 +38,9 @@ public class SecurityConfig {
                 // 禁用CSRF（前后端分离项目通常不需要）
                 .csrf(csrf -> csrf.disable())
 
+                // 配置CORS
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
                 // 设置Session创建策略为无状态（使用JWT，不需要Session）
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
@@ -55,5 +64,40 @@ public class SecurityConfig {
                         .anyRequest().authenticated());
 
         return http.build();
+    }
+
+    /**
+     * CORS配置源
+     * 允许跨域请求，解决前后端分离项目的跨域问题
+     */
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+
+        // 允许所有源（生产环境建议配置具体的前端域名）
+        // 注意：当 allowCredentials 为 true 时，不能使用 "*"，需要使用具体的域名或 OriginPatterns
+        configuration.setAllowedOriginPatterns(List.of("*"));
+
+        // 允许的HTTP方法
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+
+        // 允许的请求头
+        configuration.setAllowedHeaders(List.of("*"));
+
+        // 允许发送凭证（如Cookie）
+        // 注意：当使用 setAllowedOriginPatterns("*") 时，allowCredentials 必须为 false
+        // 如果需要发送凭证，请使用具体的域名列表，例如：configuration.setAllowedOrigins(List.of("http://localhost:3000"))
+        configuration.setAllowCredentials(false);
+
+        // 预检请求的缓存时间（秒）
+        configuration.setMaxAge(3600L);
+
+        // 暴露的响应头
+        configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+
+        return source;
     }
 }
