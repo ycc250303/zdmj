@@ -150,27 +150,3 @@ CREATE TABLE IF NOT EXISTS resumes (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_resumes_user_id_name ON resumes(user_id, name);
 CREATE INDEX IF NOT EXISTS idx_resumes_user_id ON resumes(user_id);
 CREATE INDEX IF NOT EXISTS idx_resumes_skill_id ON resumes(skill_id);
--- 专用简历表
-CREATE TABLE IF NOT EXISTS resume_matches (
-    id BIGSERIAL PRIMARY KEY,
-    -- 专用简历ID
-    user_id BIGINT NOT NULL,
-    -- 用户ID
-    resume_id BIGINT,
-    -- 关联的原始简历ID
-    name VARCHAR(255) NOT NULL,
-    -- 简历名称
-    skill JSONB NOT NULL,
-    -- 技能清单对象
-    projects JSONB DEFAULT '[]'::jsonb,
-    -- 项目经历对象数组
-    job_id VARCHAR(255) NOT NULL,
-    -- 岗位ID
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    -- 创建时间
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
-);
-CREATE INDEX IF NOT EXISTS idx_resume_matches_user_id ON resume_matches(user_id);
-CREATE INDEX IF NOT EXISTS idx_resume_matches_user_id_name ON resume_matches(user_id, name);
-CREATE INDEX IF NOT EXISTS idx_resume_matches_job_id ON resume_matches(job_id);
-CREATE INDEX IF NOT EXISTS idx_resume_matches_resume_id ON resume_matches(resume_id);

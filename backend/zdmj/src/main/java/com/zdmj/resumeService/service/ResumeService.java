@@ -1,7 +1,7 @@
 package com.zdmj.resumeService.service;
 
+import com.zdmj.resumeService.dto.ResumeContentDTO;
 import com.zdmj.resumeService.dto.ResumeDTO;
-import com.zdmj.resumeService.dto.ResumeFullContentDTO;
 import com.zdmj.resumeService.entity.Resume;
 import java.util.List;
 
@@ -13,7 +13,7 @@ public interface ResumeService {
     /**
      * 创建简历
      *
-     * @param resume 简历实体
+     * @param resumeDTO 简历实体
      * @return 创建的简历实体
      */
     Resume create(ResumeDTO resumeDTO);
@@ -55,12 +55,12 @@ public interface ResumeService {
      * @param id 简历ID
      * @return 简历完整内容
      */
-    ResumeFullContentDTO getResumeFullContentById(Long id);
+    ResumeContentDTO getResumeContentById(Long id);
 
     /**
      * 查询所有简历完整内容
      *
      * @return 简历完整内容列表
      */
-    List<ResumeFullContentDTO> getResumeFullContent();
+    List<ResumeContentDTO> getResumeContentList();
 }

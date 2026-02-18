@@ -1,5 +1,6 @@
 package com.zdmj.userAuthService.service.impl;
 
+import com.zdmj.common.util.RedisConstants;
 import com.zdmj.userAuthService.service.EmailService;
 import com.zdmj.userAuthService.service.VerificationCodeService;
 import lombok.extern.slf4j.Slf4j;
@@ -23,22 +24,12 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
      * 构造函数注入（推荐方式）
      *
      * @param redisTemplate Redis模板
-     * @param emailService 邮件服务
+     * @param emailService  邮件服务
      */
     public VerificationCodeServiceImpl(StringRedisTemplate redisTemplate, EmailService emailService) {
         this.redisTemplate = redisTemplate;
         this.emailService = emailService;
     }
-
-    /**
-     * Redis key 前缀
-     */
-    private static final String VERIFICATION_CODE_PREFIX = "verification:code:";
-
-    /**
-     * 验证码过期时间（分钟）
-     */
-    private static final int CODE_EXPIRE_MINUTES = 5;
 
     @Override
     public boolean sendVerificationCode(String email) {
@@ -47,14 +38,14 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
             String code = generateCode();
 
             // 存储到Redis，设置过期时间
-            String key = VERIFICATION_CODE_PREFIX + email;
-            redisTemplate.opsForValue().set(key, code, CODE_EXPIRE_MINUTES, TimeUnit.MINUTES);
+            String key = RedisConstants.VERIFICATION_CODE_KEY + email;
+            redisTemplate.opsForValue().set(key, code, RedisConstants.CODE_EXPIRE_TTL, TimeUnit.SECONDS);
 
             // 发送邮件
             String subject = "注册验证码";
             String content = String.format(
                     "您的注册验证码是：%s，有效期%d分钟，请勿泄露给他人。",
-                    code, CODE_EXPIRE_MINUTES);
+                    code, RedisConstants.CODE_EXPIRE_TTL / 60);
 
             emailService.sendEmail(email, subject, content);
 
@@ -69,7 +60,7 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
     @Override
     public boolean verifyCode(String email, String code) {
         try {
-            String key = VERIFICATION_CODE_PREFIX + email;
+            String key = RedisConstants.VERIFICATION_CODE_KEY + email;
             String storedCode = redisTemplate.opsForValue().get(key);
 
             if (storedCode == null) {

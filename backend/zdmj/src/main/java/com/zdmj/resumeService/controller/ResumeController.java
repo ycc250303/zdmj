@@ -1,5 +1,6 @@
 package com.zdmj.resumeService.controller;
 
+import com.zdmj.resumeService.dto.ResumeContentDTO;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -18,7 +19,6 @@ import com.zdmj.common.Result;
 import com.zdmj.common.validation.CreateGroup;
 import com.zdmj.common.validation.UpdateGroup;
 import com.zdmj.resumeService.dto.ResumeDTO;
-import com.zdmj.resumeService.dto.ResumeFullContentDTO;
 import com.zdmj.resumeService.entity.Resume;
 import com.zdmj.resumeService.service.ResumeService;
 
@@ -63,9 +63,9 @@ public class ResumeController {
      * @param id 简历ID
      * @return 查询的简历
      */
-    @GetMapping("/{id}/full-content")
-    public Result<ResumeFullContentDTO> getResumeFullContentById(@PathVariable Long id) {
-        return Result.success("查询简历完整内容成功", resumeService.getResumeFullContentById(id));
+    @GetMapping("/{id}/content")
+    public Result<ResumeContentDTO> getResumeContentById(@PathVariable Long id) {
+        return Result.success("查询简历完整内容成功", resumeService.getResumeContentById(id));
     }
 
     /**
@@ -73,9 +73,9 @@ public class ResumeController {
      * 
      * @return 查询的简历完整内容列表
      */
-    @GetMapping("/full-content")
-    public Result<List<ResumeFullContentDTO>> getResumeFullContent() {
-        return Result.success("查询简历完整内容成功", resumeService.getResumeFullContent());
+    @GetMapping("/content")
+    public Result<List<ResumeContentDTO>> getResumeContentList() {
+        return Result.success("查询简历完整内容成功", resumeService.getResumeContentList());
     }
 
     /**

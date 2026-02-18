@@ -95,4 +95,7 @@ docker compose logs -f postgres
 # 停止
 docker compose down
 
+# 查看指定容器日志
+docker logs --tail=200 zdmj-backend
+
 ```

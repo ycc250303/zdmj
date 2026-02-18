@@ -89,6 +89,7 @@ public class ProjectExperienceServiceImpl implements ProjectExperienceService {
         if (result <= 0) {
             throw new BusinessException(500, "更新项目经历失败");
         }
+
         log.info("更新项目经历成功: {}", projectExperience.getName());
         return projectExperience;
     }
@@ -101,6 +102,7 @@ public class ProjectExperienceServiceImpl implements ProjectExperienceService {
         if (result <= 0) {
             throw new BusinessException(500, "删除项目经历失败");
         }
+
         log.info("删除项目经历成功: {}", projectExperience.getName());
     }
 

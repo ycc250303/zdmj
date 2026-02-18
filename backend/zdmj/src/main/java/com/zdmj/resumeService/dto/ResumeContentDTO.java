@@ -8,7 +8,7 @@ import lombok.Data;
  * 对应数据库表：resumes
  */
 @Data
-public class ResumeFullContentDTO {
+public class ResumeContentDTO {
     /**
      * 简历ID（主键，自增）
      */

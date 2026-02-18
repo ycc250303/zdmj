@@ -10,15 +10,16 @@
     <select id="selectByUserId" resultType="com.zdmj.resumeService.entity.Education"> SELECT id,
         user_id, school, major, degree, start_date, end_date, visible, gpa, created_at, updated_at
         FROM educations WHERE user_id = #{userId} <if test="visible != null"> AND visible =
-        #{visible} </if> ORDER BY start_date DESC </select>
+        #{visible} </if> ORDER BY start_date ASC </select>
 
     <!-- 根据用户ID查询教育经历ID列表 -->
     <select id="selectEducationIds" resultType="java.lang.Long"> SELECT id FROM educations WHERE
         user_id = #{userId} <if test="visible != null"> AND visible = #{visible} </if> ORDER BY
-        start_date DESC </select>
+        start_date ASC </select>
 
     <!-- 根据简历 ID 查询教育经历列表 -->
     <select id="selectByResumeId" resultType="com.zdmj.resumeService.entity.Education"> SELECT e.*
         FROM resumes r CROSS JOIN LATERAL jsonb_array_elements_text(r.educations) AS edu_id LEFT
-        JOIN educations e ON e.id = edu_id::BIGINT WHERE r.id = #{resumeId} </select>
+        JOIN educations e ON e.id = edu_id::BIGINT WHERE r.id = #{resumeId} ORDER BY e.start_date
+        ASC </select>
 </mapper>
