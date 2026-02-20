@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.util.DateTimeUtil;
-import com.zdmj.common.util.SkillContentValidator;
+import com.zdmj.common.util.json.SkillContentValidator;
 import com.zdmj.exception.BusinessException;
 import com.zdmj.resumeService.dto.SkillDTO;
 import com.zdmj.resumeService.dto.SkillItemDTO;
