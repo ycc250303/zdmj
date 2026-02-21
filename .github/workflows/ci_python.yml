@@ -8,7 +8,7 @@ on:
   push:
     branches:
       - backend
-      - main
+      # - main
     paths:
       - 'backend/zdmj-python/**'
       - '.github/workflows/ci_python.yml'
@@ -16,7 +16,7 @@ on:
   pull_request:
     branches:
       - backend
-      - main
+      # - main
     paths:
       - 'backend/zdmj-python/**'
       - '.github/workflows/ci_python.yml'
