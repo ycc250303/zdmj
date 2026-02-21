@@ -71,4 +71,31 @@ public class ProjectExperience extends BaseEntity {
      * 是否在简历中展示
      */
     private Boolean visible;
+
+    /**
+     * 项目分析状态（枚举：1=committed已提交/2=mining挖掘中/3=polishing打磨中/4=completed已完成）
+     * 说明：用于跟踪AI分析流程，不影响简历展示
+     */
+    private Integer status;
+
+    /**
+     * AI分析结果（JSONB格式，包含问题、解决方案、评分）
+     * 示例：
+     * {
+     *   "problem": [
+     *     {
+     *       "type": "问题类型",
+     *       "content": "问题描述"
+     *     }
+     *   ],
+     *   "solution": [
+     *     {
+     *       "type": "解决方案类型",
+     *       "content": "解决方案描述"
+     *     }
+     *   ],
+     *   "score": 85
+     * }
+     */
+    private String lookupResult;
 }

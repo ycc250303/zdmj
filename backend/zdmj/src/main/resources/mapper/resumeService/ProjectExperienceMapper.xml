@@ -10,7 +10,7 @@
     <!-- 根据用户ID查询所有项目经历 -->
     <select id="selectByUserId" resultType="com.zdmj.resumeService.entity.ProjectExperience"> SELECT
         id, user_id, name, start_date, end_date, role, description, tech_stack, highlights, url,
-        visible, created_at, updated_at FROM project_experiences WHERE user_id = #{userId} <if
+        visible, status, lookup_result, created_at, updated_at FROM project_experiences WHERE user_id = #{userId} <if
             test="visible != null"> AND visible = #{visible} </if> ORDER BY start_date DESC </select>
 
     <!-- 根据用户ID查询项目经历ID列表 -->
