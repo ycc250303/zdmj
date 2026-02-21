@@ -2,22 +2,22 @@
 健康检查接口
 检查服务状态和数据库连接
 """
-from fastapi import APIRouter, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter
 from app.database import db
+from app.models.response import ApiResponse
 
 router = APIRouter()
 
 
 @router.get("/health", summary="健康检查", description="检查服务状态和数据库连接")
-async def health_check():
+async def health_check() -> ApiResponse[dict]:
     """
     健康检查接口
     
     返回:
-    - status: 服务状态
-    - postgres: PostgreSQL 连接状态
-    - redis: Redis 连接状态
+    - code: 状态码（200表示健康，503表示不健康）
+    - message: 消息
+    - data: 包含服务状态详情
     """
     # 检查数据库连接状态
     postgres_healthy = await db.check_postgres_health()
@@ -36,10 +36,15 @@ async def health_check():
         }
     }
     
-    # 如果服务不健康，返回 503 状态码
-    status_code = status.HTTP_200_OK if overall_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
-    
-    return JSONResponse(
-        content=response_data,
-        status_code=status_code
-    )
+    # 使用统一响应格式
+    if overall_healthy:
+        return ApiResponse.success(
+            data=response_data,
+            message="服务健康"
+        )
+    else:
+        return ApiResponse.error(
+            code=503,
+            message="服务不健康",
+            data=response_data
+        )
