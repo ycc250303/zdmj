@@ -37,6 +37,19 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * 处理Python服务异常
+     * 
+     * @param e Python服务异常
+     * @return Result对象
+     */
+    @ExceptionHandler(PythonServiceException.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public Result<?> handlePythonServiceException(PythonServiceException e) {
+        log.error("Python服务异常: [{}] {}", e.getCode(), e.getMessage(), e);
+        return Result.error(e.getCode(), e.getMessage());
+    }
+
+    /**
      * 处理参数校验异常（@RequestBody参数校验）
      * 
      * @param e 参数校验异常
@@ -128,9 +141,9 @@ public class GlobalExceptionHandler {
         // 提取更友好的错误信息
         if (message != null) {
             // 处理请求体为空的情况
-            if (message.contains("Required request body is missing") 
-                || message.contains("I/O error while reading input message")
-                || message.contains("Required request body")) {
+            if (message.contains("Required request body is missing")
+                    || message.contains("I/O error while reading input message")
+                    || message.contains("Required request body")) {
                 log.warn("请求体为空");
                 return Result.error(400, "请求体不能为空，请提供有效的JSON数据");
             }
