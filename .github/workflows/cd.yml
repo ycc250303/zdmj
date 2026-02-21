@@ -1,0 +1,272 @@
+# CD工作流：统一自动化部署
+# 当代码合并到main分支时自动构建Docker镜像并部署到服务器
+# 同时部署Java和Python服务，使用并行作业减少总运行时间
+#
+# 前置要求：
+# 1. 在GitHub仓库的Settings > Secrets and variables > Actions中配置SSH_PRIVATE_KEY
+# 2. SSH密钥格式要求：
+#    - 包含完整的私钥内容（包括 -----BEGIN OPENSSH PRIVATE KEY----- 和 -----END OPENSSH PRIVATE KEY-----）
+#    - 或者包含 -----BEGIN RSA PRIVATE KEY----- 和 -----END RSA PRIVATE KEY-----
+#    - 确保密钥有访问服务器的权限（公钥已添加到服务器的 ~/.ssh/authorized_keys）
+# 3. 生成SSH密钥对（如果还没有）：
+#    ssh-keygen -t rsa -b 4096 -C "github-actions"
+#    然后将私钥添加到GitHub Secrets，公钥添加到服务器
+
+name: CD - Deploy Backend Services
+
+# 触发条件配置
+on:
+  # 当代码推送到main分支时触发（通常是合并PR后）
+  push:
+    branches:
+      - main
+  # 允许在GitHub Actions页面手动触发此工作流
+  workflow_dispatch:
+
+# 全局环境变量配置
+env:
+  SERVER_HOST: 111.229.81.45       # 部署服务器IP地址
+  SERVER_USER: root                # 服务器SSH登录用户名
+
+jobs:
+  # Java服务构建和部署任务
+  deploy-java:
+    name: Build and Deploy Java Service
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 步骤1: 检出代码
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 步骤2: 设置Java开发环境
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      # 步骤3: 构建Spring Boot应用
+      - name: Build application
+        working-directory: ./backend/zdmj
+        run: mvn clean package -DskipTests
+
+      # 步骤4: 设置Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 步骤5: 构建Docker镜像
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        id: build
+        with:
+          context: ./backend/zdmj
+          file: ./backend/zdmj/Dockerfile
+          push: false
+          load: true
+          tags: zdmj-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 步骤6: 验证镜像构建成功
+      - name: Verify image build
+        run: |
+          echo "Checking if image was built successfully..."
+          docker images
+          if docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^zdmj-backend:latest$"; then
+            echo "✓ Image zdmj-backend:latest found successfully"
+            docker images | grep zdmj-backend
+          else
+            echo "✗ Error: Image zdmj-backend:latest not found"
+            echo "All available images:"
+            docker images
+            exit 1
+          fi
+
+      # 步骤7: 保存Docker镜像为tar文件
+      - name: Save Docker image
+        run: |
+          echo "Saving Docker image to tar file..."
+          docker save zdmj-backend:latest -o java-image.tar
+          if [ -f java-image.tar ]; then
+            echo "✓ Image saved successfully"
+            ls -lh java-image.tar
+          else
+            echo "✗ Error: Failed to save image"
+            exit 1
+          fi
+
+      # 步骤8: 将镜像文件复制到服务器
+      - name: Copy image to server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ env.SERVER_HOST }}
+          username: ${{ env.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          timeout: 60s
+          source: "java-image.tar"
+          target: "/tmp/"
+          strip_components: 0
+
+      # 步骤9: 部署到服务器
+      - name: Deploy to server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ env.SERVER_HOST }}
+          username: ${{ env.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          timeout: 60s
+          script: |
+            # 加载Docker镜像到本地Docker环境
+            docker load -i /tmp/java-image.tar
+            
+            # 停止并删除旧容器（如果存在）
+            docker stop zdmj-backend || true
+            docker rm zdmj-backend || true
+            
+            # 运行新容器
+            docker run -d \
+              --name zdmj-backend \
+              --restart unless-stopped \
+              -p 8080:8080 \
+              -e TZ=Asia/Shanghai \
+              zdmj-backend:latest
+            
+            # 清理临时文件
+            rm -f /tmp/java-image.tar
+            docker image prune -f
+
+      # 步骤10: 验证部署
+      - name: Verify deployment
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ env.SERVER_HOST }}
+          username: ${{ env.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          timeout: 60s
+          script: |
+            sleep 10
+            docker ps | grep zdmj-backend
+            docker logs --tail 50 zdmj-backend
+
+  # Python服务构建和部署任务（与Java并行执行）
+  deploy-python:
+    name: Build and Deploy Python Service
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 步骤1: 检出代码
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 步骤2: 设置Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 步骤3: 构建Docker镜像
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        id: build
+        with:
+          context: ./backend/zdmj-python
+          file: ./backend/zdmj-python/Dockerfile
+          push: false
+          load: true
+          tags: zdmj-python:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 步骤4: 验证镜像构建成功
+      - name: Verify image build
+        run: |
+          echo "Checking if image was built successfully..."
+          docker images
+          if docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^zdmj-python:latest$"; then
+            echo "✓ Image zdmj-python:latest found successfully"
+            docker images | grep zdmj-python
+          else
+            echo "✗ Error: Image zdmj-python:latest not found"
+            echo "All available images:"
+            docker images
+            exit 1
+          fi
+
+      # 步骤5: 保存Docker镜像为tar文件
+      - name: Save Docker image
+        run: |
+          echo "Saving Docker image to tar file..."
+          docker save zdmj-python:latest -o python-image.tar
+          if [ -f python-image.tar ]; then
+            echo "✓ Image saved successfully"
+            ls -lh python-image.tar
+          else
+            echo "✗ Error: Failed to save image"
+            exit 1
+          fi
+
+      # 步骤6: 将镜像文件复制到服务器
+      - name: Copy image to server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ env.SERVER_HOST }}
+          username: ${{ env.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          timeout: 60s
+          source: "python-image.tar"
+          target: "/tmp/"
+          strip_components: 0
+
+      # 步骤7: 部署到服务器
+      - name: Deploy to server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ env.SERVER_HOST }}
+          username: ${{ env.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          timeout: 60s
+          script: |
+            # 进入部署目录
+            cd /opt/zdmj/deploy
+            
+            # 加载Docker镜像到本地Docker环境
+            echo "Loading Docker image..."
+            docker load -i /tmp/python-image.tar
+            
+            # 使用 docker-compose 更新 Python 服务
+            echo "Updating Python service with docker-compose..."
+            docker compose up -d --no-deps python
+            
+            # 清理临时文件
+            rm -f /tmp/python-image.tar
+            docker image prune -f
+
+      # 步骤8: 验证部署
+      - name: Verify deployment
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ env.SERVER_HOST }}
+          username: ${{ env.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          timeout: 60s
+          script: |
+            echo "Waiting for service to start..."
+            sleep 10
+            
+            echo "Checking container status..."
+            docker ps | grep zdmj-python || echo "Warning: Container not found in running list"
+            
+            echo "Container status:"
+            docker ps -a | grep zdmj-python
+            
+            echo "Recent container logs:"
+            docker logs --tail 50 zdmj-python || echo "Warning: Could not retrieve logs"
+            
+            echo "Health check status:"
+            docker inspect --format='{{.State.Health.Status}}' zdmj-python 2>/dev/null || echo "Health check not configured"
