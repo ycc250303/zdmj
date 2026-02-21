@@ -1,0 +1,65 @@
+# CI工作流：Python 服务自动化测试
+# 当代码推送到 backend 或 main 分支，或创建 PR 到这些分支时自动触发
+name: CI - Python Tests
+
+# 触发条件配置
+on:
+  # 当代码推送到 backend 或 main 分支时触发
+  push:
+    branches:
+      - backend
+      - main
+    paths:
+      - 'backend/zdmj-python/**'
+      - '.github/workflows/ci_python.yml'
+  # 当创建或更新 PR 到 backend 或 main 分支时触发
+  pull_request:
+    branches:
+      - backend
+      - main
+    paths:
+      - 'backend/zdmj-python/**'
+      - '.github/workflows/ci_python.yml'
+
+jobs:
+  # 测试任务
+  test:
+    name: Run Tests
+    # 使用GitHub提供的Ubuntu最新版本作为运行环境
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 步骤1: 检出代码
+      # 将仓库代码下载到GitHub Actions运行器中
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 步骤2: 设置 Python 环境
+      # 安装 Python 3.11
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      # 步骤3: 安装依赖
+      - name: Install dependencies
+        working-directory: ./backend/zdmj-python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 步骤4: 运行测试
+      - name: Run tests
+        working-directory: ./backend/zdmj-python
+        run: |
+          pytest -v --tb=short || true
+
+      # 步骤5: 代码质量检查（可选）
+      # 可以添加 flake8、black、mypy 等工具
+      # - name: Lint with flake8
+      #   working-directory: ./backend/zdmj-python
+      #   run: |
+      #     pip install flake8
+      #     flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+      #     flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics

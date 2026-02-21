@@ -1,0 +1,15 @@
+# Web 框架
+fastapi
+uvicorn[standard]
+
+# 配置管理
+pydantic-settings
+python-dotenv
+
+# 数据库驱动
+asyncpg
+redis
+
+# 测试框架
+pytest
+pytest-asyncio

@@ -17,7 +17,7 @@ import java.util.List;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/projects")
+@RequestMapping("/projects")
 public class ProjectExperienceController {
     private final ProjectExperienceService projectExperienceService;
 

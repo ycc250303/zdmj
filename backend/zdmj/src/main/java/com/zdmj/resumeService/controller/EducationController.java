@@ -18,7 +18,7 @@ import java.util.List;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/educations")
+@RequestMapping("/educations")
 public class EducationController {
 
     private final EducationService educationService;
