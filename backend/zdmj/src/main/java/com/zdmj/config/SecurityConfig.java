@@ -51,16 +51,16 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 允许匿名访问的接口
                         .requestMatchers(
-                                "/api/users", // 用户注册（POST）
-                                "/api/users/login", // 用户登录
-                                "/api/users/verification-codes", // 发送验证码
-                                "/api/users/password", // 重置密码（PUT）
-                                "/api/users/validation/**", // 验证用户名/邮箱
+                                "/api/zdmj/users", // 用户注册（POST）
+                                "/api/zdmj/users/login", // 用户登录
+                                "/api/zdmj/users/verification-codes", // 发送验证码
+                                "/api/zdmj/users/password", // 重置密码（PUT）
+                                "/api/zdmj/users/validation/**", // 验证用户名/邮箱
                                 "/actuator/health", // 健康检查
                                 "/actuator/info" // 应用信息
                         ).permitAll()
 
-                        // 其他所有请求需要认证（包括/api/users/{id}等）
+                        // 其他所有请求需要认证（包括/api/zdmj/users/{id}等）
                         .anyRequest().authenticated());
 
         return http.build();

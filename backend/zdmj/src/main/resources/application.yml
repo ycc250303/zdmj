@@ -84,6 +84,10 @@ mybatis-plus:
 server:
   port: 8080
 
+# API 统一前缀配置
+api:
+  prefix: /api/zdmj
+
 # JVM时区配置（通过环境变量或启动参数设置）
 # 建议在启动时添加：-Duser.timezone=Asia/Shanghai
 # 或者在Dockerfile中设置：ENV TZ=Asia/Shanghai

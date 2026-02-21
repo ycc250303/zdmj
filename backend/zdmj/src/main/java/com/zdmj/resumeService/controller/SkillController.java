@@ -26,7 +26,7 @@ import com.zdmj.resumeService.service.SkillService;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/skills")
+@RequestMapping("/skills")
 public class SkillController {
     private final SkillService skillService;
 

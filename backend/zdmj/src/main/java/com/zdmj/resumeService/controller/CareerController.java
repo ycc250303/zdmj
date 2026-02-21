@@ -21,7 +21,7 @@ import java.util.List;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/career")
+@RequestMapping("/career")
 public class CareerController {
     private final CareerService careerService;
 

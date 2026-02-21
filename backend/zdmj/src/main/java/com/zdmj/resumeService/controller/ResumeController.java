@@ -27,7 +27,7 @@ import com.zdmj.resumeService.service.ResumeService;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/resumes")
+@RequestMapping("/resumes")
 public class ResumeController {
     private final ResumeService resumeService;
 
