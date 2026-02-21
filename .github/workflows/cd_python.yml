@@ -1,0 +1,185 @@
+# CD工作流：Python 服务自动化部署
+# 当代码合并到 main 分支时自动构建 Docker 镜像并部署到服务器
+#
+# 前置要求：
+# 1. 在GitHub仓库的Settings > Secrets and variables > Actions中配置SSH_PRIVATE_KEY
+# 2. SSH密钥格式要求：
+#    - 包含完整的私钥内容（包括 -----BEGIN OPENSSH PRIVATE KEY----- 和 -----END OPENSSH PRIVATE KEY-----）
+#    - 或者包含 -----BEGIN RSA PRIVATE KEY----- 和 -----END RSA PRIVATE KEY-----
+#    - 确保密钥有访问服务器的权限（公钥已添加到服务器的 ~/.ssh/authorized_keys）
+# 3. 生成SSH密钥对（如果还没有）：
+#    ssh-keygen -t rsa -b 4096 -C "github-actions"
+#    然后将私钥添加到GitHub Secrets，公钥添加到服务器
+#
+name: CD - Deploy Python Service
+
+# 触发条件配置
+on:
+  # 当代码推送到 main 分支时触发（通常是合并PR后）
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/zdmj-python/**'
+      - 'deploy/docker-compose.yml'
+      - '.github/workflows/cd_python.yml'
+  # 允许在GitHub Actions页面手动触发此工作流
+  workflow_dispatch:
+
+# 全局环境变量配置
+env:
+  IMAGE_NAME: zdmj-python         # Docker镜像名称
+  SERVER_HOST: 111.229.81.45     # 部署服务器IP地址
+  SERVER_USER: root               # 服务器SSH登录用户名
+  DEPLOY_PATH: /opt/zdmj/deploy   # 服务器部署路径
+
+jobs:
+  # 构建和部署任务
+  build-and-deploy:
+    name: Build and Deploy
+    # 使用GitHub提供的Ubuntu最新版本作为运行环境
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 步骤1: 检出代码
+      # 将仓库代码下载到GitHub Actions运行器中，供后续步骤使用
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 步骤2: 设置Docker Buildx
+      # Buildx是Docker的扩展构建工具，支持高级构建特性
+      # 包括多平台构建、构建缓存等
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 步骤3: 构建Docker镜像
+      # 使用Dockerfile构建Docker镜像
+      # 直接使用latest标签，简化流程
+      # 使用GitHub Actions缓存机制加速构建（如果Dockerfile或依赖未变化）
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        id: build
+        with:
+          context: ./backend/zdmj-python              # Docker构建上下文目录
+          file: ./backend/zdmj-python/Dockerfile     # Dockerfile文件路径
+          push: false                                 # 不推送到远程仓库，仅本地构建
+          load: true                                  # 将镜像加载到本地Docker环境（重要！）
+          tags: ${{ env.IMAGE_NAME }}:latest          # 直接使用latest标签
+          cache-from: type=gha                        # 从GitHub Actions缓存读取
+          cache-to: type=gha,mode=max                # 将构建缓存保存到GitHub Actions
+
+      # 步骤4: 验证镜像构建成功
+      # 检查镜像是否成功构建
+      - name: Verify image build
+        run: |
+          echo "Checking if image was built successfully..."
+          # 列出所有镜像
+          docker images
+          # 检查目标镜像是否存在
+          if docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^${{ env.IMAGE_NAME }}:latest$"; then
+            echo "✓ Image ${{ env.IMAGE_NAME }}:latest found successfully"
+            docker images | grep ${{ env.IMAGE_NAME }}
+          else
+            echo "✗ Error: Image ${{ env.IMAGE_NAME }}:latest not found"
+            echo "All available images:"
+            docker images
+            exit 1
+          fi
+
+      # 步骤5: 保存Docker镜像为tar文件
+      # 将构建好的Docker镜像导出为tar压缩文件
+      # 方便后续通过SCP传输到服务器
+      - name: Save Docker image
+        run: |
+          echo "Saving Docker image to tar file..."
+          # 直接使用latest标签保存镜像
+          docker save ${{ env.IMAGE_NAME }}:latest -o image.tar
+          # 验证tar文件是否创建成功
+          if [ -f image.tar ]; then
+            echo "✓ Image saved successfully"
+            ls -lh image.tar
+          else
+            echo "✗ Error: Failed to save image"
+            exit 1
+          fi
+
+      # 步骤6: 将镜像文件复制到服务器
+      # 使用SCP协议将镜像tar文件传输到目标服务器
+      # 需要配置SSH_PRIVATE_KEY密钥（在GitHub Secrets中设置）
+      - name: Copy image to server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ env.SERVER_HOST }}         # 服务器IP地址
+          username: ${{ env.SERVER_USER }}    # SSH用户名
+          key: ${{ secrets.SSH_PRIVATE_KEY }} # SSH私钥（从GitHub Secrets读取）
+          port: 22                            # SSH端口
+          timeout: 60s                        # 连接超时时间
+          source: "image.tar"                 # 本地文件路径
+          target: "/tmp/"                     # 服务器目标目录
+          strip_components: 0                 # 不剥离路径组件
+
+      # 步骤7: 部署到服务器
+      # 通过SSH连接到服务器，执行部署脚本
+      # 包括：加载镜像、使用 docker-compose 更新服务、清理临时文件
+      - name: Deploy to server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ env.SERVER_HOST }}         # 服务器IP地址
+          username: ${{ env.SERVER_USER }}     # SSH用户名
+          key: ${{ secrets.SSH_PRIVATE_KEY }}  # SSH私钥
+          port: 22                             # SSH端口
+          timeout: 60s                         # 连接超时时间
+          script: |
+            # 进入部署目录
+            cd ${{ env.DEPLOY_PATH }}
+            
+            # 加载Docker镜像到本地Docker环境
+            echo "Loading Docker image..."
+            docker load -i /tmp/image.tar
+            
+            # 使用 docker-compose 更新 Python 服务
+            # docker-compose up -d 会：
+            # 1. 检测镜像变化
+            # 2. 停止旧容器
+            # 3. 启动新容器
+            # 4. 如果服务不存在则创建
+            echo "Updating Python service with docker-compose..."
+            docker compose up -d --no-deps python
+            
+            # 清理临时文件，释放磁盘空间
+            rm -f /tmp/image.tar
+            
+            # 清理未使用的Docker镜像，释放磁盘空间
+            docker image prune -f
+
+      # 步骤8: 验证部署
+      # 检查容器是否正常运行，并查看最近的日志
+      # 确认部署是否成功
+      - name: Verify deployment
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ env.SERVER_HOST }}         # 服务器IP地址
+          username: ${{ env.SERVER_USER }}     # SSH用户名
+          key: ${{ secrets.SSH_PRIVATE_KEY }}  # SSH私钥
+          port: 22                             # SSH端口
+          timeout: 60s                         # 连接超时时间
+          script: |
+            # 等待10秒，让容器完全启动
+            echo "Waiting for service to start..."
+            sleep 10
+            
+            # 检查容器是否在运行列表中
+            echo "Checking container status..."
+            docker ps | grep zdmj-python || echo "Warning: Container not found in running list"
+            
+            # 查看容器状态（包括停止的容器）
+            echo "Container status:"
+            docker ps -a | grep zdmj-python
+            
+            # 查看容器最近50行日志，确认启动状态
+            echo "Recent container logs:"
+            docker logs --tail 50 zdmj-python || echo "Warning: Could not retrieve logs"
+            
+            # 检查健康检查状态
+            echo "Health check status:"
+            docker inspect --format='{{.State.Health.Status}}' zdmj-python 2>/dev/null || echo "Health check not configured"
