@@ -6,8 +6,7 @@ import lombok.Data;
  * Python API响应基类
  * 所有Python服务返回的响应DTO都应继承此类
  * 
- * 注意：Python服务返回的响应格式应该与Java的Result格式保持一致
- * 或者Python服务返回标准格式，Java端进行适配
+ * 注意：Python服务返回的响应格式与Java的Result格式保持一致（code, msg, data）
  */
 @Data
 public class PythonApiResponse<T> {
@@ -18,9 +17,9 @@ public class PythonApiResponse<T> {
     private Integer code;
 
     /**
-     * 消息
+     * 消息（与Result类的msg字段保持一致）
      */
-    private String message;
+    private String msg;
 
     /**
      * 数据

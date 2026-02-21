@@ -16,7 +16,7 @@ async def health_check() -> ApiResponse[dict]:
     
     返回:
     - code: 状态码（200表示健康，503表示不健康）
-    - message: 消息
+    - msg: 消息
     - data: 包含服务状态详情
     """
     # 检查数据库连接状态
@@ -40,11 +40,11 @@ async def health_check() -> ApiResponse[dict]:
     if overall_healthy:
         return ApiResponse.success(
             data=response_data,
-            message="服务健康"
+            msg="服务健康"
         )
     else:
         return ApiResponse.error(
             code=503,
-            message="服务不健康",
+            msg="服务不健康",
             data=response_data
         )

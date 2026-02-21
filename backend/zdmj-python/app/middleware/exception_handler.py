@@ -25,7 +25,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     
     response = ApiResponse.error(
         code=400,
-        message=message,
+        msg=message,
         data={"errors": errors}
     )
     return JSONResponse(
@@ -42,7 +42,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     
     response = ApiResponse.error(
         code=exc.status_code,
-        message=str(exc.detail)
+        msg=str(exc.detail)
     )
     return JSONResponse(
         status_code=exc.status_code,
@@ -58,7 +58,7 @@ async def business_exception_handler(request: Request, exc: BusinessException):
     
     response = ApiResponse.error(
         code=exc.code,
-        message=exc.message
+        msg=exc.message
     )
     return JSONResponse(
         status_code=status.HTTP_200_OK,  # 业务异常通常返回200，通过code字段区分
@@ -74,7 +74,7 @@ async def validation_exception_handler_custom(request: Request, exc: ValidationE
     
     response = ApiResponse.error(
         code=exc.code,
-        message=exc.message
+        msg=exc.message
     )
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
@@ -90,7 +90,7 @@ async def service_exception_handler(request: Request, exc: ServiceException):
     
     response = ApiResponse.error(
         code=exc.code,
-        message=exc.message
+        msg=exc.message
     )
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -106,7 +106,7 @@ async def general_exception_handler(request: Request, exc: Exception):
     
     response = ApiResponse.error(
         code=500,
-        message=f"系统异常: {str(exc)}"
+        msg=f"系统异常: {str(exc)}"
     )
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

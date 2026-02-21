@@ -91,8 +91,8 @@ public class PythonServiceClient {
                 .map(response -> {
                     // 检查响应状态码
                     if (response.getCode() == null || !response.isSuccess()) {
-                        String errorMsg = response.getMessage() != null
-                                ? response.getMessage()
+                        String errorMsg = response.getMsg() != null
+                                ? response.getMsg()
                                 : "Python服务返回失败";
                         throw new PythonServiceException(
                                 response.getCode() != null ? response.getCode()
@@ -200,8 +200,8 @@ public class PythonServiceClient {
                 .map(response -> {
                     // 检查响应状态码
                     if (response.getCode() == null || !response.isSuccess()) {
-                        String errorMsg = response.getMessage() != null
-                                ? response.getMessage()
+                        String errorMsg = response.getMsg() != null
+                                ? response.getMsg()
                                 : "Python服务返回失败";
                         throw new PythonServiceException(
                                 response.getCode() != null ? response.getCode()
