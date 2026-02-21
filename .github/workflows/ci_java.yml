@@ -8,12 +8,12 @@ on:
   push:
     branches:
       - backend
-      - main
+      # - main
   # 当创建或更新PR到backend或main分支时触发
   pull_request:
     branches:
       - backend
-      - main
+      # - main
 
 jobs:
   # 测试任务
