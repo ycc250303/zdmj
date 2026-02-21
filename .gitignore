@@ -4,3 +4,4 @@ deploy/docker-compose.yml
 /docs/competition
 /.idea
 /backend/.idea
+backend/zdmj/src/main/resources/application.yml

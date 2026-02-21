@@ -13,3 +13,4 @@ redis
 # 测试框架
 pytest
 pytest-asyncio
+requests  # 用于测试脚本

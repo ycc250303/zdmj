@@ -8,16 +8,16 @@ spring:
     # 时区配置：确保Java的LocalDateTime与PostgreSQL的TIMESTAMP WITH TIME ZONE正确转换
     # Asia/Shanghai: 中国时区（UTC+8）
     # 当数据库使用TIMESTAMP WITH TIME ZONE时，PostgreSQL会自动转换为连接时区
-    url: jdbc:postgresql://111.229.81.45:5432/zdmj?currentSchema=public&stringtype=unspecified&TimeZone=Asia/Shanghai
-    username: zdmj
-    password: zdmj
+    url: jdbc:postgresql://localhost:5432/zdmj?currentSchema=public&stringtype=unspecified&TimeZone=Asia/Shanghai
+    username: your-db-username
+    password: your-db-password
   
   # Redis 配置
   data:
     redis:
-      host: 111.229.81.45
+      host: localhost
       port: 6379
-      password: zdmj
+      password: your-redis-password  # 如果Redis没有密码，可以留空或删除此行
       timeout: 3000ms
       lettuce:
         pool:
@@ -29,8 +29,8 @@ spring:
   mail:
     host: smtp.163.com  # 163邮箱SMTP服务器
     port: 465  # SSL端口，也可以使用587（TLS）
-    username: zdmj123456@163.com  # 发送邮件的163邮箱
-    password: XCtkmZ9FMRPVcNCi  # 163邮箱授权码（不是登录密码，需要在邮箱设置中开启SMTP服务获取）
+    username: your-email@163.com  # 发送邮件的163邮箱
+    password: your-email-auth-code  # 163邮箱授权码（不是登录密码，需要在邮箱设置中开启SMTP服务获取）
     default-encoding: UTF-8
     properties:
       mail:
@@ -91,38 +91,27 @@ management:
 # 环境变量优先级高于配置文件中的值
 cos:
   # 腾讯云SecretId（访问密钥ID）
-  secret-id: ${COS_SECRET_ID:AKIDvz2Fgtra4Jav6322XxIblh5JI7nHWXJr}
+  # 获取方式：腾讯云控制台 -> 访问管理 -> API密钥管理
+  # 生产环境建议使用环境变量：export COS_SECRET_ID=your-secret-id
+  secret-id: ${COS_SECRET_ID:your-secret-id}
   
   # 腾讯云SecretKey（访问密钥）
-  secret-key: ${COS_SECRET_KEY:ndVMC1qW3OboskMsNiTDozCJE7tZ3ITR}
+  # 获取方式：腾讯云控制台 -> 访问管理 -> API密钥管理
+  # 生产环境建议使用环境变量：export COS_SECRET_KEY=your-secret-key
+  secret-key: ${COS_SECRET_KEY:your-secret-key}
   
   # 地域（Region）
+  # 可选值：ap-beijing（北京）、ap-shanghai（上海）、ap-guangzhou（广州）、ap-chengdu（成都）等
+  # 必须与存储桶实际创建的地域一致
   # 生产环境建议使用环境变量：export COS_REGION=ap-shanghai
   region: ${COS_REGION:ap-shanghai}
   
   # 存储桶名称（Bucket Name）
-  bucket-name: ${COS_BUCKET_NAME:zdmj-1381832847}
+  # 格式：bucketname-appid（如：mybucket-1234567890）
+  # 注意：必须包含APPID后缀，否则会报InvalidRequest错误
+  # 获取方式：腾讯云控制台 -> 对象存储 -> 存储桶列表 -> 查看存储桶名称
+  # 生产环境建议使用环境变量：export COS_BUCKET_NAME=your-bucket-name-appid
+  bucket-name: ${COS_BUCKET_NAME:your-bucket-name-appid}
   
   # 预签名URL过期时间（秒），默认1小时（3600秒）
   presigned-url-expiration: 3600
-
-# Python AI服务配置
-python:
-  # Python服务基础URL（支持环境变量配置）
-  # 同一服务器上建议使用localhost（性能更好），也可通过环境变量设置为服务器IP
-  # 例如：export PYTHON_SERVICE_URL=http://111.229.81.45:8000
-  base-url: ${PYTHON_SERVICE_URL:http://localhost:8000}
-  # 连接超时时间（毫秒），默认5秒
-  connect-timeout: ${PYTHON_CONNECT_TIMEOUT:5000}
-  # 读取超时时间（毫秒），默认30秒（AI处理可能需要较长时间）
-  read-timeout: ${PYTHON_READ_TIMEOUT:30000}
-  # 写入超时时间（毫秒），默认10秒
-  write-timeout: ${PYTHON_WRITE_TIMEOUT:10000}
-  # 重试配置
-  retry:
-    # 是否启用重试，默认启用
-    enabled: ${PYTHON_RETRY_ENABLED:true}
-    # 最大重试次数，默认3次
-    max-attempts: ${PYTHON_RETRY_MAX_ATTEMPTS:3}
-    # 重试间隔（毫秒），默认1000ms
-    retry-interval: ${PYTHON_RETRY_INTERVAL:1000}

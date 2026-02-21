@@ -3,9 +3,11 @@ package com.zdmj.resumeService.service.impl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserHolder;
+import com.zdmj.common.util.CosUtil;
 import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.util.DtoConverter;
 import com.zdmj.exception.BusinessException;
+import org.springframework.web.multipart.MultipartFile;
 import com.zdmj.resumeService.dto.*;
 import com.zdmj.resumeService.entity.*;
 import com.zdmj.resumeService.mapper.CareerMapper;
@@ -19,7 +21,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -324,6 +328,35 @@ public class ResumeServiceImpl implements ResumeService {
             dto.setContent(java.util.Collections.emptyList());
         }
         return dto;
+    }
+
+    @Override
+    public Map<String, String> uploadResumeFile(MultipartFile file) {
+        // 验证文件
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(400, "文件不能为空");
+        }
+
+        // 生成文件路径（对象键），使用 "resume" 作为前缀
+        String key = CosUtil.generateKey("resume", file.getOriginalFilename());
+
+        // 上传文件到COS
+        String uploadedKey = CosUtil.uploadFile(file, key);
+
+        // 获取文件访问URL
+        String fileUrl = CosUtil.getFileUrl(uploadedKey);
+
+        // 构建返回结果
+        Map<String, String> result = new HashMap<>();
+        result.put("key", uploadedKey);
+        result.put("url", fileUrl);
+        result.put("fileName", file.getOriginalFilename());
+        result.put("fileSize", String.valueOf(file.getSize()));
+        result.put("contentType", file.getContentType());
+
+        log.info("简历文件上传成功，key: {}, url: {}", uploadedKey, fileUrl);
+
+        return result;
     }
 
 }
