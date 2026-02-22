@@ -1,5 +1,6 @@
 package com.zdmj.resumeService.service.impl;
 
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.exception.BusinessException;
@@ -17,17 +18,11 @@ import java.util.List;
 
 @Slf4j
 @Service
-public class CareerServiceImpl implements CareerService {
-
-    private final CareerMapper careerMapper;
-
-    public CareerServiceImpl(CareerMapper careerMapper) {
-        this.careerMapper = careerMapper;
-    }
+public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> implements CareerService {
 
     @Override
     public Career create(CareerDTO careerDTO) {
-        Long userId = requireUserId();
+        Long userId = UserHolder.requireUserId();
         Career career = new Career();
         career.setUserId(userId);
         career.setCompany(careerDTO.getCompany());
@@ -39,8 +34,8 @@ public class CareerServiceImpl implements CareerService {
         LocalDateTime now = DateTimeUtil.now();
         career.setCreatedAt(now);
         career.setUpdatedAt(now);
-        int result = careerMapper.insert(career);
-        if (result <= 0) {
+        boolean saved = save(career);
+        if (!saved) {
             throw new BusinessException(500, "添加工作经历失败");
         }
         log.info("添加工作经历成功: {}", career.getCompany());
@@ -54,13 +49,13 @@ public class CareerServiceImpl implements CareerService {
 
     @Override
     public List<Career> getByUserId() {
-        Long userId = requireUserId();
-        return careerMapper.selectByUserId(userId, null);
+        Long userId = UserHolder.requireUserId();
+        return baseMapper.selectByUserId(userId, null);
     }
 
     @Override
     public Career update(CareerDTO careerDTO) {
-        Long userId = requireUserId();
+        Long userId = UserHolder.requireUserId();
         Long id = careerDTO.getId();
         if (id == null) {
             throw new BusinessException(400, "工作经历ID不能为空");
@@ -80,8 +75,8 @@ public class CareerServiceImpl implements CareerService {
         LocalDateTime now = DateTimeUtil.now();
         career.setUpdatedAt(now);
 
-        int result = careerMapper.updateById(career);
-        if (result <= 0) {
+        boolean updated = updateById(career);
+        if (!updated) {
             throw new BusinessException(500, "更新工作经历失败");
         }
 
@@ -91,28 +86,14 @@ public class CareerServiceImpl implements CareerService {
 
     @Override
     public void delete(Long id) {
-        Long userId = requireUserId();
+        Long userId = UserHolder.requireUserId();
         Career career = requireCareerAndCheckOwnership(id, userId, "删除");
-        int result = careerMapper.deleteById(id);
-        if (result <= 0) {
+        boolean removed = removeById(id);
+        if (!removed) {
             throw new BusinessException(500, "删除工作经历失败");
         }
 
         log.info("删除工作经历成功: {}", career.getCompany());
-    }
-
-    /**
-     * 校验用户是否已登录，返回用户ID
-     *
-     * @return 用户ID
-     * @throws BusinessException 如果用户未登录
-     */
-    private Long requireUserId() {
-        Long userId = UserHolder.getUserId();
-        if (userId == null) {
-            throw new BusinessException(401, "用户未登录");
-        }
-        return userId;
     }
 
     /**
@@ -123,7 +104,7 @@ public class CareerServiceImpl implements CareerService {
      * @throws BusinessException 如果工作经历不存在
      */
     private Career requireCareer(Long id) {
-        Career career = careerMapper.selectById(id);
+        Career career = baseMapper.selectById(id);
         if (career == null) {
             throw new BusinessException(404, "工作经历不存在");
         }

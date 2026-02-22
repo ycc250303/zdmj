@@ -534,7 +534,7 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     project_name VARCHAR(255) NOT NULL,
     -- 关联项目名称
     file_type SMALLINT NOT NULL,
-    -- 文件类型（枚举：1=markdown/2=pdf/3=code代码/4=doc文档/5=其他）
+    -- 文件类型（枚举：1=txt/2=URL/3=pdf/4=md）
     tag JSONB DEFAULT '[]'::jsonb,
     -- 知识标签数组
     -- tag 示例

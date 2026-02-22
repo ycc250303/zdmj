@@ -1,5 +1,7 @@
 package com.zdmj.common.context;
 
+import com.zdmj.exception.BusinessException;
+
 /**
  * 用户信息持有者
  * 使用ThreadLocal存储当前请求的用户信息，避免重复解析HTTP请求
@@ -66,6 +68,21 @@ public class UserHolder {
      */
     public static boolean isAuthenticated() {
         return USER_CONTEXT.get() != null;
+    }
+
+    /**
+     * 要求用户必须已登录，返回用户ID
+     * 如果用户未登录，抛出BusinessException异常
+     * 
+     * @return 用户ID
+     * @throws BusinessException 如果用户未登录
+     */
+    public static Long requireUserId() {
+        Long userId = getUserId();
+        if (userId == null) {
+            throw new BusinessException(401, "用户未登录");
+        }
+        return userId;
     }
 
     /**

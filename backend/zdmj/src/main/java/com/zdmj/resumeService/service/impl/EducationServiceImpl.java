@@ -1,5 +1,6 @@
 package com.zdmj.resumeService.service.impl;
 
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.util.BeanUtil;
 import com.zdmj.common.util.DateTimeUtil;
@@ -19,13 +20,7 @@ import java.util.List;
  */
 @Slf4j
 @Service
-public class EducationServiceImpl implements EducationService {
-
-    private final EducationMapper educationMapper;
-
-    public EducationServiceImpl(EducationMapper educationMapper) {
-        this.educationMapper = educationMapper;
-    }
+public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education> implements EducationService {
 
     /**
      * 添加教育经历
@@ -35,7 +30,7 @@ public class EducationServiceImpl implements EducationService {
      */
     @Override
     public Education create(EducationDTO educationDTO) {
-        Long userId = requireUserId();
+        Long userId = UserHolder.requireUserId();
         Education education = new Education();
         education.setUserId(userId);
         education.setSchool(educationDTO.getSchool());
@@ -50,8 +45,8 @@ public class EducationServiceImpl implements EducationService {
         education.setCreatedAt(now);
         education.setUpdatedAt(now);
 
-        int result = educationMapper.insert(education);
-        if (result <= 0) {
+        boolean saved = save(education);
+        if (!saved) {
             throw new BusinessException(500, "添加教育经历失败");
         }
         log.info("添加教育经历成功: {}", education.getSchool());
@@ -66,7 +61,7 @@ public class EducationServiceImpl implements EducationService {
      */
     @Override
     public Education update(EducationDTO educationDTO) {
-        Long userId = requireUserId();
+        Long userId = UserHolder.requireUserId();
         Long id = educationDTO.getId();
         if (id == null) {
             throw new BusinessException(400, "教育经历ID不能为空");
@@ -93,8 +88,8 @@ public class EducationServiceImpl implements EducationService {
         existingEducation.setUpdatedAt(DateTimeUtil.now());
 
         // 使用 MyBatis-Plus 的 updateById 方法，根据ID更新（只更新非null字段）
-        int result = educationMapper.updateById(existingEducation);
-        if (result <= 0) {
+        boolean updated = updateById(existingEducation);
+        if (!updated) {
             throw new BusinessException(500, "更新教育经历失败");
         }
 
@@ -109,12 +104,12 @@ public class EducationServiceImpl implements EducationService {
      */
     @Override
     public void delete(Long id) {
-        Long userId = requireUserId();
+        Long userId = UserHolder.requireUserId();
         requireEducationAndCheckOwnership(id, userId, "删除");
 
         // 删除教育经历
-        int result = educationMapper.deleteById(id);
-        if (result <= 0) {
+        boolean removed = removeById(id);
+        if (!removed) {
             throw new BusinessException(500, "删除教育经历失败");
         }
 
@@ -139,22 +134,8 @@ public class EducationServiceImpl implements EducationService {
      */
     @Override
     public List<Education> getByUserId() {
-        Long userId = requireUserId();
-        return educationMapper.selectByUserId(userId, null);
-    }
-
-    /**
-     * 校验用户是否已登录，返回用户ID
-     *
-     * @return 用户ID
-     * @throws BusinessException 如果用户未登录
-     */
-    private Long requireUserId() {
-        Long userId = UserHolder.getUserId();
-        if (userId == null) {
-            throw new BusinessException(401, "用户未登录");
-        }
-        return userId;
+        Long userId = UserHolder.requireUserId();
+        return baseMapper.selectByUserId(userId, null);
     }
 
     /**
@@ -165,7 +146,7 @@ public class EducationServiceImpl implements EducationService {
      * @throws BusinessException 如果教育经历不存在
      */
     private Education requireEducation(Long id) {
-        Education education = educationMapper.selectById(id);
+        Education education = baseMapper.selectById(id);
         if (education == null) {
             throw new BusinessException(404, "教育经历不存在");
         }

@@ -1,5 +1,6 @@
 package com.zdmj.resumeService.service.impl;
 
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserHolder;
@@ -22,14 +23,9 @@ import java.util.List;
  */
 @Slf4j
 @Service
-public class SkillServiceImpl implements SkillService {
+public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements SkillService {
 
-    private final SkillMapper skillMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
-
-    public SkillServiceImpl(SkillMapper skillMapper) {
-        this.skillMapper = skillMapper;
-    }
 
     @Override
     public Skill create(SkillDTO skillDTO) {
@@ -49,8 +45,8 @@ public class SkillServiceImpl implements SkillService {
         skill.setCreatedAt(now);
         skill.setUpdatedAt(now);
 
-        int result = skillMapper.insert(skill);
-        if (result <= 0) {
+        boolean saved = save(skill);
+        if (!saved) {
             throw new BusinessException(500, "添加技能失败");
         }
         log.info("添加技能成功: {}", skill.getName());
@@ -65,7 +61,7 @@ public class SkillServiceImpl implements SkillService {
     @Override
     public List<Skill> getByUserId() {
         Long userId = requireUserId();
-        return skillMapper.selectByUserId(userId);
+        return baseMapper.selectByUserId(userId);
     }
 
     @Override
@@ -93,8 +89,8 @@ public class SkillServiceImpl implements SkillService {
         LocalDateTime now = DateTimeUtil.now();
         skill.setUpdatedAt(now);
 
-        int result = skillMapper.updateById(skill);
-        if (result <= 0) {
+        boolean updated = updateById(skill);
+        if (!updated) {
             throw new BusinessException(500, "更新技能失败");
         }
         log.info("更新技能成功: {}", skill.getName());
@@ -106,8 +102,8 @@ public class SkillServiceImpl implements SkillService {
         Long userId = requireUserId();
         Skill skill = requireSkillAndCheckOwnership(id, userId, "删除");
 
-        int result = skillMapper.deleteById(id);
-        if (result <= 0) {
+        boolean removed = removeById(id);
+        if (!removed) {
             throw new BusinessException(500, "删除技能失败");
         }
         log.info("删除技能成功: {}", skill.getName());
@@ -135,7 +131,7 @@ public class SkillServiceImpl implements SkillService {
      * @throws BusinessException 如果技能不存在
      */
     private Skill requireSkill(Long id) {
-        Skill skill = skillMapper.selectById(id);
+        Skill skill = baseMapper.selectById(id);
         if (skill == null) {
             throw new BusinessException(404, "技能不存在");
         }

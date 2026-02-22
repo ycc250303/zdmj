@@ -1,5 +1,6 @@
 package com.zdmj.resumeService.service.impl;
 
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.util.BeanUtil;
 import com.zdmj.common.util.DateTimeUtil;
@@ -19,17 +20,12 @@ import java.util.List;
  */
 @Slf4j
 @Service
-public class ProjectExperienceServiceImpl implements ProjectExperienceService {
-
-    private final ProjectExperienceMapper projectExperienceMapper;
-
-    public ProjectExperienceServiceImpl(ProjectExperienceMapper projectExperienceMapper) {
-        this.projectExperienceMapper = projectExperienceMapper;
-    }
+public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceMapper, ProjectExperience> 
+        implements ProjectExperienceService {
 
     @Override
     public ProjectExperience create(ProjectExperienceDTO projectExperienceDTO) {
-        Long userId = requireUserId();
+        Long userId = UserHolder.requireUserId();
         ProjectExperience projectExperience = new ProjectExperience();
         projectExperience.setUserId(userId);
         projectExperience.setName(projectExperienceDTO.getName());
@@ -46,8 +42,8 @@ public class ProjectExperienceServiceImpl implements ProjectExperienceService {
         LocalDateTime now = DateTimeUtil.now();
         projectExperience.setCreatedAt(now);
         projectExperience.setUpdatedAt(now);
-        int result = projectExperienceMapper.insert(projectExperience);
-        if (result <= 0) {
+        boolean saved = save(projectExperience);
+        if (!saved) {
             throw new BusinessException(500, "添加项目经历失败");
         }
         log.info("添加项目经历成功: {}", projectExperience.getName());
@@ -61,13 +57,13 @@ public class ProjectExperienceServiceImpl implements ProjectExperienceService {
 
     @Override
     public List<ProjectExperience> getByUserId() {
-        Long userId = requireUserId();
-        return projectExperienceMapper.selectByUserId(userId, null);
+        Long userId = UserHolder.requireUserId();
+        return baseMapper.selectByUserId(userId, null);
     }
 
     @Override
     public ProjectExperience update(ProjectExperienceDTO projectExperienceDTO) {
-        Long userId = requireUserId();
+        Long userId = UserHolder.requireUserId();
         Long id = projectExperienceDTO.getId();
         if (id == null) {
             throw new BusinessException(400, "项目经历ID不能为空");
@@ -87,8 +83,8 @@ public class ProjectExperienceServiceImpl implements ProjectExperienceService {
         LocalDateTime now = DateTimeUtil.now();
         projectExperience.setUpdatedAt(now);
 
-        int result = projectExperienceMapper.updateById(projectExperience);
-        if (result <= 0) {
+        boolean updated = updateById(projectExperience);
+        if (!updated) {
             throw new BusinessException(500, "更新项目经历失败");
         }
 
@@ -98,28 +94,14 @@ public class ProjectExperienceServiceImpl implements ProjectExperienceService {
 
     @Override
     public void delete(Long id) {
-        Long userId = requireUserId();
+        Long userId = UserHolder.requireUserId();
         ProjectExperience projectExperience = requireProjectExperienceAndCheckOwnership(id, userId, "删除");
-        int result = projectExperienceMapper.deleteById(id);
-        if (result <= 0) {
+        boolean removed = removeById(id);
+        if (!removed) {
             throw new BusinessException(500, "删除项目经历失败");
         }
 
         log.info("删除项目经历成功: {}", projectExperience.getName());
-    }
-
-    /**
-     * 校验用户是否已登录，返回用户ID
-     *
-     * @return 用户ID
-     * @throws BusinessException 如果用户未登录
-     */
-    private Long requireUserId() {
-        Long userId = UserHolder.getUserId();
-        if (userId == null) {
-            throw new BusinessException(401, "用户未登录");
-        }
-        return userId;
     }
 
     /**
@@ -130,7 +112,7 @@ public class ProjectExperienceServiceImpl implements ProjectExperienceService {
      * @throws BusinessException 如果项目经历不存在
      */
     private ProjectExperience requireProjectExperience(Long id) {
-        ProjectExperience projectExperience = projectExperienceMapper.selectById(id);
+        ProjectExperience projectExperience = baseMapper.selectById(id);
         if (projectExperience == null) {
             throw new BusinessException(404, "项目经历不存在");
         }
