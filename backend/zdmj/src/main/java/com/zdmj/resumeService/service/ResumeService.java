@@ -32,7 +32,6 @@ public interface ResumeService {
     /**
      * 根据用户ID查询所有简历
      *
-     * @param userId 用户ID
      * @return 简历列表
      */
     List<Resume> getByUserId();
@@ -40,7 +39,7 @@ public interface ResumeService {
     /**
      * 更新简历
      *
-     * @param resume 简历实体
+     * @param resumeDTO 简历实体
      * @return 更新后的简历实体
      */
     Resume update(ResumeDTO resumeDTO);

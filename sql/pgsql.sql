@@ -215,6 +215,10 @@ CREATE TABLE IF NOT EXISTS project_experiences (
     -- 在项目中的角色和职责
     description TEXT,
     -- 项目描述
+    contribution VARCHAR(500),
+    -- 核心贡献
+    bg_and_target VARCHAR(500),
+    -- 项目背景和目的
     tech_stack JSONB DEFAULT '[]'::jsonb,
     -- 技术栈（JSONB数组）
     -- tech_stack 示例

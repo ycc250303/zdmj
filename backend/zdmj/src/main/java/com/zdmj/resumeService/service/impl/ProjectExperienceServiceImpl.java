@@ -37,6 +37,8 @@ public class ProjectExperienceServiceImpl implements ProjectExperienceService {
         projectExperience.setEndDate(projectExperienceDTO.getEndDate());
         projectExperience.setRole(projectExperienceDTO.getRole());
         projectExperience.setDescription(projectExperienceDTO.getDescription());
+        projectExperience.setContribution(projectExperienceDTO.getContribution());
+        projectExperience.setBgAndTarget(projectExperienceDTO.getBgAndTarget());
         projectExperience.setTechStack(projectExperienceDTO.getTechStack());
         projectExperience.setHighlights(projectExperienceDTO.getHighlights());
         projectExperience.setUrl(projectExperienceDTO.getUrl());
