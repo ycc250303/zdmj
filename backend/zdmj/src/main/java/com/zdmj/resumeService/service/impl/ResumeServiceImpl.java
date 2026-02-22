@@ -49,7 +49,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
     @Override
     public Resume create(ResumeDTO resumeDTO) {
-        Long userId = requireUserId();
+        Long userId = UserHolder.requireUserId();
 
         // 检查是否存在同名简历
         if (baseMapper.existsByName(userId, resumeDTO.getName(), null)) {
@@ -95,7 +95,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
     @Override
     public List<Resume> getByUserId() {
-        Long userId = requireUserId();
+        Long userId = UserHolder.requireUserId();
 
         // 直接查询数据库，不使用缓存
         // 原因：用户频繁编辑项目经历、工作经历、教育经历等，写操作频繁
@@ -106,7 +106,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
     @Override
     public Resume update(ResumeDTO resumeDTO) {
-        Long userId = requireUserId();
+        Long userId = UserHolder.requireUserId();
         Long id = resumeDTO.getId();
         if (id == null) {
             throw new BusinessException(400, "简历ID不能为空");
@@ -149,7 +149,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void delete(Long id) {
-        Long userId = requireUserId();
+        Long userId = UserHolder.requireUserId();
         Resume resume = requireResumeAndCheckOwnership(id, userId, "删除");
         boolean removed = removeById(id);
         if (!removed) {
@@ -162,7 +162,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
     @Override
     public ResumeContentDTO getResumeContentById(Long id) {
-        Long userId = requireUserId();
+        Long userId = UserHolder.requireUserId();
 
         // 直接查询数据库，不使用缓存
         // 原因：用户频繁修改项目经历、工作经历、教育经历等，写操作频繁
