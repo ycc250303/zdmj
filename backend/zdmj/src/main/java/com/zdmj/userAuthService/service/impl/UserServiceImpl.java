@@ -2,6 +2,7 @@ package com.zdmj.userAuthService.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.util.JwtUtil;
 import com.zdmj.common.util.PasswordUtil;
@@ -27,19 +28,16 @@ import java.time.LocalDateTime;
  */
 @Slf4j
 @Service
-public class UserServiceImpl implements UserService {
+public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
-    private final UserMapper userMapper;
     private final VerificationCodeService verificationCodeService;
 
     /**
      * 构造函数注入（推荐方式）
      *
-     * @param userMapper              用户Mapper
      * @param verificationCodeService 验证码服务
      */
-    public UserServiceImpl(UserMapper userMapper, VerificationCodeService verificationCodeService) {
-        this.userMapper = userMapper;
+    public UserServiceImpl(VerificationCodeService verificationCodeService) {
         this.verificationCodeService = verificationCodeService;
     }
 
@@ -72,8 +70,8 @@ public class UserServiceImpl implements UserService {
         user.setUpdatedAt(now);
 
         // 5. 保存到数据库
-        int result = userMapper.insert(user);
-        if (result <= 0) {
+        boolean saved = save(user);
+        if (!saved) {
             throw new BusinessException(500, "用户注册失败");
         }
 
@@ -121,7 +119,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserDTO getUserById(Long id) {
-        User user = userMapper.selectById(id);
+        User user = getById(id);
         if (user == null) {
             throw new BusinessException(404, "用户不存在");
         }
@@ -130,25 +128,25 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public User getUserByUsername(String username) {
-        return userMapper.selectOne(new LambdaQueryWrapper<User>()
+        return getOne(new LambdaQueryWrapper<User>()
                 .eq(User::getUsername, username));
     }
 
     @Override
     public User getUserByEmail(String email) {
-        return userMapper.selectOne(new LambdaQueryWrapper<User>()
+        return getOne(new LambdaQueryWrapper<User>()
                 .eq(User::getEmail, email));
     }
 
     @Override
     public boolean existsByUsername(String username) {
-        return userMapper.selectCount(new LambdaQueryWrapper<User>()
+        return count(new LambdaQueryWrapper<User>()
                 .eq(User::getUsername, username)) > 0;
     }
 
     @Override
     public boolean existsByEmail(String email) {
-        return userMapper.selectCount(new LambdaQueryWrapper<User>()
+        return count(new LambdaQueryWrapper<User>()
                 .eq(User::getEmail, email)) > 0;
     }
 
@@ -170,11 +168,11 @@ public class UserServiceImpl implements UserService {
         String encodedPassword = PasswordUtil.encode(resetPasswordDTO.getNewPassword());
 
         // 4. 使用 MyBatis-Plus 的 LambdaUpdateWrapper 更新密码
-        int result = userMapper.update(null, new LambdaUpdateWrapper<User>()
+        boolean updated = update(new LambdaUpdateWrapper<User>()
                 .eq(User::getId, user.getId())
                 .set(User::getPassword, encodedPassword)
                 .set(User::getUpdatedAt, DateTimeUtil.now()));
-        if (result <= 0) {
+        if (!updated) {
             throw new BusinessException(500, "密码修改失败");
         }
 

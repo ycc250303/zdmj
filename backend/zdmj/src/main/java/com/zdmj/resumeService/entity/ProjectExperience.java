@@ -53,6 +53,16 @@ public class ProjectExperience extends BaseEntity {
     private String description;
 
     /**
+     * 项目贡献
+     */
+    private String contribution;
+
+    /**
+     * 项目背景和目标
+     */
+    private String bgAndTarget;
+
+    /**
      * 技术栈（JSONB数组，如["React", "TypeScript", "Node.js"]）
      */
     private String techStack;
@@ -74,7 +84,6 @@ public class ProjectExperience extends BaseEntity {
 
     /**
      * 项目分析状态（枚举：1=committed已提交/2=mining挖掘中/3=polishing打磨中/4=completed已完成）
-     * 说明：用于跟踪AI分析流程，不影响简历展示
      */
     private Integer status;
 

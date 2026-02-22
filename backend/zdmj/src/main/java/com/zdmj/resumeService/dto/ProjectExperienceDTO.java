@@ -46,6 +46,7 @@ public class ProjectExperienceDTO {
     /**
      * 在项目中的角色和职责
      */
+    @NotBlank(message = "项目角色不能为空", groups = CreateGroup.class)
     private String role;
 
     /**
@@ -53,6 +54,18 @@ public class ProjectExperienceDTO {
      */
     @NotBlank(message = "项目描述不能为空", groups = CreateGroup.class)
     private String description;
+
+    /**
+     * 项目贡献
+     */
+    @NotBlank(message = "项目贡献不能为空", groups = CreateGroup.class)
+    private String contribution;
+
+    /**
+     * 项目背景和目标
+     */
+    @NotBlank(message = "项目背景和目标不能为空", groups = CreateGroup.class)
+    private String bgAndTarget;
 
     /**
      * 技术栈（JSONB数组，如["React", "TypeScript", "Node.js"]）

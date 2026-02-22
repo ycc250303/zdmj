@@ -215,6 +215,10 @@ CREATE TABLE IF NOT EXISTS project_experiences (
     -- 在项目中的角色和职责
     description TEXT,
     -- 项目描述
+    contribution VARCHAR(500),
+    -- 核心贡献
+    bg_and_target VARCHAR(500),
+    -- 项目背景和目的
     tech_stack JSONB DEFAULT '[]'::jsonb,
     -- 技术栈（JSONB数组）
     -- tech_stack 示例
@@ -530,7 +534,7 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     project_name VARCHAR(255) NOT NULL,
     -- 关联项目名称
     file_type SMALLINT NOT NULL,
-    -- 文件类型（枚举：1=markdown/2=pdf/3=code代码/4=doc文档/5=其他）
+    -- 文件类型（枚举：1=txt/2=URL/3=pdf/4=md）
     tag JSONB DEFAULT '[]'::jsonb,
     -- 知识标签数组
     -- tag 示例

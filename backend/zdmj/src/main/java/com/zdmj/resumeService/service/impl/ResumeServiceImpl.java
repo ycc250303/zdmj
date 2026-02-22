@@ -1,5 +1,6 @@
 package com.zdmj.resumeService.service.impl;
 
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserHolder;
@@ -31,20 +32,18 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
-public class ResumeServiceImpl implements ResumeService {
-    private final ResumeMapper resumeMapper;
+public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> implements ResumeService {
     private final EducationMapper educationMapper;
     private final ProjectExperienceMapper projectExperienceMapper;
     private final CareerMapper careerMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final SkillMapper skillMapper;
 
-    public ResumeServiceImpl(ResumeMapper resumeMapper, EducationMapper educationMapper,
+    public ResumeServiceImpl(EducationMapper educationMapper,
             ProjectExperienceMapper projectExperienceMapper, CareerMapper careerMapper, SkillMapper skillMapper) {
         this.educationMapper = educationMapper;
         this.projectExperienceMapper = projectExperienceMapper;
         this.careerMapper = careerMapper;
-        this.resumeMapper = resumeMapper;
         this.skillMapper = skillMapper;
     }
 
@@ -53,7 +52,7 @@ public class ResumeServiceImpl implements ResumeService {
         Long userId = requireUserId();
 
         // 检查是否存在同名简历
-        if (resumeMapper.existsByName(userId, resumeDTO.getName(), null)) {
+        if (baseMapper.existsByName(userId, resumeDTO.getName(), null)) {
             throw new BusinessException(400, "简历名称已存在，请使用其他名称");
         }
 
@@ -74,8 +73,8 @@ public class ResumeServiceImpl implements ResumeService {
         LocalDateTime now = DateTimeUtil.now();
         resume.setCreatedAt(now);
         resume.setUpdatedAt(now);
-        int result = resumeMapper.insert(resume);
-        if (result <= 0) {
+        boolean saved = save(resume);
+        if (!saved) {
             throw new BusinessException(500, "创建简历失败");
         }
 
@@ -102,7 +101,7 @@ public class ResumeServiceImpl implements ResumeService {
         // 原因：用户频繁编辑项目经历、工作经历、教育经历等，写操作频繁
         // 每次编辑经历都会清除缓存，导致缓存命中率低，反而增加系统负担
         // 简历列表查询SQL简单（单表查询），数据库查询性能可以接受
-        return resumeMapper.selectByUserId(userId);
+        return baseMapper.selectByUserId(userId);
     }
 
     @Override
@@ -117,7 +116,7 @@ public class ResumeServiceImpl implements ResumeService {
 
         // 如果简历名称发生变化，检查是否存在同名简历（排除当前简历）
         if (!resume.getName().equals(resumeDTO.getName())) {
-            if (resumeMapper.existsByName(userId, resumeDTO.getName(), id)) {
+            if (baseMapper.existsByName(userId, resumeDTO.getName(), id)) {
                 throw new BusinessException(400, "简历名称已存在，请使用其他名称");
             }
         }
@@ -136,8 +135,8 @@ public class ResumeServiceImpl implements ResumeService {
         resume.setProjects(convertIdsToJson(projectExperienceIds));
         resume.setUpdatedAt(DateTimeUtil.now());
 
-        int result = resumeMapper.updateById(resume);
-        if (result <= 0) {
+        boolean updated = updateById(resume);
+        if (!updated) {
             throw new BusinessException(500, "更新简历失败");
         }
         log.info("更新简历成功: {}", resume.getName());
@@ -152,8 +151,8 @@ public class ResumeServiceImpl implements ResumeService {
     public void delete(Long id) {
         Long userId = requireUserId();
         Resume resume = requireResumeAndCheckOwnership(id, userId, "删除");
-        int result = resumeMapper.deleteById(id);
-        if (result <= 0) {
+        boolean removed = removeById(id);
+        if (!removed) {
             throw new BusinessException(500, "删除简历失败");
         }
         log.info("删除简历成功: {}", resume.getName());
@@ -203,31 +202,17 @@ public class ResumeServiceImpl implements ResumeService {
      */
     @Override
     public List<ResumeContentDTO> getResumeContentList() {
-        Long userId = requireUserId();
+        Long userId = UserHolder.requireUserId();
 
         // 直接查询数据库，不使用缓存
         // 原因：用户频繁修改项目经历、工作经历、教育经历等，写操作频繁
         // 如果使用缓存，会导致缓存频繁失效，命中率低，反而增加系统负担
-        List<Resume> resumes = resumeMapper.selectByUserId(userId);
+        List<Resume> resumes = baseMapper.selectByUserId(userId);
         List<ResumeContentDTO> result = resumes.stream()
                 .map(resume -> getResumeContentById(resume.getId()))
                 .collect(Collectors.toList());
 
         return result;
-    }
-
-    /**
-     * 校验用户是否已登录，返回用户ID
-     *
-     * @return 用户ID
-     * @throws BusinessException 如果用户未登录
-     */
-    private Long requireUserId() {
-        Long userId = UserHolder.getUserId();
-        if (userId == null) {
-            throw new BusinessException(401, "用户未登录");
-        }
-        return userId;
     }
 
     /**
@@ -238,7 +223,7 @@ public class ResumeServiceImpl implements ResumeService {
      * @throws BusinessException 如果简历不存在
      */
     private Resume requireResume(Long id) {
-        Resume resume = resumeMapper.selectById(id);
+        Resume resume = baseMapper.selectById(id);
         if (resume == null) {
             throw new BusinessException(404, "简历不存在");
         }
@@ -337,8 +322,10 @@ public class ResumeServiceImpl implements ResumeService {
             throw new BusinessException(400, "文件不能为空");
         }
 
-        // 生成文件路径（对象键），使用 "resume" 作为前缀
-        String key = CosUtil.generateKey("resume", file.getOriginalFilename());
+        Long userId = UserHolder.requireUserId();
+
+        // 生成文件路径（对象键），使用 "resume-用户ID" 作为前缀
+        String key = CosUtil.generateKey("resume-" + userId, file.getOriginalFilename());
 
         // 上传文件到COS
         String uploadedKey = CosUtil.uploadFile(file, key);
