@@ -1,11 +1,15 @@
 package com.zdmj.resumeService.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.zdmj.common.BaseEntity;
+import com.zdmj.common.typehandler.JsonbListTypeHandler;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+
+import java.util.List;
 
 /**
  * 简历实体类
@@ -39,20 +43,24 @@ public class Resume extends BaseEntity {
     /**
      * 项目经历ID数组（JSONB数组，存储project_experiences ID）
      */
-    private String projects;
+    @TableField(typeHandler = JsonbListTypeHandler.class)
+    private List<Long> projects;
 
     /**
      * 工作经历ID数组（JSONB数组，存储career ID）
      */
-    private String careers;
+    @TableField(typeHandler = JsonbListTypeHandler.class)
+    private List<Long> careers;
 
     /**
      * 教育经历ID数组（JSONB数组，存储education ID）
      */
-    private String educations;
+    @TableField(typeHandler = JsonbListTypeHandler.class)
+    private List<Long> educations;
 
     /**
      * 专用简历ID数组（JSONB数组，存储resume_matches ID）
      */
-    private String resumeMatchedIds;
+    @TableField(typeHandler = JsonbListTypeHandler.class)
+    private List<Long> resumeMatchedIds;
 }

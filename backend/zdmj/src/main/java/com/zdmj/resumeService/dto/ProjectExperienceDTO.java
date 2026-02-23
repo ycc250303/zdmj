@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * 项目经历DTO
@@ -68,9 +69,9 @@ public class ProjectExperienceDTO {
     private String bgAndTarget;
 
     /**
-     * 技术栈（JSONB数组，如["React", "TypeScript", "Node.js"]）
+     * 技术栈（数组，如["React", "TypeScript", "Node.js"]）
      */
-    private String techStack;
+    private List<String> techStack;
 
     /**
      * 项目亮点（JSONB数组，包含技术难点、成果等）

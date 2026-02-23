@@ -65,10 +65,10 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         List<Long> careerIds = careerMapper.selectCareerIds(userId, true);
         List<Long> projectExperienceIds = projectExperienceMapper.selectProjectExperienceIds(userId, true);
 
-        // 将 ID 列表转换为 JSON 数组字符串
-        resume.setEducations(convertIdsToJson(educationIds));
-        resume.setCareers(convertIdsToJson(careerIds));
-        resume.setProjects(convertIdsToJson(projectExperienceIds));
+        // 直接设置List，TypeHandler会自动处理JSONB转换
+        resume.setEducations(educationIds);
+        resume.setCareers(careerIds);
+        resume.setProjects(projectExperienceIds);
 
         LocalDateTime now = DateTimeUtil.now();
         resume.setCreatedAt(now);
@@ -77,30 +77,18 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         if (!saved) {
             throw new BusinessException(500, "创建简历失败");
         }
-
-        // 注意：不再清除缓存，因为简历基础信息和列表已不使用缓存
-
         log.info("创建简历成功: {}", resume.getName());
         return resume;
     }
 
     @Override
     public Resume getById(Long id) {
-        // 直接查询数据库，不使用缓存
-        // 原因：用户频繁编辑项目经历、工作经历、教育经历等，写操作频繁
-        // 每次编辑经历都会清除缓存，导致缓存命中率低，反而增加系统负担
-        // 简历基础信息查询SQL简单（单表查询），数据库查询性能可以接受
         return requireResume(id);
     }
 
     @Override
     public List<Resume> getByUserId() {
         Long userId = UserHolder.requireUserId();
-
-        // 直接查询数据库，不使用缓存
-        // 原因：用户频繁编辑项目经历、工作经历、教育经历等，写操作频繁
-        // 每次编辑经历都会清除缓存，导致缓存命中率低，反而增加系统负担
-        // 简历列表查询SQL简单（单表查询），数据库查询性能可以接受
         return baseMapper.selectByUserId(userId);
     }
 
@@ -129,10 +117,10 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
         resume.setName(resumeDTO.getName());
         resume.setSkillId(resumeDTO.getSkillId());
-        // 更新教育经历、工作经历、项目经历的ID数组
-        resume.setEducations(convertIdsToJson(educationIds));
-        resume.setCareers(convertIdsToJson(careerIds));
-        resume.setProjects(convertIdsToJson(projectExperienceIds));
+        // 直接设置List，TypeHandler会自动处理JSONB转换
+        resume.setEducations(educationIds);
+        resume.setCareers(careerIds);
+        resume.setProjects(projectExperienceIds);
         resume.setUpdatedAt(DateTimeUtil.now());
 
         boolean updated = updateById(resume);
@@ -247,42 +235,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         return resume;
     }
 
-    /**
-     * 将 ID 列表转换为 JSON 数组字符串
-     * 例如：[1, 2, 3] -> "[1,2,3]"
-     *
-     * @param ids ID 列表
-     * @return JSON 数组字符串，如果列表为空则返回 "[]"
-     */
-    private String convertIdsToJson(List<Long> ids) {
-        try {
-            if (ids == null || ids.isEmpty()) {
-                return "[]";
-            }
-            return objectMapper.writeValueAsString(ids);
-        } catch (Exception e) {
-            throw new BusinessException(500, "ID 列表转换失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 将 JSON 数组字符串转换为 ID 列表
-     * 例如："[1,2,3]" -> [1, 2, 3]
-     *
-     * @param json JSON 数组字符串
-     * @return ID 列表，如果字符串为空或 null 则返回空列表
-     */
-    private List<Long> convertJsonToIds(String json) {
-        try {
-            if (json == null || json.trim().isEmpty()) {
-                return List.of();
-            }
-            return objectMapper.readValue(json, new TypeReference<List<Long>>() {
-            });
-        } catch (Exception e) {
-            throw new BusinessException(400, "JSON 解析失败: " + e.getMessage());
-        }
-    }
 
     /**
      * 将 Skill 实体转换为 SkillDTO

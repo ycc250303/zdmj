@@ -1,12 +1,15 @@
 package com.zdmj.resumeService.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.zdmj.common.BaseEntity;
+import com.zdmj.common.typehandler.JsonbListTypeHandler;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * 项目经历实体类
@@ -65,7 +68,8 @@ public class ProjectExperience extends BaseEntity {
     /**
      * 技术栈（JSONB数组，如["React", "TypeScript", "Node.js"]）
      */
-    private String techStack;
+    @TableField(typeHandler = JsonbListTypeHandler.class)
+    private List<String> techStack;
 
     /**
      * 项目亮点（JSONB数组，包含技术难点、成果等）

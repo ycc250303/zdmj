@@ -534,13 +534,13 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     project_name VARCHAR(255) NOT NULL,
     -- 关联项目名称
     file_type SMALLINT NOT NULL,
-    -- 文件类型（枚举：1=txt/2=URL/3=pdf/4=md）
+    -- 文件类型（枚举：1=txt/2=URL/3=doc(pdf)/4=md）
     tag JSONB DEFAULT '[]'::jsonb,
     -- 知识标签数组
     -- tag 示例
     -- ["技术文档", "API文档", "架构设计"]
     type SMALLINT NOT NULL,
-    -- 知识类型（枚举：1=技术文档/2=API文档/3=架构设计/4=需求文档/5=其他）
+    -- 知识类型（枚举：1=项目文档/2=GitHub仓库代码/3=技术文档/4=其他/5=项目DeepWiki文档）
     content TEXT NOT NULL,
     -- 文档内容或URL
     vector_ids JSONB DEFAULT '[]'::jsonb,
