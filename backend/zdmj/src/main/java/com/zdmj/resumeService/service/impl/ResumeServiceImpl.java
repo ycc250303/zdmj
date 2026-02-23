@@ -7,6 +7,7 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.util.CosUtil;
 import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.util.DtoConverter;
+import com.zdmj.exception.ErrorCode;
 import com.zdmj.exception.BusinessException;
 import org.springframework.web.multipart.MultipartFile;
 import com.zdmj.resumeService.dto.*;
@@ -53,7 +54,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
         // 检查是否存在同名简历
         if (baseMapper.existsByName(userId, resumeDTO.getName(), null)) {
-            throw new BusinessException(400, "简历名称已存在，请使用其他名称");
+            throw new BusinessException(ErrorCode.RESUME_NAME_EXISTS);
         }
 
         Resume resume = new Resume();
@@ -75,7 +76,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         resume.setUpdatedAt(now);
         boolean saved = save(resume);
         if (!saved) {
-            throw new BusinessException(500, "创建简历失败");
+            throw new BusinessException(ErrorCode.RESUME_CREATE_FAILED);
         }
         log.info("创建简历成功: {}", resume.getName());
         return resume;
@@ -97,7 +98,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         Long userId = UserHolder.requireUserId();
         Long id = resumeDTO.getId();
         if (id == null) {
-            throw new BusinessException(400, "简历ID不能为空");
+            throw new BusinessException(ErrorCode.RESUME_ID_EMPTY);
         }
 
         Resume resume = requireResumeAndCheckOwnership(id, userId, "修改");
@@ -105,7 +106,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         // 如果简历名称发生变化，检查是否存在同名简历（排除当前简历）
         if (!resume.getName().equals(resumeDTO.getName())) {
             if (baseMapper.existsByName(userId, resumeDTO.getName(), id)) {
-                throw new BusinessException(400, "简历名称已存在，请使用其他名称");
+                throw new BusinessException(ErrorCode.RESUME_NAME_EXISTS);
             }
         }
 
@@ -125,7 +126,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
         boolean updated = updateById(resume);
         if (!updated) {
-            throw new BusinessException(500, "更新简历失败");
+            throw new BusinessException(ErrorCode.RESUME_UPDATE_FAILED);
         }
         log.info("更新简历成功: {}", resume.getName());
 
@@ -141,7 +142,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         Resume resume = requireResumeAndCheckOwnership(id, userId, "删除");
         boolean removed = removeById(id);
         if (!removed) {
-            throw new BusinessException(500, "删除简历失败");
+            throw new BusinessException(ErrorCode.RESUME_DELETE_FAILED);
         }
         log.info("删除简历成功: {}", resume.getName());
 
@@ -213,7 +214,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     private Resume requireResume(Long id) {
         Resume resume = baseMapper.selectById(id);
         if (resume == null) {
-            throw new BusinessException(404, "简历不存在");
+            throw new BusinessException(ErrorCode.RESUME_NOT_FOUND);
         }
         return resume;
     }
@@ -230,7 +231,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     private Resume requireResumeAndCheckOwnership(Long id, Long userId, String action) {
         Resume resume = requireResume(id);
         if (!resume.getUserId().equals(userId)) {
-            throw new BusinessException(403, "无权" + action + "他人简历");
+            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(), ErrorCode.NO_PERMISSION.getMessage() + action + "他人简历");
         }
         return resume;
     }
@@ -271,7 +272,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     public Map<String, String> uploadResumeFile(MultipartFile file) {
         // 验证文件
         if (file == null || file.isEmpty()) {
-            throw new BusinessException(400, "文件不能为空");
+            throw new BusinessException(ErrorCode.FILE_EMPTY);
         }
 
         Long userId = UserHolder.requireUserId();

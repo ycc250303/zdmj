@@ -72,7 +72,6 @@ public class BeanUtil {
                 emptyNames.add(pd.getName());
             }
         }
-        String[] result = new String[emptyNames.size()];
-        return emptyNames.toArray(result);
+        return emptyNames.toArray(new String[0]);
     }
 }

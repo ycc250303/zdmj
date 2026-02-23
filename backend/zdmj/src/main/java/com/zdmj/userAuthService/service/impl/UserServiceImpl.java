@@ -4,8 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.util.DateTimeUtil;
-import com.zdmj.common.util.JwtUtil;
-import com.zdmj.common.util.PasswordUtil;
+import com.zdmj.userAuthService.util.JwtUtil;
+import com.zdmj.userAuthService.util.PasswordUtil;
+import com.zdmj.exception.ErrorCode;
 import com.zdmj.exception.BusinessException;
 import com.zdmj.userAuthService.dto.UserDTO;
 import com.zdmj.userAuthService.dto.UserLoginDTO;
@@ -46,17 +47,17 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     public UserDTO register(UserRegisterDTO registerDTO) {
         // 1. 检查用户名是否已存在
         if (existsByUsername(registerDTO.getUsername())) {
-            throw new BusinessException(400, "用户名已存在");
+            throw new BusinessException(ErrorCode.USER_ALREADY_EXISTS);
         }
 
         // 2. 检查邮箱是否已存在
         if (existsByEmail(registerDTO.getEmail())) {
-            throw new BusinessException(400, "邮箱已被注册");
+            throw new BusinessException(ErrorCode.USER_EMAIL_EXISTS);
         }
 
         // 3. 验证验证码
         if (!verificationCodeService.verifyCode(registerDTO.getEmail(), registerDTO.getVerificationCode())) {
-            throw new BusinessException(400, "验证码错误或已过期");
+            throw new BusinessException(ErrorCode.CAPTCHA_ERROR);
         }
 
         // 4. 创建用户对象
@@ -72,7 +73,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 5. 保存到数据库
         boolean saved = save(user);
         if (!saved) {
-            throw new BusinessException(500, "用户注册失败");
+            throw new BusinessException(ErrorCode.USER_REGISTER_FAILED);
         }
 
         log.info("用户注册成功: {}", user.getUsername());
@@ -96,12 +97,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
         // 2. 检查用户是否存在
         if (user == null) {
-            throw new BusinessException(400, "用户名或密码错误");
+            throw new BusinessException(ErrorCode.USER_PASSWORD_WRONG);
         }
 
         // 3. 验证密码
         if (!PasswordUtil.matches(loginDTO.getPassword(), user.getPassword())) {
-            throw new BusinessException(400, "用户名或密码错误");
+            throw new BusinessException(ErrorCode.USER_PASSWORD_WRONG);
         }
 
         log.info("用户登录成功: {}", user.getUsername());
@@ -121,7 +122,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     public UserDTO getUserById(Long id) {
         User user = getById(id);
         if (user == null) {
-            throw new BusinessException(404, "用户不存在");
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
         return convertToDTO(user);
     }
@@ -156,12 +157,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 1. 根据邮箱查询用户
         User user = getUserByEmail(resetPasswordDTO.getEmail());
         if (user == null) {
-            throw new BusinessException(404, "该邮箱未注册");
+            throw new BusinessException(ErrorCode.USER_EMAIL_NOT_REGISTERED);
         }
 
         // 2. 验证验证码
         if (!verificationCodeService.verifyCode(resetPasswordDTO.getEmail(), resetPasswordDTO.getVerificationCode())) {
-            throw new BusinessException(400, "验证码错误或已过期");
+            throw new BusinessException(ErrorCode.CAPTCHA_ERROR);
         }
 
         // 3. 加密新密码
@@ -173,7 +174,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 .set(User::getPassword, encodedPassword)
                 .set(User::getUpdatedAt, DateTimeUtil.now()));
         if (!updated) {
-            throw new BusinessException(500, "密码修改失败");
+            throw new BusinessException(ErrorCode.PASSWORD_CHANGE_FAILED);
         }
 
         log.info("用户密码重置成功: userId={}, email={}", user.getId(), resetPasswordDTO.getEmail());

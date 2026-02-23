@@ -1,4 +1,4 @@
-package com.zdmj.common.util;
+package com.zdmj.userAuthService.util;
 
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;

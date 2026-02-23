@@ -65,4 +65,27 @@ public class BusinessException extends RuntimeException {
         this.code = code;
         this.message = message;
     }
+
+    /**
+     * 构造函数
+     * 
+     * @param errorCode 错误码枚举
+     */
+    public BusinessException(ErrorCode errorCode) {
+        super(errorCode.getMessage());
+        this.code = errorCode.getCode();
+        this.message = errorCode.getMessage();
+    }
+
+    /**
+     * 构造函数
+     * 
+     * @param errorCode 错误码枚举
+     * @param cause     异常原因
+     */
+    public BusinessException(ErrorCode errorCode, Throwable cause) {
+        super(errorCode.getMessage(), cause);
+        this.code = errorCode.getCode();
+        this.message = errorCode.getMessage();
+    }
 }

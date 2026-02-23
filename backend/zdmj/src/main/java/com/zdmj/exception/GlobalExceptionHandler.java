@@ -62,7 +62,8 @@ public class GlobalExceptionHandler {
                 .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining(", "));
         log.warn("参数校验失败: {}", message);
-        return Result.error(400, "参数校验失败: " + message);
+        return Result.error(ErrorCode.VALIDATION_ERROR.getCode(),
+                ErrorCode.VALIDATION_ERROR.getMessage() + ": " + message);
     }
 
     /**
@@ -78,7 +79,8 @@ public class GlobalExceptionHandler {
                 .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining(", "));
         log.warn("参数校验失败: {}", message);
-        return Result.error(400, "参数校验失败: " + message);
+        return Result.error(ErrorCode.VALIDATION_ERROR.getCode(),
+                ErrorCode.VALIDATION_ERROR.getMessage() + ": " + message);
     }
 
     /**
@@ -94,7 +96,8 @@ public class GlobalExceptionHandler {
                 .map(ConstraintViolation::getMessage)
                 .collect(Collectors.joining(", "));
         log.warn("参数校验失败: {}", message);
-        return Result.error(400, "参数校验失败: " + message);
+        return Result.error(ErrorCode.VALIDATION_ERROR.getCode(),
+                ErrorCode.VALIDATION_ERROR.getMessage() + ": " + message);
     }
 
     /**
@@ -109,7 +112,8 @@ public class GlobalExceptionHandler {
         String parameterName = e.getParameterName();
         String parameterType = e.getParameterType();
         log.warn("缺少必需的请求参数: {} (类型: {})", parameterName, parameterType);
-        return Result.error(400, String.format("缺少必需的请求参数: %s", parameterName));
+        return Result.error(ErrorCode.MISSING_PARAMETER.getCode(),
+                ErrorCode.MISSING_PARAMETER.getMessage() + ": " + parameterName);
     }
 
     /**
@@ -125,7 +129,8 @@ public class GlobalExceptionHandler {
         String requiredType = e.getRequiredType() != null ? e.getRequiredType().getSimpleName() : "未知类型";
         Object value = e.getValue();
         log.warn("请求参数类型不匹配: {} = {} (期望类型: {})", parameterName, value, requiredType);
-        return Result.error(400, String.format("请求参数类型错误: %s 应为 %s 类型", parameterName, requiredType));
+        return Result.error(ErrorCode.PARAM_TYPE_ERROR.getCode(),
+                String.format("%s: %s 应为 %s 类型", ErrorCode.PARAM_TYPE_ERROR.getMessage(), parameterName, requiredType));
     }
 
     /**
@@ -145,26 +150,27 @@ public class GlobalExceptionHandler {
                     || message.contains("I/O error while reading input message")
                     || message.contains("Required request body")) {
                 log.warn("请求体为空");
-                return Result.error(400, "请求体不能为空，请提供有效的JSON数据");
+                return Result.error(ErrorCode.REQUEST_BODY_EMPTY.getCode(), ErrorCode.REQUEST_BODY_EMPTY.getMessage());
             }
             // 处理日期格式错误
             if (message.contains("LocalDate") || message.contains("LocalDateTime")) {
                 log.warn("日期格式错误: {}", message);
-                return Result.error(400, "日期格式错误，请使用 yyyy-MM-dd 格式（例如：2024-09-01）");
+                return Result.error(ErrorCode.DATE_FORMAT_ERROR.getCode(), ErrorCode.DATE_FORMAT_ERROR.getMessage());
             }
             // 处理JSON反序列化失败
             if (message.contains("Cannot deserialize")) {
                 log.warn("JSON反序列化失败: {}", message);
-                return Result.error(400, "请求参数格式错误，请检查数据类型是否正确");
+                return Result.error(ErrorCode.PARAM_TYPE_ERROR.getCode(), ErrorCode.PARAM_TYPE_ERROR.getMessage());
             }
             // 处理JSON格式错误
             if (message.contains("JSON parse error") || message.contains("Unexpected character")) {
                 log.warn("JSON格式错误: {}", message);
-                return Result.error(400, "JSON格式错误，请检查请求体格式是否正确");
+                return Result.error(ErrorCode.JSON_FORMAT_ERROR.getCode(), ErrorCode.JSON_FORMAT_ERROR.getMessage());
             }
         }
         log.warn("JSON解析失败: {}", message);
-        return Result.error(400, "请求参数格式错误: " + (message != null ? message : "未知错误"));
+        return Result.error(ErrorCode.BAD_REQUEST.getCode(),
+                ErrorCode.BAD_REQUEST.getMessage() + ": " + (message != null ? message : "未知错误"));
     }
 
     /**
@@ -177,7 +183,8 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Result<?> handleIllegalArgumentException(IllegalArgumentException e) {
         log.warn("非法参数: {}", e.getMessage());
-        return Result.error(400, "非法参数: " + e.getMessage());
+        return Result.error(ErrorCode.ILLEGAL_ARGUMENT.getCode(),
+                ErrorCode.ILLEGAL_ARGUMENT.getMessage() + ": " + e.getMessage());
     }
 
     /**
@@ -190,7 +197,8 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<?> handleRuntimeException(RuntimeException e) {
         log.error("运行时异常: ", e);
-        return Result.error(500, "系统内部错误: " + e.getMessage());
+        return Result.error(ErrorCode.INTERNAL_ERROR.getCode(),
+                ErrorCode.INTERNAL_ERROR.getMessage() + ": " + e.getMessage());
     }
 
     /**
@@ -203,6 +211,6 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<?> handleException(Exception e) {
         log.error("系统异常: ", e);
-        return Result.error(500, "系统异常，请联系管理员");
+        return Result.error(ErrorCode.SYSTEM_EXCEPTION.getCode(), ErrorCode.SYSTEM_EXCEPTION.getMessage());
     }
 }

@@ -2,7 +2,7 @@ package com.zdmj.config;
 
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.util.JwtUtil;
+import com.zdmj.userAuthService.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

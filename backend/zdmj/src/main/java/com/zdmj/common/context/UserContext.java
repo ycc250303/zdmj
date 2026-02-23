@@ -1,12 +1,16 @@
 package com.zdmj.common.context;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 /**
  * 用户上下文信息
  * 存储当前登录用户的完整信息
  */
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class UserContext {
 
     /**
@@ -32,10 +36,7 @@ public class UserContext {
      * @return 用户上下文
      */
     public static UserContext of(Long userId, String username) {
-        UserContext context = new UserContext();
-        context.setUserId(userId);
-        context.setUsername(username);
-        return context;
+        return new UserContext(userId, username, null);
     }
 
     /**
@@ -47,10 +48,6 @@ public class UserContext {
      * @return 用户上下文
      */
     public static UserContext of(Long userId, String username, String email) {
-        UserContext context = new UserContext();
-        context.setUserId(userId);
-        context.setUsername(username);
-        context.setEmail(email);
-        return context;
+        return new UserContext(userId, username, email);
     }
 }

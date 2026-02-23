@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.zdmj.common.BaseEntity;
+import com.zdmj.common.model.BaseEntity;
 import com.zdmj.common.typehandler.JsonbListTypeHandler;
 import lombok.Data;
 import lombok.EqualsAndHashCode;

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.util.BeanUtil;
 import com.zdmj.common.util.DateTimeUtil;
+import com.zdmj.exception.ErrorCode;
 import com.zdmj.exception.BusinessException;
 import com.zdmj.resumeService.dto.ProjectExperienceDTO;
 import com.zdmj.resumeService.entity.ProjectExperience;
@@ -48,7 +49,7 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
         projectExperience.setUpdatedAt(now);
         boolean saved = save(projectExperience);
         if (!saved) {
-            throw new BusinessException(500, "添加项目经历失败");
+            throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_ADD_FAILED);
         }
         log.info("添加项目经历成功: {}", projectExperience.getName());
         return projectExperience;
@@ -70,7 +71,7 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
         Long userId = UserHolder.requireUserId();
         Long id = projectExperienceDTO.getId();
         if (id == null) {
-            throw new BusinessException(400, "项目经历ID不能为空");
+            throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_ID_EMPTY);
         }
         ProjectExperience projectExperience = requireProjectExperienceAndCheckOwnership(id, userId, "修改");
 
@@ -80,7 +81,7 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
 
         if (projectExperience.getStartDate() != null && projectExperience.getEndDate() != null) {
             if (projectExperience.getEndDate().isBefore(projectExperience.getStartDate())) {
-                throw new BusinessException(400, "项目结束时间不能早于开始时间");
+                throw new BusinessException(ErrorCode.PROJECT_END_TIME_INVALID);
             }
         }
 
@@ -89,7 +90,7 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
 
         boolean updated = updateById(projectExperience);
         if (!updated) {
-            throw new BusinessException(500, "更新项目经历失败");
+            throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_UPDATE_FAILED);
         }
 
         log.info("更新项目经历成功: {}", projectExperience.getName());
@@ -102,7 +103,7 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
         ProjectExperience projectExperience = requireProjectExperienceAndCheckOwnership(id, userId, "删除");
         boolean removed = removeById(id);
         if (!removed) {
-            throw new BusinessException(500, "删除项目经历失败");
+            throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_DELETE_FAILED);
         }
 
         log.info("删除项目经历成功: {}", projectExperience.getName());
@@ -118,7 +119,7 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
     private ProjectExperience requireProjectExperience(Long id) {
         ProjectExperience projectExperience = baseMapper.selectById(id);
         if (projectExperience == null) {
-            throw new BusinessException(404, "项目经历不存在");
+            throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_NOT_FOUND);
         }
         return projectExperience;
     }
@@ -135,7 +136,7 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
     private ProjectExperience requireProjectExperienceAndCheckOwnership(Long id, Long userId, String action) {
         ProjectExperience projectExperience = requireProjectExperience(id);
         if (!projectExperience.getUserId().equals(userId)) {
-            throw new BusinessException(403, "无权" + action + "他人项目经历");
+            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(), ErrorCode.NO_PERMISSION.getMessage() + action + "他人项目经历");
         }
         return projectExperience;
     }

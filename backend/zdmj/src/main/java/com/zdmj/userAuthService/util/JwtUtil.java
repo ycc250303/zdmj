@@ -1,4 +1,4 @@
-package com.zdmj.common.util;
+package com.zdmj.userAuthService.util;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;

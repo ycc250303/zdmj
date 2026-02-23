@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.util.BeanUtil;
 import com.zdmj.common.util.DateTimeUtil;
+import com.zdmj.exception.ErrorCode;
 import com.zdmj.exception.BusinessException;
 import com.zdmj.resumeService.dto.EducationDTO;
 import com.zdmj.resumeService.entity.Education;
@@ -47,7 +48,7 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
 
         boolean saved = save(education);
         if (!saved) {
-            throw new BusinessException(500, "添加教育经历失败");
+            throw new BusinessException(ErrorCode.EDUCATION_ADD_FAILED);
         }
         log.info("添加教育经历成功: {}", education.getSchool());
         return education;
@@ -64,7 +65,7 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
         Long userId = UserHolder.requireUserId();
         Long id = educationDTO.getId();
         if (id == null) {
-            throw new BusinessException(400, "教育经历ID不能为空");
+            throw new BusinessException(ErrorCode.EDUCATION_ID_EMPTY);
         }
 
         Education existingEducation = requireEducationAndCheckOwnership(id, userId, "修改");
@@ -80,7 +81,7 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
         // 验证日期逻辑：如果两个日期都提供了，需要验证结束时间不早于开始时间
         if (existingEducation.getStartDate() != null && existingEducation.getEndDate() != null) {
             if (existingEducation.getEndDate().isBefore(existingEducation.getStartDate())) {
-                throw new BusinessException(400, "毕业时间不能早于入学时间");
+                throw new BusinessException(ErrorCode.EDUCATION_GRADUATE_TIME_INVALID);
             }
         }
 
@@ -90,7 +91,7 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
         // 使用 MyBatis-Plus 的 updateById 方法，根据ID更新（只更新非null字段）
         boolean updated = updateById(existingEducation);
         if (!updated) {
-            throw new BusinessException(500, "更新教育经历失败");
+            throw new BusinessException(ErrorCode.EDUCATION_UPDATE_FAILED);
         }
 
         log.info("用户 {} 更新教育经历成功: id={}", userId, id);
@@ -110,7 +111,7 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
         // 删除教育经历
         boolean removed = removeById(id);
         if (!removed) {
-            throw new BusinessException(500, "删除教育经历失败");
+            throw new BusinessException(ErrorCode.EDUCATION_DELETE_FAILED);
         }
 
         log.info("用户 {} 删除教育经历成功: id={}", userId, id);
@@ -148,7 +149,7 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
     private Education requireEducation(Long id) {
         Education education = baseMapper.selectById(id);
         if (education == null) {
-            throw new BusinessException(404, "教育经历不存在");
+            throw new BusinessException(ErrorCode.EDUCATION_NOT_FOUND);
         }
         return education;
     }
@@ -165,7 +166,7 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
     private Education requireEducationAndCheckOwnership(Long id, Long userId, String action) {
         Education education = requireEducation(id);
         if (!education.getUserId().equals(userId)) {
-            throw new BusinessException(403, "无权" + action + "他人教育经历");
+            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(), ErrorCode.NO_PERMISSION.getMessage() + action + "他人教育经历");
         }
         return education;
     }

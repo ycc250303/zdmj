@@ -75,7 +75,7 @@ public class DtoConverter {
         try {
             D dto = dtoClass.getDeclaredConstructor().newInstance();
             // 合并默认排除字段和自定义排除字段
-            String[] allIgnoreProperties = mergeIgnoreProperties(ignoreProperties);
+            String[] allIgnoreProperties = mergeIgnoreProperties(DEFAULT_IGNORE_PROPERTIES, ignoreProperties);
             BeanUtil.copyNonNullProperties(entity, dto, allIgnoreProperties);
             return dto;
         } catch (Exception e) {
@@ -128,7 +128,8 @@ public class DtoConverter {
         try {
             E entity = entityClass.getDeclaredConstructor().newInstance();
             // 合并默认排除字段和自定义排除字段
-            String[] allIgnoreProperties = mergeIgnoreProperties("createdAt", "updatedAt", ignoreProperties);
+            String[] allIgnoreProperties = mergeIgnoreProperties(new String[] { "createdAt", "updatedAt" },
+                    ignoreProperties);
             BeanUtil.copyNonNullProperties(dto, entity, allIgnoreProperties);
             return entity;
         } catch (Exception e) {
@@ -175,31 +176,16 @@ public class DtoConverter {
 
     /**
      * 合并排除字段数组
+     * 
+     * @param defaultFields          默认排除字段
+     * @param customIgnoreProperties 自定义排除字段
+     * @return 合并后的排除字段数组
      */
-    private static String[] mergeIgnoreProperties(String... customIgnoreProperties) {
-        if (customIgnoreProperties == null || customIgnoreProperties.length == 0) {
-            return DEFAULT_IGNORE_PROPERTIES;
-        }
-
-        // 合并数组并去重
-        Set<String> ignoreSet = new HashSet<>(Arrays.asList(DEFAULT_IGNORE_PROPERTIES));
-        ignoreSet.addAll(Arrays.asList(customIgnoreProperties));
-        return ignoreSet.toArray(new String[0]);
-    }
-
-    /**
-     * 合并排除字段数组（带默认字段）
-     */
-    private static String[] mergeIgnoreProperties(String defaultField1, String defaultField2,
-            String... customIgnoreProperties) {
-        Set<String> ignoreSet = new HashSet<>();
-        ignoreSet.add(defaultField1);
-        ignoreSet.add(defaultField2);
-
+    private static String[] mergeIgnoreProperties(String[] defaultFields, String... customIgnoreProperties) {
+        Set<String> ignoreSet = new HashSet<>(Arrays.asList(defaultFields));
         if (customIgnoreProperties != null && customIgnoreProperties.length > 0) {
             ignoreSet.addAll(Arrays.asList(customIgnoreProperties));
         }
-
         return ignoreSet.toArray(new String[0]);
     }
 }

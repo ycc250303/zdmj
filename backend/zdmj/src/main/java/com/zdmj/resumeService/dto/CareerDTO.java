@@ -1,6 +1,6 @@
 package com.zdmj.resumeService.dto;
 
-import com.zdmj.common.BaseEntity;
+import com.zdmj.common.model.BaseEntity;
 import com.zdmj.common.validation.CreateGroup;
 import com.zdmj.common.validation.UpdateGroup;
 

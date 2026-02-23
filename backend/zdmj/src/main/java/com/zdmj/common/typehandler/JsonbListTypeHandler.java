@@ -74,21 +74,21 @@ public class JsonbListTypeHandler extends BaseTypeHandler<List<?>> {
 
         try {
             // 先尝试解析为 List<Long>
-            try {
-                List<Long> longList = objectMapper.readValue(json, LONG_LIST_TYPE);
-                // 验证是否真的是 Long 类型（检查第一个元素）
-                if (!longList.isEmpty() && longList.get(0) instanceof Long) {
-                    return longList;
-                }
-            } catch (Exception e) {
-                // 不是 Long 类型，继续尝试 String
+            List<Long> longList = objectMapper.readValue(json, LONG_LIST_TYPE);
+            // 如果解析成功且列表不为空，返回 Long 列表
+            if (!longList.isEmpty()) {
+                return longList;
             }
-
-            // 尝试解析为 List<String>
+            // 空列表时，尝试解析为 String 列表（保持向后兼容）
             return objectMapper.readValue(json, STRING_LIST_TYPE);
         } catch (Exception e) {
-            log.warn("解析 JSONB 为 List 失败: {}, 原始值: {}", e.getMessage(), json);
-            return new ArrayList<>();
+            // 不是 Long 类型，尝试解析为 List<String>
+            try {
+                return objectMapper.readValue(json, STRING_LIST_TYPE);
+            } catch (Exception ex) {
+                log.warn("解析 JSONB 为 List 失败: {}, 原始值: {}", ex.getMessage(), json);
+                return new ArrayList<>();
+            }
         }
     }
 }
