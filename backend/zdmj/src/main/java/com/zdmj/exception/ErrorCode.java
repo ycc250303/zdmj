@@ -92,9 +92,10 @@ public enum ErrorCode {
     KNOWLEDGE_BASE_UPDATE_FAILED(8003, "更新知识库失败"),
     KNOWLEDGE_BASE_DELETE_FAILED(8004, "删除知识库失败"),
     KNOWLEDGE_BASE_NOT_FOUND(8005, "知识库不存在"),
-    PDF_URL_REQUIRED(8006, "PDF文档类型必须提供COS URL"),
-    MARKDOWN_URL_REQUIRED(8007, "Markdown文档类型必须提供COS URL"),
-    FILE_TYPE_NOT_EXISTS(8008, "文件类型不存在，请不要修改知识内容中的URL");
+    KNOWLEDGE_BASE_NAME_EXISTS(8006, "知识库名称已存在，请使用其他名称"),
+    PDF_URL_REQUIRED(8007, "PDF文档类型必须提供COS URL"),
+    MARKDOWN_URL_REQUIRED(8008, "Markdown文档类型必须提供COS URL"),
+    FILE_TYPE_NOT_EXISTS(8009, "文件类型不存在，请不要修改知识内容中的URL");
 
     private final Integer code;
     private final String message;

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zdmj.knowledgeService.mapper.KnowledgeBasesMapper">
+    <!-- 
+        注意：基础 CRUD 方法（insert, selectById, updateById, deleteById）已由 MyBatis-Plus 的 BaseMapper 自动提供
+        无需在此 XML 中定义，MyBatis-Plus 会自动生成对应的 SQL
+    -->
+
+    <!-- 根据用户ID查询所有知识库 -->
+    <select id="selectByUserId" resultType="com.zdmj.knowledgeService.entity.KnowledgeBases"> SELECT
+        id, user_id, name, project_name, file_type, tag, type, content, vector_ids, created_at,
+        updated_at FROM knowledge_bases WHERE user_id = #{userId} ORDER BY created_at DESC </select>
+
+    <!-- 根据用户ID和项目名称查询知识库列表 -->
+    <select id="selectByUserIdAndProjectName"
+        resultType="com.zdmj.knowledgeService.entity.KnowledgeBases"> SELECT id, user_id, name,
+        project_name, file_type, tag, type, content, vector_ids, created_at, updated_at FROM
+        knowledge_bases WHERE user_id = #{userId} <if
+            test="projectName != null and projectName != ''"> AND project_name = #{projectName} </if>
+        ORDER BY created_at DESC </select>
+
+    <!-- 根据用户ID和知识类型查询知识库列表 -->
+    <select id="selectByUserIdAndType" resultType="com.zdmj.knowledgeService.entity.KnowledgeBases">
+        SELECT id, user_id, name, project_name, file_type, tag, type, content, vector_ids,
+        created_at, updated_at FROM knowledge_bases WHERE user_id = #{userId} <if
+            test="type != null"> AND type = #{type} </if> ORDER BY created_at DESC </select>
+
+    <!-- 检查用户是否存在同名知识库 -->
+    <select id="existsByName" resultType="boolean"> SELECT COUNT(*) > 0 FROM knowledge_bases WHERE
+        user_id = #{userId} AND name = #{name} <if test="excludeId != null"> AND id != #{excludeId} </if>
+    </select>
+
+    <!-- 根据用户ID统计知识库数量 -->
+    <select id="countByUserId" resultType="java.lang.Long"> SELECT COUNT(*) FROM knowledge_bases
+        WHERE user_id = #{userId} </select>
+
+    <!-- 根据项目名称查询知识库列表（用于项目相关的知识库查询） -->
+    <select id="selectByProjectName" resultType="com.zdmj.knowledgeService.entity.KnowledgeBases">
+        SELECT id, user_id, name, project_name, file_type, tag, type, content, vector_ids,
+        created_at, updated_at FROM knowledge_bases WHERE user_id = #{userId} AND project_name =
+        #{projectName} ORDER BY created_at DESC </select>
+
+    <!-- 分页查询知识库列表（支持项目名称和类型过滤） -->
+    <select id="selectPage" resultType="com.zdmj.knowledgeService.entity.KnowledgeBases"> SELECT id,
+        user_id, name, project_name, file_type, tag, type, content, vector_ids, created_at,
+        updated_at FROM knowledge_bases WHERE user_id = #{userId} <if
+            test="projectName != null and projectName != ''"> AND project_name = #{projectName} </if>
+        <if
+            test="type != null"> AND type = #{type} </if> ORDER BY created_at DESC LIMIT #{limit}
+        OFFSET #{offset} </select>
+
+    <!-- 统计符合条件的知识库数量（用于分页） -->
+    <select id="countPage" resultType="java.lang.Long"> SELECT COUNT(*) FROM knowledge_bases WHERE
+        user_id = #{userId} <if test="projectName != null and projectName != ''"> AND project_name =
+        #{projectName} </if>
+        <if test="type != null"> AND type = #{type} </if>
+    </select>
+</mapper>
