@@ -14,3 +14,20 @@ redis
 pytest
 pytest-asyncio
 requests  # 用于测试脚本
+
+# Git 操作（用于 GitHub 仓库 clone）
+gitpython
+
+# 腾讯云COS SDK
+cos-python-sdk-v5
+
+# PDF 解析
+tika
+
+# AI
+langchain
+langchain-community
+langchain-text-splitters
+
+# 千问 Embedding SDK
+dashscope 

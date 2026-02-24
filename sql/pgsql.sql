@@ -565,8 +565,8 @@ CREATE TABLE IF NOT EXISTS knowledge_vectors (
     -- 知识库文档ID（逻辑外键：knowledge_bases.id）
     user_id BIGINT NOT NULL,
     -- 用户ID（逻辑外键：users.id）
-    embedding VECTOR(768) NOT NULL,
-    -- 文档块向量（768维，使用SBERT模型）
+    embedding VECTOR(1024) NOT NULL,
+    -- 文档块向量（1024维，使用text-embedding-v4模型）
     content TEXT,
     -- 文档块内容
     metadata JSONB,
@@ -591,8 +591,8 @@ CREATE TABLE IF NOT EXISTS job_vectors (
     -- 岗位ID（逻辑外键：jobs.id）
     user_id BIGINT NOT NULL,
     -- 所属用户ID（逻辑外键：users.id，数据隔离）
-    embedding VECTOR(768) NOT NULL,
-    -- 岗位描述向量（768维，使用SBERT模型）
+    embedding VECTOR(1024) NOT NULL,
+    -- 岗位描述向量（1024维，使用text-embedding-v4模型）
     metadata JSONB,
     -- 岗位元数据（职位名称、公司等）
     -- metadata 示例
@@ -619,8 +619,8 @@ CREATE TABLE IF NOT EXISTS project_code_vectors (
     -- 用户ID（逻辑外键：users.id）
     file_path VARCHAR(500),
     -- 文件路径
-    embedding VECTOR(768) NOT NULL,
-    -- 代码片段向量（768维，使用SBERT模型）
+    embedding VECTOR(1024) NOT NULL,
+    -- 代码片段向量（1024维，使用text-embedding-v4模型）
     content TEXT,
     -- 代码片段内容
     metadata JSONB,
