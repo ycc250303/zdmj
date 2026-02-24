@@ -6,8 +6,6 @@ import com.zdmj.knowledgeService.entity.KnowledgeBases;
 
 import java.util.List;
 
-import org.springframework.web.multipart.MultipartFile;
-
 public interface KnowledgeBasesService {
 
     /**
@@ -58,12 +56,4 @@ public interface KnowledgeBasesService {
      * @param id 知识库ID
      */
     void delete(Long id);
-
-    /**
-     * 上传文件
-     *
-     * @param file 文件
-     * @return 返回上传后的文件 URL
-     */
-    String uploadFile(MultipartFile file);
 }

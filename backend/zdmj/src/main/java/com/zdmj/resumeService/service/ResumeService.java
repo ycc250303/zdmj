@@ -3,10 +3,8 @@ package com.zdmj.resumeService.service;
 import com.zdmj.resumeService.dto.ResumeContentDTO;
 import com.zdmj.resumeService.dto.ResumeDTO;
 import com.zdmj.resumeService.entity.Resume;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * 简历服务接口
@@ -65,12 +63,4 @@ public interface ResumeService {
      * @return 简历完整内容列表
      */
     List<ResumeContentDTO> getResumeContentList();
-
-    /**
-     * 上传简历文件到COS（用于测试COS连接）
-     *
-     * @param file 简历文件（支持PDF、Word、图片等格式）
-     * @return 上传结果，包含文件key和访问URL
-     */
-    Map<String, String> uploadResumeFile(MultipartFile file);
 }

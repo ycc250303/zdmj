@@ -12,7 +12,6 @@ import com.zdmj.knowledgeService.mapper.KnowledgeBasesMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -163,27 +162,6 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         }
         // TODO：删除向量数据
         log.info("删除知识库成功: {}", knowledgeBases.getName());
-    }
-
-    @Override
-    public String uploadFile(MultipartFile file) {
-        // 验证文件
-        if (file == null || file.isEmpty()) {
-            throw new BusinessException(ErrorCode.FILE_EMPTY);
-        }
-
-        Long userId = UserHolder.requireUserId();
-
-        // 生成文件路径（对象键），使用 "knowledge-用户ID" 作为前缀
-        String key = CosUtil.generateKey("knowledge-" + userId, file.getOriginalFilename());
-
-        // 上传文件到COS
-        String uploadedKey = CosUtil.uploadFile(file, key);
-
-        // 获取文件访问URL
-        String fileUrl = CosUtil.getFileUrl(uploadedKey);
-
-        return fileUrl;
     }
 
     private KnowledgeBases requireKnowledgeBases(Long id) {

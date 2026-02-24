@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
 
 import com.zdmj.common.Result;
 import com.zdmj.common.model.PageResult;
@@ -75,10 +74,5 @@ public class KnowledgeBasesController {
     public Result<String> deleteKnowledgeBases(@PathVariable Long id) {
         knowledgeBasesService.delete(id);
         return Result.success("删除知识库成功", null);
-    }
-
-    @PostMapping("/file")
-    public Result<String> uploadFile(@RequestParam("file") MultipartFile file) {
-        return Result.success("上传文件成功", knowledgeBasesService.uploadFile(file));
     }
 }
