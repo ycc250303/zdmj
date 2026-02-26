@@ -1,0 +1,119 @@
+## 枚举与 JSON 字段速查（基于 `pgsql.sql`）
+
+> 约定：枚举字段统一使用 `SMALLINT` 存储；JSON 字段统一使用 `JSONB`。
+
+### 表 `user_profiles`
+
+| 字段名       | 类型    | 分类 | 含义 / 取值说明 |
+| ------------ | ------- | ---- | --------------- |
+| `basic_info` | JSONB   | JSON | 基础信息（专业、年级、学校等）。示例：`{"major":"软件工程","grade":"大三","school":"XX大学"}` |
+| `skills`     | JSONB   | JSON | 技能画像（语言、框架、水平等）。示例：`{"languages":["Java","Python"],"frameworks":["Spring Boot","FastAPI"],"level":"中级"}` |
+| `job_intention` | JSONB | JSON | 求职意向（目标岗位、城市、薪资等）。示例：`{"position":"后端开发","city":"北京","salary_min":15,"salary_max":25}` |
+| `stage`      | SMALLINT | 枚举 | 求职阶段：`1=基础积累` / `2=项目强化` / `3=投递准备` / `4=面试冲刺` |
+| `constraints` | JSONB  | JSON | 约束条件（类型、准备时间等）。示例：`{"type":"日常实习/暑期实习/校招","prepare_time":"3"}` |
+| `preferences` | JSONB  | JSON | 偏好（公司类型、行业、学习方式等）。示例：`{"company_type":["互联网","金融"],"industry":["科技","教育"],"learning_style":"在线学习"}` |
+
+### 表 `user_behavior_logs`
+
+| 字段名   | 类型     | 分类 | 含义 / 取值说明 |
+| -------- | -------- | ---- | --------------- |
+| `type`   | SMALLINT | 枚举 | 行为类型：`1=learn学习` / `2=project项目` / `3=resume简历` / `4=job岗位` 等 |
+| `detail` | JSONB    | JSON | 行为详情（操作对象、前后数据快照等）。示例：`{"action":"创建项目","object_id":123,"object_type":"project","before":{},"after":{"name":"项目名称"}}` |
+| `result` | JSONB    | JSON | 行为结果（通过/未通过/评分/反馈等）。示例：`{"status":"success","score":85,"feedback":"项目分析完成","passed":true}` |
+
+### 表 `educations`
+
+| 字段名  | 类型     | 分类 | 含义 / 取值说明 |
+| ------- | -------- | ---- | --------------- |
+| `degree` | SMALLINT | 枚举 | 学历层次：`1=博士` / `2=硕士` / `3=本科` / `4=大专` / `5=高中` / `6=其他` |
+
+### 表 `skills`
+
+| 字段名   | 类型  | 分类 | 含义 / 取值说明 |
+| -------- | ----- | ---- | --------------- |
+| `content` | JSONB | JSON | 职业技能描述（数组对象，包含 `type` 和 `content`）。示例：`[{"type":"前端框架","content":["React","Vue.js"]},{"type":"开发语言","content":["TypeScript","JavaScript"]}]` |
+
+### 表 `project_experiences`
+
+| 字段名        | 类型     | 分类 | 含义 / 取值说明 |
+| ------------- | -------- | ---- | --------------- |
+| `tech_stack`  | JSONB    | JSON | 技术栈列表。示例：`["React","TypeScript","Node.js","PostgreSQL"]` |
+| `highlights`  | JSONB    | JSON | 项目亮点数组，每项包含 `type` 和 `content`。示例：`[{"type":"技术难点","content":"实现了分布式锁"},{"type":"成果","content":"提升了50%的性能"}]` |
+| `status`      | SMALLINT | 枚举 | 项目分析状态：`1=committed已提交` / `2=mining挖掘中` / `3=polishing打磨中` / `4=completed已完成`（用于跟踪 AI 分析流程） |
+| `lookup_result` | JSONB  | JSON | AI 分析结果，包含 `problem`、`solution`、`score` 等。示例：`{"problem":[{"type":"问题类型","content":"问题描述"}],"solution":[{"type":"解决方案类型","content":"解决方案描述"}],"score":85}` |
+
+### 表 `resumes`
+
+| 字段名              | 类型  | 分类 | 含义 / 取值说明 |
+| ------------------- | ----- | ---- | --------------- |
+| `projects`          | JSONB | JSON | 项目经历 ID 数组，对应 `project_experiences.id`，示例：`[1,2,3]` |
+| `careers`           | JSONB | JSON | 工作经历 ID 数组，对应 `careers.id`，示例：`[1,2]` |
+| `educations`        | JSONB | JSON | 教育经历 ID 数组，对应 `educations.id`，示例：`[1]` |
+| `resume_matched_ids` | JSONB | JSON | 专用简历 ID 数组，对应 `resume_matches.id`，示例：`[1,2]` |
+
+### 表 `resume_matches`
+
+| 字段名   | 类型     | 分类 | 含义 / 取值说明 |
+| -------- | -------- | ---- | --------------- |
+| `skill`  | JSONB    | JSON | 技能清单对象，内嵌优化后的技能列表，结构同技能表中的 `content`。 |
+| `projects` | JSONB  | JSON | 项目经历对象数组，嵌入存储优化后的项目经历，包括 `id`、`name`、`description`、`tech_stack`、`highlights` 等。 |
+| `status` | SMALLINT | 枚举 | 简历状态：`1=committed已提交` / `2=generated已生成` / `3=optimized已优化` |
+
+### 表 `projects_mined`
+
+| 字段名          | 类型  | 分类 | 含义 / 取值说明 |
+| --------------- | ----- | ---- | --------------- |
+| `info`          | JSONB | JSON | 项目信息，包含 `name`、`desc`（内含 `role`、`contribute`、`bgAndTarget`）、`techStack` 等。 |
+| `lightspot`     | JSONB | JSON | 原始亮点，包含 `team`、`skill`、`user` 三类亮点数组。 |
+| `lightspot_added` | JSONB | JSON | 额外挖掘的亮点，结构与 `lightspot` 类似，但每项为对象（包含 `type`、`content`）。 |
+
+### 表 `projects_polished`
+
+| 字段名      | 类型  | 分类 | 含义 / 取值说明 |
+| ----------- | ----- | ---- | --------------- |
+| `info`      | JSONB | JSON | 打磨后的项目信息，结构同 `projects_mined.info`。 |
+| `lightspot` | JSONB | JSON | 打磨后的亮点，包含 `team`、`skill`、`user`、`deprecated` 等数组，每项包含 `type`、`content`（已修正/已废弃描述）。 |
+
+### 表 `jobs`
+
+| 字段名      | 类型     | 分类 | 含义 / 取值说明 |
+| ----------- | -------- | ---- | --------------- |
+| `job_status` | SMALLINT | 枚举 | 外界状态：`1=open开放` / `2=closed关闭` |
+| `status`    | SMALLINT | 枚举 | 内部状态：`1=committed已提交` / `2=embedded已嵌入` / `3=matched已匹配` |
+| `recall`    | JSONB    | JSON | 简历匹配记录数组。示例：`[{"resumeId":1,"reason":"匹配原因"}]` |
+
+### 表 `knowledge_bases`
+
+| 字段名     | 类型     | 分类 | 含义 / 取值说明 |
+| ---------- | -------- | ---- | --------------- |
+| `file_type` | SMALLINT | 枚举 | 文件类型：`1=txt` / `2=URL` / `3=doc(pdf)` / `4=md` |
+| `tag`      | JSONB    | JSON | 知识标签数组，示例：`["技术文档","API文档","架构设计"]` |
+| `type`     | SMALLINT | 枚举 | 知识类型：`1=项目文档` / `2=GitHub仓库代码` / `3=技术文档` / `4=其他` / `5=项目DeepWiki文档` |
+| `vector_ids` | JSONB  | JSON | 关联的向量 ID 数组，示例：`[1,2,3,4,5]` |
+
+### 表 `knowledge_vectors`
+
+| 字段名    | 类型  | 分类 | 含义 / 取值说明 |
+| --------- | ----- | ---- | --------------- |
+| `metadata` | JSONB | JSON | 文档块元数据，如 `knowledgeId`、`source` 等。示例：`{"knowledgeId":"知识库ID","source":"文档来源（文件名、URL等）"}` |
+
+### 表 `job_vectors`
+
+| 字段名    | 类型  | 分类 | 含义 / 取值说明 |
+| --------- | ----- | ---- | --------------- |
+| `metadata` | JSONB | JSON | 岗位元数据，如 `job_name`、`company_name`、`location`、`salary` 等。 |
+
+### 表 `project_code_vectors`
+
+| 字段名    | 类型  | 分类 | 含义 / 取值说明 |
+| --------- | ----- | ---- | --------------- |
+| `metadata` | JSONB | JSON | 代码片段元数据，如 `source`（文件相对路径）、`language`、`functionName`、`startLine`、`endLine` 等。 |
+
+### 表 `knowledge_vector_tasks`
+
+| 字段名      | 类型     | 分类 | 含义 / 取值说明 |
+| ----------- | -------- | ---- | --------------- |
+| `task_type` | SMALLINT | 枚举 | 任务类型：`1=创建向量` / `2=更新向量` / `3=删除向量` |
+| `status`    | SMALLINT | 枚举 | 任务状态：`1=pending` / `2=running` / `3=success` / `4=failed` / `5=cancelled` |
+| `vector_ids` | JSONB   | JSON | 任务完成后生成或保留的向量 ID 快照，示例：`[1,2,3]` |
+
