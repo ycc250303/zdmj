@@ -61,11 +61,6 @@ public class ProjectExperience extends BaseEntity {
     private String contribution;
 
     /**
-     * 项目背景和目标
-     */
-    private String bgAndTarget;
-
-    /**
      * 技术栈（JSONB数组，如["React", "TypeScript", "Node.js"]）
      */
     @TableField(typeHandler = JsonbListTypeHandler.class)

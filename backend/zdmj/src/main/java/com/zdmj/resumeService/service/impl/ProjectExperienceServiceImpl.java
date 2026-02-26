@@ -35,15 +35,13 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
         projectExperience.setRole(projectExperienceDTO.getRole());
         projectExperience.setDescription(projectExperienceDTO.getDescription());
         projectExperience.setContribution(projectExperienceDTO.getContribution());
-        projectExperience.setBgAndTarget(projectExperienceDTO.getBgAndTarget());
         projectExperience.setTechStack(projectExperienceDTO.getTechStack());
         projectExperience.setHighlights(projectExperienceDTO.getHighlights());
         projectExperience.setUrl(projectExperienceDTO.getUrl());
         projectExperience.setVisible(projectExperienceDTO.getVisible());
         // 设置默认状态：1=committed已提交
-        projectExperience.setStatus(projectExperienceDTO.getStatus() != null 
-                ? projectExperienceDTO.getStatus() : 1);
-        projectExperience.setLookupResult(projectExperienceDTO.getLookupResult());
+        projectExperience.setStatus(1);
+        projectExperience.setLookupResult(null);
         LocalDateTime now = DateTimeUtil.now();
         projectExperience.setCreatedAt(now);
         projectExperience.setUpdatedAt(now);
