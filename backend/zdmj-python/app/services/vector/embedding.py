@@ -34,7 +34,7 @@ class QwenEmbedding:
         self,
         api_key: Optional[str] = None,
         model: str = "text-embedding-v4",
-        batch_size: int = 50,
+        batch_size: int = 10,
         max_retries: int = 3,
         retry_delay: float = 1.0,
     ) -> None:
@@ -43,7 +43,7 @@ class QwenEmbedding:
 
         :param api_key: 千问 API 密钥，若为 None 则从配置读取
         :param model: 模型名称，默认 text-embedding-v4
-        :param batch_size: 批量处理大小，默认 50（避免单次请求过大）
+        :param batch_size: 批量处理大小，默认 10（避免单次请求过大）
         :param max_retries: 最大重试次数，默认 3
         :param retry_delay: 重试延迟（秒），默认 1.0，会指数退避
         """
@@ -59,6 +59,15 @@ class QwenEmbedding:
 
         dashscope.api_key = api_key
         self._model = model
+        # 千问 text-embedding-v4 当前限制单次请求的 batch size 不大于 10
+        max_api_batch_size = 10
+        if batch_size > max_api_batch_size:
+            logger.warning(
+                "传入的 batch_size=%d 超过千问 API 限制，已自动调整为 %d",
+                batch_size,
+                max_api_batch_size,
+            )
+            batch_size = max_api_batch_size
         self._batch_size = batch_size
         self._max_retries = max_retries
         self._retry_delay = retry_delay

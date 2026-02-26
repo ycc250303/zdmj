@@ -131,14 +131,14 @@ class VectorStore:
 
     async def save_project_code_vectors(
         self,
-        project_id: int,
+        knowledge_id: int,
         user_id: int,
         documents: Sequence[Document],
         embeddings: Sequence[list[float]],
     ) -> list[int]:
         """批量保存项目代码向量到 project_code_vectors 表"""
         return await self._project_code_store.save_vectors(
-            project_id, user_id, documents, embeddings
+            knowledge_id, user_id, documents, embeddings
         )
 
     async def search_project_code_vectors(
@@ -147,23 +147,27 @@ class VectorStore:
         user_id: int,
         *,
         top_k: int = 10,
-        project_id: Optional[int] = None,
+        knowledge_id: Optional[int] = None,
         min_score: Optional[float] = None,
     ) -> list[dict]:
         """基于余弦相似度搜索项目代码向量"""
         return await self._project_code_store.search(
-            query_embedding, user_id, top_k=top_k, project_id=project_id, min_score=min_score
+            query_embedding,
+            user_id,
+            top_k=top_k,
+            knowledge_id=knowledge_id,
+            min_score=min_score,
         )
 
     async def delete_project_code_vectors(
         self,
         vector_ids: Optional[Sequence[int]] = None,
-        project_id: Optional[int] = None,
+        knowledge_id: Optional[int] = None,
         user_id: Optional[int] = None,
     ) -> int:
         """删除项目代码向量"""
         return await self._project_code_store.delete(
-            vector_ids=vector_ids, project_id=project_id, user_id=user_id
+            vector_ids=vector_ids, knowledge_id=knowledge_id, user_id=user_id
         )
 
 
@@ -317,9 +321,9 @@ async def main() -> None:
         project_code_embeddings = embedding_service.embed_documents(project_code_texts)
 
         # 保存项目代码向量
-        project_id = 1
+        knowledge_id = 1
         project_code_vector_ids = await vector_store.save_project_code_vectors(
-            project_id=project_id,
+            knowledge_id=knowledge_id,
             user_id=user_id,
             documents=project_code_docs,
             embeddings=project_code_embeddings,
@@ -333,7 +337,7 @@ async def main() -> None:
             query_embedding=code_query_vec,
             user_id=user_id,
             top_k=5,
-            project_id=project_id,
+            knowledge_id=knowledge_id,
         )
         print(f"✓ 项目代码向量搜索成功，找到 {len(project_code_results)} 个结果")
         for idx, result in enumerate(project_code_results, 1):

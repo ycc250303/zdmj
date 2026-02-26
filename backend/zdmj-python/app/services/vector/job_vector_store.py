@@ -14,7 +14,7 @@ import logging
 from typing import Optional
 
 from app.database import db
-from app.services.vector.base import BaseVectorStore
+from app.services.vector.base_vector import BaseVectorStore
 
 logger = logging.getLogger(__name__)
 

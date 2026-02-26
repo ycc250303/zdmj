@@ -17,7 +17,7 @@ from typing import Optional, Sequence
 from langchain_core.documents import Document
 
 from app.database import db
-from app.services.vector.base import BaseVectorStore
+from app.services.vector.base_vector import BaseVectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class ProjectCodeVectorStore(BaseVectorStore):
 
     async def save_vectors(
         self,
-        project_id: int,
+        knowledge_id: int,
         user_id: int,
         documents: Sequence[Document],
         embeddings: Sequence[list[float]],
@@ -35,7 +35,7 @@ class ProjectCodeVectorStore(BaseVectorStore):
         """
         批量保存项目代码向量到 project_code_vectors 表
 
-        :param project_id: 项目ID
+        :param knowledge_id: 知识库ID（逻辑外键：knowledge_bases.id）
         :param user_id: 用户ID（数据隔离）
         :param documents: Document 列表，包含 page_content 和 metadata
         :param embeddings: 向量列表，每个向量是 1024 维的浮点数列表
@@ -51,8 +51,8 @@ class ProjectCodeVectorStore(BaseVectorStore):
             return []
 
         logger.info(
-            "开始批量保存项目代码向量: project_id=%d, user_id=%d, 数量=%d",
-            project_id,
+            "开始批量保存项目代码向量: knowledge_id=%d, user_id=%d, 数量=%d",
+            knowledge_id,
             user_id,
             len(documents),
         )
@@ -71,7 +71,8 @@ class ProjectCodeVectorStore(BaseVectorStore):
 
             # 准备 metadata（合并原始 metadata 和额外信息）
             metadata = doc.metadata.copy() if doc.metadata else {}
-            metadata["projectId"] = project_id
+            # 这里的 knowledgeId 用于链路追踪，保持与表结构一致
+            metadata["knowledgeId"] = knowledge_id
             if "source" not in metadata:
                 metadata["source"] = metadata.get("path", "unknown")
 
@@ -86,7 +87,7 @@ class ProjectCodeVectorStore(BaseVectorStore):
 
             insert_data.append(
                 (
-                    project_id,
+                    knowledge_id,
                     user_id,
                     file_path,
                     vector_str,
@@ -125,7 +126,7 @@ class ProjectCodeVectorStore(BaseVectorStore):
                     rows = await conn.fetch(
                         f"""
                         INSERT INTO project_code_vectors 
-                        (project_id, user_id, file_path, embedding, content, metadata)
+                        (knowledge_id, user_id, file_path, embedding, content, metadata)
                         VALUES {values_clause}
                         RETURNING id
                         """,
@@ -142,8 +143,8 @@ class ProjectCodeVectorStore(BaseVectorStore):
                     )
 
         logger.info(
-            "批量保存项目代码向量完成: project_id=%d, 成功保存 %d 个向量",
-            project_id,
+            "批量保存项目代码向量完成: knowledge_id=%d, 成功保存 %d 个向量",
+            knowledge_id,
             len(vector_ids),
         )
         return vector_ids
@@ -154,7 +155,7 @@ class ProjectCodeVectorStore(BaseVectorStore):
         user_id: int,
         *,
         top_k: int = 10,
-        project_id: Optional[int] = None,
+        knowledge_id: Optional[int] = None,
         min_score: Optional[float] = None,
     ) -> list[dict]:
         """
@@ -163,7 +164,7 @@ class ProjectCodeVectorStore(BaseVectorStore):
         :param query_embedding: 查询向量（1024 维）
         :param user_id: 用户ID（数据隔离，只搜索该用户的向量）
         :param top_k: 返回最相似的 top_k 个结果，默认 10
-        :param project_id: 可选，限制搜索范围到指定项目
+        :param knowledge_id: 可选，限制搜索范围到指定知识库
         :param min_score: 可选，最小相似度阈值（0-1），低于此值的结果会被过滤
         :return: 搜索结果列表，每个结果包含 id, project_id, file_path, content, metadata, score 等字段
         """
@@ -171,10 +172,10 @@ class ProjectCodeVectorStore(BaseVectorStore):
             raise ValueError(f"查询向量维度必须是 1024，实际为 {len(query_embedding)}")
 
         logger.info(
-            "开始项目代码向量搜索: user_id=%d, top_k=%d, project_id=%s",
+            "开始项目代码向量搜索: user_id=%d, top_k=%d, knowledge_id=%s",
             user_id,
             top_k,
-            project_id,
+            knowledge_id,
         )
 
         query_vector_str = self._vector_to_str(query_embedding)
@@ -183,9 +184,9 @@ class ProjectCodeVectorStore(BaseVectorStore):
         params: list = [query_vector_str, user_id]
         param_idx = 3
 
-        if project_id is not None:
-            where_clause += f" AND project_id = ${param_idx}"
-            params.append(project_id)
+        if knowledge_id is not None:
+            where_clause += f" AND knowledge_id = ${param_idx}"
+            params.append(knowledge_id)
             param_idx += 1
 
         if min_score is not None:
@@ -197,7 +198,7 @@ class ProjectCodeVectorStore(BaseVectorStore):
         query = f"""
             SELECT 
                 id,
-                project_id,
+                knowledge_id,
                 file_path,
                 content,
                 metadata,
@@ -218,7 +219,7 @@ class ProjectCodeVectorStore(BaseVectorStore):
             results.append(
                 {
                     "id": row["id"],
-                    "project_id": row["project_id"],
+                    "knowledge_id": row["knowledge_id"],
                     "file_path": row["file_path"],
                     "content": row["content"],
                     "metadata": row["metadata"] or {},
@@ -236,19 +237,19 @@ class ProjectCodeVectorStore(BaseVectorStore):
     async def delete(
         self,
         vector_ids: Optional[Sequence[int]] = None,
-        project_id: Optional[int] = None,
+        knowledge_id: Optional[int] = None,
         user_id: Optional[int] = None,
     ) -> int:
         """
         删除项目代码向量
 
         :param vector_ids: 可选，要删除的向量ID列表
-        :param project_id: 可选，删除指定项目的所有向量
+        :param knowledge_id: 可选，删除指定知识库的所有向量
         :param user_id: 可选，数据隔离，只删除指定用户的向量
         :return: 删除的向量数量
         """
-        if not vector_ids and not project_id:
-            raise ValueError("必须提供 vector_ids 或 project_id 之一")
+        if not vector_ids and not knowledge_id:
+            raise ValueError("必须提供 vector_ids 或 knowledge_id 之一")
 
         conditions: list[str] = []
         params: list = []
@@ -259,9 +260,9 @@ class ProjectCodeVectorStore(BaseVectorStore):
             params.append(list(vector_ids))
             param_idx += 1
 
-        if project_id is not None:
-            conditions.append(f"project_id = ${param_idx}")
-            params.append(project_id)
+        if knowledge_id is not None:
+            conditions.append(f"knowledge_id = ${param_idx}")
+            params.append(knowledge_id)
             param_idx += 1
 
         if user_id is not None:
@@ -278,9 +279,9 @@ class ProjectCodeVectorStore(BaseVectorStore):
         """
 
         logger.info(
-            "开始删除项目代码向量: vector_ids=%s, project_id=%s, user_id=%s",
+            "开始删除项目代码向量: vector_ids=%s, knowledge_id=%s, user_id=%s",
             vector_ids,
-            project_id,
+            knowledge_id,
             user_id,
         )
 

@@ -17,7 +17,7 @@ from typing import Optional, Sequence
 from langchain_core.documents import Document
 
 from app.database import db
-from app.services.vector.base import BaseVectorStore
+from app.services.vector.base_vector import BaseVectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -84,12 +84,15 @@ class KnowledgeVectorStore(BaseVectorStore):
             # 将 metadata 序列化为 JSON 字符串
             metadata_json = json.dumps(metadata, ensure_ascii=False)
 
+            # PostgreSQL TEXT 类型不允许包含 \x00，需要在入库前清理
+            safe_content = doc.page_content.replace("\x00", "") if doc.page_content else doc.page_content
+
             insert_data.append(
                 (
                     knowledge_id,
                     user_id,
                     vector_str,
-                    doc.page_content,
+                    safe_content,
                     metadata_json,
                     chunk_index,
                 )

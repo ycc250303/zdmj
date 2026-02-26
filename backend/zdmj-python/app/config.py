@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     redis_db: int = 0
     
     # API 配置
-    api_prefix: str = "/ai"
+    api_prefix: str = "/api"
     
     # COS 配置
     cos_secret_id: Optional[str] = "AKIDvz2Fgtra4Jav6322XxIblh5JI7nHWXJr"
