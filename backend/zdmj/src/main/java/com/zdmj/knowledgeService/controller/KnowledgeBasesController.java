@@ -18,11 +18,12 @@ import com.zdmj.common.validation.UpdateGroup;
 import com.zdmj.knowledgeService.dto.KnowledgeBasesDTO;
 import com.zdmj.knowledgeService.entity.KnowledgeBases;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
+import com.zdmj.python.dto.knowledge.TaskStatusResponse;
 
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 用户控制器
+ * 知识库控制器
  */
 @Slf4j
 @RestController
@@ -35,6 +36,12 @@ public class KnowledgeBasesController {
         this.knowledgeBasesService = knowledgeBasesService;
     }
 
+    /**
+     * 创建知识库
+     * 
+     * @param knowledgeBasesDTO 知识库DTO
+     * @return 知识库
+     */
     @PostMapping
     public Result<KnowledgeBases> createKnowledgeBases(
             @Validated(CreateGroup.class) @RequestBody KnowledgeBasesDTO knowledgeBasesDTO) {
@@ -59,20 +66,50 @@ public class KnowledgeBasesController {
         return Result.success("查询知识库成功", knowledgeBasesService.getPage(page, limit, projectName, type));
     }
 
+    /**
+     * 根据ID查询知识库
+     *
+     * @param id 知识库ID
+     * @return 知识库
+     */
     @GetMapping("/{id}")
     public Result<KnowledgeBases> getKnowledgeBasesById(@PathVariable Long id) {
         return Result.success("查询知识库成功", knowledgeBasesService.getById(id));
     }
 
+    /**
+     * 更新知识库
+     *
+     * @param knowledgeBasesDTO 知识库DTO
+     * @return 知识库
+     */
     @PutMapping
     public Result<KnowledgeBases> updateKnowledgeBases(
             @Validated(UpdateGroup.class) @RequestBody KnowledgeBasesDTO knowledgeBasesDTO) {
         return Result.success("更新知识库成功", knowledgeBasesService.update(knowledgeBasesDTO));
     }
 
+    /**
+     * 删除知识库
+     *
+     * @param id 知识库ID
+     * @return 删除结果
+     */
     @DeleteMapping("/{id}")
     public Result<String> deleteKnowledgeBases(@PathVariable Long id) {
         knowledgeBasesService.delete(id);
         return Result.success("删除知识库成功", null);
+    }
+
+    /**
+     * 刷新向量化任务状态
+     * 通过 Python 任务查询接口获取状态并回写 vector_ids 与任务状态
+     *
+     * @param id 知识库ID
+     * @return 任务状态响应，包含最新任务状态与向量信息
+     */
+    @GetMapping("/{id}/vector/task/status")
+    public Result<TaskStatusResponse> refreshVectorTaskStatus(@PathVariable Long id) {
+        return Result.success("刷新任务状态成功", knowledgeBasesService.refreshVectorTaskStatus(id));
     }
 }

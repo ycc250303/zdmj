@@ -310,7 +310,7 @@ async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int)
             return
 
         # 2. 分块
-        chunker = DocumentChunker()
+        chunker = DocumentChunker(chunk_size=1500, chunk_overlap=200)
         chunk_docs = chunker.chunk_documents(documents)
 
         if not chunk_docs:
@@ -447,28 +447,51 @@ async def create_or_rerun_embedding(
 ):
     """
     按 knowledgeId 执行知识库向量化：
-    - 若无向量：等价于“创建向量”
+    - 若无向量：等价于"创建向量"
     - 若已有向量：先删除旧向量，再按最新内容重跑
 
     注意：是否需要重跑，由 Java 根据 knowledge_bases 中字段变化自行判断。
     """
-    task_id = await _create_task_record(
-        task_type=TaskType.EMBEDDING,
-        knowledge_id=req.knowledgeId,
-        user_id=req.userId,
-        status=TaskStatus.PENDING,
-        message="知识库向量化任务已创建",
+    logger.info(
+        "收到向量化请求: knowledgeId=%d, userId=%d",
+        req.knowledgeId,
+        req.userId,
     )
+    
+    try:
+        task_id = await _create_task_record(
+            task_type=TaskType.EMBEDDING,
+            knowledge_id=req.knowledgeId,
+            user_id=req.userId,
+            status=TaskStatus.PENDING,
+            message="知识库向量化任务已创建",
+        )
 
-    # 使用 asyncio.create_task 在当前事件循环中异步执行向量化流程
-    asyncio.create_task(_process_embedding_task(task_id, req.knowledgeId, req.userId))
+        # 使用 asyncio.create_task 在当前事件循环中异步执行向量化流程
+        asyncio.create_task(_process_embedding_task(task_id, req.knowledgeId, req.userId))
 
-    result = KnowledgeEmbeddingTaskResult(
-        taskId=task_id,
-        status=TASK_STATUS_TO_STR[TaskStatus.PENDING],
-        message="知识库向量化任务已创建",
-    )
-    return ApiResponse.success(data=result)
+        result = KnowledgeEmbeddingTaskResult(
+            taskId=task_id,
+            status=TASK_STATUS_TO_STR[TaskStatus.PENDING],
+            message="知识库向量化任务已创建",
+        )
+        
+        logger.info(
+            "向量化任务创建成功: taskId=%s, knowledgeId=%d, userId=%d",
+            task_id,
+            req.knowledgeId,
+            req.userId,
+        )
+        
+        return ApiResponse.success(data=result)
+    except Exception as e:
+        logger.exception(
+            "创建向量化任务失败: knowledgeId=%d, userId=%d, error=%s",
+            req.knowledgeId,
+            req.userId,
+            str(e),
+        )
+        raise
 
 
 @router.post(
@@ -540,15 +563,36 @@ async def get_task_status(task_id: str):
 
     vector_ids: Optional[list[int]] = None
     if row["vector_ids"] is not None:
-        try:
-            vector_ids = list(row["vector_ids"])
-        except Exception:
-            # 兼容字符串 / list 等多种存储形式
+        raw_value = row["vector_ids"]
+        
+        # 处理不同的数据格式
+        if isinstance(raw_value, list):
+            # 已经是列表，直接使用
+            vector_ids = [int(x) for x in raw_value if x is not None]
+        elif isinstance(raw_value, str):
+            # 是字符串，需要解析 JSON
             try:
-                parsed = json.loads(row["vector_ids"])
+                parsed = json.loads(raw_value)
                 if isinstance(parsed, list):
-                    vector_ids = parsed
-            except Exception:
+                    vector_ids = [int(x) for x in parsed if x is not None]
+            except (json.JSONDecodeError, ValueError, TypeError) as e:
+                logger.warning(
+                    "解析 vector_ids 失败: task_id=%s, raw_value=%s, error=%s",
+                    task_id, raw_value, e
+                )
+                vector_ids = None
+        else:
+            # 其他类型（如 dict），尝试转换
+            try:
+                if hasattr(raw_value, '__iter__') and not isinstance(raw_value, str):
+                    vector_ids = [int(x) for x in raw_value if x is not None]
+                else:
+                    vector_ids = None
+            except (ValueError, TypeError) as e:
+                logger.warning(
+                    "转换 vector_ids 失败: task_id=%s, raw_value=%s, type=%s, error=%s",
+                    task_id, raw_value, type(raw_value), e
+                )
                 vector_ids = None
 
     resp = TaskStatusResponse(

@@ -67,4 +67,14 @@ public class KnowledgeBases extends BaseEntity {
      */
     @TableField(typeHandler = JsonbListTypeHandler.class)
     private List<Long> vectorIds;
+
+    /**
+     * 最近一次向量化任务ID
+     */
+    private String vectorTaskId;
+
+    /**
+     * 最近一次任务状态（PENDING/RUNNING/SUCCESS/FAILED/CANCELLED）
+     */
+    private String vectorTaskStatus;
 }

@@ -59,6 +59,7 @@ public enum ErrorCode {
     PROJECT_EXPERIENCE_UPDATE_FAILED(4004, "更新项目经历失败"),
     PROJECT_EXPERIENCE_DELETE_FAILED(4005, "删除项目经历失败"),
     PROJECT_EXPERIENCE_NOT_FOUND(4006, "项目经历不存在"),
+    PROJECT_EXPERIENCE_NAME_NOT_ALLOW_CHANGE(4007, "项目经历名称一经确定，不能修改"),
 
     // ========== 工作经历相关 (5xxx) ==========
     CAREER_ADD_FAILED(5001, "添加工作经历失败"),
@@ -95,7 +96,9 @@ public enum ErrorCode {
     KNOWLEDGE_BASE_NAME_EXISTS(8006, "知识库名称已存在，请使用其他名称"),
     PDF_URL_REQUIRED(8007, "PDF文档类型必须提供COS URL"),
     MARKDOWN_URL_REQUIRED(8008, "Markdown文档类型必须提供COS URL"),
-    FILE_TYPE_NOT_EXISTS(8009, "文件类型不存在，请不要修改知识内容中的URL");
+    FILE_TYPE_NOT_EXISTS(8009, "文件类型不存在，请不要修改知识内容中的URL"),
+    KNOWLEDGE_BASE_EMBEDDING_FAILED(8010, "触发向量化任务失败");
+
 
     private final Integer code;
     private final String message;

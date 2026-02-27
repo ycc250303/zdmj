@@ -3,6 +3,7 @@ package com.zdmj.knowledgeService.service;
 import com.zdmj.common.model.PageResult;
 import com.zdmj.knowledgeService.dto.KnowledgeBasesDTO;
 import com.zdmj.knowledgeService.entity.KnowledgeBases;
+import com.zdmj.python.dto.knowledge.TaskStatusResponse;
 
 import java.util.List;
 
@@ -56,4 +57,13 @@ public interface KnowledgeBasesService {
      * @param id 知识库ID
      */
     void delete(Long id);
+
+    /**
+     * 刷新向量化任务状态
+     * 通过 Python 任务查询接口获取状态并回写 vector_ids 与任务状态
+     *
+     * @param knowledgeId 知识库ID
+     * @return 任务状态响应，包含最新任务状态与向量信息
+     */
+    TaskStatusResponse refreshVectorTaskStatus(Long knowledgeId);
 }

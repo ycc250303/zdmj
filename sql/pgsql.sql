@@ -217,8 +217,6 @@ CREATE TABLE IF NOT EXISTS project_experiences (
     -- 项目描述
     contribution VARCHAR(500),
     -- 核心贡献
-    bg_and_target VARCHAR(500),
-    -- 项目背景和目的
     tech_stack JSONB DEFAULT '[]'::jsonb,
     -- 技术栈（JSONB数组）
     -- tech_stack 示例
@@ -547,6 +545,10 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     -- 关联的向量ID数组
     -- vector_ids 示例
     -- [1, 2, 3, 4, 5]
+    vector_task_id VARCHAR(100),
+    -- 最近一次向量化任务ID
+    vector_task_status VARCHAR(20),
+    -- 最近一次任务状态（PENDING/RUNNING/SUCCESS/FAILED/CANCELLED）
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
@@ -613,8 +615,8 @@ CREATE INDEX IF NOT EXISTS idx_job_vectors_embedding ON job_vectors USING ivffla
 CREATE TABLE IF NOT EXISTS project_code_vectors (
     id BIGSERIAL PRIMARY KEY,
     -- 向量ID
-    project_id BIGINT NOT NULL,
-    -- 项目ID（逻辑外键：project_experiences.id）
+    knowledge_id BIGINT NOT NULL,
+    -- 知识库ID（逻辑外键：knowledge_bases.id）
     user_id BIGINT NOT NULL,
     -- 用户ID（逻辑外键：users.id）
     file_path VARCHAR(500),
@@ -638,3 +640,30 @@ CREATE TABLE IF NOT EXISTS project_code_vectors (
 CREATE INDEX IF NOT EXISTS idx_project_code_vectors_user_id ON project_code_vectors(user_id);
 CREATE INDEX IF NOT EXISTS idx_project_code_vectors_project_id ON project_code_vectors(project_id);
 CREATE INDEX IF NOT EXISTS idx_project_code_vectors_embedding ON project_code_vectors USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+-- 6.4 向量化任务表（异步任务）
+CREATE TABLE IF NOT EXISTS knowledge_vector_tasks (
+    id BIGSERIAL PRIMARY KEY,
+    -- 任务自增ID
+    task_id VARCHAR(100) UNIQUE NOT NULL,
+    -- 任务ID（供Java/Python交互使用）
+    user_id BIGINT NOT NULL,
+    -- 用户ID（逻辑外键：users.id）
+    knowledge_id BIGINT,
+    -- 知识库ID（逻辑外键：knowledge_bases.id）
+    task_type SMALLINT NOT NULL,
+    -- 任务类型（枚举：1=创建向量/2=更新向量/3=删除向量）
+    status SMALLINT NOT NULL,
+    -- 任务状态（枚举：1=pending/2=running/3=success/4=failed/5=cancelled）
+    vector_ids JSONB DEFAULT '[]'::jsonb,
+    -- 任务完成后生成或保留的向量ID快照
+    -- 示例: [1, 2, 3]
+    error_message TEXT,
+    -- 错误信息（失败时记录）
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- 创建时间
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_user_id ON knowledge_vector_tasks(user_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_knowledge_id ON knowledge_vector_tasks(knowledge_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_status ON knowledge_vector_tasks(status);
+CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_task_type ON knowledge_vector_tasks(task_type);
