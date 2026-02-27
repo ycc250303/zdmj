@@ -3,6 +3,7 @@ package com.zdmj.resumeService.service.impl;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.util.DateTimeUtil;
+import com.zdmj.exception.ErrorCode;
 import com.zdmj.exception.BusinessException;
 import com.zdmj.resumeService.dto.CareerDTO;
 import com.zdmj.resumeService.entity.Career;
@@ -36,7 +37,7 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
         career.setUpdatedAt(now);
         boolean saved = save(career);
         if (!saved) {
-            throw new BusinessException(500, "添加工作经历失败");
+            throw new BusinessException(ErrorCode.CAREER_ADD_FAILED);
         }
         log.info("添加工作经历成功: {}", career.getCompany());
         return career;
@@ -58,7 +59,7 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
         Long userId = UserHolder.requireUserId();
         Long id = careerDTO.getId();
         if (id == null) {
-            throw new BusinessException(400, "工作经历ID不能为空");
+            throw new BusinessException(ErrorCode.CAREER_ID_EMPTY);
         }
         Career career = requireCareerAndCheckOwnership(id, userId, "修改");
 
@@ -68,7 +69,7 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
 
         if (career.getStartDate() != null && career.getEndDate() != null) {
             if (career.getEndDate().isBefore(career.getStartDate())) {
-                throw new BusinessException(400, "离职时间不能早于入职时间");
+                throw new BusinessException(ErrorCode.CAREER_LEAVE_TIME_INVALID);
             }
         }
 
@@ -77,7 +78,7 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
 
         boolean updated = updateById(career);
         if (!updated) {
-            throw new BusinessException(500, "更新工作经历失败");
+            throw new BusinessException(ErrorCode.CAREER_UPDATE_FAILED);
         }
 
         log.info("更新工作经历成功: {}", career.getCompany());
@@ -90,7 +91,7 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
         Career career = requireCareerAndCheckOwnership(id, userId, "删除");
         boolean removed = removeById(id);
         if (!removed) {
-            throw new BusinessException(500, "删除工作经历失败");
+            throw new BusinessException(ErrorCode.CAREER_DELETE_FAILED);
         }
 
         log.info("删除工作经历成功: {}", career.getCompany());
@@ -106,7 +107,7 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
     private Career requireCareer(Long id) {
         Career career = baseMapper.selectById(id);
         if (career == null) {
-            throw new BusinessException(404, "工作经历不存在");
+            throw new BusinessException(ErrorCode.CAREER_NOT_FOUND);
         }
         return career;
     }
@@ -123,7 +124,7 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
     private Career requireCareerAndCheckOwnership(Long id, Long userId, String action) {
         Career career = requireCareer(id);
         if (!career.getUserId().equals(userId)) {
-            throw new BusinessException(403, "无权" + action + "他人工作经历");
+            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(), ErrorCode.NO_PERMISSION.getMessage() + action + "他人工作经历");
         }
         return career;
     }

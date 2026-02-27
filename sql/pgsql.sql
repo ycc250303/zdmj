@@ -217,8 +217,6 @@ CREATE TABLE IF NOT EXISTS project_experiences (
     -- 项目描述
     contribution VARCHAR(500),
     -- 核心贡献
-    bg_and_target VARCHAR(500),
-    -- 项目背景和目的
     tech_stack JSONB DEFAULT '[]'::jsonb,
     -- 技术栈（JSONB数组）
     -- tech_stack 示例
@@ -534,19 +532,23 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     project_name VARCHAR(255) NOT NULL,
     -- 关联项目名称
     file_type SMALLINT NOT NULL,
-    -- 文件类型（枚举：1=txt/2=URL/3=pdf/4=md）
+    -- 文件类型（枚举：1=txt/2=URL/3=doc(pdf)/4=md）
     tag JSONB DEFAULT '[]'::jsonb,
     -- 知识标签数组
     -- tag 示例
     -- ["技术文档", "API文档", "架构设计"]
     type SMALLINT NOT NULL,
-    -- 知识类型（枚举：1=技术文档/2=API文档/3=架构设计/4=需求文档/5=其他）
+    -- 知识类型（枚举：1=项目文档/2=GitHub仓库代码/3=技术文档/4=其他/5=项目DeepWiki文档）
     content TEXT NOT NULL,
     -- 文档内容或URL
     vector_ids JSONB DEFAULT '[]'::jsonb,
     -- 关联的向量ID数组
     -- vector_ids 示例
     -- [1, 2, 3, 4, 5]
+    vector_task_id VARCHAR(100),
+    -- 最近一次向量化任务ID
+    vector_task_status VARCHAR(20),
+    -- 最近一次任务状态（PENDING/RUNNING/SUCCESS/FAILED/CANCELLED）
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
@@ -565,8 +567,8 @@ CREATE TABLE IF NOT EXISTS knowledge_vectors (
     -- 知识库文档ID（逻辑外键：knowledge_bases.id）
     user_id BIGINT NOT NULL,
     -- 用户ID（逻辑外键：users.id）
-    embedding VECTOR(768) NOT NULL,
-    -- 文档块向量（768维，使用SBERT模型）
+    embedding VECTOR(1024) NOT NULL,
+    -- 文档块向量（1024维，使用text-embedding-v4模型）
     content TEXT,
     -- 文档块内容
     metadata JSONB,
@@ -591,8 +593,8 @@ CREATE TABLE IF NOT EXISTS job_vectors (
     -- 岗位ID（逻辑外键：jobs.id）
     user_id BIGINT NOT NULL,
     -- 所属用户ID（逻辑外键：users.id，数据隔离）
-    embedding VECTOR(768) NOT NULL,
-    -- 岗位描述向量（768维，使用SBERT模型）
+    embedding VECTOR(1024) NOT NULL,
+    -- 岗位描述向量（1024维，使用text-embedding-v4模型）
     metadata JSONB,
     -- 岗位元数据（职位名称、公司等）
     -- metadata 示例
@@ -613,14 +615,14 @@ CREATE INDEX IF NOT EXISTS idx_job_vectors_embedding ON job_vectors USING ivffla
 CREATE TABLE IF NOT EXISTS project_code_vectors (
     id BIGSERIAL PRIMARY KEY,
     -- 向量ID
-    project_id BIGINT NOT NULL,
-    -- 项目ID（逻辑外键：project_experiences.id）
+    knowledge_id BIGINT NOT NULL,
+    -- 知识库ID（逻辑外键：knowledge_bases.id）
     user_id BIGINT NOT NULL,
     -- 用户ID（逻辑外键：users.id）
     file_path VARCHAR(500),
     -- 文件路径
-    embedding VECTOR(768) NOT NULL,
-    -- 代码片段向量（768维，使用SBERT模型）
+    embedding VECTOR(1024) NOT NULL,
+    -- 代码片段向量（1024维，使用text-embedding-v4模型）
     content TEXT,
     -- 代码片段内容
     metadata JSONB,
@@ -638,3 +640,30 @@ CREATE TABLE IF NOT EXISTS project_code_vectors (
 CREATE INDEX IF NOT EXISTS idx_project_code_vectors_user_id ON project_code_vectors(user_id);
 CREATE INDEX IF NOT EXISTS idx_project_code_vectors_project_id ON project_code_vectors(project_id);
 CREATE INDEX IF NOT EXISTS idx_project_code_vectors_embedding ON project_code_vectors USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+-- 6.4 向量化任务表（异步任务）
+CREATE TABLE IF NOT EXISTS knowledge_vector_tasks (
+    id BIGSERIAL PRIMARY KEY,
+    -- 任务自增ID
+    task_id VARCHAR(100) UNIQUE NOT NULL,
+    -- 任务ID（供Java/Python交互使用）
+    user_id BIGINT NOT NULL,
+    -- 用户ID（逻辑外键：users.id）
+    knowledge_id BIGINT,
+    -- 知识库ID（逻辑外键：knowledge_bases.id）
+    task_type SMALLINT NOT NULL,
+    -- 任务类型（枚举：1=创建向量/2=更新向量/3=删除向量）
+    status SMALLINT NOT NULL,
+    -- 任务状态（枚举：1=pending/2=running/3=success/4=failed/5=cancelled）
+    vector_ids JSONB DEFAULT '[]'::jsonb,
+    -- 任务完成后生成或保留的向量ID快照
+    -- 示例: [1, 2, 3]
+    error_message TEXT,
+    -- 错误信息（失败时记录）
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- 创建时间
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_user_id ON knowledge_vector_tasks(user_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_knowledge_id ON knowledge_vector_tasks(knowledge_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_status ON knowledge_vector_tasks(status);
+CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_task_type ON knowledge_vector_tasks(task_type);

@@ -1,5 +1,6 @@
 package com.zdmj.common.context;
 
+import com.zdmj.exception.ErrorCode;
 import com.zdmj.exception.BusinessException;
 
 /**
@@ -37,8 +38,7 @@ public class UserHolder {
      * @return 用户ID，如果未登录返回null
      */
     public static Long getUserId() {
-        UserContext context = USER_CONTEXT.get();
-        return context != null ? context.getUserId() : null;
+        return getValue(UserContext::getUserId);
     }
 
     /**
@@ -47,8 +47,7 @@ public class UserHolder {
      * @return 用户名，如果未登录返回null
      */
     public static String getUsername() {
-        UserContext context = USER_CONTEXT.get();
-        return context != null ? context.getUsername() : null;
+        return getValue(UserContext::getUsername);
     }
 
     /**
@@ -57,8 +56,19 @@ public class UserHolder {
      * @return 邮箱，如果未登录返回null
      */
     public static String getEmail() {
+        return getValue(UserContext::getEmail);
+    }
+
+    /**
+     * 从用户上下文中获取值的通用方法
+     * 
+     * @param getter 值获取函数
+     * @param <T> 返回值类型
+     * @return 值，如果上下文为null则返回null
+     */
+    private static <T> T getValue(java.util.function.Function<UserContext, T> getter) {
         UserContext context = USER_CONTEXT.get();
-        return context != null ? context.getEmail() : null;
+        return context != null ? getter.apply(context) : null;
     }
 
     /**
@@ -80,7 +90,7 @@ public class UserHolder {
     public static Long requireUserId() {
         Long userId = getUserId();
         if (userId == null) {
-            throw new BusinessException(401, "用户未登录");
+            throw new BusinessException(ErrorCode.USER_NOT_LOGIN);
         }
         return userId;
     }

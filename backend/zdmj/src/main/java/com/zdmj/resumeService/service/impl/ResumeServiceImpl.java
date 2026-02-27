@@ -4,11 +4,10 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.util.CosUtil;
 import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.util.DtoConverter;
+import com.zdmj.exception.ErrorCode;
 import com.zdmj.exception.BusinessException;
-import org.springframework.web.multipart.MultipartFile;
 import com.zdmj.resumeService.dto.*;
 import com.zdmj.resumeService.entity.*;
 import com.zdmj.resumeService.mapper.CareerMapper;
@@ -22,9 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -53,7 +50,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
         // 检查是否存在同名简历
         if (baseMapper.existsByName(userId, resumeDTO.getName(), null)) {
-            throw new BusinessException(400, "简历名称已存在，请使用其他名称");
+            throw new BusinessException(ErrorCode.RESUME_NAME_EXISTS);
         }
 
         Resume resume = new Resume();
@@ -65,42 +62,30 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         List<Long> careerIds = careerMapper.selectCareerIds(userId, true);
         List<Long> projectExperienceIds = projectExperienceMapper.selectProjectExperienceIds(userId, true);
 
-        // 将 ID 列表转换为 JSON 数组字符串
-        resume.setEducations(convertIdsToJson(educationIds));
-        resume.setCareers(convertIdsToJson(careerIds));
-        resume.setProjects(convertIdsToJson(projectExperienceIds));
+        // 直接设置List，TypeHandler会自动处理JSONB转换
+        resume.setEducations(educationIds);
+        resume.setCareers(careerIds);
+        resume.setProjects(projectExperienceIds);
 
         LocalDateTime now = DateTimeUtil.now();
         resume.setCreatedAt(now);
         resume.setUpdatedAt(now);
         boolean saved = save(resume);
         if (!saved) {
-            throw new BusinessException(500, "创建简历失败");
+            throw new BusinessException(ErrorCode.RESUME_CREATE_FAILED);
         }
-
-        // 注意：不再清除缓存，因为简历基础信息和列表已不使用缓存
-
         log.info("创建简历成功: {}", resume.getName());
         return resume;
     }
 
     @Override
     public Resume getById(Long id) {
-        // 直接查询数据库，不使用缓存
-        // 原因：用户频繁编辑项目经历、工作经历、教育经历等，写操作频繁
-        // 每次编辑经历都会清除缓存，导致缓存命中率低，反而增加系统负担
-        // 简历基础信息查询SQL简单（单表查询），数据库查询性能可以接受
         return requireResume(id);
     }
 
     @Override
     public List<Resume> getByUserId() {
         Long userId = UserHolder.requireUserId();
-
-        // 直接查询数据库，不使用缓存
-        // 原因：用户频繁编辑项目经历、工作经历、教育经历等，写操作频繁
-        // 每次编辑经历都会清除缓存，导致缓存命中率低，反而增加系统负担
-        // 简历列表查询SQL简单（单表查询），数据库查询性能可以接受
         return baseMapper.selectByUserId(userId);
     }
 
@@ -109,7 +94,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         Long userId = UserHolder.requireUserId();
         Long id = resumeDTO.getId();
         if (id == null) {
-            throw new BusinessException(400, "简历ID不能为空");
+            throw new BusinessException(ErrorCode.RESUME_ID_EMPTY);
         }
 
         Resume resume = requireResumeAndCheckOwnership(id, userId, "修改");
@@ -117,7 +102,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         // 如果简历名称发生变化，检查是否存在同名简历（排除当前简历）
         if (!resume.getName().equals(resumeDTO.getName())) {
             if (baseMapper.existsByName(userId, resumeDTO.getName(), id)) {
-                throw new BusinessException(400, "简历名称已存在，请使用其他名称");
+                throw new BusinessException(ErrorCode.RESUME_NAME_EXISTS);
             }
         }
 
@@ -129,15 +114,15 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
         resume.setName(resumeDTO.getName());
         resume.setSkillId(resumeDTO.getSkillId());
-        // 更新教育经历、工作经历、项目经历的ID数组
-        resume.setEducations(convertIdsToJson(educationIds));
-        resume.setCareers(convertIdsToJson(careerIds));
-        resume.setProjects(convertIdsToJson(projectExperienceIds));
+        // 直接设置List，TypeHandler会自动处理JSONB转换
+        resume.setEducations(educationIds);
+        resume.setCareers(careerIds);
+        resume.setProjects(projectExperienceIds);
         resume.setUpdatedAt(DateTimeUtil.now());
 
         boolean updated = updateById(resume);
         if (!updated) {
-            throw new BusinessException(500, "更新简历失败");
+            throw new BusinessException(ErrorCode.RESUME_UPDATE_FAILED);
         }
         log.info("更新简历成功: {}", resume.getName());
 
@@ -153,7 +138,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         Resume resume = requireResumeAndCheckOwnership(id, userId, "删除");
         boolean removed = removeById(id);
         if (!removed) {
-            throw new BusinessException(500, "删除简历失败");
+            throw new BusinessException(ErrorCode.RESUME_DELETE_FAILED);
         }
         log.info("删除简历成功: {}", resume.getName());
 
@@ -225,7 +210,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     private Resume requireResume(Long id) {
         Resume resume = baseMapper.selectById(id);
         if (resume == null) {
-            throw new BusinessException(404, "简历不存在");
+            throw new BusinessException(ErrorCode.RESUME_NOT_FOUND);
         }
         return resume;
     }
@@ -242,47 +227,11 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     private Resume requireResumeAndCheckOwnership(Long id, Long userId, String action) {
         Resume resume = requireResume(id);
         if (!resume.getUserId().equals(userId)) {
-            throw new BusinessException(403, "无权" + action + "他人简历");
+            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(), ErrorCode.NO_PERMISSION.getMessage() + action + "他人简历");
         }
         return resume;
     }
 
-    /**
-     * 将 ID 列表转换为 JSON 数组字符串
-     * 例如：[1, 2, 3] -> "[1,2,3]"
-     *
-     * @param ids ID 列表
-     * @return JSON 数组字符串，如果列表为空则返回 "[]"
-     */
-    private String convertIdsToJson(List<Long> ids) {
-        try {
-            if (ids == null || ids.isEmpty()) {
-                return "[]";
-            }
-            return objectMapper.writeValueAsString(ids);
-        } catch (Exception e) {
-            throw new BusinessException(500, "ID 列表转换失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 将 JSON 数组字符串转换为 ID 列表
-     * 例如："[1,2,3]" -> [1, 2, 3]
-     *
-     * @param json JSON 数组字符串
-     * @return ID 列表，如果字符串为空或 null 则返回空列表
-     */
-    private List<Long> convertJsonToIds(String json) {
-        try {
-            if (json == null || json.trim().isEmpty()) {
-                return List.of();
-            }
-            return objectMapper.readValue(json, new TypeReference<List<Long>>() {
-            });
-        } catch (Exception e) {
-            throw new BusinessException(400, "JSON 解析失败: " + e.getMessage());
-        }
-    }
 
     /**
      * 将 Skill 实体转换为 SkillDTO
@@ -313,37 +262,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
             dto.setContent(java.util.Collections.emptyList());
         }
         return dto;
-    }
-
-    @Override
-    public Map<String, String> uploadResumeFile(MultipartFile file) {
-        // 验证文件
-        if (file == null || file.isEmpty()) {
-            throw new BusinessException(400, "文件不能为空");
-        }
-
-        Long userId = UserHolder.requireUserId();
-
-        // 生成文件路径（对象键），使用 "resume-用户ID" 作为前缀
-        String key = CosUtil.generateKey("resume-" + userId, file.getOriginalFilename());
-
-        // 上传文件到COS
-        String uploadedKey = CosUtil.uploadFile(file, key);
-
-        // 获取文件访问URL
-        String fileUrl = CosUtil.getFileUrl(uploadedKey);
-
-        // 构建返回结果
-        Map<String, String> result = new HashMap<>();
-        result.put("key", uploadedKey);
-        result.put("url", fileUrl);
-        result.put("fileName", file.getOriginalFilename());
-        result.put("fileSize", String.valueOf(file.getSize()));
-        result.put("contentType", file.getContentType());
-
-        log.info("简历文件上传成功，key: {}, url: {}", uploadedKey, fileUrl);
-
-        return result;
     }
 
 }

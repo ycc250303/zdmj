@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.util.json.SkillContentValidator;
+import com.zdmj.exception.ErrorCode;
 import com.zdmj.exception.BusinessException;
 import com.zdmj.resumeService.dto.SkillDTO;
 import com.zdmj.resumeService.dto.SkillItemDTO;
@@ -47,7 +48,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
 
         boolean saved = save(skill);
         if (!saved) {
-            throw new BusinessException(500, "添加技能失败");
+            throw new BusinessException(ErrorCode.SKILL_ADD_FAILED);
         }
         log.info("添加技能成功: {}", skill.getName());
         return skill;
@@ -70,7 +71,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
 
         Long id = skillDTO.getId();
         if (id == null) {
-            throw new BusinessException(400, "技能ID不能为空");
+            throw new BusinessException(ErrorCode.SKILL_ID_EMPTY);
         }
 
         Skill skill = requireSkillAndCheckOwnership(id, userId, "修改");
@@ -91,7 +92,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
 
         boolean updated = updateById(skill);
         if (!updated) {
-            throw new BusinessException(500, "更新技能失败");
+            throw new BusinessException(ErrorCode.SKILL_UPDATE_FAILED);
         }
         log.info("更新技能成功: {}", skill.getName());
         return skill;
@@ -104,7 +105,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
 
         boolean removed = removeById(id);
         if (!removed) {
-            throw new BusinessException(500, "删除技能失败");
+            throw new BusinessException(ErrorCode.SKILL_DELETE_FAILED);
         }
         log.info("删除技能成功: {}", skill.getName());
     }
@@ -118,7 +119,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
     private Long requireUserId() {
         Long userId = UserHolder.getUserId();
         if (userId == null) {
-            throw new BusinessException(401, "用户未登录");
+            throw new BusinessException(ErrorCode.USER_NOT_LOGIN);
         }
         return userId;
     }
@@ -133,7 +134,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
     private Skill requireSkill(Long id) {
         Skill skill = baseMapper.selectById(id);
         if (skill == null) {
-            throw new BusinessException(404, "技能不存在");
+            throw new BusinessException(ErrorCode.SKILL_NOT_FOUND);
         }
         return skill;
     }
@@ -150,7 +151,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
     private Skill requireSkillAndCheckOwnership(Long id, Long userId, String action) {
         Skill skill = requireSkill(id);
         if (!skill.getUserId().equals(userId)) {
-            throw new BusinessException(403, "无权" + action + "他人技能");
+            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(), ErrorCode.NO_PERMISSION.getMessage() + action + "他人技能");
         }
         return skill;
     }
@@ -160,7 +161,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
      */
     private String convertContentToJson(List<SkillItemDTO> contentList) {
         if (contentList == null || contentList.isEmpty()) {
-            throw new BusinessException(400, "技能内容不能为空");
+            throw new BusinessException(ErrorCode.SKILL_CONTENT_EMPTY);
         }
 
         try {
@@ -172,7 +173,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            throw new BusinessException(400, "技能内容格式错误: " + e.getMessage());
+            throw new BusinessException(ErrorCode.SKILL_CONTENT_FORMAT_ERROR.getCode(), ErrorCode.SKILL_CONTENT_FORMAT_ERROR.getMessage() + ": " + e.getMessage());
         }
     }
 
@@ -187,7 +188,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
             return objectMapper.readValue(json, new TypeReference<List<SkillItemDTO>>() {
             });
         } catch (Exception e) {
-            throw new BusinessException(400, "技能内容解析失败: " + e.getMessage());
+            throw new BusinessException(ErrorCode.SKILL_CONTENT_PARSE_FAILED.getCode(), ErrorCode.SKILL_CONTENT_PARSE_FAILED.getMessage() + ": " + e.getMessage());
         }
     }
 }

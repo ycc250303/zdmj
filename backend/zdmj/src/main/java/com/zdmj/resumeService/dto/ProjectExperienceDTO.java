@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * 项目经历DTO
@@ -62,15 +63,9 @@ public class ProjectExperienceDTO {
     private String contribution;
 
     /**
-     * 项目背景和目标
+     * 技术栈（数组，如["React", "TypeScript", "Node.js"]）
      */
-    @NotBlank(message = "项目背景和目标不能为空", groups = CreateGroup.class)
-    private String bgAndTarget;
-
-    /**
-     * 技术栈（JSONB数组，如["React", "TypeScript", "Node.js"]）
-     */
-    private String techStack;
+    private List<String> techStack;
 
     /**
      * 项目亮点（JSONB数组，包含技术难点、成果等）
@@ -86,17 +81,4 @@ public class ProjectExperienceDTO {
      * 是否在简历中展示
      */
     private Boolean visible = true;
-
-    /**
-     * 项目分析状态（枚举：1=committed已提交/2=mining挖掘中/3=polishing打磨中/4=completed已完成）
-     * 说明：用于跟踪AI分析流程，不影响简历展示
-     * 注意：创建和更新时可选，通常由系统自动设置
-     */
-    private Integer status;
-
-    /**
-     * AI分析结果（JSONB格式，包含问题、解决方案、评分）
-     * 注意：创建和更新时可选，通常由AI分析服务设置
-     */
-    private String lookupResult;
 }

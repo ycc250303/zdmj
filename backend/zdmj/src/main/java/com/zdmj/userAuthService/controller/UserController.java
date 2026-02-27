@@ -1,6 +1,7 @@
 package com.zdmj.userAuthService.controller;
 
 import com.zdmj.common.Result;
+import com.zdmj.exception.ErrorCode;
 import com.zdmj.userAuthService.dto.UserDTO;
 import com.zdmj.userAuthService.dto.UserLoginDTO;
 import com.zdmj.userAuthService.dto.UserLoginResponseDTO;
@@ -87,7 +88,7 @@ public class UserController {
         if (success) {
             return Result.success("验证码已发送到邮箱", null);
         } else {
-            return Result.error("验证码发送失败，请稍后重试");
+            return Result.error(ErrorCode.CAPTCHA_SEND_FAILED.getCode(), ErrorCode.CAPTCHA_SEND_FAILED.getMessage());
         }
     }
 

@@ -6,6 +6,7 @@ import com.zdmj.python.constant.PythonErrorCode;
 import com.zdmj.python.dto.PythonApiRequest;
 import com.zdmj.python.dto.PythonApiResponse;
 import com.zdmj.exception.PythonServiceException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatusCode;
@@ -17,6 +18,7 @@ import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
 
 /**
  * Python服务HTTP客户端
@@ -29,6 +31,7 @@ public class PythonServiceClient {
     private final WebClient webClient;
     private final PythonServiceConfig pythonServiceConfig;
     private final WebClientConfig webClientConfig;
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     public PythonServiceClient(WebClient pythonServiceWebClient,
             PythonServiceConfig pythonServiceConfig,
@@ -36,6 +39,47 @@ public class PythonServiceClient {
         this.webClient = pythonServiceWebClient;
         this.pythonServiceConfig = pythonServiceConfig;
         this.webClientConfig = webClientConfig;
+    }
+
+    /**
+     * 将响应数据转换为指定类型
+     * 处理 Spring WebClient 可能将嵌套泛型反序列化为 LinkedHashMap 的问题
+     *
+     * @param data  响应数据对象
+     * @param clazz 目标类型
+     * @param <R>   目标类型
+     * @return 转换后的对象，如果转换失败返回原对象
+     */
+    private <R> R convertResponseData(Object data, Class<R> clazz) {
+        if (data == null) {
+            return null;
+        }
+
+        // 如果已经是正确类型，直接返回
+        if (clazz.isInstance(data)) {
+            return clazz.cast(data);
+        }
+
+        // 如果是 LinkedHashMap，需要转换
+        if (data instanceof LinkedHashMap) {
+            try {
+                return objectMapper.convertValue(data, clazz);
+            } catch (Exception e) {
+                log.warn("Python服务响应数据转换失败: expected={}, error={}",
+                        clazz.getSimpleName(), e.getMessage());
+                // 转换失败时返回 null，让调用方处理
+                return null;
+            }
+        }
+
+        // 其他类型，尝试转换
+        try {
+            return objectMapper.convertValue(data, clazz);
+        } catch (Exception e) {
+            log.warn("Python服务响应数据转换失败: expected={}, actual={}, error={}",
+                    clazz.getSimpleName(), data.getClass().getSimpleName(), e.getMessage());
+            return null;
+        }
     }
 
     /**
@@ -98,6 +142,13 @@ public class PythonServiceClient {
                                 response.getCode() != null ? response.getCode()
                                         : PythonErrorCode.SERVICE_ERROR.getCode(),
                                 errorMsg);
+                    }
+                    // 转换响应数据（处理 LinkedHashMap 问题）
+                    if (response.getData() != null) {
+                        R convertedData = convertResponseData(response.getData(), clazz);
+                        if (convertedData != null) {
+                            response.setData(convertedData);
+                        }
                     }
                     return response;
                 })
@@ -207,6 +258,13 @@ public class PythonServiceClient {
                                 response.getCode() != null ? response.getCode()
                                         : PythonErrorCode.SERVICE_ERROR.getCode(),
                                 errorMsg);
+                    }
+                    // 转换响应数据（处理 LinkedHashMap 问题）
+                    if (response.getData() != null) {
+                        R convertedData = convertResponseData(response.getData(), clazz);
+                        if (convertedData != null) {
+                            response.setData(convertedData);
+                        }
                     }
                     return response;
                 })

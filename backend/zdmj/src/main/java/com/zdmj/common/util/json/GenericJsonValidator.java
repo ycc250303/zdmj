@@ -2,6 +2,7 @@ package com.zdmj.common.util.json;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zdmj.exception.ErrorCode;
 import com.zdmj.exception.BusinessException;
 
 import java.util.HashSet;
@@ -72,7 +73,7 @@ public class GenericJsonValidator {
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            throw new BusinessException(400,
+            throw new BusinessException(ErrorCode.JSON_FORMAT_ERROR.getCode(),
                     (rule.getErrorMessagePrefix() != null ? rule.getErrorMessagePrefix() : "JSON")
                             + " 格式错误: " + e.getMessage());
         }
@@ -83,9 +84,9 @@ public class GenericJsonValidator {
      */
     private static void validateRootType(JsonNode root, JsonStructureRule.RootType expectedType, String errorPrefix) {
         if (expectedType == JsonStructureRule.RootType.ARRAY && !root.isArray()) {
-            throw new BusinessException(400, errorPrefix + " 必须是数组格式");
+            throw new BusinessException(ErrorCode.JSON_FORMAT_ERROR.getCode(), errorPrefix + " 必须是数组格式");
         } else if (expectedType == JsonStructureRule.RootType.OBJECT && !root.isObject()) {
-            throw new BusinessException(400, errorPrefix + " 必须是对象格式");
+            throw new BusinessException(ErrorCode.JSON_FORMAT_ERROR.getCode(), errorPrefix + " 必须是对象格式");
         }
     }
 
@@ -125,7 +126,7 @@ public class GenericJsonValidator {
             JsonNode fieldNode = objectNode.get(fieldName);
 
             if (rule.isRequired() && (fieldNode == null || fieldNode.isNull())) {
-                throw new BusinessException(400,
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(),
                         String.format("%s 中必须包含 '%s' 字段", errorPrefix, fieldName));
             }
 
@@ -138,7 +139,7 @@ public class GenericJsonValidator {
         if (strictMode) {
             objectNode.fieldNames().forEachRemaining(fieldName -> {
                 if (!allowedFields.contains(fieldName)) {
-                    throw new BusinessException(400,
+                    throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(),
                             String.format("%s 中不允许包含 '%s' 字段，允许的字段: %s",
                                     errorPrefix, fieldName, allowedFields));
                 }
@@ -195,7 +196,7 @@ public class GenericJsonValidator {
         }
 
         if (!typeMatch) {
-            throw new BusinessException(400,
+            throw new BusinessException(ErrorCode.PARAM_TYPE_ERROR.getCode(),
                     String.format("%s 字段必须是 %s 类型", fieldPath, expectedType.name().toLowerCase()));
         }
     }

@@ -43,4 +43,15 @@ public interface ProjectExperienceMapper extends BaseMapper<ProjectExperience> {
      * @return 项目经历列表
      */
     List<ProjectExperience> selectByResumeId(@Param("resumeId") Long resumeId);
+
+
+    /**
+     * 根据用户ID和项目名称查询项目经历ID
+     * 自定义方法，使用 MyBatis XML 实现
+     *
+     * @param userId  用户ID
+     * @param name 项目经历名称
+     * @return 项目经历ID
+     */
+    Long selectIdByUserIdAndName(@Param("userId") Long userId, @Param("name") String name);
 }

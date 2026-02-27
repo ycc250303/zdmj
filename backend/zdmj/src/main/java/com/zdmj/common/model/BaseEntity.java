@@ -1,4 +1,4 @@
-package com.zdmj.common;
+package com.zdmj.common.model;
 
 import com.baomidou.mybatisplus.annotation.TableField;
 import lombok.Data;

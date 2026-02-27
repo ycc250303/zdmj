@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.zdmj.common.Result;
@@ -22,9 +21,6 @@ import com.zdmj.common.validation.UpdateGroup;
 import com.zdmj.resumeService.dto.ResumeDTO;
 import com.zdmj.resumeService.entity.Resume;
 import com.zdmj.resumeService.service.ResumeService;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.util.Map;
 
 /**
  * 简历控制器
@@ -113,18 +109,5 @@ public class ResumeController {
     public Result<String> deleteResume(@PathVariable Long id) {
         resumeService.delete(id);
         return Result.success("删除简历成功", null);
-    }
-
-    /**
-     * 上传简历文件到COS（用于测试COS连接）
-     * 
-     * @param file 简历文件（支持PDF、Word、图片等格式）
-     * @return 上传结果，包含文件key和访问URL
-     */
-    @PostMapping("/upload")
-    public Result<Map<String, String>> uploadResumeFile(
-            @RequestParam("file") MultipartFile file) {
-        Map<String, String> result = resumeService.uploadResumeFile(file);
-        return Result.success("文件上传成功", result);
     }
 }

@@ -9,8 +9,9 @@
 
     <!-- 根据用户ID查询所有项目经历 -->
     <select id="selectByUserId" resultType="com.zdmj.resumeService.entity.ProjectExperience"> SELECT
-        id, user_id, name, start_date, end_date, role, description, contribution, bg_and_target, tech_stack, highlights, url,
-        visible, status, lookup_result, created_at, updated_at FROM project_experiences WHERE user_id = #{userId} <if
+        id, user_id, name, start_date, end_date, role, description, contribution, tech_stack,
+        highlights, url, visible, status, lookup_result, created_at, updated_at FROM
+        project_experiences WHERE user_id = #{userId} <if
             test="visible != null"> AND visible = #{visible} </if> ORDER BY start_date DESC </select>
 
     <!-- 根据用户ID查询项目经历ID列表 -->
@@ -23,4 +24,8 @@
         SELECT p.* FROM resumes r CROSS JOIN LATERAL jsonb_array_elements_text(r.projects) AS
         project_id LEFT JOIN project_experiences p ON p.id = project_id::BIGINT WHERE r.id =
         #{resumeId} </select>
+
+    <!-- 根据用户ID和项目名称检查项目经历是否存在 -->
+    <select id="selectIdByUserIdAndName" resultType="java.lang.Long"> SELECT id FROM
+        project_experiences WHERE user_id = #{userId} AND name = #{name} </select>
 </mapper>

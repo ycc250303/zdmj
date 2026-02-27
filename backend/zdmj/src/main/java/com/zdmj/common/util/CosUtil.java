@@ -23,7 +23,8 @@ import java.util.UUID;
 
 /**
  * 腾讯云COS工具类
- * 提供文件上传、下载、删除等静态方法
+ * 提供文件上传、删除等静态方法
+ * 注意：下载功能由Python端完成，Java端仅负责上传
  * 
  * 参考文档：https://cloud.tencent.com/document/product/436/10199
  * 
@@ -33,14 +34,17 @@ import java.util.UUID;
  * // 上传文件
  * String key = CosUtil.uploadFile(file, "project/docs/");
  * 
- * // 下载文件
- * InputStream stream = CosUtil.downloadFile(key);
+ * // 上传文件流
+ * String key = CosUtil.uploadStream(inputStream, "path/file.pdf", "application/pdf", fileSize);
  * 
  * // 删除文件
  * CosUtil.deleteFile(key);
  * 
- * // 生成预签名URL
- * String url = CosUtil.generatePresignedUrl(key, 3600);
+ * // 生成预签名上传URL
+ * String url = CosUtil.generatePresignedUploadUrl(key, 3600);
+ * 
+ * // 获取文件访问URL
+ * String url = CosUtil.getFileUrl(key);
  * </pre>
  */
 @Slf4j
@@ -273,51 +277,6 @@ public class CosUtil {
     }
 
     /**
-     * 下载文件
-     * 
-     * @param key 文件路径（对象键）
-     * @return 文件输入流，使用完毕后需要关闭
-     * @throws RuntimeException 下载失败时抛出
-     */
-    public static InputStream downloadFile(String key) {
-        try {
-            GetObjectRequest getObjectRequest = new GetObjectRequest(staticBucketName, key);
-            COSObject cosObject = cosClient.getObject(getObjectRequest);
-            return cosObject.getObjectContent();
-        } catch (CosServiceException e) {
-            log.error("COS服务异常，错误码：{}，错误消息：{}", e.getErrorCode(), e.getErrorMessage(), e);
-            throw new RuntimeException("文件下载失败：" + e.getErrorMessage(), e);
-        } catch (CosClientException e) {
-            log.error("COS客户端异常", e);
-            throw new RuntimeException("文件下载失败：" + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * 下载文件到本地
-     * 
-     * @param key           文件路径（对象键）
-     * @param localFilePath 本地文件路径
-     * @return 文件元数据
-     * @throws RuntimeException 下载失败时抛出
-     */
-    public static ObjectMetadata downloadFileToLocal(String key, String localFilePath) {
-        try {
-            GetObjectRequest getObjectRequest = new GetObjectRequest(staticBucketName, key);
-            java.io.File localFile = new java.io.File(localFilePath);
-            ObjectMetadata objectMetadata = cosClient.getObject(getObjectRequest, localFile);
-            log.info("文件下载成功，key: {}, 本地路径: {}", key, localFilePath);
-            return objectMetadata;
-        } catch (CosServiceException e) {
-            log.error("COS服务异常，错误码：{}，错误消息：{}", e.getErrorCode(), e.getErrorMessage(), e);
-            throw new RuntimeException("文件下载失败：" + e.getErrorMessage(), e);
-        } catch (CosClientException e) {
-            log.error("COS客户端异常", e);
-            throw new RuntimeException("文件下载失败：" + e.getMessage(), e);
-        }
-    }
-
-    /**
      * 删除文件
      * 
      * @param key 文件路径（对象键）
@@ -399,47 +358,6 @@ public class CosUtil {
      */
     public static String generatePresignedUploadUrl(String key) {
         return generatePresignedUploadUrl(key, null);
-    }
-
-    /**
-     * 生成预签名下载URL
-     * 
-     * @param key        文件路径（对象键）
-     * @param expiration 过期时间（秒），如果为null则使用配置的默认值
-     * @return 预签名URL
-     * @throws RuntimeException 生成失败时抛出
-     */
-    public static String generatePresignedDownloadUrl(String key, Long expiration) {
-        try {
-            if (expiration == null) {
-                expiration = staticPresignedUrlExpiration;
-            }
-
-            GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(
-                    staticBucketName,
-                    key,
-                    HttpMethodName.GET);
-            request.setExpiration(new Date(System.currentTimeMillis() + expiration * 1000));
-
-            URL url = cosClient.generatePresignedUrl(request);
-            return url.toString();
-        } catch (CosServiceException e) {
-            log.error("COS服务异常，错误码：{}，错误消息：{}", e.getErrorCode(), e.getErrorMessage(), e);
-            throw new RuntimeException("生成预签名下载URL失败：" + e.getErrorMessage(), e);
-        } catch (CosClientException e) {
-            log.error("COS客户端异常", e);
-            throw new RuntimeException("生成预签名下载URL失败：" + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * 生成预签名下载URL（使用默认过期时间）
-     * 
-     * @param key 文件路径（对象键）
-     * @return 预签名URL
-     */
-    public static String generatePresignedDownloadUrl(String key) {
-        return generatePresignedDownloadUrl(key, null);
     }
 
     /**

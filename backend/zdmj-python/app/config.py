@@ -30,6 +30,17 @@ class Settings(BaseSettings):
     # API 配置
     api_prefix: str = "/api"
     
+    # COS 配置
+    cos_secret_id: Optional[str] = "AKIDvz2Fgtra4Jav6322XxIblh5JI7nHWXJr"
+    cos_secret_key: Optional[str] = "ndVMC1qW3OboskMsNiTDozCJE7tZ3ITR"
+    cos_region: str = "ap-shanghai"
+    cos_bucket: Optional[str] = "zdmj-1381832847"
+    
+    # 千问 Embedding 配置
+    qwen_api_key: Optional[str] = "sk-d1cd60a55bd24eae942ba77605c9114c"
+    qwen_embedding_model: str = "text-embedding-v4"
+    qwen_embedding_dimension: int = 1024  # text-embedding-v4 的向量维度
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

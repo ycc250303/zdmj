@@ -40,7 +40,7 @@ sudo mkdir -p /opt/zdmj
 sudo chown $USER:$USER /opt/zdmj
 cd /opt/zdmj
 
-mkdir -p data/{pgsql,redis,mongo,minio}
+mkdir -p data/{pgsql,redis}
 ```
 
 # 3.配置镜像源

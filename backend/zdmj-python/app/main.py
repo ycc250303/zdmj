@@ -9,7 +9,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 from app.config import settings
 from app.database import db
-from app.api import health
+from app.api import health, knowledge
 from app.exceptions import BusinessException, ValidationException, ServiceException
 from app.middleware import exception_handler
 
@@ -58,6 +58,7 @@ app.add_exception_handler(Exception, exception_handler.general_exception_handler
 
 # 注册 API 路由（使用 /api 前缀）
 app.include_router(health.router, prefix=settings.api_prefix, tags=["健康检查"])
+app.include_router(knowledge.router, prefix=settings.api_prefix, tags=["知识库向量化"])
 
 
 @app.get("/")
