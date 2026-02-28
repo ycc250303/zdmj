@@ -18,6 +18,7 @@ import com.zdmj.python.dto.knowledge.KnowledgeEmbeddingRequest;
 import com.zdmj.python.dto.knowledge.KnowledgeEmbeddingTaskResult;
 import com.zdmj.python.dto.knowledge.TaskStatusResponse;
 import com.zdmj.python.service.PythonServiceClient;
+import com.zdmj.python.constant.PythonAPI;
 import com.zdmj.exception.PythonServiceException;
 
 import org.springframework.stereotype.Service;
@@ -254,7 +255,7 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
                     actionDesc, knowledgeId, userId);
 
             PythonApiResponse<KnowledgeEmbeddingTaskResult> response = pythonServiceClient
-                    .post("/api/knowledge/embedding", request, KnowledgeEmbeddingTaskResult.class)
+                    .post(PythonAPI.Knowledge.EMBEDDING, request, KnowledgeEmbeddingTaskResult.class)
                     .block();
 
             // 详细记录响应信息用于诊断
@@ -302,7 +303,7 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
             request.setUserId(userId);
 
             PythonApiResponse<DeleteVectorsResult> response = pythonServiceClient
-                    .post("/api/knowledge/vectors/delete", request, DeleteVectorsResult.class)
+                    .post(PythonAPI.Knowledge.DELETE_VECTORS, request, DeleteVectorsResult.class)
                     .block();
 
             if (response != null && response.getData() != null) {
@@ -424,7 +425,7 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         try {
             // 3. 调用 Python 服务查询任务状态
             PythonApiResponse<TaskStatusResponse> response = pythonServiceClient
-                    .get("/api/knowledge/embedding/tasks/" + taskId, TaskStatusResponse.class)
+                    .get(PythonAPI.Knowledge.EMBEDDING_TASK_STATUS + taskId, TaskStatusResponse.class)
                     .block();
 
             if (response == null || response.getData() == null) {
