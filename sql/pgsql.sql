@@ -247,14 +247,14 @@ CREATE TABLE IF NOT EXISTS project_experiences (
     -- {
     --   "problem": [
     --     {
-    --       "type": "问题类型",
-    --       "content": "问题描述"
+    --       "name": "问题名称",
+    --       "desc": "问题描述"
     --     }
     --   ],
     --   "solution": [
     --     {
-    --       "type": "解决方案类型",
-    --       "content": "解决方案描述"
+    --       "name": "解决方案名称",
+    --       "desc": "解决方案描述"
     --     }
     --   ],
     --   "score": 85
@@ -356,7 +356,7 @@ CREATE INDEX IF NOT EXISTS idx_resume_matches_status ON resume_matches(status);
 -- ==========================3 项目模块==========================
 --
 -- 说明：原projects表已合并到project_experiences表中，以下表关联到project_experiences
--- 3.1 项目挖掘表（使用JSONB替代MongoDB）
+-- 3.1 项目挖掘表
 CREATE TABLE IF NOT EXISTS projects_mined (
     id BIGSERIAL PRIMARY KEY,
     -- 挖掘ID
@@ -364,13 +364,11 @@ CREATE TABLE IF NOT EXISTS projects_mined (
     -- 用户ID（逻辑外键：users.id）
     project_id BIGINT,
     -- 关联项目ID（逻辑外键：project_experiences.id）
-    name VARCHAR(255) NOT NULL,
-    -- 项目名称
+    -- 注意：项目名称可通过 project_id JOIN project_experiences.name 获取，或从 info JSONB 中解析
     info JSONB NOT NULL,
     -- 项目信息
     -- info 示例
     -- {
-    --   "name": "项目名称",
     --   "desc": {
     --     "role": "在项目中的角色和职责",
     --     "contribute": "核心贡献和参与程度",
@@ -392,20 +390,23 @@ CREATE TABLE IF NOT EXISTS projects_mined (
     -- {
     --   "team": [
     --     {
-    --       "type": "团队贡献类型",
-    --       "content": "团队贡献描述"
+    --       "content": "团队贡献描述",
+    --       "reason": "亮点添加原因",
+    --       "tech": ["相关技术1", "相关技术2"]
     --     }
     --   ],
     --   "skill": [
     --     {
-    --       "type": "技术亮点类型",
-    --       "content": "技术亮点描述"
+    --       "content": "技术亮点描述",
+    --       "reason": "亮点添加原因",
+    --       "tech": ["相关技术1", "相关技术2"]
     --     }
     --   ],
     --   "user": [
     --     {
-    --       "type": "用户体验类型",
-    --       "content": "用户体验描述"
+    --       "content": "用户体验描述",
+    --       "reason": "亮点添加原因",
+    --       "tech": ["相关技术1", "相关技术2"]
     --     }
     --   ]
     -- }
@@ -425,13 +426,11 @@ CREATE TABLE IF NOT EXISTS projects_polished (
     -- 用户ID（逻辑外键：users.id）
     project_id BIGINT,
     -- 关联项目ID（逻辑外键：project_experiences.id）
-    name VARCHAR(255) NOT NULL,
-    -- 项目名称
+    -- 注意：项目名称可通过 project_id JOIN project_experiences.name 获取，或从 info JSONB 中解析
     info JSONB NOT NULL,
     -- 项目信息
     -- info 示例
     -- {
-    --   "name": "项目名称",
     --   "desc": {
     --     "role": "在项目中的角色和职责",
     --     "contribute": "核心贡献和参与程度",
@@ -445,26 +444,26 @@ CREATE TABLE IF NOT EXISTS projects_polished (
     -- {
     --   "team": [
     --     {
-    --       "type": "团队贡献类型",
-    --       "content": "团队贡献描述（已修正）"
+    --       "content": "团队贡献描述（已修正）",
+    --       "advice": "亮点改进建议（可选）"
     --     }
     --   ],
     --   "skill": [
     --     {
-    --       "type": "技术亮点类型",
-    --       "content": "技术亮点描述（已修正）"
+    --       "content": "技术亮点描述（已修正）",
+    --       "advice": "亮点改进建议（可选）"
     --     }
     --   ],
     --   "user": [
     --     {
-    --       "type": "用户体验类型",
-    --       "content": "用户体验描述（已修正）"
+    --       "content": "用户体验描述（已修正）",
+    --       "advice": "亮点改进建议（可选）"
     --     }
     --   ],
     --   "deprecated": [
     --     {
-    --       "type": "已废弃亮点类型",
-    --       "content": "已废弃的亮点描述"
+    --       "content": "已废弃的亮点描述",
+    --       "reason": "亮点删除原因"
     --     }
     --   ]
     -- }

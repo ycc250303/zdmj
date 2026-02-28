@@ -40,7 +40,7 @@
 | `tech_stack`    | JSONB    | JSON | 技术栈列表。示例：`["React","TypeScript","Node.js","PostgreSQL"]`                                                                                                                            |
 | `highlights`    | JSONB    | JSON | 项目亮点数组，每项包含 `type` 和 `content`。示例：`[{"type":"技术难点","content":"实现了分布式锁"},{"type":"成果","content":"提升了50%的性能"}]`                                             |
 | `status`        | SMALLINT | 枚举 | 项目分析状态：`1=committed已提交` / `2=mining挖掘中` / `3=polishing打磨中` / `4=completed已完成`（用于跟踪 AI 分析流程）                                                                     |
-| `lookup_result` | JSONB    | JSON | AI 分析结果，包含 `problem`、`solution`、`score` 等。示例：`{"problem":[{"type":"问题类型","content":"问题描述"}],"solution":[{"type":"解决方案类型","content":"解决方案描述"}],"score":85}` |
+| `lookup_result` | JSONB    | JSON | AI 分析结果，包含 `problem`、`solution`、`score` 等。示例：`{"problem":[{"name":"问题名称","desc":"问题描述"}],"solution":[{"name":"解决方案名称","desc":"解决方案描述"}],"score":85}` |
 
 ### 表 `resumes`
 
@@ -65,14 +65,14 @@
 | ----------------- | ----- | ---- | ------------------------------------------------------------------------------------------- |
 | `info`            | JSONB | JSON | 项目信息，包含 `name`、`desc`（内含 `role`、`contribute`、`bgAndTarget`）、`techStack` 等。 |
 | `lightspot`       | JSONB | JSON | 原始亮点，包含 `team`、`skill`、`user` 三类亮点数组。                                       |
-| `lightspot_added` | JSONB | JSON | 额外挖掘的亮点，结构与 `lightspot` 类似，但每项为对象（包含 `type`、`content`）。           |
+| `lightspot_added` | JSONB | JSON | 额外挖掘的亮点，每项包含 `content`、`reason`、`tech`。示例：`{"team":[{"content":"团队贡献描述","reason":"亮点添加原因","tech":["技术1"]}]}` |
 
 ### 表 `projects_polished`
 
 | 字段名      | 类型  | 分类 | 含义 / 取值说明                                                                                                    |
 | ----------- | ----- | ---- | ------------------------------------------------------------------------------------------------------------------ |
 | `info`      | JSONB | JSON | 打磨后的项目信息，结构同 `projects_mined.info`。                                                                   |
-| `lightspot` | JSONB | JSON | 打磨后的亮点，包含 `team`、`skill`、`user`、`deprecated` 等数组，每项包含 `type`、`content`（已修正/已废弃描述）。 |
+| `lightspot` | JSONB | JSON | 打磨后的亮点，包含 `team`、`skill`、`user`、`deprecated` 等数组。`team/skill/user` 每项包含 `content`、`advice`（可选）；`deprecated` 每项包含 `content`、`reason`。示例：`{"team":[{"content":"团队贡献","advice":"改进建议"}],"deprecated":[{"content":"废弃亮点","reason":"删除原因"}]}` |
 
 ### 表 `jobs`
 
