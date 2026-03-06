@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.zdmj.conversationService.mapper.ConversationMapper">
+
+    <!-- 1. 根据用户ID获取会话列表，按最后一条消息时间倒序 -->
+    <select id="selectConversationsByUserId"
+        parameterType="long"
+        resultType="com.zdmj.conversationService.entity.Conversations"> SELECT id, user_id AS
+        userId, project_id AS projectId, title, model, config, context, status, message_count AS
+        messageCount, last_message_at AS lastMessageAt, created_at AS createdAt, updated_at AS
+        updatedAt FROM conversations WHERE user_id = #{userId} ORDER BY last_message_at DESC NULLS
+        LAST, id DESC </select>
+
+</mapper>

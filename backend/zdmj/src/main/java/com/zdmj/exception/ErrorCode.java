@@ -97,8 +97,17 @@ public enum ErrorCode {
     PDF_URL_REQUIRED(8007, "PDF文档类型必须提供COS URL"),
     MARKDOWN_URL_REQUIRED(8008, "Markdown文档类型必须提供COS URL"),
     FILE_TYPE_NOT_EXISTS(8009, "文件类型不存在，请不要修改知识内容中的URL"),
-    KNOWLEDGE_BASE_EMBEDDING_FAILED(8010, "触发向量化任务失败");
+    KNOWLEDGE_BASE_EMBEDDING_FAILED(8010, "触发向量化任务失败"),
 
+    // ========== 对话相关 (9xxx) ==========
+    CONVERSATION_CREATE_FAILED(9001, "创建会话失败"),
+    CONVERSATION_DELETE_FAILED(9002, "删除会话失败"),
+    CONVERSATION_NOT_FOUND(9003, "会话不存在"),
+    CONVERSATION_UPDATE_FAILED(9004, "更新会话失败"),
+    MESSAGE_CREATE_FAILED(9005, "创建消息失败"),
+    MESSAGE_NOT_FOUND(9006, "消息不存在"),
+    MESSAGE_DELETE_FAILED(9007, "删除消息失败"),
+    FEATURE_NOT_IMPLEMENTED(9999, "功能暂未实现");
 
     private final Integer code;
     private final String message;
