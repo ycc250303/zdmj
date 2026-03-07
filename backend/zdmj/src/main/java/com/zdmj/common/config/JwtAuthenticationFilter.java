@@ -1,4 +1,4 @@
-package com.zdmj.config;
+package com.zdmj.common.config;
 
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;

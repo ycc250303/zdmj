@@ -1,10 +1,10 @@
-package com.zdmj.common.service;
+package com.zdmj.common.util;
 
 import com.zdmj.common.model.FileUploadResult;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.util.CosUtil;
-import com.zdmj.exception.BusinessException;
-import com.zdmj.exception.ErrorCode;
+import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.exception.ErrorCode;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -15,7 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
  */
 @Slf4j
 @Service
-public class FileUploadService {
+public class FileUploadUtil {
 
     /**
      * 上传文件到COS
