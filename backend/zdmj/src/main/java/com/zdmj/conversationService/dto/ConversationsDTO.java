@@ -11,17 +11,7 @@ public class ConversationsDTO {
     private Long id;
 
     /**
-     * 项目ID
+     * 项目ID（可选，如果提供则必须存在且属于当前用户）
      */
     private Long projectId;
-
-    /**
-     * 使用的AI模型（创建时可选，默认为"qwen"）
-     */
-    private String model;
-
-    /**
-     * 对话配置
-     */
-    private String config;
 }

@@ -7,7 +7,7 @@
     <select id="selectConversationsByUserId"
         parameterType="long"
         resultType="com.zdmj.conversationService.entity.Conversations"> SELECT id, user_id AS
-        userId, project_id AS projectId, title, model, config, context, status, message_count AS
+        userId, project_id AS projectId, title, model, config, context, message_count AS
         messageCount, last_message_at AS lastMessageAt, created_at AS createdAt, updated_at AS
         updatedAt FROM conversations WHERE user_id = #{userId} ORDER BY last_message_at DESC NULLS
         LAST, id DESC </select>

@@ -2,8 +2,12 @@ package com.zdmj.conversationService.service;
 
 import java.util.List;
 
+import org.springframework.http.codec.ServerSentEvent;
+
 import com.zdmj.conversationService.dto.MessagesDTO;
 import com.zdmj.conversationService.entity.Messages;
+
+import reactor.core.publisher.Flux;
 
 /**
  * 消息服务接口
@@ -11,13 +15,13 @@ import com.zdmj.conversationService.entity.Messages;
 public interface MessageService {
 
     /**
-     * 创建消息
+     * 创建消息（流式输出）
      * 
      * @param messagesDTO    消息DTO
      * @param conversationId 会话ID
-     * @return 消息
+     * @return SSE流式事件
      */
-    Messages createMessage(MessagesDTO messagesDTO, Long conversationId);
+    Flux<ServerSentEvent<String>> createMessage(MessagesDTO messagesDTO, Long conversationId);
 
     /**
      * 根据会话ID查询消息列表（分页）
@@ -61,4 +65,13 @@ public interface MessageService {
      * @return 引用消息的ID
      */
     Long quote(Long messageId, Long conversationId);
+
+    /**
+     * 获取消息流（支持断点续传）
+     * 
+     * @param messageId 消息ID
+     * @param recover   是否恢复之前的流式输出
+     * @return SSE流式事件
+     */
+    Flux<ServerSentEvent<String>> getStreamWithRecover(Long messageId, boolean recover);
 }

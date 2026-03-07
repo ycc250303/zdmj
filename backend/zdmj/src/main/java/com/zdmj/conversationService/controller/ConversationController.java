@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.zdmj.common.Result;
-import com.zdmj.common.validation.CreateGroup;
 import com.zdmj.conversationService.dto.ConversationsDTO;
 import com.zdmj.conversationService.entity.Conversations;
 import com.zdmj.conversationService.service.ConversationService;
@@ -36,14 +35,14 @@ public class ConversationController {
     }
 
     /**
-     * 创建会话
+     * 创建会话（仅支持与项目ID绑定）
      * 
-     * @param conversationDTO 会话DTO
+     * @param conversationDTO 会话DTO（仅包含projectId）
      * @return 创建的会话
      */
     @PostMapping
     public Result<Conversations> createConversation(
-            @Validated(CreateGroup.class) @RequestBody ConversationsDTO conversationDTO) {
+            @Validated @RequestBody ConversationsDTO conversationDTO) {
         return Result.success("创建会话成功", conversationService.create(conversationDTO));
     }
 
@@ -81,19 +80,7 @@ public class ConversationController {
     }
 
     /**
-     * 置顶会话（待实现）
-     * 
-     * @param id 会话ID
-     * @return 操作结果
-     */
-    @PostMapping("/{id}/pin")
-    public Result<String> pinConversation(@PathVariable Long id) {
-        conversationService.pin(id);
-        return Result.success("置顶会话成功", null);
-    }
-
-    /**
-     * 重命名会话（待实现）
+     * 重命名会话
      * 
      * @param id    会话ID
      * @param title 新标题

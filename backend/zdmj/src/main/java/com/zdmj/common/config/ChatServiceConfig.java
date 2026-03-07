@@ -12,11 +12,10 @@ import org.springframework.context.annotation.Configuration;
 @ConfigurationProperties(prefix = "chat")
 public class ChatServiceConfig {
     @Bean
-    public ChatClient chatClient(ChatModel model, ChatMemory chatMemory) {
+    public ChatClient chatClient(ChatModel model) {
         return ChatClient.builder(model)
                 .defaultSystem("你是一位专业的软件工程专业大学生求职助手，请根据用户的问题，给出详细的回答，并给出相应的建议。")
-                .defaultAdvisors(
-                        new MessageChatMemoryAdvisor(chatMemory))
+
                 .build();
     }
 }

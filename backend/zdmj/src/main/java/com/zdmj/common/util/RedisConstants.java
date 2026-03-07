@@ -18,4 +18,9 @@ public class RedisConstants {
 
     // 空值标记前缀（用于防止缓存穿透）
     public static final String NULL_VALUE_KEY = "null:value:";
+
+    // 流式消息缓存前缀
+    public static final String STREAMING_MESSAGE_KEY = "streaming:message:";
+    // 流式消息缓存过期时间（秒）
+    public static final int STREAMING_MESSAGE_TTL = 3600;
 }

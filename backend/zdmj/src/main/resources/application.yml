@@ -43,10 +43,30 @@ spring:
             enable: false  # 使用SSL时，starttls设为false
             required: false
 
+  # 模型配置
   ai:
-    dashscope:
+    openai:
+      base-url: https://dashscope.aliyuncs.com/compatible-mode
       api-key: ${DASHSCOPE_API_KEY}
-
+      chat:
+        options:
+          model: ${AL_MODEL:qwen-plus}
+      # Embedding模型配置
+      embedding:
+        options:
+          model: text-embedding-v4
+      # 禁用自动重试机制，让异常立即返回
+      retry:
+        max-attempts: 1
+        on-client-errors: false
+      # PostgreSQL Vector Store配置
+      vectorstore:
+        pgvector:
+          index-type: HNSW
+          distance-type: COSINE_DISTANCE
+          dimensions: 1024  # text-embedding-v4 实际生成的向量维度
+          initialize-schema: true
+          remove-existing-vector-store-table: false
 
 # MyBatis-Plus 配置
 mybatis-plus:

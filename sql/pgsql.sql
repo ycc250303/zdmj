@@ -681,8 +681,6 @@ CREATE TABLE IF NOT EXISTS conversations (
     -- 项目关联对话会自动注入项目数据、文档、代码等上下文信息
     title VARCHAR(255),
     -- 对话标题（可由AI生成或用户自定义，首次消息时可为空）
-    model VARCHAR(100) NOT NULL DEFAULT 'qwen',
-    -- 使用的AI模型
     config JSONB DEFAULT '{}'::jsonb,
     -- 对话配置（temperature、max_tokens、top_p等参数）
     -- config 示例

@@ -12,3 +12,7 @@ docs/backend/项目分析API文档 zdmj.md
 docs/backend/项目分析API文档.md
 backend/zdmj-python/app/config.py
 backend/zdmj/src/main/resources/application.yml
+/backend/zdmj/src/main/java/com/zdmj/projectHighlightService
+docs/backend/Prisma-AI功能LLM使用分类.md
+docs/backend/Prisma-AI功能分类-Spring-AI-vs-LangChain.md
+/backend/zdmj/src/main/resources/mapper

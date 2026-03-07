@@ -41,14 +41,7 @@ public interface ConversationService {
     void delete(Long id);
 
     /**
-     * 置顶会话（待实现）
-     * 
-     * @param id 会话ID
-     */
-    void pin(Long id);
-
-    /**
-     * 重命名会话（待实现）
+     * 重命名会话
      * 
      * @param id    会话ID
      * @param title 新标题

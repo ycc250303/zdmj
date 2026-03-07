@@ -2,6 +2,8 @@ package com.zdmj.conversationService.controller;
 
 import java.util.List;
 
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,6 +19,7 @@ import com.zdmj.conversationService.service.MessageService;
 
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
 
 /**
  * 消息控制器
@@ -33,16 +36,16 @@ public class MessageController {
     }
 
     /**
-     * 创建消息（发送消息并获取AI回复）
+     * 创建消息（发送消息并获取AI回复，流式输出）
      * 
      * @param conversationId 会话ID
      * @param messagesDTO    消息DTO
-     * @return 创建的用户消息
+     * @return SSE流式事件
      */
-    @PostMapping
-    public Result<Messages> createMessage(@PathVariable Long conversationId,
+    @PostMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<String>> createMessage(@PathVariable Long conversationId,
             @Valid @RequestBody MessagesDTO messagesDTO) {
-        return Result.success("发送消息成功", messageService.createMessage(messagesDTO, conversationId));
+        return messageService.createMessage(messagesDTO, conversationId);
     }
 
     /**
@@ -64,12 +67,42 @@ public class MessageController {
     /**
      * 根据ID获取消息详情
      * 
-     * @param messageId 消息ID
+     * @param conversationId 会话ID（用于验证消息是否属于该会话）
+     * @param messageId      消息ID
      * @return 消息详情
      */
     @GetMapping("/{messageId}")
-    public Result<Messages> getMessageById(@PathVariable Long messageId) {
-        return Result.success("查询消息成功", messageService.getById(messageId));
+    public Result<Messages> getMessageById(@PathVariable Long conversationId,
+            @PathVariable Long messageId) {
+        Messages message = messageService.getById(messageId);
+        // 验证消息是否属于指定的会话（增强安全性）
+        if (message != null && !message.getConversationId().equals(conversationId)) {
+            return Result.error("消息不属于指定的会话");
+        }
+        return Result.success("查询消息成功", message);
+    }
+
+    /**
+     * 获取消息流（支持断点续传）
+     * 
+     * @param conversationId 会话ID（用于验证消息是否属于该会话）
+     * @param messageId      消息ID
+     * @param recover        是否恢复之前的流式输出
+     * @return SSE流式事件
+     */
+    @GetMapping(value = "/{messageId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<String>> getMessageStream(
+            @PathVariable Long conversationId,
+            @PathVariable Long messageId,
+            @RequestParam(required = false, defaultValue = "false") boolean recover) {
+        // 先验证消息是否属于指定的会话，然后再获取流
+        Messages message = messageService.getById(messageId);
+        if (message != null && !message.getConversationId().equals(conversationId)) {
+            return Flux.error(new com.zdmj.common.exception.BusinessException(
+                    com.zdmj.common.exception.ErrorCode.NO_PERMISSION.getCode(), "消息不属于指定的会话"));
+        }
+        // 传递到Service层获取流（Service层会验证userId）
+        return messageService.getStreamWithRecover(messageId, recover);
     }
 
     // /**
