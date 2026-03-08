@@ -1,18 +1,11 @@
 package com.zdmj.conversationService.service.impl;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.SystemMessage;
-import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +15,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.util.ChatUtil;
 import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.util.RedisCacheUtil;
 import com.zdmj.common.util.RedisConstants;
@@ -31,12 +23,11 @@ import com.zdmj.conversationService.entity.Conversations;
 import com.zdmj.conversationService.entity.Messages;
 import com.zdmj.conversationService.mapper.MessagesMapper;
 import com.zdmj.conversationService.mapper.ConversationMapper;
+import com.zdmj.conversationService.service.AIService;
 import com.zdmj.conversationService.service.MessageService;
 
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 /**
  * 消息服务实现类
@@ -47,28 +38,20 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
 
     private final ConversationMapper conversationMapper;
     private static final ObjectMapper objectMapper = new ObjectMapper();
-    private final ChatUtil chatUtil;
-    private final ChatClient chatClient;
+    private final AIService aiService;
     private final RedisCacheUtil redisCacheUtil;
 
-    @Value("${spring.ai.openai.chat.options.model:qwen-plus}")
-    private String defaultModel;
-
-    // 流式输出超时时间（5分钟）
-    private static final Duration STREAM_TIMEOUT = Duration.ofMinutes(5);
-
-    public MessageServiceImpl(ConversationMapper conversationMapper, ChatUtil chatUtil,
-            ChatClient chatClient, RedisCacheUtil redisCacheUtil) {
+    public MessageServiceImpl(ConversationMapper conversationMapper, AIService aiService,
+            RedisCacheUtil redisCacheUtil) {
         this.conversationMapper = conversationMapper;
-        this.chatUtil = chatUtil;
-        this.chatClient = chatClient;
+        this.aiService = aiService;
         this.redisCacheUtil = redisCacheUtil;
     }
 
     @Override
-    @Transactional
     public Flux<ServerSentEvent<String>> createMessage(MessagesDTO messagesDTO, Long conversationId) {
-        Long userId = UserHolder.requireUserId();
+        // 在主线程中获取并保存上下文信息，避免在异步回调中访问已清除的ThreadLocal
+        final Long userId = UserHolder.requireUserId();
 
         // 验证会话是否存在且属于当前用户（带缓存）
         Conversations conversation = getConversationById(conversationId);
@@ -78,6 +61,10 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
         if (!conversation.getUserId().equals(userId)) {
             return Flux.error(new BusinessException(ErrorCode.NO_PERMISSION));
         }
+
+        // 保存conversation对象和conversationId到final变量，供异步回调使用
+        final Conversations finalConversation = conversation;
+        final Long finalConversationId = conversationId;
 
         // 验证消息内容
         if (messagesDTO.getContent() == null || messagesDTO.getContent().trim().isEmpty()) {
@@ -101,6 +88,9 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
             return Flux.error(new BusinessException(ErrorCode.MESSAGE_CREATE_FAILED));
         }
 
+        // 保存aiMessage对象到final变量，供异步回调使用
+        final Messages finalAiMessage = aiMessage;
+
         // 3. 初始化Redis缓存
         redisCacheUtil.initStreamingMessage(aiMessage.getId());
 
@@ -108,73 +98,82 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
         List<Messages> historyMessages = getMessagesByConversationId(conversationId, 1, 20);
 
         // 5. 构建Prompt（包含历史消息和当前用户消息）
-        Prompt prompt = buildPromptWithHistory(conversation, historyMessages, messagesDTO.getContent());
+        Prompt prompt = aiService.buildPromptWithHistory(conversation, historyMessages, messagesDTO.getContent());
 
         // 6. 启动流式调用并返回SSE Flux
-        AtomicReference<String> fullContent = new AtomicReference<>("");
         String messageId = "msg-" + aiMessage.getId();
-        long created = System.currentTimeMillis() / 1000;
         String model = conversation.getModel() != null ? conversation.getModel() : "qwen";
 
-        return chatUtil.stream(chatClient, prompt)
-                .timeout(STREAM_TIMEOUT)
-                .doOnNext(chunk -> {
+        return aiService.streamChat(prompt, messageId, model,
+                // onChunk: 每个chunk的回调
+                chunk -> {
                     // 追加chunk到Redis缓存
-                    redisCacheUtil.saveStreamingChunk(aiMessage.getId(), chunk);
-                    // 累积完整内容
-                    fullContent.updateAndGet(current -> current + chunk);
-                })
-                .map(chunk -> {
-                    // 将chunk包装成OpenAI兼容的JSON格式，以便Apifox自动合并
-                    String jsonData = buildOpenAIChunkJson(messageId, created, model, chunk);
-                    return ServerSentEvent.<String>builder()
-                            .data(jsonData)
-                            .event("chunk")
-                            .build();
-                })
-                .doOnComplete(() -> {
+                    redisCacheUtil.saveStreamingChunk(finalAiMessage.getId(), chunk);
+                },
+                // onComplete: 完成时的回调
+                // 注意：此回调在Reactor异步线程中执行，此时原始请求线程已结束，
+                // UserHolder和SecurityContext已被清除，因此不能依赖它们
+                finalContent -> {
                     // 流式完成后更新PostgreSQL和Redis
                     try {
-                        String finalContent = fullContent.get();
-                        aiMessage.setContent(finalContent);
-                        updateById(aiMessage);
+                        finalAiMessage.setContent(finalContent);
+                        updateById(finalAiMessage);
 
                         // 更新Redis状态为completed
-                        redisCacheUtil.markStreamingComplete(aiMessage.getId(), finalContent);
+                        redisCacheUtil.markStreamingComplete(finalAiMessage.getId(), finalContent);
 
-                        // 更新会话统计信息
-                        conversation.setMessageCount(conversation.getMessageCount() + 2);
-                        conversation.setLastMessageAt(DateTimeUtil.now());
-                        conversation.setUpdatedAt(DateTimeUtil.now());
-                        conversationMapper.updateById(conversation);
+                        // 更新会话统计信息（使用保存的finalConversation对象，不依赖ThreadLocal）
+                        finalConversation.setMessageCount(finalConversation.getMessageCount() + 2);
+                        finalConversation.setLastMessageAt(DateTimeUtil.now());
+                        finalConversation.setUpdatedAt(DateTimeUtil.now());
+                        conversationMapper.updateById(finalConversation);
 
-                        // 清除缓存
-                        clearConversationCache(conversationId);
-
-                        // 如果是第一条消息，异步生成会话标题
-                        boolean isFirstMessage = conversation.getMessageCount() == 2;
-                        if (isFirstMessage) {
-                            generateAndSetTitleAsync(conversation, messagesDTO.getContent());
-                        }
+                        // 清除缓存（使用保存的finalConversationId，不依赖ThreadLocal）
+                        clearConversationCache(finalConversationId);
                     } catch (Exception e) {
-                        log.error("流式输出完成后的处理失败: messageId={}", aiMessage.getId(), e);
+                        log.error("流式输出完成后的处理失败: messageId={}", finalAiMessage.getId(), e);
                     }
-                })
-                .concatWith(Mono.just(ServerSentEvent.<String>builder()
-                        .data("[DONE]")
-                        .event("done")
-                        .build()))
-                .onErrorResume(error -> {
-                    log.error("流式输出失败: messageId={}", aiMessage.getId(), error);
-                    // 标记Redis状态为failed
-                    redisCacheUtil.markStreamingFailed(aiMessage.getId());
-                    // 返回错误事件
-                    return Mono.just(ServerSentEvent.<String>builder()
-                            .data("错误: " + error.getMessage())
-                            .event("error")
-                            .build());
-                })
-                .subscribeOn(Schedulers.boundedElastic());
+                },
+                // onError: 错误时的回调
+                // 注意：此回调在Reactor异步线程中执行，此时原始请求线程已结束，
+                // UserHolder和SecurityContext已被清除，因此不能依赖它们
+                error -> {
+                    // 判断是否为连接关闭错误（应用重启时的正常情况）
+                    boolean isConnectionClosed = error instanceof reactor.netty.http.client.PrematureCloseException
+                            || (error.getCause() instanceof reactor.netty.http.client.PrematureCloseException)
+                            || (error.getMessage() != null
+                                    && error.getMessage().contains("Connection prematurely closed"));
+
+                    if (isConnectionClosed) {
+                        // 连接关闭通常是应用重启或客户端断开，记录为警告
+                        log.warn("流式输出连接关闭（可能是应用重启或客户端断开）: messageId={}", finalAiMessage.getId());
+                        // 对于连接关闭，不标记为失败，因为可能是应用重启导致的
+                        // 如果内容已经部分保存，可以尝试标记为完成
+                        try {
+                            RedisCacheUtil.StreamingMessage streamingMessage = redisCacheUtil
+                                    .getStreamingMessage(finalAiMessage.getId());
+                            if (streamingMessage != null && streamingMessage.getContent() != null
+                                    && !streamingMessage.getContent().trim().isEmpty()) {
+                                // 如果有部分内容，标记为完成
+                                redisCacheUtil.markStreamingComplete(finalAiMessage.getId(),
+                                        streamingMessage.getContent());
+                                // 更新数据库（使用保存的finalAiMessage对象，不依赖ThreadLocal）
+                                finalAiMessage.setContent(streamingMessage.getContent());
+                                updateById(finalAiMessage);
+                            } else {
+                                // 如果没有内容，标记为失败
+                                redisCacheUtil.markStreamingFailed(finalAiMessage.getId());
+                            }
+                        } catch (Exception e) {
+                            log.warn("处理连接关闭时的状态更新失败: messageId={}", finalAiMessage.getId(), e);
+                            redisCacheUtil.markStreamingFailed(finalAiMessage.getId());
+                        }
+                    } else {
+                        // 其他错误记录为错误并标记为失败
+                        log.error("流式输出失败: messageId={}", finalAiMessage.getId(), error);
+                        redisCacheUtil.markStreamingFailed(finalAiMessage.getId());
+                    }
+                });
     }
 
     /**
@@ -217,8 +216,8 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
         try {
             Map<String, Object> metadata = new HashMap<>();
 
-            // 模型信息
-            metadata.put("model", defaultModel);
+            // 模型信息（使用默认模型）
+            metadata.put("model", "qwen-plus");
 
             // Token使用情况
             if (tokens != null) {
@@ -244,93 +243,6 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
             log.warn("构建消息元数据失败: {}", e.getMessage());
             return "{}";
         }
-    }
-
-    /**
-     * 构建包含历史消息的Prompt
-     */
-    private Prompt buildPromptWithHistory(Conversations conversation, List<Messages> historyMessages,
-            String currentUserMessage) {
-        List<Message> messages = new ArrayList<>();
-
-        // 添加系统消息（如果有自定义系统消息，可以从conversation.config中获取）
-        String systemMessage = "你是一位专业的软件工程专业大学生求职助手，请根据用户的问题，给出详细的回答，并给出相应的建议。";
-        messages.add(new SystemMessage(systemMessage));
-
-        // 添加历史消息
-        for (Messages msg : historyMessages) {
-            if (MessageRole.USER.getCode().equals(msg.getRole())) {
-                messages.add(new UserMessage(msg.getContent()));
-            } else if (MessageRole.ASSISTANT.getCode().equals(msg.getRole())) {
-                messages.add(new org.springframework.ai.chat.messages.AssistantMessage(msg.getContent()));
-            }
-        }
-
-        // 添加当前用户消息
-        messages.add(new UserMessage(currentUserMessage));
-
-        // TODO: 如果会话关联了项目，注入项目上下文（RAG）
-        // if (conversation.getProjectId() != null) {
-        // // 获取项目信息并注入上下文
-        // }
-
-        // TODO: 如果会话关联了知识库，注入知识库上下文（RAG）
-        // if (conversation.getContext() != null &&
-        // !conversation.getContext().isEmpty()) {
-        // // 解析context JSON，获取知识库ID，进行RAG检索
-        // }
-
-        return new Prompt(messages);
-    }
-
-    /**
-     * 异步生成会话标题（使用Reactor异步执行）
-     */
-    private void generateAndSetTitleAsync(Conversations conversation, String firstMessage) {
-        Mono.fromCallable(() -> {
-            try {
-                String titlePrompt = "请根据以下用户消息生成一个简洁的会话标题（不超过20个字符，不要包含引号）：\n" + firstMessage;
-                Prompt prompt = new Prompt(new UserMessage(titlePrompt));
-
-                String generatedTitle = chatUtil.callForContent(chatClient, prompt);
-                if (generatedTitle != null && !generatedTitle.trim().isEmpty()) {
-                    // 清理标题（移除引号、换行等）
-                    generatedTitle = generatedTitle.trim()
-                            .replace("\"", "")
-                            .replace("'", "")
-                            .replace("\n", " ")
-                            .trim();
-                    // 限制长度
-                    if (generatedTitle.length() > 20) {
-                        generatedTitle = generatedTitle.substring(0, 20);
-                    }
-                    conversation.setTitle(generatedTitle);
-                    conversationMapper.updateById(conversation);
-                    // 清除缓存
-                    clearConversationCache(conversation.getId());
-                    log.info("生成会话标题成功: conversationId={}, title={}", conversation.getId(), generatedTitle);
-                    return generatedTitle;
-                }
-            } catch (Exception e) {
-                log.warn("生成会话标题失败: conversationId={}", conversation.getId(), e);
-                // 如果生成失败，使用默认标题
-                if (firstMessage != null && firstMessage.length() > 0) {
-                    String title = firstMessage.trim();
-                    if (title.length() > 20) {
-                        title = title.substring(0, 30) + "...";
-                    }
-                    conversation.setTitle(title);
-                    conversationMapper.updateById(conversation);
-                    // 清除缓存
-                    clearConversationCache(conversation.getId());
-                }
-            }
-            return null;
-        })
-                .subscribeOn(Schedulers.boundedElastic())
-                .subscribe(
-                        result -> log.debug("标题生成完成: conversationId={}", conversation.getId()),
-                        error -> log.error("标题生成异常: conversationId={}", conversation.getId(), error));
     }
 
     @Override
@@ -397,7 +309,7 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
             long created = System.currentTimeMillis() / 1000;
             Conversations conv = conversationMapper.selectById(message.getConversationId());
             String model = conv != null && conv.getModel() != null ? conv.getModel() : "qwen";
-            String jsonData = buildOpenAIChunkJson(openAIMessageId, created, model, content);
+            String jsonData = aiService.buildOpenAIChunkJson(openAIMessageId, created, model, content);
             return Flux.just(ServerSentEvent.<String>builder()
                     .data(jsonData)
                     .event("complete")
@@ -420,7 +332,7 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
             if (!content.isEmpty() && streamingMessage.getChunks() != null && !streamingMessage.getChunks().isEmpty()) {
                 List<ServerSentEvent<String>> events = new ArrayList<>();
                 for (String chunk : streamingMessage.getChunks()) {
-                    String jsonData = buildOpenAIChunkJson(openAIMessageId, created, model, chunk);
+                    String jsonData = aiService.buildOpenAIChunkJson(openAIMessageId, created, model, chunk);
                     events.add(ServerSentEvent.<String>builder()
                             .data(jsonData)
                             .event("chunk")
@@ -433,7 +345,7 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
                                 .build()));
             } else {
                 // 如果没有chunks，直接返回完整内容
-                String jsonData = buildOpenAIChunkJson(openAIMessageId, created, model, content);
+                String jsonData = aiService.buildOpenAIChunkJson(openAIMessageId, created, model, content);
                 return Flux.just(ServerSentEvent.<String>builder()
                         .data(jsonData)
                         .event("complete")
@@ -475,7 +387,7 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
 
         if (streamingMessage.getChunks() != null && !streamingMessage.getChunks().isEmpty()) {
             for (String chunk : streamingMessage.getChunks()) {
-                String jsonData = buildOpenAIChunkJson(openAIMessageId, created, model, chunk);
+                String jsonData = aiService.buildOpenAIChunkJson(openAIMessageId, created, model, chunk);
                 events.add(ServerSentEvent.<String>builder()
                         .data(jsonData)
                         .event("chunk")
@@ -483,7 +395,7 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
             }
         } else {
             // 如果没有chunks，直接推送完整内容
-            String jsonData = buildOpenAIChunkJson(openAIMessageId, created, model, existingContent);
+            String jsonData = aiService.buildOpenAIChunkJson(openAIMessageId, created, model, existingContent);
             events.add(ServerSentEvent.<String>builder()
                     .data(jsonData)
                     .event("chunk")
@@ -587,44 +499,6 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
         // 同时清除空值标记
         redisCacheUtil.deleteNullValue(cacheKey);
         log.debug("已清除会话缓存: conversationId={}", conversationId);
-    }
-
-    /**
-     * 构建OpenAI兼容的流式响应JSON格式
-     * 用于Apifox等工具自动合并SSE消息
-     * 
-     * @param messageId 消息ID
-     * @param created   创建时间戳（秒）
-     * @param model     模型名称
-     * @param content   内容chunk
-     * @return JSON字符串
-     */
-    private String buildOpenAIChunkJson(String messageId, long created, String model, String content) {
-        try {
-            Map<String, Object> chunk = new HashMap<>();
-            chunk.put("id", messageId);
-            chunk.put("object", "chat.completion.chunk");
-            chunk.put("created", created);
-            chunk.put("model", model);
-
-            Map<String, Object> choice = new HashMap<>();
-            choice.put("index", 0);
-
-            Map<String, Object> delta = new HashMap<>();
-            delta.put("content", content);
-            choice.put("delta", delta);
-            choice.put("finish_reason", null);
-
-            List<Map<String, Object>> choices = new ArrayList<>();
-            choices.add(choice);
-            chunk.put("choices", choices);
-
-            return objectMapper.writeValueAsString(chunk);
-        } catch (Exception e) {
-            log.error("构建OpenAI格式JSON失败", e);
-            // 如果JSON构建失败，返回简单的文本格式
-            return content;
-        }
     }
 
     /**

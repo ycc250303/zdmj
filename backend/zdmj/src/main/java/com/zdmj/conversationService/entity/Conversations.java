@@ -8,7 +8,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.zdmj.common.model.BaseEntity;
 import com.zdmj.common.typehandler.JsonbObjectTypeHandler;
-import com.zdmj.common.typehandler.JsonbListTypeHandler;
+import com.zdmj.common.typehandler.JsonbListStringTypeHandler;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -68,7 +68,7 @@ public class Conversations extends BaseEntity {
      * }
      * ]
      */
-    @TableField(typeHandler = JsonbListTypeHandler.class)
+    @TableField(typeHandler = JsonbListStringTypeHandler.class)
     private String context;
 
     /**

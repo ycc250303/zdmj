@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.zdmj.common.Result;
+import com.zdmj.common.context.UserHolder;
 import com.zdmj.conversationService.dto.MessagesDTO;
 import com.zdmj.conversationService.entity.Messages;
 import com.zdmj.conversationService.service.MessageService;
@@ -45,6 +46,10 @@ public class MessageController {
     @PostMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> createMessage(@PathVariable Long conversationId,
             @Valid @RequestBody MessagesDTO messagesDTO) {
+        // 在返回 Flux 之前完成授权检查，确保 SecurityContext 有效
+        // 这样即使 Flux 在异步执行，授权检查也已经完成
+        Long userId = UserHolder.requireUserId();
+        log.debug("创建消息: conversationId={}, userId={}", conversationId, userId);
         return messageService.createMessage(messagesDTO, conversationId);
     }
 

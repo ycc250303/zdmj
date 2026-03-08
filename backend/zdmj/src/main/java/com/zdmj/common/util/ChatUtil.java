@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
@@ -111,8 +113,8 @@ public class ChatUtil {
      */
     public Prompt buildPromptWithSystem(String systemMessage, String userMessage) {
         return new Prompt(
-                new org.springframework.ai.chat.messages.SystemMessage(systemMessage),
-                new org.springframework.ai.chat.messages.UserMessage(userMessage));
+                new SystemMessage(systemMessage),
+                new UserMessage(userMessage));
     }
 
     /**
@@ -125,9 +127,9 @@ public class ChatUtil {
      */
     public Prompt buildPromptWithSystemAndContext(String systemMessage, String contextMessage, String userMessage) {
         return new Prompt(
-                new org.springframework.ai.chat.messages.SystemMessage(systemMessage),
-                new org.springframework.ai.chat.messages.UserMessage(contextMessage),
-                new org.springframework.ai.chat.messages.UserMessage(userMessage));
+                new SystemMessage(systemMessage),
+                new UserMessage(contextMessage),
+                new UserMessage(userMessage));
     }
 
     /**

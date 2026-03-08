@@ -65,8 +65,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // 继续过滤器链
             filterChain.doFilter(request, response);
         } finally {
-            // 请求结束后清除ThreadLocal，避免内存泄漏
-            UserHolder.clear();
+            // 对于异步响应（如SSE），不应该清除SecurityContext，因为响应还在流式传输中
+            // 检查请求的Accept头或路径模式来判断是否是SSE端点
+            String acceptHeader = request.getHeader("Accept");
+            String requestPath = request.getRequestURI();
+            boolean isSseByAccept = acceptHeader != null && acceptHeader.contains("text/event-stream");
+            // 检查路径：POST /conversations/{id}/messages 或 GET
+            // /conversations/{id}/messages/{id}/stream
+            boolean isSseByPath = requestPath != null &&
+                    (requestPath.contains("/conversations/") && requestPath.contains("/messages") &&
+                            (request.getMethod().equals("POST") || requestPath.contains("/stream")));
+            boolean isSseResponse = isSseByAccept || isSseByPath;
+
+            // 只有在响应已提交且不是SSE流式响应时，才清除SecurityContext和UserHolder
+            // 对于SSE响应，SecurityContext需要在整个流式传输期间保持有效
+            if (response.isCommitted() && !isSseResponse) {
+                // 请求结束后清除ThreadLocal，避免内存泄漏
+                UserHolder.clear();
+            }
         }
     }
 
