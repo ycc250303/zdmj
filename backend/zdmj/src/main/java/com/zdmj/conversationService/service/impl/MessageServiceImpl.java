@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
@@ -81,6 +82,9 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
             return Flux.error(new BusinessException(ErrorCode.MESSAGE_CREATE_FAILED));
         }
 
+        // 保存userMessage对象到final变量，供异步回调使用
+        final Messages finalUserMessage = userMessage;
+
         // 2. 创建AI消息记录（初始content为空）
         Messages aiMessage = createAssistantMessage(conversationId, userId, "", currentSequence + 1);
         boolean aiMessageSaved = save(aiMessage);
@@ -94,7 +98,8 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
         // 3. 初始化Redis缓存
         redisCacheUtil.initStreamingMessage(aiMessage.getId());
 
-        // 4. 获取历史消息（用于构建对话上下文）
+        // 4. 获取历史消息（优先从缓存获取，用于构建对话上下文）
+        // 直接使用 getMessagesByConversationId，它会自动处理缓存逻辑
         List<Messages> historyMessages = getMessagesByConversationId(conversationId, 1, 20);
 
         // 5. 构建Prompt（包含历史消息和当前用户消息）
@@ -128,8 +133,17 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
                         finalConversation.setUpdatedAt(DateTimeUtil.now());
                         conversationMapper.updateById(finalConversation);
 
-                        // 清除缓存（使用保存的finalConversationId，不依赖ThreadLocal）
-                        clearConversationCache(finalConversationId);
+                        // 更新消息缓存：追加新完成的消息到缓存
+                        List<Messages> newMessages = new ArrayList<>();
+                        newMessages.add(finalUserMessage);
+                        newMessages.add(finalAiMessage);
+                        updateCachedHistoryMessages(finalConversationId, newMessages);
+
+                        // 清除会话缓存（因为会话信息已更新，但保留消息缓存）
+                        String conversationCacheKey = RedisConstants.CONVERSATION_KEY + finalConversationId;
+                        redisCacheUtil.delete(conversationCacheKey);
+                        redisCacheUtil.deleteNullValue(conversationCacheKey);
+                        log.debug("已清除会话缓存: conversationId={}", finalConversationId);
                     } catch (Exception e) {
                         log.error("流式输出完成后的处理失败: messageId={}", finalAiMessage.getId(), e);
                     }
@@ -262,7 +276,33 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
         int limit = size != null && size > 0 ? size : 20;
         int offset = (page != null && page > 0 ? page - 1 : 0) * limit;
 
-        return baseMapper.selectMessagesByConversationId(conversationId, limit, offset);
+        // 优先从缓存获取消息列表
+        // 注意：缓存最多保存最近 20 条消息，所以只对第一页且 size <= 20 的查询使用缓存
+        if (page == null || page == 1) {
+            List<Messages> cachedMessages = getCachedHistoryMessages(conversationId, limit);
+            if (cachedMessages != null && !cachedMessages.isEmpty()) {
+                // 缓存命中，直接返回（缓存已经是最近的消息，按 sequence 排序）
+                log.debug("从缓存获取消息列表: conversationId={}, page={}, size={}, cachedCount={}",
+                        conversationId, page, size, cachedMessages.size());
+                return cachedMessages;
+            }
+        }
+
+        // 缓存未命中或需要查询非第一页，从数据库查询
+        List<Messages> messages = baseMapper.selectMessagesByConversationId(conversationId, limit, offset);
+
+        // 如果是第一页且查询结果不为空，更新缓存（用于后续查询优化）
+        if ((page == null || page == 1) && !messages.isEmpty()) {
+            String cacheKey = RedisConstants.CONVERSATION_MESSAGES_KEY + conversationId;
+            // 只缓存最近 20 条消息
+            List<Messages> messagesToCache = messages.size() > 20
+                    ? new ArrayList<>(messages.subList(0, 20))
+                    : new ArrayList<>(messages);
+            redisCacheUtil.set(cacheKey, messagesToCache, RedisConstants.CONVERSATION_MESSAGES_TTL);
+            log.debug("缓存消息列表: conversationId={}, count={}", conversationId, messagesToCache.size());
+        }
+
+        return messages;
     }
 
     @Override
@@ -485,10 +525,105 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
     }
 
     /**
-     * 清除会话缓存
+     * 获取缓存的历史消息列表
+     * 
+     * @param conversationId 会话ID
+     * @param limit          需要获取的消息数量
+     * @return 历史消息列表，如果缓存未命中返回null
+     */
+    private List<Messages> getCachedHistoryMessages(Long conversationId, int limit) {
+        if (conversationId == null) {
+            return null;
+        }
+
+        String cacheKey = RedisConstants.CONVERSATION_MESSAGES_KEY + conversationId;
+        try {
+            TypeReference<List<Messages>> typeRef = new TypeReference<List<Messages>>() {
+            };
+            List<Messages> cachedMessages = redisCacheUtil.get(cacheKey, typeRef);
+            if (cachedMessages != null && !cachedMessages.isEmpty()) {
+                log.debug("从缓存获取历史消息: conversationId={}, count={}", conversationId, cachedMessages.size());
+                // 如果缓存的消息数量足够，直接返回
+                if (cachedMessages.size() >= limit) {
+                    // 返回最近 limit 条消息
+                    int startIndex = Math.max(0, cachedMessages.size() - limit);
+                    return new ArrayList<>(cachedMessages.subList(startIndex, cachedMessages.size()));
+                }
+                // 如果缓存的消息数量不足，返回所有缓存的消息（后续会从数据库补充）
+                return new ArrayList<>(cachedMessages);
+            }
+        } catch (Exception e) {
+            log.warn("获取缓存历史消息失败: conversationId={}", conversationId, e);
+        }
+        return null;
+    }
+
+    /**
+     * 更新缓存的历史消息列表（追加新消息）
+     * 
+     * @param conversationId 会话ID
+     * @param newMessages    新消息列表（会追加到缓存末尾）
+     */
+    private void updateCachedHistoryMessages(Long conversationId, List<Messages> newMessages) {
+        if (conversationId == null || newMessages == null || newMessages.isEmpty()) {
+            return;
+        }
+
+        String cacheKey = RedisConstants.CONVERSATION_MESSAGES_KEY + conversationId;
+        try {
+            // 获取现有缓存
+            TypeReference<List<Messages>> typeRef = new TypeReference<List<Messages>>() {
+            };
+            List<Messages> existingMessages = redisCacheUtil.get(cacheKey, typeRef);
+
+            List<Messages> updatedMessages;
+            if (existingMessages != null && !existingMessages.isEmpty()) {
+                // 追加新消息到现有列表
+                updatedMessages = new ArrayList<>(existingMessages);
+                updatedMessages.addAll(newMessages);
+            } else {
+                // 如果缓存不存在，直接使用新消息列表
+                updatedMessages = new ArrayList<>(newMessages);
+            }
+
+            // 限制缓存大小：只保留最近 20 条消息
+            int maxCacheSize = 20;
+            if (updatedMessages.size() > maxCacheSize) {
+                int startIndex = updatedMessages.size() - maxCacheSize;
+                updatedMessages = new ArrayList<>(updatedMessages.subList(startIndex, updatedMessages.size()));
+            }
+
+            // 更新缓存
+            redisCacheUtil.set(cacheKey, updatedMessages, RedisConstants.CONVERSATION_MESSAGES_TTL);
+            log.debug("更新缓存历史消息: conversationId={}, totalCount={}", conversationId, updatedMessages.size());
+        } catch (Exception e) {
+            log.warn("更新缓存历史消息失败: conversationId={}", conversationId, e);
+            // 缓存更新失败不影响主业务流程
+        }
+    }
+
+    /**
+     * 清除会话消息缓存
      * 
      * @param conversationId 会话ID
      */
+    private void clearConversationMessagesCache(Long conversationId) {
+        if (conversationId == null) {
+            return;
+        }
+
+        String cacheKey = RedisConstants.CONVERSATION_MESSAGES_KEY + conversationId;
+        redisCacheUtil.delete(cacheKey);
+        log.debug("已清除会话消息缓存: conversationId={}", conversationId);
+    }
+
+    /**
+     * 清除会话缓存（包括会话信息和消息缓存）
+     * 用于需要同时清除所有缓存的情况（如消息删除/编辑）
+     * 
+     * @param conversationId 会话ID
+     */
+    @SuppressWarnings("unused")
     private void clearConversationCache(Long conversationId) {
         if (conversationId == null) {
             return;
@@ -498,6 +633,8 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
         redisCacheUtil.delete(cacheKey);
         // 同时清除空值标记
         redisCacheUtil.deleteNullValue(cacheKey);
+        // 清除消息缓存
+        clearConversationMessagesCache(conversationId);
         log.debug("已清除会话缓存: conversationId={}", conversationId);
     }
 
