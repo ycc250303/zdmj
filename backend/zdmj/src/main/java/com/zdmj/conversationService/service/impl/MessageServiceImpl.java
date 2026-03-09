@@ -1,5 +1,6 @@
 package com.zdmj.conversationService.service.impl;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -10,6 +11,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,7 +21,6 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.util.RedisCacheUtil;
 import com.zdmj.common.util.RedisConstants;
-import com.zdmj.conversationService.dto.MessagesDTO;
 import com.zdmj.conversationService.entity.Conversations;
 import com.zdmj.conversationService.entity.Messages;
 import com.zdmj.conversationService.mapper.MessagesMapper;
@@ -50,7 +51,7 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
     }
 
     @Override
-    public Flux<ServerSentEvent<String>> createMessage(MessagesDTO messagesDTO, Long conversationId) {
+    public Flux<ServerSentEvent<String>> createMessage(String content, Long conversationId) {
         // 在主线程中获取并保存上下文信息，避免在异步回调中访问已清除的ThreadLocal
         final Long userId = UserHolder.requireUserId();
 
@@ -63,20 +64,20 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
             return Flux.error(new BusinessException(ErrorCode.NO_PERMISSION));
         }
 
-        // 保存conversation对象和conversationId到final变量，供异步回调使用
-        final Conversations finalConversation = conversation;
+        // 保存conversationId和初始messageCount到final变量，供异步回调使用
         final Long finalConversationId = conversationId;
+        final int initialMessageCount = conversation.getMessageCount();
 
         // 验证消息内容
-        if (messagesDTO.getContent() == null || messagesDTO.getContent().trim().isEmpty()) {
+        if (content == null || content.trim().isEmpty()) {
             return Flux.error(new BusinessException(ErrorCode.MESSAGE_CREATE_FAILED));
         }
 
         // 获取当前消息序号（会话中已有消息数 + 1）
-        int currentSequence = conversation.getMessageCount() + 1;
+        int currentSequence = initialMessageCount + 1;
 
         // 1. 创建并保存用户消息
-        Messages userMessage = createUserMessage(conversationId, userId, messagesDTO.getContent(), currentSequence);
+        Messages userMessage = createUserMessage(conversationId, userId, content, currentSequence);
         boolean userMessageSaved = save(userMessage);
         if (!userMessageSaved) {
             return Flux.error(new BusinessException(ErrorCode.MESSAGE_CREATE_FAILED));
@@ -103,7 +104,7 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
         List<Messages> historyMessages = getMessagesByConversationId(conversationId, 1, 20);
 
         // 5. 构建Prompt（包含历史消息和当前用户消息）
-        Prompt prompt = aiService.buildPromptWithHistory(conversation, historyMessages, messagesDTO.getContent());
+        Prompt prompt = aiService.buildPromptWithHistory(conversation, historyMessages, content);
 
         // 6. 启动流式调用并返回SSE Flux
         String messageId = "msg-" + aiMessage.getId();
@@ -127,11 +128,14 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
                         // 更新Redis状态为completed
                         redisCacheUtil.markStreamingComplete(finalAiMessage.getId(), finalContent);
 
-                        // 更新会话统计信息（使用保存的finalConversation对象，不依赖ThreadLocal）
-                        finalConversation.setMessageCount(finalConversation.getMessageCount() + 2);
-                        finalConversation.setLastMessageAt(DateTimeUtil.now());
-                        finalConversation.setUpdatedAt(DateTimeUtil.now());
-                        conversationMapper.updateById(finalConversation);
+                        // 更新会话统计信息（使用UpdateWrapper直接更新，避免先查询数据库）
+                        LocalDateTime now = DateTimeUtil.now();
+                        UpdateWrapper<Conversations> updateWrapper = new UpdateWrapper<>();
+                        updateWrapper.eq("id", finalConversationId)
+                                .set("message_count", initialMessageCount + 2)
+                                .set("last_message_at", now)
+                                .set("updated_at", now);
+                        conversationMapper.update(null, updateWrapper);
 
                         // 更新消息缓存：追加新完成的消息到缓存
                         List<Messages> newMessages = new ArrayList<>();
@@ -456,27 +460,56 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
     @Override
     @Transactional
     public void delete(Long messageId) {
-        // TODO: 待实现 - 消息删除功能
-        // 需要实现：
+        // 0.只能删除用户发送的消息
+        if (messageId % 2 != 1) {
+            throw new BusinessException(ErrorCode.MESSAGE_DELETE_FAILED);
+        }
+
         // 1. 验证消息是否存在且属于当前用户
-        // 2. 删除消息（物理删除或逻辑删除）
+        Long userId = UserHolder.requireUserId();
+
+        Messages message = baseMapper.selectById(messageId);
+        if (message == null) {
+            throw new BusinessException(ErrorCode.MESSAGE_NOT_FOUND);
+        }
+        if (!message.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.NO_PERMISSION);
+        }
+
+        // 2. 删除消息（物理删除）
+        // 记录删除的消息数量
+        Long conversationId = message.getConversationId();
+        Conversations conversation = getConversationById(conversationId);
+        Integer deletedCount = baseMapper.deleteMessagesByIdAfter(conversationId, messageId);
+        if (deletedCount == null || deletedCount == 0) {
+            throw new BusinessException(ErrorCode.MESSAGE_DELETE_FAILED);
+        }
         // 3. 更新会话的消息数量
-        // 4. 如果删除的是最后一条消息，更新会话的lastMessageAt
-        throw new BusinessException(ErrorCode.FEATURE_NOT_IMPLEMENTED);
+
+        conversation.setMessageCount(conversation.getMessageCount() - deletedCount);
+        conversation.setUpdatedAt(DateTimeUtil.now());
+        // 4. 更新会话的lastMessageAt
+        // 查询删除消息后的会话的最后一条消息的时间
+        LocalDateTime lastMessageAt = baseMapper.selectLastMessageCreatedAt(conversationId);
+        conversation.setLastMessageAt(lastMessageAt);
+
+        conversationMapper.updateById(conversation);
+
+        // 5. 清除会话缓存和消息缓存（因为会话信息和消息列表已更新）
+        String conversationCacheKey = RedisConstants.CONVERSATION_KEY + conversationId;
+        redisCacheUtil.delete(conversationCacheKey);
+        redisCacheUtil.deleteNullValue(conversationCacheKey);
+        String messagesCacheKey = RedisConstants.CONVERSATION_MESSAGES_KEY + conversationId;
+        redisCacheUtil.delete(messagesCacheKey);
+        log.debug("已清除会话缓存和消息缓存: conversationId={}", conversationId);
     }
 
     @Override
     @Transactional
-    public Messages editAndResend(Long messageId, String newContent) {
-        // TODO: 待实现 - 编辑消息并重新发送功能
-        // 需要实现：
-        // 1. 验证消息是否存在且属于当前用户
-        // 2. 验证消息必须是用户消息（role = USER）
-        // 3. 删除该消息之后的所有消息（包括该消息对应的AI回复）
-        // 4. 使用新内容重新创建用户消息
-        // 5. 调用LLM生成新的AI回复
-        // 6. 更新会话的消息数量和最后消息时间
-        throw new BusinessException(ErrorCode.FEATURE_NOT_IMPLEMENTED);
+    public Flux<ServerSentEvent<String>> editAndResend(Long messageId, Long conversationId, String newContent) {
+        // 相当于删除消息后新发一条消息
+        delete(messageId);
+        return createMessage(newContent, conversationId);
     }
 
     @Override

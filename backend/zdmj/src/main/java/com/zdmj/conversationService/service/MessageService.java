@@ -4,7 +4,6 @@ import java.util.List;
 
 import org.springframework.http.codec.ServerSentEvent;
 
-import com.zdmj.conversationService.dto.MessagesDTO;
 import com.zdmj.conversationService.entity.Messages;
 
 import reactor.core.publisher.Flux;
@@ -17,11 +16,11 @@ public interface MessageService {
     /**
      * 创建消息（流式输出）
      * 
-     * @param messagesDTO    消息DTO
+     * @param content        消息内容
      * @param conversationId 会话ID
      * @return SSE流式事件
      */
-    Flux<ServerSentEvent<String>> createMessage(MessagesDTO messagesDTO, Long conversationId);
+    Flux<ServerSentEvent<String>> createMessage(String content, Long conversationId);
 
     /**
      * 根据会话ID查询消息列表（分页）
@@ -55,7 +54,7 @@ public interface MessageService {
      * @param newContent 新的消息内容
      * @return 重新生成的消息
      */
-    Messages editAndResend(Long messageId, String newContent);
+    Flux<ServerSentEvent<String>> editAndResend(Long messageId, Long conversationId, String newContent);
 
     /**
      * 引用消息（待实现）
