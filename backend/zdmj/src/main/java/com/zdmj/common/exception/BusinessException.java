@@ -1,4 +1,4 @@
-package com.zdmj.exception;
+package com.zdmj.common.exception;
 
 import lombok.Getter;
 

@@ -1,11 +1,11 @@
 package com.zdmj.python.service;
 
-import com.zdmj.config.PythonServiceConfig;
-import com.zdmj.config.WebClientConfig;
+import com.zdmj.common.config.PythonServiceConfig;
+import com.zdmj.common.config.WebClientConfig;
 import com.zdmj.python.constant.PythonErrorCode;
 import com.zdmj.python.dto.PythonApiRequest;
 import com.zdmj.python.dto.PythonApiResponse;
-import com.zdmj.exception.PythonServiceException;
+import com.zdmj.common.exception.PythonServiceException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;

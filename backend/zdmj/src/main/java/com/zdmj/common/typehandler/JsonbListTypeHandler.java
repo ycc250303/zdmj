@@ -20,24 +20,28 @@ import java.util.List;
  * 支持 List<Long> 和 List<String> 类型
  * 
  * 使用方式：
+ * 
  * @TableField(typeHandler = JsonbListTypeHandler.class)
- * private List<Long> projects;
+ *                         private List<Long> projects;
  */
 @Slf4j
-@MappedTypes({List.class})
+@MappedTypes({ List.class })
 @MappedJdbcTypes(JdbcType.OTHER)
 public class JsonbListTypeHandler extends BaseTypeHandler<List<?>> {
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
-    private static final TypeReference<List<Long>> LONG_LIST_TYPE = new TypeReference<List<Long>>() {};
-    private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<List<String>>() {};
+    private static final TypeReference<List<Long>> LONG_LIST_TYPE = new TypeReference<List<Long>>() {
+    };
+    private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<List<String>>() {
+    };
 
     @Override
-    public void setNonNullParameter(PreparedStatement ps, int i, List<?> parameter, JdbcType jdbcType) throws SQLException {
+    public void setNonNullParameter(PreparedStatement ps, int i, List<?> parameter, JdbcType jdbcType)
+            throws SQLException {
         try {
             // 将 List 转换为 JSON 字符串
             String json = objectMapper.writeValueAsString(parameter);
-            
+
             // 使用 CAST 确保 PostgreSQL 识别为 JSONB 类型
             // 注意：这里直接设置字符串，PostgreSQL JDBC 驱动会自动处理类型转换
             // 如果数据库列类型是 JSONB，PostgreSQL 会自动将字符串转换为 JSONB

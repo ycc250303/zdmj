@@ -1,4 +1,4 @@
-package com.zdmj.config;
+package com.zdmj.common.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;

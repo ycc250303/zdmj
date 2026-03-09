@@ -4,8 +4,8 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.model.PageResult;
 import com.zdmj.common.util.CosUtil;
-import com.zdmj.exception.ErrorCode;
-import com.zdmj.exception.BusinessException;
+import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.common.exception.BusinessException;
 import com.zdmj.knowledgeService.dto.KnowledgeBasesDTO;
 import com.zdmj.knowledgeService.entity.KnowledgeBases;
 import com.zdmj.knowledgeService.mapper.KnowledgeBasesMapper;
@@ -18,7 +18,8 @@ import com.zdmj.python.dto.knowledge.KnowledgeEmbeddingRequest;
 import com.zdmj.python.dto.knowledge.KnowledgeEmbeddingTaskResult;
 import com.zdmj.python.dto.knowledge.TaskStatusResponse;
 import com.zdmj.python.service.PythonServiceClient;
-import com.zdmj.exception.PythonServiceException;
+import com.zdmj.python.constant.PythonAPI;
+import com.zdmj.common.exception.PythonServiceException;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -254,7 +255,7 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
                     actionDesc, knowledgeId, userId);
 
             PythonApiResponse<KnowledgeEmbeddingTaskResult> response = pythonServiceClient
-                    .post("/api/knowledge/embedding", request, KnowledgeEmbeddingTaskResult.class)
+                    .post(PythonAPI.Knowledge.EMBEDDING, request, KnowledgeEmbeddingTaskResult.class)
                     .block();
 
             // 详细记录响应信息用于诊断
@@ -302,7 +303,7 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
             request.setUserId(userId);
 
             PythonApiResponse<DeleteVectorsResult> response = pythonServiceClient
-                    .post("/api/knowledge/vectors/delete", request, DeleteVectorsResult.class)
+                    .post(PythonAPI.Knowledge.DELETE_VECTORS, request, DeleteVectorsResult.class)
                     .block();
 
             if (response != null && response.getData() != null) {
@@ -424,7 +425,7 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         try {
             // 3. 调用 Python 服务查询任务状态
             PythonApiResponse<TaskStatusResponse> response = pythonServiceClient
-                    .get("/api/knowledge/embedding/tasks/" + taskId, TaskStatusResponse.class)
+                    .get(PythonAPI.Knowledge.EMBEDDING_TASK_STATUS + taskId, TaskStatusResponse.class)
                     .block();
 
             if (response == null || response.getData() == null) {

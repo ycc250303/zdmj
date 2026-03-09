@@ -1,4 +1,4 @@
-package com.zdmj.config;
+package com.zdmj.common.config;
 
 import io.netty.channel.ChannelOption;
 import io.netty.handler.timeout.ReadTimeoutHandler;
