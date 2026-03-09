@@ -4,21 +4,14 @@ import java.util.List;
 
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 import com.zdmj.common.Result;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.conversationService.dto.MessagesDTO;
 import com.zdmj.conversationService.entity.Messages;
 import com.zdmj.conversationService.service.MessageService;
-
-import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 
@@ -38,24 +31,25 @@ public class MessageController {
 
     /**
      * 创建消息（发送消息并获取AI回复，流式输出）
-     * 
+     *
      * @param conversationId 会话ID
-     * @param messagesDTO    消息DTO
+     * @param requestBody    请求体，包含 content 字段
      * @return SSE流式事件
      */
     @PostMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> createMessage(@PathVariable Long conversationId,
-            @Valid @RequestBody MessagesDTO messagesDTO) {
+            @RequestBody Map<String, String> requestBody) {
         // 在返回 Flux 之前完成授权检查，确保 SecurityContext 有效
         // 这样即使 Flux 在异步执行，授权检查也已经完成
         Long userId = UserHolder.requireUserId();
         log.debug("创建消息: conversationId={}, userId={}", conversationId, userId);
-        return messageService.createMessage(messagesDTO, conversationId);
+        String content = requestBody != null ? requestBody.get("content") : null;
+        return messageService.createMessage(content, conversationId);
     }
 
     /**
      * 获取会话的消息列表（分页）
-     * 
+     *
      * @param conversationId 会话ID
      * @param page           页码（从1开始，默认为1）
      * @param size           每页数量（默认为20）
@@ -71,7 +65,7 @@ public class MessageController {
 
     /**
      * 根据ID获取消息详情
-     * 
+     *
      * @param conversationId 会话ID（用于验证消息是否属于该会话）
      * @param messageId      消息ID
      * @return 消息详情
@@ -89,7 +83,7 @@ public class MessageController {
 
     /**
      * 获取消息流（支持断点续传）
-     * 
+     *
      * @param conversationId 会话ID（用于验证消息是否属于该会话）
      * @param messageId      消息ID
      * @param recover        是否恢复之前的流式输出
@@ -110,31 +104,35 @@ public class MessageController {
         return messageService.getStreamWithRecover(messageId, recover);
     }
 
-    // /**
-    // * 删除消息（待实现）
-    // *
-    // * @param messageId 消息ID
-    // * @return 操作结果
-    // */
-    // @DeleteMapping("/{messageId}")
-    // public Result<String> deleteMessage(@PathVariable Long messageId) {
-    // messageService.delete(messageId);
-    // return Result.success("删除消息成功", null);
-    // }
+    /**
+     * 删除消息
+     *
+     * @param messageId 消息ID
+     * @return 操作结果
+     */
+    @DeleteMapping("/{messageId}")
+    public Result<String> deleteMessage(@PathVariable Long messageId) {
+        messageService.delete(messageId);
+        return Result.success("删除消息成功", null);
+    }
 
-    // /**
-    // * 编辑消息并重新发送（待实现）
-    // *
-    // * @param messageId 消息ID
-    // * @param newContent 新的消息内容
-    // * @return 重新生成的消息
-    // */
-    // @PutMapping("/{messageId}/edit-resend")
-    // public Result<Messages> editAndResend(@PathVariable Long messageId,
-    // @RequestParam String newContent) {
-    // return Result.success("编辑重发成功", messageService.editAndResend(messageId,
-    // newContent));
-    // }
+    /**
+     * 编辑消息并重新发送（流式输出）
+     *
+     * @param conversationId 会话ID
+     * @param messageId      消息ID
+     * @param newContent     新的消息内容
+     * @return SSE流式事件
+     */
+    @PutMapping(value = "/{messageId}/edit-resend", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<String>> editAndResend(@PathVariable Long conversationId,
+            @PathVariable Long messageId,
+            @RequestParam String newContent) {
+        // 在返回 Flux 之前完成授权检查，确保 SecurityContext 有效
+        Long userId = UserHolder.requireUserId();
+        log.debug("编辑重发消息: conversationId={}, messageId={}, userId={}", conversationId, messageId, userId);
+        return messageService.editAndResend(messageId, conversationId, newContent);
+    }
 
     // /**
     // * 引用消息（待实现）
