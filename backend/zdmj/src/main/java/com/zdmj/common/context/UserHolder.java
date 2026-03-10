@@ -1,7 +1,7 @@
 package com.zdmj.common.context;
 
-import com.zdmj.exception.ErrorCode;
-import com.zdmj.exception.BusinessException;
+import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.exception.ErrorCode;
 
 /**
  * 用户信息持有者

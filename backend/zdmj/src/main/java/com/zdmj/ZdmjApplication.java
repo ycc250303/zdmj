@@ -8,7 +8,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @MapperScan({
         "com.zdmj.userAuthService.mapper",
         "com.zdmj.resumeService.mapper",
-        "com.zdmj.knowledgeService.mapper"
+        "com.zdmj.knowledgeService.mapper",
+        "com.zdmj.projectHighlightService.mapper",
+        "com.zdmj.conversationService.mapper"
 })
 public class ZdmjApplication {
     public static void main(String[] args) {

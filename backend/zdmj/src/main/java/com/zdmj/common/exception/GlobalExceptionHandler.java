@@ -1,4 +1,4 @@
-package com.zdmj.exception;
+package com.zdmj.common.exception;
 
 import com.zdmj.common.Result;
 import lombok.extern.slf4j.Slf4j;

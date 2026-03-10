@@ -2,7 +2,8 @@ package com.zdmj.common.controller;
 
 import com.zdmj.common.Result;
 import com.zdmj.common.model.FileUploadResult;
-import com.zdmj.common.service.FileUploadService;
+import com.zdmj.common.util.FileUploadUtil;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,9 +20,9 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/files")
 public class FileUploadController {
 
-    private final FileUploadService fileUploadService;
+    private final FileUploadUtil fileUploadService;
 
-    public FileUploadController(FileUploadService fileUploadService) {
+    public FileUploadController(FileUploadUtil fileUploadService) {
         this.fileUploadService = fileUploadService;
     }
 

@@ -247,14 +247,14 @@ CREATE TABLE IF NOT EXISTS project_experiences (
     -- {
     --   "problem": [
     --     {
-    --       "type": "问题类型",
-    --       "content": "问题描述"
+    --       "name": "问题名称",
+    --       "desc": "问题描述"
     --     }
     --   ],
     --   "solution": [
     --     {
-    --       "type": "解决方案类型",
-    --       "content": "解决方案描述"
+    --       "name": "解决方案名称",
+    --       "desc": "解决方案描述"
     --     }
     --   ],
     --   "score": 85
@@ -356,7 +356,7 @@ CREATE INDEX IF NOT EXISTS idx_resume_matches_status ON resume_matches(status);
 -- ==========================3 项目模块==========================
 --
 -- 说明：原projects表已合并到project_experiences表中，以下表关联到project_experiences
--- 3.1 项目挖掘表（使用JSONB替代MongoDB）
+-- 3.1 项目挖掘表
 CREATE TABLE IF NOT EXISTS projects_mined (
     id BIGSERIAL PRIMARY KEY,
     -- 挖掘ID
@@ -364,13 +364,11 @@ CREATE TABLE IF NOT EXISTS projects_mined (
     -- 用户ID（逻辑外键：users.id）
     project_id BIGINT,
     -- 关联项目ID（逻辑外键：project_experiences.id）
-    name VARCHAR(255) NOT NULL,
-    -- 项目名称
+    -- 注意：项目名称可通过 project_id JOIN project_experiences.name 获取，或从 info JSONB 中解析
     info JSONB NOT NULL,
     -- 项目信息
     -- info 示例
     -- {
-    --   "name": "项目名称",
     --   "desc": {
     --     "role": "在项目中的角色和职责",
     --     "contribute": "核心贡献和参与程度",
@@ -392,20 +390,23 @@ CREATE TABLE IF NOT EXISTS projects_mined (
     -- {
     --   "team": [
     --     {
-    --       "type": "团队贡献类型",
-    --       "content": "团队贡献描述"
+    --       "content": "团队贡献描述",
+    --       "reason": "亮点添加原因",
+    --       "tech": ["相关技术1", "相关技术2"]
     --     }
     --   ],
     --   "skill": [
     --     {
-    --       "type": "技术亮点类型",
-    --       "content": "技术亮点描述"
+    --       "content": "技术亮点描述",
+    --       "reason": "亮点添加原因",
+    --       "tech": ["相关技术1", "相关技术2"]
     --     }
     --   ],
     --   "user": [
     --     {
-    --       "type": "用户体验类型",
-    --       "content": "用户体验描述"
+    --       "content": "用户体验描述",
+    --       "reason": "亮点添加原因",
+    --       "tech": ["相关技术1", "相关技术2"]
     --     }
     --   ]
     -- }
@@ -425,13 +426,11 @@ CREATE TABLE IF NOT EXISTS projects_polished (
     -- 用户ID（逻辑外键：users.id）
     project_id BIGINT,
     -- 关联项目ID（逻辑外键：project_experiences.id）
-    name VARCHAR(255) NOT NULL,
-    -- 项目名称
+    -- 注意：项目名称可通过 project_id JOIN project_experiences.name 获取，或从 info JSONB 中解析
     info JSONB NOT NULL,
     -- 项目信息
     -- info 示例
     -- {
-    --   "name": "项目名称",
     --   "desc": {
     --     "role": "在项目中的角色和职责",
     --     "contribute": "核心贡献和参与程度",
@@ -445,26 +444,26 @@ CREATE TABLE IF NOT EXISTS projects_polished (
     -- {
     --   "team": [
     --     {
-    --       "type": "团队贡献类型",
-    --       "content": "团队贡献描述（已修正）"
+    --       "content": "团队贡献描述（已修正）",
+    --       "advice": "亮点改进建议（可选）"
     --     }
     --   ],
     --   "skill": [
     --     {
-    --       "type": "技术亮点类型",
-    --       "content": "技术亮点描述（已修正）"
+    --       "content": "技术亮点描述（已修正）",
+    --       "advice": "亮点改进建议（可选）"
     --     }
     --   ],
     --   "user": [
     --     {
-    --       "type": "用户体验类型",
-    --       "content": "用户体验描述（已修正）"
+    --       "content": "用户体验描述（已修正）",
+    --       "advice": "亮点改进建议（可选）"
     --     }
     --   ],
     --   "deprecated": [
     --     {
-    --       "type": "已废弃亮点类型",
-    --       "content": "已废弃的亮点描述"
+    --       "content": "已废弃的亮点描述",
+    --       "reason": "亮点删除原因"
     --     }
     --   ]
     -- }
@@ -667,3 +666,115 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_user_id ON knowledge_vecto
 CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_knowledge_id ON knowledge_vector_tasks(knowledge_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_status ON knowledge_vector_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_task_type ON knowledge_vector_tasks(task_type);
+--
+-- ==========================7 AI对话模块==========================
+--
+-- 7.1 对话会话表
+CREATE TABLE IF NOT EXISTS conversations (
+    id BIGSERIAL PRIMARY KEY,
+    -- 会话ID
+    user_id BIGINT NOT NULL,
+    -- 用户ID（逻辑外键：users.id）
+    project_id BIGINT,
+    -- 关联项目ID（逻辑外键：project_experiences.id，可选）
+    -- 说明：NULL 表示通用对话（不关联项目），有值表示项目关联对话
+    -- 项目关联对话会自动注入项目数据、文档、代码等上下文信息
+    title VARCHAR(255),
+    -- 对话标题（可由AI生成或用户自定义，首次消息时可为空）
+    config JSONB DEFAULT '{}'::jsonb,
+    -- 对话配置（temperature、max_tokens、top_p等参数）
+    -- config 示例
+    -- {
+    --   "temperature": 0.7,
+    --   "max_tokens": 2000,
+    --   "top_p": 1.0,
+    --   "frequency_penalty": 0,
+    --   "presence_penalty": 0
+    -- }
+    context JSONB DEFAULT '[]'::jsonb,
+    -- 上下文信息（可关联知识库等，用于RAG检索）
+    -- 注意：如果 project_id 有值，项目信息会自动注入，无需在此重复
+    -- context 示例
+    -- [
+    --   {
+    --     "type": "knowledge_base",
+    --     "id": 456,
+    --     "name": "知识库名称"
+    --   }
+    -- ]
+    message_count INTEGER DEFAULT 0,
+    -- 消息总数（用于快速统计）
+    last_message_at TIMESTAMP,
+    -- 最后一条消息时间
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- 创建时间
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
+);
+CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_user_id_status ON conversations(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_conversations_user_id_created_at ON conversations(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_conversations_project_id ON conversations(project_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_user_id_project_id ON conversations(user_id, project_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_last_message_at ON conversations(last_message_at DESC);
+-- 7.2 消息表
+CREATE TABLE IF NOT EXISTS messages (
+    id BIGSERIAL PRIMARY KEY,
+    -- 消息ID
+    conversation_id BIGINT NOT NULL,
+    -- 关联会话ID（逻辑外键：conversations.id）
+    user_id BIGINT NOT NULL,
+    -- 用户ID（逻辑外键：users.id，用于数据隔离和快速查询）
+    role SMALLINT NOT NULL,
+    -- 消息角色（枚举：1=user用户/2=assistant助手/3=system系统）
+    content TEXT NOT NULL,
+    -- 消息内容
+    sequence INTEGER NOT NULL,
+    -- 消息序号（在会话中的顺序，从1开始）
+    metadata JSONB DEFAULT '{}'::jsonb,
+    -- 消息元数据（token数、模型版本、生成时间等）
+    -- metadata 示例
+    -- {
+    --   "tokens": {
+    --     "prompt": 150,
+    --     "completion": 200,
+    --     "total": 350
+    --   },
+    --   "model": "gpt-4",
+    --   "finish_reason": "stop",
+    --   "generation_time_ms": 1234
+    -- }
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 消息创建时间
+);
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_id_sequence ON messages(conversation_id, sequence);
+CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id);
+CREATE INDEX IF NOT EXISTS idx_messages_user_id_conversation_id ON messages(user_id, conversation_id);
+-- 7.3 消息向量表（用于检索历史对话，支持RAG功能）
+CREATE TABLE IF NOT EXISTS message_vectors (
+    id BIGSERIAL PRIMARY KEY,
+    -- 向量ID
+    message_id BIGINT NOT NULL,
+    -- 消息ID（逻辑外键：messages.id）
+    conversation_id BIGINT NOT NULL,
+    -- 会话ID（逻辑外键：conversations.id，用于快速查询）
+    user_id BIGINT NOT NULL,
+    -- 用户ID（逻辑外键：users.id，数据隔离）
+    embedding VECTOR(1024) NOT NULL,
+    -- 消息向量（1024维，使用text-embedding-v4模型）
+    content TEXT NOT NULL,
+    -- 消息内容（存储用于检索的文本）
+    metadata JSONB,
+    -- 元数据（角色、时间等）
+    -- metadata 示例
+    -- {
+    --   "role": "user",
+    --   "conversation_id": 123,
+    --   "sequence": 1,
+    --   "created_at": "2024-01-01 12:00:00"
+    -- }
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 创建时间
+);
+CREATE INDEX IF NOT EXISTS idx_message_vectors_user_id ON message_vectors(user_id);
+CREATE INDEX IF NOT EXISTS idx_message_vectors_conversation_id ON message_vectors(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_message_vectors_message_id ON message_vectors(message_id);
+CREATE INDEX IF NOT EXISTS idx_message_vectors_embedding ON message_vectors USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);

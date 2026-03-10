@@ -1,4 +1,4 @@
-package com.zdmj.config;
+package com.zdmj.common.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,9 +14,12 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.Arrays;
 import java.util.List;
 
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * Spring Security 配置类
  */
+@Slf4j
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
@@ -60,8 +63,50 @@ public class SecurityConfig {
                                 "/actuator/info" // 应用信息
                         ).permitAll()
 
+                        // 对于异步分发（ASYNC dispatcher），允许所有请求
+                        // 这可以避免 "Unable to handle the Spring Security Exception because the response is
+                        // already committed" 错误
+                        // 异步分发发生在响应提交后，此时无法再发送错误响应
+                        .requestMatchers(request -> request.getDispatcherType() == jakarta.servlet.DispatcherType.ASYNC)
+                        .permitAll()
+
                         // 其他所有请求需要认证（包括/api/zdmj/users/{id}等）
-                        .anyRequest().authenticated());
+                        .anyRequest().authenticated())
+
+                // 配置异常处理：对于已提交的响应，完全跳过异常处理
+                // 这可以避免 "Unable to handle the Spring Security Exception because the response is
+                // already committed" 错误
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            // 如果响应已提交，完全跳过处理，不尝试发送任何响应
+                            if (response.isCommitted()) {
+                                log.debug("响应已提交，跳过认证异常处理");
+                                return;
+                            }
+                            try {
+                                response.setStatus(org.springframework.http.HttpStatus.UNAUTHORIZED.value());
+                                response.setContentType("application/json;charset=UTF-8");
+                                response.getWriter().write("{\"code\":401,\"message\":\"Unauthorized\"}");
+                            } catch (Exception e) {
+                                // 如果响应在检查后提交，忽略异常
+                                log.debug("无法发送认证错误响应: {}", e.getMessage());
+                            }
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            // 如果响应已提交，完全跳过处理，不尝试发送任何响应
+                            if (response.isCommitted()) {
+                                log.debug("响应已提交，跳过授权异常处理");
+                                return;
+                            }
+                            try {
+                                response.setStatus(org.springframework.http.HttpStatus.FORBIDDEN.value());
+                                response.setContentType("application/json;charset=UTF-8");
+                                response.getWriter().write("{\"code\":403,\"message\":\"Access Denied\"}");
+                            } catch (Exception e) {
+                                // 如果响应在检查后提交，忽略异常
+                                log.debug("无法发送授权错误响应: {}", e.getMessage());
+                            }
+                        }));
 
         return http.build();
     }

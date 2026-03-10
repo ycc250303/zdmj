@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.zdmj.conversationService.mapper.MessagesMapper">
+
+  <!-- 2. 根据会话ID查询消息记录，分页，一次20条
+         参数：
+           conversationId: 会话ID
+           offset: 起始偏移量（(page-1)*20）
+           limit: 每页数量，建议固定为20
+    -->
+  <select id="selectMessagesByConversationId"
+    parameterType="map"
+    resultType="com.zdmj.conversationService.entity.Messages"> SELECT id, conversation_id AS
+    conversationId, user_id AS userId, role, content, sequence, metadata, created_at AS createdAt,
+    updated_at AS updatedAt FROM messages WHERE conversation_id = #{conversationId} ORDER BY
+    sequence DESC, id DESC LIMIT #{limit} OFFSET #{offset} </select>
+
+  <delete id="deleteMessagesByIdAfter"> DELETE FROM messages WHERE conversation_id =
+    #{conversationId} AND id >= #{messageId} </delete>
+
+  <!-- 查询会话的最后一条消息的创建时间 -->
+  <select id="selectLastMessageCreatedAt"
+    parameterType="long"
+    resultType="java.time.LocalDateTime"> SELECT created_at FROM messages WHERE conversation_id =
+    #{conversationId} ORDER BY sequence DESC, id DESC LIMIT 1 </select>
+
+</mapper>

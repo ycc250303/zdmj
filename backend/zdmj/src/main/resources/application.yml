@@ -43,6 +43,31 @@ spring:
             enable: false  # 使用SSL时，starttls设为false
             required: false
 
+  # 模型配置
+  ai:
+    openai:
+      base-url: https://dashscope.aliyuncs.com/compatible-mode
+      api-key: ${DASHSCOPE_API_KEY}
+      chat:
+        options:
+          model: ${AL_MODEL:qwen-plus}
+      # Embedding模型配置
+      embedding:
+        options:
+          model: text-embedding-v4
+      # 禁用自动重试机制，让异常立即返回
+      retry:
+        max-attempts: 1
+        on-client-errors: false
+      # PostgreSQL Vector Store配置
+      vectorstore:
+        pgvector:
+          index-type: HNSW
+          distance-type: COSINE_DISTANCE
+          dimensions: 1024  # text-embedding-v4 实际生成的向量维度
+          initialize-schema: true
+          remove-existing-vector-store-table: false
+
 # MyBatis-Plus 配置
 mybatis-plus:
   # Mapper XML 文件位置
@@ -110,7 +135,6 @@ cos:
 python:
   # Python服务基础URL（支持环境变量配置）
   # 同一服务器上建议使用localhost（性能更好），也可通过环境变量设置为服务器IP
-  # 例如：export PYTHON_SERVICE_URL=http://111.229.81.45:8000
   base-url: ${PYTHON_SERVICE_URL:http://localhost:8000}
   # 连接超时时间（毫秒），默认5秒
   connect-timeout: ${PYTHON_CONNECT_TIMEOUT:5000}
