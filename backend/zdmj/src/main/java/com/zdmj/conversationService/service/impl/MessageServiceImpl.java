@@ -108,9 +108,8 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
 
         // 6. 启动流式调用并返回SSE Flux
         String messageId = "msg-" + aiMessage.getId();
-        String model = conversation.getModel() != null ? conversation.getModel() : "qwen";
 
-        return aiService.streamChat(prompt, messageId, model,
+        return aiService.streamChat(prompt, messageId, "qwen",
                 // onChunk: 每个chunk的回调
                 chunk -> {
                     // 追加chunk到Redis缓存
@@ -351,9 +350,7 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
             String content = message.getContent() != null ? message.getContent() : "";
             String openAIMessageId = "msg-" + messageId;
             long created = System.currentTimeMillis() / 1000;
-            Conversations conv = conversationMapper.selectById(message.getConversationId());
-            String model = conv != null && conv.getModel() != null ? conv.getModel() : "qwen";
-            String jsonData = aiService.buildOpenAIChunkJson(openAIMessageId, created, model, content);
+            String jsonData = aiService.buildOpenAIChunkJson(openAIMessageId, created, "qwen", content);
             return Flux.just(ServerSentEvent.<String>builder()
                     .data(jsonData)
                     .event("complete")
@@ -369,14 +366,12 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
             String content = streamingMessage.getContent() != null ? streamingMessage.getContent() : "";
             String openAIMessageId = "msg-" + messageId;
             long created = System.currentTimeMillis() / 1000;
-            Conversations conv = conversationMapper.selectById(message.getConversationId());
-            String model = conv != null && conv.getModel() != null ? conv.getModel() : "qwen";
 
             // 如果内容不为空，按chunk返回（兼容OpenAI格式）
             if (!content.isEmpty() && streamingMessage.getChunks() != null && !streamingMessage.getChunks().isEmpty()) {
                 List<ServerSentEvent<String>> events = new ArrayList<>();
                 for (String chunk : streamingMessage.getChunks()) {
-                    String jsonData = aiService.buildOpenAIChunkJson(openAIMessageId, created, model, chunk);
+                    String jsonData = aiService.buildOpenAIChunkJson(openAIMessageId, created, "qwen", chunk);
                     events.add(ServerSentEvent.<String>builder()
                             .data(jsonData)
                             .event("chunk")
@@ -389,7 +384,7 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
                                 .build()));
             } else {
                 // 如果没有chunks，直接返回完整内容
-                String jsonData = aiService.buildOpenAIChunkJson(openAIMessageId, created, model, content);
+                String jsonData = aiService.buildOpenAIChunkJson(openAIMessageId, created, "qwen", content);
                 return Flux.just(ServerSentEvent.<String>builder()
                         .data(jsonData)
                         .event("complete")
@@ -426,12 +421,10 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
         List<ServerSentEvent<String>> events = new ArrayList<>();
         String openAIMessageId = "msg-" + messageId;
         long created = System.currentTimeMillis() / 1000;
-        Conversations conv = conversationMapper.selectById(message.getConversationId());
-        String model = conv != null && conv.getModel() != null ? conv.getModel() : "qwen";
 
         if (streamingMessage.getChunks() != null && !streamingMessage.getChunks().isEmpty()) {
             for (String chunk : streamingMessage.getChunks()) {
-                String jsonData = aiService.buildOpenAIChunkJson(openAIMessageId, created, model, chunk);
+                String jsonData = aiService.buildOpenAIChunkJson(openAIMessageId, created, "qwen", chunk);
                 events.add(ServerSentEvent.<String>builder()
                         .data(jsonData)
                         .event("chunk")
@@ -439,7 +432,7 @@ public class MessageServiceImpl extends ServiceImpl<MessagesMapper, Messages> im
             }
         } else {
             // 如果没有chunks，直接推送完整内容
-            String jsonData = aiService.buildOpenAIChunkJson(openAIMessageId, created, model, existingContent);
+            String jsonData = aiService.buildOpenAIChunkJson(openAIMessageId, created, "qwen", existingContent);
             events.add(ServerSentEvent.<String>builder()
                     .data(jsonData)
                     .event("chunk")

@@ -21,7 +21,7 @@ import com.zdmj.conversationService.service.ConversationService;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 会话控制器
+ * 会话控制器（开发中）
  */
 @Slf4j
 @RestController
