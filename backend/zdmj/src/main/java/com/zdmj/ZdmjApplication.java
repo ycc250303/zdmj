@@ -9,7 +9,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
         "com.zdmj.userAuthService.mapper",
         "com.zdmj.resumeService.mapper",
         "com.zdmj.knowledgeService.mapper",
-        "com.zdmj.projectHighlightService.mapper",
+        "com.zdmj.projectAnalysisService.mapper",
         "com.zdmj.conversationService.mapper"
 })
 public class ZdmjApplication {

@@ -25,15 +25,15 @@ public interface KnowledgeBasesService {
     List<KnowledgeBases> getByUserId();
 
     /**
-     * 分页查询知识库列表（支持项目名称和类型过滤）
+     * 分页查询知识库列表（支持项目ID和类型过滤）
      *
-     * @param page        页码（从1开始），默认为1
-     * @param limit       每页数量，默认为10
-     * @param projectName 项目名称（可选）
-     * @param type        知识类型（可选）
+     * @param page      页码（从1开始），默认为1
+     * @param limit     每页数量，默认为10
+     * @param projectId 项目ID（可选）
+     * @param type      知识类型（可选）
      * @return 分页结果
      */
-    PageResult<KnowledgeBases> getPage(Integer page, Integer limit, String projectName, Integer type);
+    PageResult<KnowledgeBases> getPage(Integer page, Integer limit, Long projectId, Integer type);
 
     /**
      * 根据ID获取知识库

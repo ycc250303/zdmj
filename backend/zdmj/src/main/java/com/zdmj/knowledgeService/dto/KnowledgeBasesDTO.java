@@ -25,10 +25,10 @@ public class KnowledgeBasesDTO {
     private String name;
 
     /**
-     * 项目名称
+     * 项目ID（关联project_experiences.id）
      */
-    @NotBlank(message = "项目名称不能为空", groups = CreateGroup.class)
-    private String projectName;
+    @NotNull(message = "项目ID不能为空", groups = CreateGroup.class)
+    private Long projectId;
 
     /**
      * 知识标签（数组）

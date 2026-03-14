@@ -69,15 +69,40 @@ class ProjectCodeVectorStore(BaseVectorStore):
                 )
                 continue
 
-            # 准备 metadata（合并原始 metadata 和额外信息）
-            metadata = doc.metadata.copy() if doc.metadata else {}
-            # 这里的 knowledgeId 用于链路追踪，保持与表结构一致
-            metadata["knowledgeId"] = knowledge_id
-            if "source" not in metadata:
-                metadata["source"] = metadata.get("path", "unknown")
+            # 准备 metadata（只保留必要字段，删除冗余字段）
+            # 删除冗余字段：path（表字段已有file_path）、source（与path相同）、
+            # knowledgeId/knowledge_id（表字段已有knowledge_id）、repo_url（大量重复）
+            metadata = {}
+            
+            # 定义需要保留的字段白名单
+            ALLOWED_METADATA_FIELDS = {
+                "chunk_index",      # 分块索引
+                "total_chunks",     # 总块数
+                "source_doc_index", # 源文档索引
+                "language",         # 编程语言（用于未来语言特定检索）
+                "type",             # 知识类型（用于过滤）
+                "file_size",        # 文件大小（可选，用于过滤大文件）
+            }
+            
+            # 只保留白名单中的字段，明确排除冗余字段
+            if doc.metadata:
+                for key in ALLOWED_METADATA_FIELDS:
+                    if key in doc.metadata:
+                        metadata[key] = doc.metadata[key]
+                
+                # 明确排除冗余字段（确保不会意外包含）
+                # 这些字段不应该出现在最终的 metadata 中
+                excluded_fields = ["path", "source", "knowledgeId", "knowledge_id", "repo_url"]
+                for field in excluded_fields:
+                    if field in metadata:
+                        logger.warning(
+                            "发现冗余字段 %s 在 metadata 中，已删除: knowledge_id=%d",
+                            field, knowledge_id
+                        )
+                        del metadata[field]
 
-            # 获取 file_path（从 metadata 或 path）
-            file_path = metadata.get("path") or metadata.get("source") or None
+            # 获取 file_path（从原始 metadata 的 path）
+            file_path = doc.metadata.get("path") if doc.metadata else None
 
             # 将向量转换为字符串格式
             vector_str = self._vector_to_str(embedding)

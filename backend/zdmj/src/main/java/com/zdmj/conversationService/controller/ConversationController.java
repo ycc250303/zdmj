@@ -2,19 +2,16 @@ package com.zdmj.conversationService.controller;
 
 import java.util.List;
 
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.zdmj.common.Result;
-import com.zdmj.conversationService.dto.ConversationsDTO;
 import com.zdmj.conversationService.entity.Conversations;
 import com.zdmj.conversationService.service.ConversationService;
 
@@ -35,15 +32,15 @@ public class ConversationController {
     }
 
     /**
-     * 创建会话（仅支持与项目ID绑定）
+     * 创建会话（可选与项目ID绑定）
      * 
-     * @param conversationDTO 会话DTO（仅包含projectId）
+     * @param projectId 项目ID（可选）
      * @return 创建的会话
      */
     @PostMapping
     public Result<Conversations> createConversation(
-            @Validated @RequestBody ConversationsDTO conversationDTO) {
-        return Result.success("创建会话成功", conversationService.create(conversationDTO));
+            @RequestParam(required = false) Long projectId) {
+        return Result.success("创建会话成功", conversationService.create(projectId));
     }
 
     /**

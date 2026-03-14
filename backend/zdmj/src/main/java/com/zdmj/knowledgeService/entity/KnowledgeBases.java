@@ -37,9 +37,9 @@ public class KnowledgeBases extends BaseEntity {
     private String name;
 
     /**
-     * 项目名称
+     * 项目ID（关联project_experiences.id）
      */
-    private String projectName;
+    private Long projectId;
 
     /**
      * 知识标签（JSONB数组）

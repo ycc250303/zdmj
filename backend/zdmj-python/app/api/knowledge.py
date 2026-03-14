@@ -339,9 +339,9 @@ async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int)
                     Document(
                         page_content=text,
                         metadata={
-                            "knowledge_id": knowledge_id,
-                            "type": knowledge_type,
-                            "path": content,
+                            # 不添加 knowledge_id（表字段已有，避免冗余）
+                            "type": knowledge_type,  # 保留知识类型
+                            "path": content,  # 用于提取 file_path 表字段，之后会被删除
                         },
                     )
                 ]
@@ -393,8 +393,9 @@ async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int)
                     error_message=f"GitHub仓库文档拉取完成，共{len(documents)}个文档，开始分块",
                 )
                 # 补充知识库相关元数据
+                # 注意：不添加 knowledge_id 到 metadata（表字段已有，避免冗余）
                 for doc in documents:
-                    doc.metadata.setdefault("knowledge_id", knowledge_id)
+                    # 只添加 type（知识类型），用于后续过滤
                     doc.metadata.setdefault("type", knowledge_type)
         else:
             # 理论上不应该到达这里，因为 _infer_file_format 已经做了验证
