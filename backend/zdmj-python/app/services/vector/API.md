@@ -23,8 +23,8 @@
   - 若该知识库已有向量：先删除旧向量，再按当前内容重新向量化（幂等重跑）
 
 > **调用时机约定（由 Java 决定）**  
-> 仅当 `content / fileType / type` 等会影响分块和向量语义的字段发生变化时，Java 才调用本接口。  
-> 修改名称（`name`）、标签（`tag`）、项目绑定（`projectName`）等元数据时，不调用本向量化接口，由 Java 直接更新数据库。
+> 仅当 `content / type` 等会影响分块和向量语义的字段发生变化时，Java 才调用本接口。  
+> 修改名称（`name`）、标签（`tag`）、项目绑定（`project_id`）等元数据时，不调用本向量化接口，由 Java 直接更新数据库。
 
 ### 1.2 请求体：`KnowledgeEmbeddingRequest`
 
@@ -33,7 +33,7 @@
 - **userId: Long**
   - 说明：所属用户 ID，用于数据隔离（可用于简单校验 `knowledge_bases.user_id == userId`）
 
-> 说明：Python 通过 `knowledgeId` 从 `knowledge_bases` 表读取向量化所需的全部信息（如 `file_type / type / content / project_name / tag` 等），  
+> 说明：Python 通过 `knowledgeId` 从 `knowledge_bases` 表读取向量化所需的全部信息（如 `type / content / project_id / tag` 等），  
 > **Java 无需在请求体中重复传递这些字段**。  
 > 当 `type` 表示：
 > - 1 / 3 / 4（项目文档 / 技术文档 / 其他等）：向量化结果写入表 `knowledge_vectors`

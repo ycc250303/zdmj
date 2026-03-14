@@ -25,7 +25,11 @@ class Database:
                 password=settings.postgres_password,
                 database=settings.postgres_db,
                 min_size=2,
-                max_size=10
+                max_size=10,
+                command_timeout=300,  # 5分钟超时
+                server_settings={
+                    'application_name': 'zdmj-python',
+                }
             )
             print("PostgreSQL 连接池创建成功")
         except Exception as e:

@@ -23,6 +23,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from langchain_core.documents import Document
 
+from app.config import settings
 from app.database import db
 from app.models.response import ApiResponse
 from app.services.fetcher.cos_fetcher import COSFetcher
@@ -174,7 +175,7 @@ async def _load_knowledge_row(
     async with db.postgres_pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT id, user_id, name, project_name, type, content, tag, vector_ids
+            SELECT id, user_id, name, project_id, type, content, tag, vector_ids
             FROM knowledge_bases
             WHERE id = $1
             """,
@@ -254,6 +255,10 @@ async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int)
     - 保存到对应向量表
     - 更新任务状态与 vector_ids
     """
+    print(f"\n{'='*80}")
+    print(f"🚀 [向量化任务开始] task_id={task_id}, knowledge_id={knowledge_id}, user_id={user_id}")
+    print(f"{'='*80}\n")
+    
     await _update_task_status(task_id, status=TaskStatus.RUNNING)
 
     try:
@@ -341,10 +346,51 @@ async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int)
                     )
                 ]
             else:
-                # 仓库模式：拉取一定数量的代码/文本文件
-                documents = github_fetcher.fetch_repository_documents(
+                # 仓库模式：拉取一定数量的代码/文本文件（支持大仓库稳定处理）
+                print(f"\n📦 [GitHub仓库处理] 开始拉取仓库文档")
+                print(f"   Repository: {content}")
+                print(f"   Max Files: {settings.github_max_files}")
+                print(f"   Knowledge ID: {knowledge_id}\n")
+                
+                logger.info(
+                    "开始拉取GitHub仓库文档: knowledge_id=%d, repo_url=%s, max_files=%d",
+                    knowledge_id,
                     content,
-                    max_files=500,
+                    settings.github_max_files,
+                )
+                
+                # 更新任务状态，告知用户开始处理GitHub仓库
+                await _update_task_status(
+                    task_id,
+                    status=TaskStatus.RUNNING,
+                    error_message=f"开始拉取GitHub仓库文档（最多{settings.github_max_files}个文件）",
+                )
+                
+                # 使用线程池执行同步的GitHub文件拉取操作，避免阻塞事件循环
+                loop = asyncio.get_event_loop()
+                # 使用 lambda 包装，因为 run_in_executor 不支持关键字参数
+                # 注意：fetch_repository_documents 的 max_files 是关键字参数（在 * 之后）
+                def fetch_docs():
+                    return github_fetcher.fetch_repository_documents(
+                        repo_url=content,
+                        max_files=settings.github_max_files
+                    )
+                documents = await loop.run_in_executor(None, fetch_docs)
+                
+                print(f"✅ [GitHub仓库处理] 文档拉取完成")
+                print(f"   文档数量: {len(documents)} 个文件\n")
+                
+                logger.info(
+                    "GitHub仓库文档拉取完成: knowledge_id=%d, 文档数量=%d",
+                    knowledge_id,
+                    len(documents),
+                )
+                
+                # 更新任务状态
+                await _update_task_status(
+                    task_id,
+                    status=TaskStatus.RUNNING,
+                    error_message=f"GitHub仓库文档拉取完成，共{len(documents)}个文档，开始分块",
                 )
                 # 补充知识库相关元数据
                 for doc in documents:
@@ -359,11 +405,30 @@ async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int)
             )
             return
 
-        # 2. 分块
+        # 2. 分块（使用异步执行，避免阻塞）
+        print(f"📄 [文档分块] 开始处理")
+        print(f"   输入文档数: {len(documents)}")
+        print(f"   分块大小: 1500, 重叠: 200\n")
+        
+        logger.info(
+            "开始文档分块: knowledge_id=%d, 文档数量=%d",
+            knowledge_id,
+            len(documents),
+        )
+        
+        # 对于大量文档，使用异步执行分块操作
+        loop = asyncio.get_event_loop()
         chunker = DocumentChunker(chunk_size=1500, chunk_overlap=200)
-        chunk_docs = chunker.chunk_documents(documents)
+        
+        # 在线程池中执行CPU密集型的分块操作，避免阻塞事件循环
+        chunk_docs = await loop.run_in_executor(
+            None,
+            chunker.chunk_documents,
+            documents
+        )
 
         if not chunk_docs:
+            print(f"❌ [文档分块] 失败: 分块结果为空\n")
             await _update_task_status(
                 task_id,
                 status=TaskStatus.FAILED,
@@ -371,10 +436,128 @@ async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int)
             )
             return
 
-        # 3. 向量化
+        print(f"✅ [文档分块] 完成")
+        print(f"   生成分块数: {len(chunk_docs)} 个\n")
+        
+        logger.info(
+            "文档分块完成: knowledge_id=%d, 分块数量=%d",
+            knowledge_id,
+            len(chunk_docs),
+        )
+        
+        # 更新任务进度
+        await _update_task_status(
+            task_id,
+            status=TaskStatus.RUNNING,
+            error_message=f"文档分块完成，共{len(chunk_docs)}个分块，开始向量化",
+        )
+
+        # 3. 向量化（分批处理，避免一次性处理过多）
+        print(f"🔢 [向量化] 开始处理")
+        print(f"   分块总数: {len(chunk_docs)}")
+        print(f"   批次大小: {settings.embedding_batch_size}")
+        
         embedding_service = QwenEmbedding()
         texts = [doc.page_content for doc in chunk_docs]
-        embeddings = embedding_service.embed_documents(texts)
+        
+        # 分批向量化，避免API限流和超时
+        batch_size = settings.embedding_batch_size
+        embeddings: list[list[float]] = []
+        total_batches = (len(texts) + batch_size - 1) // batch_size
+        
+        print(f"   总批次数: {total_batches}")
+        print(f"   预计处理时间: 约 {total_batches * 2} 秒\n")
+        
+        logger.info(
+            "开始向量化: knowledge_id=%d, 分块数量=%d, 批次大小=%d",
+            knowledge_id,
+            len(chunk_docs),
+            settings.embedding_batch_size,
+        )
+        
+        # 进度更新间隔（每处理一定批次更新一次任务状态）
+        progress_update_interval = max(5, total_batches // 20)  # 每5%更新一次
+        
+        for i in range(0, len(texts), batch_size):
+            batch_texts = texts[i : i + batch_size]
+            batch_num = i // batch_size + 1
+            
+            # 每批都打印进度（控制台输出）
+            progress_pct = (batch_num / total_batches) * 100
+            # 每批都显示进度，使用 \r 实现同一行更新
+            print(f"   ⏳ 批次 {batch_num}/{total_batches} ({progress_pct:.1f}%) - 处理中...", end="\r", flush=True)
+            
+            logger.info(
+                "向量化进度: knowledge_id=%d, 批次=%d/%d, 当前批次大小=%d",
+                knowledge_id,
+                batch_num,
+                total_batches,
+                len(batch_texts),
+            )
+            
+            # 定期更新任务状态，让用户知道进度
+            if batch_num % progress_update_interval == 0 or batch_num == total_batches:
+                await _update_task_status(
+                    task_id,
+                    status=TaskStatus.RUNNING,
+                    error_message=f"向量化中: {batch_num}/{total_batches} ({progress_pct:.1f}%)",
+                )
+                # 确保进度更新时换行显示（清除之前的 \r 输出）
+                print(f"\n   ✅ 批次 {batch_num}/{total_batches} ({progress_pct:.1f}%) - 完成")
+                logger.info(
+                    "向量化进度更新: task_id=%s, knowledge_id=%d, 进度=%d/%d (%.1f%%)",
+                    task_id,
+                    knowledge_id,
+                    batch_num,
+                    total_batches,
+                    progress_pct,
+                )
+            
+            # 向量化处理，添加重试机制提高稳定性
+            max_retries = 3
+            retry_count = 0
+            batch_embeddings = None
+            
+            while retry_count < max_retries:
+                try:
+                    batch_embeddings = embedding_service.embed_documents(batch_texts)
+                    break
+                except Exception as e:
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        logger.error(
+                            "向量化失败（已重试%d次）: knowledge_id=%d, batch=%d/%d, error=%s",
+                            max_retries,
+                            knowledge_id,
+                            batch_num,
+                            total_batches,
+                            e,
+                        )
+                        raise
+                    else:
+                        wait_time = retry_count * 2  # 递增等待时间：2s, 4s, 6s
+                        logger.warning(
+                            "向量化失败，%d秒后重试（第%d次）: knowledge_id=%d, batch=%d/%d, error=%s",
+                            wait_time,
+                            retry_count,
+                            knowledge_id,
+                            batch_num,
+                            total_batches,
+                            e,
+                        )
+                        await asyncio.sleep(wait_time)
+            
+            if batch_embeddings is not None:
+                embeddings.extend(batch_embeddings)
+        
+        print(f"\n✅ [向量化] 完成")
+        print(f"   生成向量数: {len(embeddings)} 个\n")
+        
+        logger.info(
+            "向量化完成: knowledge_id=%d, 向量数量=%d",
+            knowledge_id,
+            len(embeddings),
+        )
 
         if len(embeddings) != len(chunk_docs):
             await _update_task_status(
@@ -388,12 +571,29 @@ async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int)
         vector_ids: list[int] = []
 
         # 先删除旧向量（幂等重跑）
+        logger.info(
+            "开始删除旧向量: knowledge_id=%d, user_id=%d",
+            knowledge_id,
+            user_id,
+        )
         kv_store = KnowledgeVectorStore()
         pc_store = ProjectCodeVectorStore()
 
         # 删除知识库相关的所有旧向量（文本 + 代码）
-        await kv_store.delete(vector_ids=None, knowledge_id=knowledge_id, user_id=user_id)
-        await pc_store.delete(vector_ids=None, knowledge_id=knowledge_id, user_id=user_id)
+        try:
+            await kv_store.delete(vector_ids=None, knowledge_id=knowledge_id, user_id=user_id)
+            await pc_store.delete(vector_ids=None, knowledge_id=knowledge_id, user_id=user_id)
+            logger.info(
+                "旧向量删除完成: knowledge_id=%d",
+                knowledge_id,
+            )
+        except Exception as e:
+            logger.warning(
+                "删除旧向量时出错（可能不存在旧向量）: knowledge_id=%d, error=%s",
+                knowledge_id,
+                e,
+            )
+            # 继续执行，不影响新向量保存
 
         if knowledge_type == 2:
             # 项目代码 → project_code_vectors，knowledge_id 使用 knowledge_id 绑定
@@ -413,11 +613,20 @@ async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int)
             )
 
         # 5. 更新任务状态
+        print(f"💾 [保存向量] 开始保存到数据库...")
+        
         await _update_task_status(
             task_id,
             status=TaskStatus.SUCCESS,
             vector_ids=vector_ids,
         )
+
+        print(f"💾 [保存向量] 完成")
+        print(f"   保存向量数: {len(vector_ids)} 个")
+        print(f"\n{'='*80}")
+        print(f"🎉 [向量化任务完成] task_id={task_id}, knowledge_id={knowledge_id}")
+        print(f"   总向量数: {len(vector_ids)}")
+        print(f"{'='*80}\n")
 
         logger.info(
             "知识库向量化任务完成: task_id=%s, knowledge_id=%d, 向量数量=%d",
@@ -426,6 +635,10 @@ async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int)
             len(vector_ids),
         )
     except Exception as exc:  # 捕获所有异常，写入任务失败状态
+        print(f"\n❌ [向量化任务失败] task_id={task_id}, knowledge_id={knowledge_id}")
+        print(f"   错误信息: {str(exc)}")
+        print(f"{'='*80}\n")
+        
         logger.exception(
             "知识库向量化任务失败: task_id=%s, knowledge_id=%d, error=%s",
             task_id,
