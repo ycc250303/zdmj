@@ -520,7 +520,7 @@ CREATE INDEX IF NOT EXISTS idx_jobs_company_name ON jobs(company_name);
 --
 -- ==========================5 知识库模块==========================
 --
--- 5.1 知识库表（使用JSONB替代MongoDB）
+-- 5.1 知识库表
 CREATE TABLE IF NOT EXISTS knowledge_bases (
     id BIGSERIAL PRIMARY KEY,
     -- 知识库ID
@@ -530,14 +530,12 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     -- 知识库名称
     project_name VARCHAR(255) NOT NULL,
     -- 关联项目名称
-    file_type SMALLINT NOT NULL,
-    -- 文件类型（枚举：1=txt/2=URL/3=doc(pdf)/4=md）
     tag JSONB DEFAULT '[]'::jsonb,
     -- 知识标签数组
     -- tag 示例
-    -- ["技术文档", "API文档", "架构设计"]
+    -- ["技术文档", "API文档"]
     type SMALLINT NOT NULL,
-    -- 知识类型（枚举：1=项目文档/2=GitHub仓库代码/3=技术文档/4=其他/5=项目DeepWiki文档）
+    -- 知识类型（枚举：1=项目文档（包含txt、pdf、md、普通URL等）/2=GitHub链接（GitHub仓库或文件）/3=项目DeepWiki文档（暂不实现，留作扩展））
     content TEXT NOT NULL,
     -- 文档内容或URL
     vector_ids JSONB DEFAULT '[]'::jsonb,

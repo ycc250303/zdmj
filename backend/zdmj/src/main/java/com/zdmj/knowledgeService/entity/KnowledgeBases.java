@@ -42,11 +42,6 @@ public class KnowledgeBases extends BaseEntity {
     private String projectName;
 
     /**
-     * 文件类型
-     */
-    private Integer fileType;
-
-    /**
      * 知识标签（JSONB数组）
      */
     @TableField(typeHandler = JsonbListTypeHandler.class)
@@ -54,6 +49,9 @@ public class KnowledgeBases extends BaseEntity {
 
     /**
      * 知识类型
+     * 1=项目文档（包含txt、pdf、md、普通URL等）
+     * 2=GitHub链接（GitHub仓库或文件）
+     * 3=项目DeepWiki文档（暂不实现，留作扩展）
      */
     private Integer type;
 

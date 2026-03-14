@@ -8,7 +8,7 @@
 
 说明：
 - Python 服务只负责向量化与向量表/任务表的操作，不做权限和业务校验
-- Java 负责决定何时调用（例如仅在 content/fileType/type 变化时重跑）
+- Java 负责决定何时调用（例如仅在 content/type 变化时重跑）
 """
 
 from __future__ import annotations
@@ -174,7 +174,7 @@ async def _load_knowledge_row(
     async with db.postgres_pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT id, user_id, name, project_name, file_type, type, content, tag, vector_ids
+            SELECT id, user_id, name, project_name, type, content, tag, vector_ids
             FROM knowledge_bases
             WHERE id = $1
             """,
@@ -185,6 +185,64 @@ async def _load_knowledge_row(
         return None
 
     return dict(row)
+
+
+def _infer_file_format(content: str, knowledge_type: int) -> str:
+    """
+    根据内容和知识类型推断文件格式（仅支持PDF、MD和GitHub）
+    
+    验证规则：
+    - knowledge_type=1（项目文档）：必须是COS链接的PDF或MD文件
+    - knowledge_type=2（GitHub链接）：必须是GitHub链接
+    - knowledge_type=3（DeepWiki）：暂不支持
+    
+    Args:
+        content: 文档内容或URL
+        knowledge_type: 知识类型（1=项目文档，2=GitHub链接，3=项目DeepWiki文档）
+    
+    Returns:
+        推断的文件格式：'doc'（PDF）, 'md'（Markdown）, 'github'（GitHub链接）
+    
+    Raises:
+        ValueError: 当文件格式不支持或类型与内容不匹配时
+    """
+    if not content:
+        raise ValueError("内容不能为空")
+    
+    # 验证URL格式
+    if not content.startswith(("http://", "https://")):
+        raise ValueError("内容必须是有效的URL链接")
+    
+    # 根据知识类型进行验证和推断
+    if knowledge_type == 1:
+        # type=1：项目文档，必须是COS链接的PDF或MD文件
+        content_lower = content.lower()
+        is_pdf = ".pdf" in content_lower or "/pdf/" in content_lower
+        is_md = ".md" in content_lower or content.endswith(".md")
+        
+        if not is_pdf and not is_md:
+            raise ValueError(
+                f"项目文档类型（type=1）仅支持PDF和Markdown文件，当前URL: {content[:100]}"
+            )
+        
+        # 返回文件格式
+        return "doc" if is_pdf else "md"
+        
+    elif knowledge_type == 2:
+        # type=2：GitHub链接，必须是GitHub链接
+        if "github.com" not in content:
+            raise ValueError(
+                f"GitHub链接类型（type=2）必须是GitHub链接，当前URL: {content[:100]}"
+            )
+        return "github"
+        
+    elif knowledge_type == 3:
+        # type=3：DeepWiki文档，暂不支持
+        raise ValueError("项目DeepWiki文档类型（type=3）暂不支持")
+        
+    else:
+        # 未知的知识类型
+        raise ValueError(f"不支持的知识类型: {knowledge_type}")
 
 
 async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int) -> None:
@@ -216,31 +274,25 @@ async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int)
             )
             return
 
-        file_type: int = int(knowledge["file_type"])
         knowledge_type: int = int(knowledge["type"])
         content: str = knowledge["content"]
 
-        # 1. 根据 file_type / type 获取 Document 列表
+        # 1. 推断文件格式（仅支持PDF、MD和GitHub）
+        try:
+            inferred_format = _infer_file_format(content, knowledge_type)
+        except ValueError as e:
+            await _update_task_status(
+                task_id,
+                status=TaskStatus.FAILED,
+                error_message=str(e),
+            )
+            return
+
+        # 2. 根据推断的文件格式和知识类型获取 Document 列表
         documents: list[Document] = []
 
-        # file_type: 1=txt, 2=url, 3=doc(pdf), 4=md （参考 Java 常量）
-        # knowledge_type: 1=项目文档, 2=项目代码(GitHub), 3=技术文档, 4=其他, 5=项目DeepWiki文档
-
-        # 文本 / Markdown 直接按内容处理
-        if file_type in (1, 4):
-            documents = [
-                Document(
-                    page_content=content,
-                    metadata={
-                        "knowledge_id": knowledge_id,
-                        "file_type": file_type,
-                        "type": knowledge_type,
-                    },
-                )
-            ]
-
         # COS PDF (doc)
-        elif file_type == 3:
+        if inferred_format == "doc":
             cos_fetcher = COSFetcher()
             text = cos_fetcher.fetch_pdf_text(content)
             documents = [
@@ -248,64 +300,62 @@ async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int)
                     page_content=text,
                     metadata={
                         "knowledge_id": knowledge_id,
-                        "file_type": file_type,
                         "type": knowledge_type,
                         "source": content,
                     },
                 )
             ]
 
-        # URL 类型
-        elif file_type == 2:
-            # 如果是项目代码（GitHub），优先走 GitHubFetcher
-            if knowledge_type == 2 and "github.com" in content:
-                github_fetcher = GitHubFetcher()
-                if "/blob/" in content:
-                    text = github_fetcher.fetch_file_text(content)
-                    documents = [
-                        Document(
-                            page_content=text,
-                            metadata={
-                                "knowledge_id": knowledge_id,
-                                "file_type": file_type,
-                                "type": knowledge_type,
-                                "path": content,
-                            },
-                        )
-                    ]
-                else:
-                    # 仓库模式：拉取一定数量的代码/文本文件
-                    documents = github_fetcher.fetch_repository_documents(
-                        content,
-                        max_files=500,
-                    )
-                    # 补充知识库相关元数据
-                    for doc in documents:
-                        doc.metadata.setdefault("knowledge_id", knowledge_id)
-                        doc.metadata.setdefault("type", knowledge_type)
-            else:
-                # 其他 URL 简单按文本拉取（可按需扩展更复杂逻辑）
-                import requests
+        # Markdown格式：从COS下载
+        elif inferred_format == "md":
+            # 从COS下载Markdown文件
+            cos_fetcher = COSFetcher()
+            # 对于Markdown文件，下载字节后解码为文本
+            md_bytes = cos_fetcher.fetch_pdf_bytes(content)
+            text = md_bytes.decode("utf-8")
+            documents = [
+                Document(
+                    page_content=text,
+                    metadata={
+                        "knowledge_id": knowledge_id,
+                        "type": knowledge_type,
+                        "source": content,
+                    },
+                )
+            ]
 
-                resp = requests.get(content, timeout=10)
-                resp.raise_for_status()
-                text = resp.text
+        # GitHub链接
+        elif inferred_format == "github":
+            github_fetcher = GitHubFetcher()
+            if "/blob/" in content:
+                # 单个文件模式
+                text = github_fetcher.fetch_file_text(content)
                 documents = [
                     Document(
                         page_content=text,
                         metadata={
                             "knowledge_id": knowledge_id,
-                            "file_type": file_type,
                             "type": knowledge_type,
-                            "url": content,
+                            "path": content,
                         },
                     )
                 ]
+            else:
+                # 仓库模式：拉取一定数量的代码/文本文件
+                documents = github_fetcher.fetch_repository_documents(
+                    content,
+                    max_files=500,
+                )
+                # 补充知识库相关元数据
+                for doc in documents:
+                    doc.metadata.setdefault("knowledge_id", knowledge_id)
+                    doc.metadata.setdefault("type", knowledge_type)
         else:
+            # 理论上不应该到达这里，因为 _infer_file_format 已经做了验证
             await _update_task_status(
                 task_id,
                 status=TaskStatus.FAILED,
-                error_message=f"不支持的 file_type={file_type}",
+                error_message=f"不支持的文件格式: {inferred_format}",
             )
             return
 
