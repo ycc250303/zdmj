@@ -29,11 +29,6 @@ public class RedisConstants {
     // 流式消息缓存过期时间（秒）
     public static final int STREAMING_MESSAGE_TTL = 60 * 60;
 
-    // 项目RAG检索结果缓存前缀
-    public static final String PROJECT_RAG_KEY = "project:rag:";
-    // 项目RAG检索结果缓存过期时间（秒）
-    public static final int PROJECT_RAG_TTL = 5 * 60;
-
     // JWT Token缓存前缀
     public static final String JWT_TOKEN_KEY = "jwt:token:";
     // JWT Token过期时间（秒）- 7天

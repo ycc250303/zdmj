@@ -1,11 +1,8 @@
 package com.zdmj.conversationService.service.impl;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.exception.BusinessException;
-import com.zdmj.common.util.RedisCacheUtil;
-import com.zdmj.common.util.RedisConstants;
 import com.zdmj.conversationService.dto.VectorRetrievalResult;
 import com.zdmj.conversationService.service.ProjectRAGService;
 import com.zdmj.conversationService.service.VectorRetrievalService;
@@ -28,7 +25,6 @@ public class ProjectRAGServiceImpl implements ProjectRAGService {
     private final ProjectExperienceService projectExperienceService;
     private final VectorRetrievalService vectorRetrievalService;
     private final ObjectMapper objectMapper;
-    private final RedisCacheUtil redisCacheUtil;
 
     // 检索参数
     private static final int KNOWLEDGE_TOP_K = 5;
@@ -39,12 +35,10 @@ public class ProjectRAGServiceImpl implements ProjectRAGService {
     public ProjectRAGServiceImpl(
             ProjectExperienceService projectExperienceService,
             VectorRetrievalService vectorRetrievalService,
-            ObjectMapper objectMapper,
-            RedisCacheUtil redisCacheUtil) {
+            ObjectMapper objectMapper) {
         this.projectExperienceService = projectExperienceService;
         this.vectorRetrievalService = vectorRetrievalService;
         this.objectMapper = objectMapper;
-        this.redisCacheUtil = redisCacheUtil;
     }
 
     @Override
@@ -66,9 +60,8 @@ public class ProjectRAGServiceImpl implements ProjectRAGService {
                 return "";
             }
 
-            // 2. 检索项目基础信息相关的知识库向量（使用缓存）
-            Map<String, List<VectorRetrievalResult>> knowledgeResults = retrieveKnowledgeVectorsWithCache(project,
-                    projectId, userId);
+            // 2. 检索项目基础信息相关的知识库向量
+            Map<String, List<VectorRetrievalResult>> knowledgeResults = retrieveKnowledgeVectors(project, projectId);
 
             // 3. 检索项目代码向量（分为两部分：基础信息相关 + 用户输入相关）
             // #region agent log
@@ -168,93 +161,6 @@ public class ProjectRAGServiceImpl implements ProjectRAGService {
             log.error("获取项目信息失败: projectId={}, userId={}", projectId, userId, e);
             return null;
         }
-    }
-
-    /**
-     * 检索知识库向量（带缓存）
-     * 只缓存项目基础信息相关的检索结果，不缓存用户输入相关的检索
-     *
-     * @param project   项目信息
-     * @param projectId 项目ID
-     * @param userId    用户ID
-     * @return 按维度分组的检索结果
-     */
-    private Map<String, List<VectorRetrievalResult>> retrieveKnowledgeVectorsWithCache(
-            ProjectExperience project, Long projectId, Long userId) {
-        // 构建缓存键：只基于项目ID和用户ID，不包含用户消息
-        String cacheKey = RedisConstants.PROJECT_RAG_KEY + projectId + ":" + userId + ":knowledge";
-
-        // 尝试从缓存获取
-        try {
-            TypeReference<Map<String, List<VectorRetrievalResult>>> typeRef = new TypeReference<Map<String, List<VectorRetrievalResult>>>() {
-            };
-            Map<String, List<VectorRetrievalResult>> cachedResults = redisCacheUtil.get(cacheKey, typeRef);
-            if (cachedResults != null) {
-                log.debug("从缓存获取项目知识库检索结果: projectId={}, userId={}", projectId, userId);
-                return cachedResults;
-            }
-        } catch (Exception e) {
-            log.warn("从缓存获取项目知识库检索结果失败，继续执行检索: projectId={}, userId={}",
-                    projectId, userId, e);
-        }
-
-        // 缓存未命中，执行检索
-        // #region agent log
-        try {
-            java.io.FileWriter fw = new java.io.FileWriter("d:\\GitHub\\zdmj\\.cursor\\debug.log", true);
-            fw.write(String.format(
-                    "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"ProjectRAGServiceImpl.java:%d\",\"message\":\"before retrieveKnowledgeVectors\",\"data\":{\"projectId\":%d,\"userId\":%d},\"runId\":\"run1\",\"hypothesisId\":\"F\"}\n",
-                    System.currentTimeMillis(), System.currentTimeMillis(), 172, projectId, userId));
-            fw.close();
-        } catch (Exception e) {
-        }
-        // #endregion
-        Map<String, List<VectorRetrievalResult>> results = retrieveKnowledgeVectors(project, projectId);
-        // #region agent log
-        try {
-            java.io.FileWriter fw = new java.io.FileWriter("d:\\GitHub\\zdmj\\.cursor\\debug.log", true);
-            fw.write(String.format(
-                    "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"ProjectRAGServiceImpl.java:%d\",\"message\":\"after retrieveKnowledgeVectors\",\"data\":{\"projectId\":%d,\"userId\":%d,\"resultSize\":%d,\"resultKeys\":\"%s\"},\"runId\":\"run1\",\"hypothesisId\":\"F\"}\n",
-                    System.currentTimeMillis(), System.currentTimeMillis(), 173, projectId, userId, results.size(),
-                    String.join(",", results.keySet())));
-            fw.close();
-        } catch (Exception e) {
-        }
-        // #endregion
-
-        // 将结果存入缓存（即使结果为空也缓存，防止缓存穿透）
-        try {
-            redisCacheUtil.set(cacheKey, results, RedisConstants.PROJECT_RAG_TTL);
-            // #region agent log
-            try {
-                java.io.FileWriter fw = new java.io.FileWriter("d:\\GitHub\\zdmj\\.cursor\\debug.log", true);
-                fw.write(String.format(
-                        "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"ProjectRAGServiceImpl.java:%d\",\"message\":\"cache set success\",\"data\":{\"projectId\":%d,\"userId\":%d,\"cacheKey\":\"%s\",\"resultSize\":%d},\"runId\":\"run1\",\"hypothesisId\":\"F\"}\n",
-                        System.currentTimeMillis(), System.currentTimeMillis(), 176, projectId, userId, cacheKey,
-                        results.size()));
-                fw.close();
-            } catch (Exception e) {
-            }
-            // #endregion
-            log.debug("项目知识库检索结果已缓存: projectId={}, userId={}, 结果数量={}",
-                    projectId, userId, results.size());
-        } catch (Exception e) {
-            // #region agent log
-            try {
-                java.io.FileWriter fw = new java.io.FileWriter("d:\\GitHub\\zdmj\\.cursor\\debug.log", true);
-                fw.write(String.format(
-                        "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"ProjectRAGServiceImpl.java:%d\",\"message\":\"cache set failed\",\"data\":{\"projectId\":%d,\"userId\":%d,\"error\":\"%s\"},\"runId\":\"run1\",\"hypothesisId\":\"F\"}\n",
-                        System.currentTimeMillis(), System.currentTimeMillis(), 180, projectId, userId,
-                        e.getMessage()));
-                fw.close();
-            } catch (Exception e2) {
-            }
-            // #endregion
-            log.warn("缓存项目知识库检索结果失败，不影响主流程: projectId={}, userId={}",
-                    projectId, userId, e);
-        }
-
-        return results;
     }
 
     /**
