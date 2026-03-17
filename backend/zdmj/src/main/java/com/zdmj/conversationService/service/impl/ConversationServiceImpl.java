@@ -13,7 +13,6 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.util.RedisCacheUtil;
 import com.zdmj.common.util.RedisConstants;
-import com.zdmj.conversationService.dto.ConversationsDTO;
 import com.zdmj.conversationService.entity.Conversations;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.service.ConversationService;
@@ -43,13 +42,13 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
     }
 
     @Override
-    public Conversations create(ConversationsDTO conversationDTO) {
+    public Conversations create(Long projectId) {
         Long userId = UserHolder.requireUserId();
 
         // 如果项目ID不为空，则验证项目是否存在且属于当前用户
-        if (conversationDTO.getProjectId() != null) {
+        if (projectId != null) {
             // 验证项目是否存在且属于当前用户
-            ProjectExperience project = projectExperienceMapper.selectById(conversationDTO.getProjectId());
+            ProjectExperience project = projectExperienceMapper.selectById(projectId);
             if (project == null) {
                 throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_NOT_FOUND);
             }
@@ -61,7 +60,7 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         // 创建会话
         Conversations conversation = new Conversations();
         conversation.setUserId(userId);
-        conversation.setProjectId(conversationDTO.getProjectId());
+        conversation.setProjectId(projectId);
         conversation.setTitle("新会话");
         conversation.setModel("qwen"); // 使用默认模型
         conversation.setConfig("{}"); // 使用默认空配置
@@ -74,7 +73,7 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
             throw new BusinessException(ErrorCode.CONVERSATION_CREATE_FAILED);
         }
 
-        log.info("创建会话成功: conversationId={}, projectId={}", conversation.getId(), conversationDTO.getProjectId());
+        log.info("创建会话成功: conversationId={}, projectId={}", conversation.getId(), projectId);
         return conversation;
     }
 

@@ -23,15 +23,15 @@ public interface KnowledgeBasesMapper extends BaseMapper<KnowledgeBases> {
         List<KnowledgeBases> selectByUserId(@Param("userId") Long userId);
 
         /**
-         * 根据用户ID和项目名称查询知识库列表
+         * 根据用户ID和项目ID查询知识库列表
          *
-         * @param userId      用户ID
-         * @param projectName 项目名称
+         * @param userId    用户ID
+         * @param projectId 项目ID
          * @return 知识库列表
          */
-        List<KnowledgeBases> selectByUserIdAndProjectName(
+        List<KnowledgeBases> selectByUserIdAndProjectId(
                         @Param("userId") Long userId,
-                        @Param("projectName") String projectName);
+                        @Param("projectId") Long projectId);
 
         /**
          * 根据用户ID和知识类型查询知识库列表
@@ -66,43 +66,43 @@ public interface KnowledgeBasesMapper extends BaseMapper<KnowledgeBases> {
         Long countByUserId(@Param("userId") Long userId);
 
         /**
-         * 根据项目名称查询知识库列表
+         * 根据项目ID查询知识库列表
          *
-         * @param userId      用户ID
-         * @param projectName 项目名称
+         * @param userId    用户ID
+         * @param projectId 项目ID
          * @return 知识库列表
          */
-        List<KnowledgeBases> selectByProjectName(
+        List<KnowledgeBases> selectByProjectId(
                         @Param("userId") Long userId,
-                        @Param("projectName") String projectName);
+                        @Param("projectId") Long projectId);
 
         /**
-         * 分页查询知识库列表（支持项目名称和类型过滤）
+         * 分页查询知识库列表（支持项目ID和类型过滤）
          *
-         * @param userId      用户ID
-         * @param offset      偏移量（(page - 1) * limit）
-         * @param limit       每页数量
-         * @param projectName 项目名称（可选）
-         * @param type        知识类型（可选）
+         * @param userId    用户ID
+         * @param offset    偏移量（(page - 1) * limit）
+         * @param limit     每页数量
+         * @param projectId 项目ID（可选）
+         * @param type      知识类型（可选）
          * @return 知识库列表
          */
         List<KnowledgeBases> selectPage(
                         @Param("userId") Long userId,
                         @Param("offset") Integer offset,
                         @Param("limit") Integer limit,
-                        @Param("projectName") String projectName,
+                        @Param("projectId") Long projectId,
                         @Param("type") Integer type);
 
         /**
          * 统计符合条件的知识库数量（用于分页）
          *
-         * @param userId      用户ID
-         * @param projectName 项目名称（可选）
-         * @param type        知识类型（可选）
+         * @param userId    用户ID
+         * @param projectId 项目ID（可选）
+         * @param type      知识类型（可选）
          * @return 知识库数量
          */
         Long countPage(
                         @Param("userId") Long userId,
-                        @Param("projectName") String projectName,
+                        @Param("projectId") Long projectId,
                         @Param("type") Integer type);
 }

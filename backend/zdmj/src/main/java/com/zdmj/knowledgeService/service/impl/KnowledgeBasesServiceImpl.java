@@ -10,6 +10,7 @@ import com.zdmj.knowledgeService.dto.KnowledgeBasesDTO;
 import com.zdmj.knowledgeService.entity.KnowledgeBases;
 import com.zdmj.knowledgeService.mapper.KnowledgeBasesMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
+import com.zdmj.resumeService.entity.ProjectExperience;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
 import com.zdmj.python.dto.PythonApiResponse;
 import com.zdmj.python.dto.knowledge.DeleteVectorsRequest;
@@ -55,8 +56,12 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NAME_EXISTS);
         }
 
-        // 2. 检查项目名称是否存在
-        if (projectExperienceMapper.selectIdByUserIdAndName(userId, knowledgeBasesDTO.getProjectName()) == null) {
+        // 2. 检查项目ID是否存在且属于当前用户
+        if (knowledgeBasesDTO.getProjectId() == null) {
+            throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_NOT_FOUND);
+        }
+        ProjectExperience projectExperience = projectExperienceMapper.selectById(knowledgeBasesDTO.getProjectId());
+        if (projectExperience == null || !projectExperience.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_NOT_FOUND);
         }
 
@@ -67,7 +72,7 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         KnowledgeBases knowledgeBases = new KnowledgeBases();
         knowledgeBases.setUserId(userId);
         knowledgeBases.setName(knowledgeBasesDTO.getName());
-        knowledgeBases.setProjectName(knowledgeBasesDTO.getProjectName());
+        knowledgeBases.setProjectId(knowledgeBasesDTO.getProjectId());
         // 直接设置List，TypeHandler会自动处理JSONB转换
         knowledgeBases.setTag(knowledgeBasesDTO.getTag());
         knowledgeBases.setType(knowledgeBasesDTO.getType());
@@ -105,7 +110,7 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
     }
 
     @Override
-    public PageResult<KnowledgeBases> getPage(Integer page, Integer limit, String projectName, Integer type) {
+    public PageResult<KnowledgeBases> getPage(Integer page, Integer limit, Long projectId, Integer type) {
         Long userId = UserHolder.requireUserId();
         // 参数校验和默认值设置
         if (page == null || page < 1) {
@@ -117,9 +122,9 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         // 计算偏移量
         int offset = (page - 1) * limit;
         // 查询数据列表
-        List<KnowledgeBases> data = baseMapper.selectPage(userId, offset, limit, projectName, type);
+        List<KnowledgeBases> data = baseMapper.selectPage(userId, offset, limit, projectId, type);
         // 查询总数
-        Long total = baseMapper.countPage(userId, projectName, type);
+        Long total = baseMapper.countPage(userId, projectId, type);
         // 构建分页结果
         return PageResult.of(data, total, page, limit);
     }
@@ -163,9 +168,9 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
                         : knowledgeBases.getContent());
         validateContent(validateDTO);
 
-        // 5. 项目名称一旦确定，不能修改（如果前端传了 projectName 且与原值不同则报错）
-        if (knowledgeBasesDTO.getProjectName() != null
-                && !knowledgeBases.getProjectName().equals(knowledgeBasesDTO.getProjectName())) {
+        // 5. 项目ID一旦确定，不能修改（如果前端传了 projectId 且与原值不同则报错）
+        if (knowledgeBasesDTO.getProjectId() != null
+                && !knowledgeBases.getProjectId().equals(knowledgeBasesDTO.getProjectId())) {
             throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_NAME_NOT_ALLOW_CHANGE);
         }
 
