@@ -64,46 +64,14 @@ public class VectorRetrievalServiceImpl implements VectorRetrievalService {
             }
 
             // 执行检索
-            // #region agent log
-            try {
-                java.io.FileWriter fw = new java.io.FileWriter("d:\\GitHub\\zdmj\\.cursor\\debug.log", true);
-                fw.write(String.format(
-                        "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"VectorRetrievalServiceImpl.java:%d\",\"message\":\"before retrieveKnowledgeVectors SQL\",\"data\":{\"projectId\":%d,\"userId\":%d,\"topK\":%d,\"minScore\":%f},\"runId\":\"run1\",\"hypothesisId\":\"G\"}\n",
-                        System.currentTimeMillis(), System.currentTimeMillis(), 67, projectId, userId, actualTopK,
-                        actualMinScore));
-                fw.close();
-            } catch (Exception e) {
-            }
-            // #endregion
             List<VectorRetrievalResult> results;
             try {
                 results = vectorRetrievalMapper.retrieveKnowledgeVectors(
                         queryVector, userId, projectId, knowledgeId, actualTopK, actualMinScore);
             } catch (Exception e) {
-                // #region agent log
-                try {
-                    java.io.FileWriter fw = new java.io.FileWriter("d:\\GitHub\\zdmj\\.cursor\\debug.log", true);
-                    fw.write(String.format(
-                            "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"VectorRetrievalServiceImpl.java:%d\",\"message\":\"retrieveKnowledgeVectors SQL exception\",\"data\":{\"projectId\":%d,\"error\":\"%s\"},\"runId\":\"run1\",\"hypothesisId\":\"G\"}\n",
-                            System.currentTimeMillis(), System.currentTimeMillis(), 67, projectId, e.getMessage()));
-                    fw.close();
-                } catch (Exception e2) {
-                }
-                // #endregion
                 log.error("检索知识库向量失败: userId={}, queryText={}", userId, queryText, e);
                 return Collections.emptyList();
             }
-            // #region agent log
-            try {
-                java.io.FileWriter fw = new java.io.FileWriter("d:\\GitHub\\zdmj\\.cursor\\debug.log", true);
-                fw.write(String.format(
-                        "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"VectorRetrievalServiceImpl.java:%d\",\"message\":\"after retrieveKnowledgeVectors SQL\",\"data\":{\"projectId\":%d,\"resultCount\":%d},\"runId\":\"run1\",\"hypothesisId\":\"G\"}\n",
-                        System.currentTimeMillis(), System.currentTimeMillis(), 68, projectId,
-                        results != null ? results.size() : 0));
-                fw.close();
-            } catch (Exception e) {
-            }
-            // #endregion
 
             log.debug("知识库向量检索完成: userId={}, projectId={}, knowledgeId={}, topK={}, minScore={}, 结果数量={}",
                     userId, projectId, knowledgeId, actualTopK, actualMinScore, results.size());
@@ -144,73 +112,20 @@ public class VectorRetrievalServiceImpl implements VectorRetrievalService {
 
             // 生成查询向量
             String queryVector = generateQueryVector(queryText);
-            // #region agent log
-            try {
-                java.io.FileWriter fw = new java.io.FileWriter("d:\\GitHub\\zdmj\\.cursor\\debug.log", true);
-                fw.write(String.format(
-                        "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"VectorRetrievalServiceImpl.java:%d\",\"message\":\"queryVector generated\",\"data\":{\"projectId\":%d,\"queryVectorIsNull\":%s,\"queryTextLength\":%d},\"runId\":\"run1\",\"hypothesisId\":\"B\"}\n",
-                        System.currentTimeMillis(), System.currentTimeMillis(), 108, projectId,
-                        queryVector == null ? "true" : "false", queryText.length()));
-                fw.close();
-            } catch (Exception e) {
-            }
-            // #endregion
             if (queryVector == null) {
                 log.error("生成查询向量失败，返回空结果");
                 return Collections.emptyList();
             }
 
             // 执行检索
-            // #region agent log
-            try {
-                java.io.FileWriter fw = new java.io.FileWriter("d:\\GitHub\\zdmj\\.cursor\\debug.log", true);
-                fw.write(String.format(
-                        "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"VectorRetrievalServiceImpl.java:%d\",\"message\":\"before SQL query\",\"data\":{\"projectId\":%d,\"userId\":%d,\"topK\":%d,\"minScore\":%f,\"queryVectorLength\":%d},\"runId\":\"run1\",\"hypothesisId\":\"D\"}\n",
-                        System.currentTimeMillis(), System.currentTimeMillis(), 115, projectId, userId, actualTopK,
-                        actualMinScore, queryVector.length()));
-                fw.close();
-            } catch (Exception e) {
-            }
-            // #endregion
             List<VectorRetrievalResult> results;
             try {
                 results = vectorRetrievalMapper.retrieveProjectCodeVectors(
                         queryVector, userId, projectId, actualTopK, actualMinScore);
             } catch (Exception e) {
-                // #region agent log
-                try {
-                    java.io.FileWriter fw = new java.io.FileWriter("d:\\GitHub\\zdmj\\.cursor\\debug.log", true);
-                    fw.write(String.format(
-                            "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"VectorRetrievalServiceImpl.java:%d\",\"message\":\"SQL query exception\",\"data\":{\"projectId\":%d,\"error\":\"%s\"},\"runId\":\"run1\",\"hypothesisId\":\"E\"}\n",
-                            System.currentTimeMillis(), System.currentTimeMillis(), 137, projectId, e.getMessage()));
-                    fw.close();
-                } catch (Exception e2) {
-                }
-                // #endregion
                 log.error("检索项目代码向量失败: userId={}, projectId={}, queryText={}", userId, projectId, queryText, e);
                 return Collections.emptyList();
             }
-            // #region agent log
-            try {
-                java.io.FileWriter fw = new java.io.FileWriter("d:\\GitHub\\zdmj\\.cursor\\debug.log", true);
-                fw.write(String.format(
-                        "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"VectorRetrievalServiceImpl.java:%d\",\"message\":\"after SQL query\",\"data\":{\"projectId\":%d,\"resultCount\":%d},\"runId\":\"run1\",\"hypothesisId\":\"A\"}\n",
-                        System.currentTimeMillis(), System.currentTimeMillis(), 150, projectId,
-                        results != null ? results.size() : 0));
-                if (results != null && !results.isEmpty()) {
-                    fw.write(String.format(
-                            "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"VectorRetrievalServiceImpl.java:%d\",\"message\":\"first result sample\",\"data\":{\"projectId\":%d,\"firstResultContent\":\"%s\",\"firstResultScore\":%f},\"runId\":\"run1\",\"hypothesisId\":\"A\"}\n",
-                            System.currentTimeMillis(), System.currentTimeMillis(), 151, projectId,
-                            results.get(0).getContent() != null
-                                    ? results.get(0).getContent().substring(0,
-                                            Math.min(100, results.get(0).getContent().length()))
-                                    : "null",
-                            results.get(0).getScore() != null ? results.get(0).getScore() : 0.0));
-                }
-                fw.close();
-            } catch (Exception e) {
-            }
-            // #endregion
 
             log.debug("项目代码向量检索完成: userId={}, projectId={}, topK={}, minScore={}, 结果数量={}",
                     userId, projectId, actualTopK, actualMinScore, results.size());

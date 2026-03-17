@@ -29,6 +29,8 @@ from app.models.response import ApiResponse
 from app.services.fetcher.cos_fetcher import COSFetcher
 from app.services.fetcher.github_fetcher import GitHubFetcher
 from app.services.processing.chunking import DocumentChunker
+from app.services.processing.ast_code_chunker import ASTCodeChunker
+from app.services.processing.code_enhancer import CodeEnhancer
 from app.services.vector.embedding import QwenEmbedding
 from app.services.vector.knowledge_vector_store import KnowledgeVectorStore
 from app.services.vector.project_code_vector_store import ProjectCodeVectorStore
@@ -186,6 +188,47 @@ async def _load_knowledge_row(
         return None
 
     return dict(row)
+
+
+def _is_code_file(file_path: str) -> bool:
+    """
+    根据文件路径判断是否为代码文件
+    
+    :param file_path: 文件路径（可以是完整URL或相对路径）
+    :return: 如果是代码文件返回 True，否则返回 False
+    """
+    if not file_path:
+        return False
+    
+    # 代码文件扩展名列表
+    code_extensions = {
+        '.py', '.java', '.js', '.jsx', '.ts', '.tsx',
+        '.go', '.rs', '.cs', '.php', '.rb', '.kt', '.swift',
+        '.c', '.h', '.cpp', '.hpp', '.cc', '.cxx',
+        '.scala', '.clj', '.r', '.m', '.mm', '.sh', '.bash',
+        '.sql', '.pl', '.pm', '.lua', '.vim', '.el',
+    }
+    
+    # 从路径中提取扩展名（处理URL和普通路径）
+    path_lower = file_path.lower()
+    
+    # 如果是GitHub URL，提取文件路径部分
+    if 'github.com' in path_lower and '/blob/' in path_lower:
+        # 提取路径部分，例如：https://github.com/owner/repo/blob/branch/path/to/file.py
+        # 提取 path/to/file.py 部分
+        parts = path_lower.split('/blob/')
+        if len(parts) > 1:
+            file_part = parts[1].split('/')[-1]  # 获取文件名
+            if '.' in file_part:
+                ext = '.' + file_part.split('.')[-1]
+                return ext in code_extensions
+    else:
+        # 普通路径，直接提取扩展名
+        if '.' in path_lower:
+            ext = '.' + path_lower.split('.')[-1].split('?')[0].split('#')[0]  # 移除URL参数和锚点
+            return ext in code_extensions
+    
+    return False
 
 
 def _infer_file_format(content: str, knowledge_type: int) -> str:
@@ -417,16 +460,130 @@ async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int)
             len(documents),
         )
         
-        # 对于大量文档，使用异步执行分块操作
-        loop = asyncio.get_event_loop()
-        chunker = DocumentChunker(chunk_size=1500, chunk_overlap=200)
+        # 分离代码文件和文档文件
+        code_documents: list[Document] = []
+        doc_documents: list[Document] = []
         
-        # 在线程池中执行CPU密集型的分块操作，避免阻塞事件循环
-        chunk_docs = await loop.run_in_executor(
-            None,
-            chunker.chunk_documents,
-            documents
+        for doc in documents:
+            file_path = doc.metadata.get("path", doc.metadata.get("file_path", ""))
+            # 根据文件扩展名判断是否为代码文件
+            # 对于 knowledge_type == 2（GitHub链接），只将代码文件视为代码文件
+            # 对于其他类型，如果是代码文件扩展名，也视为代码文件
+            if _is_code_file(file_path):
+                code_documents.append(doc)
+            else:
+                doc_documents.append(doc)
+        
+        logger.info(
+            "文档分类完成: knowledge_id=%d, 代码文件=%d, 文档文件=%d",
+            knowledge_id,
+            len(code_documents),
+            len(doc_documents),
         )
+        
+        # 对于大量文档，使用异步执行分块操作，避免阻塞事件循环
+        loop = asyncio.get_event_loop()
+        all_chunk_docs: list[Document] = []
+        
+        # 处理代码文件：使用 AST 分块器 + 代码增强器
+        if code_documents:
+            print(f"🔧 [代码分块] 开始处理代码文件")
+            print(f"   代码文件数: {len(code_documents)}")
+            print(f"   使用 AST 感知分块 + 代码增强\n")
+            
+            logger.info(
+                "开始代码文件 AST 分块: knowledge_id=%d, 代码文件数量=%d",
+                knowledge_id,
+                len(code_documents),
+            )
+            
+            ast_chunker = ASTCodeChunker(chunk_size=1500, chunk_overlap=200)
+            
+            # 在线程池中执行 AST 分块操作
+            code_chunks = await loop.run_in_executor(
+                None,
+                ast_chunker.chunk_documents,
+                code_documents
+            )
+            
+            if code_chunks:
+                print(f"✅ [代码分块] AST 分块完成")
+                print(f"   生成代码分块数: {len(code_chunks)} 个\n")
+                
+                logger.info(
+                    "代码文件 AST 分块完成: knowledge_id=%d, 代码分块数量=%d",
+                    knowledge_id,
+                    len(code_chunks),
+                )
+                
+                # 使用代码增强器增强代码块
+                print(f"✨ [代码增强] 开始增强代码块")
+                print(f"   代码分块数: {len(code_chunks)}\n")
+                
+                enhancer = CodeEnhancer()
+                
+                # 在线程池中执行代码增强操作
+                # 使用 lambda 包装，因为 run_in_executor 不支持关键字参数
+                def enhance_chunks():
+                    return enhancer.enhance_code_chunks(code_chunks, skip_non_code=True)
+                
+                enhanced_code_chunks = await loop.run_in_executor(None, enhance_chunks)
+                
+                print(f"✅ [代码增强] 完成")
+                print(f"   增强后代码分块数: {len(enhanced_code_chunks)} 个\n")
+                
+                logger.info(
+                    "代码增强完成: knowledge_id=%d, 增强后代码分块数量=%d",
+                    knowledge_id,
+                    len(enhanced_code_chunks),
+                )
+                
+                all_chunk_docs.extend(enhanced_code_chunks)
+            else:
+                logger.warning(
+                    "代码文件 AST 分块结果为空: knowledge_id=%d",
+                    knowledge_id,
+                )
+        
+        # 处理文档文件：使用 DocumentChunker
+        if doc_documents:
+            print(f"📄 [文档分块] 开始处理文档文件")
+            print(f"   文档文件数: {len(doc_documents)}")
+            print(f"   使用标准文档分块器\n")
+            
+            logger.info(
+                "开始文档文件分块: knowledge_id=%d, 文档文件数量=%d",
+                knowledge_id,
+                len(doc_documents),
+            )
+            
+            doc_chunker = DocumentChunker(chunk_size=1500, chunk_overlap=200)
+            
+            # 在线程池中执行文档分块操作
+            doc_chunks = await loop.run_in_executor(
+                None,
+                doc_chunker.chunk_documents,
+                doc_documents
+            )
+            
+            if doc_chunks:
+                print(f"✅ [文档分块] 完成")
+                print(f"   生成文档分块数: {len(doc_chunks)} 个\n")
+                
+                logger.info(
+                    "文档文件分块完成: knowledge_id=%d, 文档分块数量=%d",
+                    knowledge_id,
+                    len(doc_chunks),
+                )
+                
+                all_chunk_docs.extend(doc_chunks)
+            else:
+                logger.warning(
+                    "文档文件分块结果为空: knowledge_id=%d",
+                    knowledge_id,
+                )
+        
+        chunk_docs = all_chunk_docs
 
         if not chunk_docs:
             print(f"❌ [文档分块] 失败: 分块结果为空\n")

@@ -101,8 +101,15 @@ class ProjectCodeVectorStore(BaseVectorStore):
                         )
                         del metadata[field]
 
-            # 获取 file_path（从原始 metadata 的 path）
-            file_path = doc.metadata.get("path") if doc.metadata else None
+            # 获取 file_path
+            # 优先使用分块/增强阶段写入的 file_path，其次回退到原始的 path 字段
+            file_path = None
+            if doc.metadata:
+                file_path = (
+                    doc.metadata.get("file_path")
+                    or doc.metadata.get("path")
+                    or doc.metadata.get("source")
+                )
 
             # 将向量转换为字符串格式
             vector_str = self._vector_to_str(embedding)

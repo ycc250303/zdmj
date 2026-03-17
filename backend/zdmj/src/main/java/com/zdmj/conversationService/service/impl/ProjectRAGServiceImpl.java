@@ -64,61 +64,10 @@ public class ProjectRAGServiceImpl implements ProjectRAGService {
             Map<String, List<VectorRetrievalResult>> knowledgeResults = retrieveKnowledgeVectors(project, projectId);
 
             // 3. 检索项目代码向量（分为两部分：基础信息相关 + 用户输入相关）
-            // #region agent log
-            try {
-                java.io.FileWriter fw = new java.io.FileWriter("d:\\GitHub\\zdmj\\.cursor\\debug.log", true);
-                fw.write(String.format(
-                        "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"ProjectRAGServiceImpl.java:%d\",\"message\":\"before retrieveProjectCodeVectors\",\"data\":{\"projectId\":%d,\"projectName\":\"%s\"},\"runId\":\"run1\",\"hypothesisId\":\"A\"}\n",
-                        System.currentTimeMillis(), System.currentTimeMillis(), 74, projectId,
-                        project != null ? project.getName() : "null"));
-                fw.close();
-            } catch (Exception e) {
-            }
-            // #endregion
             List<VectorRetrievalResult> codeResults = retrieveProjectCodeVectors(project, projectId, userMessage);
-            // #region agent log
-            try {
-                java.io.FileWriter fw = new java.io.FileWriter("d:\\GitHub\\zdmj\\.cursor\\debug.log", true);
-                fw.write(String.format(
-                        "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"ProjectRAGServiceImpl.java:%d\",\"message\":\"after retrieveProjectCodeVectors\",\"data\":{\"projectId\":%d,\"codeResultCount\":%d},\"runId\":\"run1\",\"hypothesisId\":\"A\"}\n",
-                        System.currentTimeMillis(), System.currentTimeMillis(), 75, projectId,
-                        codeResults != null ? codeResults.size() : 0));
-                fw.close();
-            } catch (Exception e) {
-            }
-            // #endregion
 
             // 4. 格式化检索结果为XML格式
-            // #region agent log
-            try {
-                java.io.FileWriter fw = new java.io.FileWriter("d:\\GitHub\\zdmj\\.cursor\\debug.log", true);
-                fw.write(String.format(
-                        "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"ProjectRAGServiceImpl.java:%d\",\"message\":\"before formatProjectContext\",\"data\":{\"projectId\":%d,\"knowledgeResultSize\":%d,\"codeResultSize\":%d},\"runId\":\"run1\",\"hypothesisId\":\"H\"}\n",
-                        System.currentTimeMillis(), System.currentTimeMillis(), 77, projectId, knowledgeResults.size(),
-                        codeResults != null ? codeResults.size() : 0));
-                fw.close();
-            } catch (Exception e) {
-            }
-            // #endregion
             String context = formatProjectContext(project, knowledgeResults, codeResults);
-            // #region agent log
-            try {
-                java.io.FileWriter fw = new java.io.FileWriter("d:\\GitHub\\zdmj\\.cursor\\debug.log", true);
-                // 检查是否包含代码部分
-                boolean hasCodeSection = context.contains("<项目代码参考>");
-                int codeSectionStart = context.indexOf("<项目代码参考>");
-                String codeSectionPreview = codeSectionStart >= 0
-                        ? context.substring(codeSectionStart, Math.min(codeSectionStart + 500, context.length()))
-                        : "NOT_FOUND";
-                fw.write(String.format(
-                        "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"ProjectRAGServiceImpl.java:%d\",\"message\":\"after formatProjectContext\",\"data\":{\"projectId\":%d,\"contextLength\":%d,\"hasCodeSection\":%s,\"codeSectionStart\":%d,\"codeSectionPreview\":\"%s\"},\"runId\":\"run1\",\"hypothesisId\":\"H\"}\n",
-                        System.currentTimeMillis(), System.currentTimeMillis(), 110, projectId, context.length(),
-                        hasCodeSection, codeSectionStart,
-                        codeSectionPreview.replace("\n", "\\n").replace("\"", "\\\"").replace("\r", "")));
-                fw.close();
-            } catch (Exception e) {
-            }
-            // #endregion
             return context;
 
         } catch (BusinessException e) {
@@ -180,30 +129,8 @@ public class ProjectRAGServiceImpl implements ProjectRAGService {
         if (project.getTechStack() != null && !project.getTechStack().isEmpty()) {
             try {
                 String techStackQuery = String.join(", ", project.getTechStack());
-                // #region agent log
-                try {
-                    java.io.FileWriter fw = new java.io.FileWriter("d:\\GitHub\\zdmj\\.cursor\\debug.log", true);
-                    fw.write(String.format(
-                            "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"ProjectRAGServiceImpl.java:%d\",\"message\":\"retrieving tech stack vectors\",\"data\":{\"projectId\":%d,\"query\":\"%s\"},\"runId\":\"run1\",\"hypothesisId\":\"F\"}\n",
-                            System.currentTimeMillis(), System.currentTimeMillis(), 204, projectId,
-                            techStackQuery.substring(0, Math.min(50, techStackQuery.length()))));
-                    fw.close();
-                } catch (Exception e) {
-                }
-                // #endregion
                 List<VectorRetrievalResult> techStackResults = vectorRetrievalService.retrieveKnowledgeVectors(
                         techStackQuery, projectId, null, KNOWLEDGE_TOP_K, KNOWLEDGE_MIN_SCORE);
-                // #region agent log
-                try {
-                    java.io.FileWriter fw = new java.io.FileWriter("d:\\GitHub\\zdmj\\.cursor\\debug.log", true);
-                    fw.write(String.format(
-                            "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"ProjectRAGServiceImpl.java:%d\",\"message\":\"tech stack vectors retrieved\",\"data\":{\"projectId\":%d,\"resultCount\":%d},\"runId\":\"run1\",\"hypothesisId\":\"F\"}\n",
-                            System.currentTimeMillis(), System.currentTimeMillis(), 206, projectId,
-                            techStackResults != null ? techStackResults.size() : 0));
-                    fw.close();
-                } catch (Exception e) {
-                }
-                // #endregion
                 if (techStackResults != null && !techStackResults.isEmpty()) {
                     results.put("技术栈相关文档", techStackResults);
                 }
@@ -309,47 +236,11 @@ public class ProjectRAGServiceImpl implements ProjectRAGService {
         // 1. 根据项目亮点检索代码（这部分可以缓存，但为了简化，暂时不缓存）
         try {
             List<String> highlightQueries = parseHighlights(project.getHighlights());
-            // #region agent log
-            try {
-                java.io.FileWriter fw = new java.io.FileWriter("d:\\GitHub\\zdmj\\.cursor\\debug.log", true);
-                fw.write(String.format(
-                        "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"ProjectRAGServiceImpl.java:%d\",\"message\":\"highlight queries parsed\",\"data\":{\"projectId\":%d,\"highlightCount\":%d},\"runId\":\"run1\",\"hypothesisId\":\"A\"}\n",
-                        System.currentTimeMillis(), System.currentTimeMillis(), 266, projectId,
-                        highlightQueries.size()));
-                fw.close();
-            } catch (Exception e) {
-            }
-            // #endregion
             for (String highlightQuery : highlightQueries) {
                 if (highlightQuery != null && !highlightQuery.trim().isEmpty()) {
                     try {
-                        // #region agent log
-                        try {
-                            java.io.FileWriter fw = new java.io.FileWriter("d:\\GitHub\\zdmj\\.cursor\\debug.log",
-                                    true);
-                            fw.write(String.format(
-                                    "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"ProjectRAGServiceImpl.java:%d\",\"message\":\"calling retrieveProjectCodeVectors\",\"data\":{\"projectId\":%d,\"highlightQuery\":\"%s\",\"topK\":%d,\"minScore\":%f},\"runId\":\"run1\",\"hypothesisId\":\"C\"}\n",
-                                    System.currentTimeMillis(), System.currentTimeMillis(), 270, projectId,
-                                    highlightQuery.substring(0, Math.min(50, highlightQuery.length())), CODE_TOP_K,
-                                    CODE_MIN_SCORE));
-                            fw.close();
-                        } catch (Exception e) {
-                        }
-                        // #endregion
                         List<VectorRetrievalResult> codeResults = vectorRetrievalService.retrieveProjectCodeVectors(
                                 highlightQuery, projectId, CODE_TOP_K, CODE_MIN_SCORE);
-                        // #region agent log
-                        try {
-                            java.io.FileWriter fw = new java.io.FileWriter("d:\\GitHub\\zdmj\\.cursor\\debug.log",
-                                    true);
-                            fw.write(String.format(
-                                    "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"ProjectRAGServiceImpl.java:%d\",\"message\":\"retrieveProjectCodeVectors returned\",\"data\":{\"projectId\":%d,\"resultCount\":%d},\"runId\":\"run1\",\"hypothesisId\":\"C\"}\n",
-                                    System.currentTimeMillis(), System.currentTimeMillis(), 272, projectId,
-                                    codeResults != null ? codeResults.size() : 0));
-                            fw.close();
-                        } catch (Exception e) {
-                        }
-                        // #endregion
                         // 去重：基于content去重
                         if (codeResults != null) {
                             for (VectorRetrievalResult result : codeResults) {
@@ -361,18 +252,6 @@ public class ProjectRAGServiceImpl implements ProjectRAGService {
                             }
                         }
                     } catch (Exception e) {
-                        // #region agent log
-                        try {
-                            java.io.FileWriter fw = new java.io.FileWriter("d:\\GitHub\\zdmj\\.cursor\\debug.log",
-                                    true);
-                            fw.write(String.format(
-                                    "{\"id\":\"log_%d\",\"timestamp\":%d,\"location\":\"ProjectRAGServiceImpl.java:%d\",\"message\":\"retrieveProjectCodeVectors exception\",\"data\":{\"projectId\":%d,\"error\":\"%s\"},\"runId\":\"run1\",\"hypothesisId\":\"C\"}\n",
-                                    System.currentTimeMillis(), System.currentTimeMillis(), 283, projectId,
-                                    e.getMessage()));
-                            fw.close();
-                        } catch (Exception e2) {
-                        }
-                        // #endregion
                         log.warn("根据项目亮点检索代码失败: projectId={}, highlight={}",
                                 projectId, highlightQuery, e);
                         // 继续执行其他亮点的检索
