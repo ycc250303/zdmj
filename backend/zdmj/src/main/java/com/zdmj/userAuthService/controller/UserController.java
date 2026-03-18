@@ -7,6 +7,7 @@ import com.zdmj.userAuthService.dto.UserLoginDTO;
 import com.zdmj.userAuthService.dto.UserLoginResponseDTO;
 import com.zdmj.userAuthService.dto.UserRegisterDTO;
 import com.zdmj.userAuthService.dto.UserResetPasswordDTO;
+import com.zdmj.userAuthService.dto.UserUpdateDTO;
 import com.zdmj.userAuthService.service.UserService;
 import com.zdmj.userAuthService.service.VerificationCodeService;
 import jakarta.validation.Valid;
@@ -103,6 +104,19 @@ public class UserController {
         log.info("重置密码请求: email={}", resetPasswordDTO.getEmail());
         userService.resetPassword(resetPasswordDTO);
         return Result.success("密码修改成功", null);
+    }
+
+    /**
+     * 更新当前登录用户的基本信息
+     *
+     * @param updateDTO 更新信息（姓名、电话、主页链接）
+     * @return 更新后的用户信息
+     */
+    @PutMapping("/me")
+    public Result<UserDTO> updateCurrentUser(@Valid @RequestBody UserUpdateDTO updateDTO) {
+        log.info("更新当前用户信息请求");
+        UserDTO userDTO = userService.updateCurrentUser(updateDTO);
+        return Result.success("更新成功", userDTO);
     }
 
     /**
