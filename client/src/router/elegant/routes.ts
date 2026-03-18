@@ -90,6 +90,15 @@ export const generatedRoutes: GeneratedRoute[] = [
     },
     children: [
       {
+        name: 'profile_basic-info',
+        path: '/profile/basic-info',
+        component: 'view.profile_basic-info',
+        meta: {
+          title: 'profile_basic-info',
+          i18nKey: 'route.profile_basic-info'
+        }
+      },
+      {
         name: 'profile_career',
         path: '/profile/career',
         component: 'view.profile_career',

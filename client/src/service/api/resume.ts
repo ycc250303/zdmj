@@ -71,6 +71,57 @@ export namespace ResumeApi {
   export interface ResumeUpdate extends ResumeCreate {
     id: number;
   }
+
+  //展示层
+  export interface SkillDTO {
+    id: number;
+    name: string;
+    content: SkillItem[];
+  }
+
+  export interface EducationDTO {
+    id: number;
+    school: string;
+    major: string;
+    degree: number;
+    startDate: string;
+    endDate?: string;
+    visible: boolean;
+    gpa?: string;
+  }
+
+  export interface CareerDTO {
+    id: number;
+    company: string;
+    position: string;
+    startDate: string;
+    endDate?: string;
+    visible: boolean;
+    details?: string;
+  }
+
+  export interface ProjectDTO {
+    id: number;
+    name: string;
+    startDate: string;
+    endDate?: string;
+    role: string;
+    description: string;
+    contribution: string;
+    techStack?: string[];
+    highlights?: string;
+    url?: string;
+    visible: boolean;
+  }
+
+  export interface ResumeContentDTO {
+    id: number;
+    name: string;
+    skill: SkillDTO;
+    educations: EducationDTO[];
+    careers: CareerDTO[];
+    projects: ProjectDTO[];
+  }
 }
 
 /** * =====================================================================
@@ -97,7 +148,6 @@ export function fetchDeleteSkill(id: number) {
 }
 
 // ==================== 2. 工作(实习)经历控制器 (Career) ====================
-// 注意：后端接口路径为单数 /career
 export function fetchAddCareer(data: ResumeApi.CareerCreate) {
   return request({ url: '/career', method: 'post', data });
 }
@@ -179,4 +229,16 @@ export function fetchGetResumeFullContentDetail(id: number) {
  */
 export function fetchGetResumeFullContentList() {
   return request({ url: '/resumes/content', method: 'get' });
+}
+
+// --- 基本信息模块 DTO ---
+export interface UserUpdateDTO {
+  name?: string;
+  phone?: string;
+  homepageUrl?: string;
+}
+
+// 请求方法：更新当前登录用户的基本信息
+export function fetchUpdateUserInfo(data: UserUpdateDTO) {
+  return request({ url: '/users/me', method: 'put', data });
 }

@@ -25,6 +25,7 @@ declare module "@elegant-router/types" {
     "login": "/login/:module(pwd-login|code-login|register|reset-pwd|bind-wechat)?";
     "portal": "/portal";
     "profile": "/profile";
+    "profile_basic-info": "/profile/basic-info";
     "profile_career": "/profile/career";
     "profile_education": "/profile/education";
     "profile_project": "/profile/project";
@@ -95,6 +96,7 @@ declare module "@elegant-router/types" {
     | "login"
     | "home"
     | "portal"
+    | "profile_basic-info"
     | "profile_career"
     | "profile_education"
     | "profile_project"
