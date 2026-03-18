@@ -24,6 +24,12 @@ CREATE TABLE IF NOT EXISTS users (
     -- 密码（加密）
     email VARCHAR(100) NOT NULL,
     -- 邮箱
+    name VARCHAR(50) NOT NULL,
+    -- 姓名
+    phone VARCHAR(20) NOT NULL,
+    -- 电话
+    website VARCHAR(500),
+    -- 主页链接
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
@@ -482,24 +488,24 @@ CREATE INDEX IF NOT EXISTS idx_projects_polished_project_id ON projects_polished
 CREATE TABLE IF NOT EXISTS jobs (
     id BIGSERIAL PRIMARY KEY,
     -- 岗位ID
-    user_id BIGINT NOT NULL,
-    -- 用户ID（逻辑外键：users.id）
     job_name VARCHAR(255) NOT NULL,
     -- 岗位名称
-    company_name VARCHAR(255) NOT NULL,
-    -- 公司名称
+    company_id BIGINT NOT NULL,
+    -- 公司ID（逻辑外键：companies.id）
     description TEXT NOT NULL,
     -- 岗位描述
-    location VARCHAR(255),
+    embedding VECTOR(1024),
+    -- 岗位描述向量（1024维，使用text-embedding-v4模型）
+    location VARCHAR(255) NOT NULL,
     -- 工作地点
-    salary VARCHAR(100),
+    salary VARCHAR(100) NOT NULL,
     -- 薪资范围
-    link VARCHAR(500),
+    link VARCHAR(500) NOT NULL,
     -- 岗位链接
-    job_status SMALLINT DEFAULT 1,
-    -- 外界状态（枚举：1=open开放/2=closed关闭）
-    status SMALLINT DEFAULT 1,
-    -- 内部状态（枚举：1=committed已提交/2=embedded已嵌入/3=matched已匹配）
+    content TEXT,
+    -- 工作内容
+    requirements TEXT,
+    -- 岗位要求
     recall JSONB,
     -- 简历匹配记录数组
     -- recall 示例
@@ -513,10 +519,34 @@ CREATE TABLE IF NOT EXISTS jobs (
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
 );
-CREATE INDEX IF NOT EXISTS idx_jobs_user_id ON jobs(user_id);
-CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
-CREATE INDEX IF NOT EXISTS idx_jobs_job_status ON jobs(job_status);
-CREATE INDEX IF NOT EXISTS idx_jobs_company_name ON jobs(company_name);
+CREATE INDEX IF NOT EXISTS idx_jobs_location ON jobs(location);
+CREATE INDEX IF NOT EXISTS idx_jobs_company_id ON jobs(company_id);
+-- 4.2 公司表
+CREATE TABLE IF NOT EXISTS companies (
+    id BIGSERIAL PRIMARY KEY,
+    -- 公司ID
+    name VARCHAR(255) NOT NULL,
+    -- 公司名称
+    industries JSONB DEFAULT '[]'::jsonb,
+    -- 公司行业
+    -- industries 示例
+    -- ["计算机软件", "IT服务", "专业技术服务"]
+    size SMALLINT NOT NULL,
+    -- 公司人员规模
+    -- 1=20人以下/2=20-99人/3=100-299人/4=300-499人/5=500-999人/6=1000-9999人/7=10000人以上
+    type SMALLINT,
+    -- 公司类型（融资阶段）
+    -- 1=A轮/2=B轮/3=C轮/4=D轮及以上/5=不需要融资/6=天使轮/7=已上市/8=未融资
+    introduction VARCHAR(1000),
+    -- 公司详情
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- 创建时间
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
+);
+CREATE INDEX IF NOT EXISTS idx_companies_name ON companies(name);
+CREATE INDEX IF NOT EXISTS idx_companies_size ON companies(size);
+CREATE INDEX IF NOT EXISTS idx_companies_type ON companies(type);
+CREATE INDEX IF NOT EXISTS idx_companies_industry ON companies(industry);
 --
 -- ==========================5 知识库模块==========================
 --
