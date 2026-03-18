@@ -166,11 +166,17 @@ const routeMap: RouteMap = {
   "403": "/403",
   "404": "/404",
   "500": "/500",
-  "candidate": "/candidate",
   "home": "/home",
   "iframe-page": "/iframe-page/:url",
   "login": "/login/:module(pwd-login|code-login|register|reset-pwd|bind-wechat)?",
-  "portal": "/portal"
+  "portal": "/portal",
+  "profile": "/profile",
+  "profile_career": "/profile/career",
+  "profile_education": "/profile/education",
+  "profile_project": "/profile/project",
+  "profile_skill": "/profile/skill",
+  "resumes": "/resumes",
+  "resumes-editor": "/resumes-editor"
 };
 
 /**

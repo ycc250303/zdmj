@@ -20,7 +20,12 @@ export const views: Record<LastLevelRouteKey, RouteComponent | (() => Promise<Ro
   500: () => import("@/views/_builtin/500/index.vue"),
   "iframe-page": () => import("@/views/_builtin/iframe-page/[url].vue"),
   login: () => import("@/views/_builtin/login/index.vue"),
-  candidate: () => import("@/views/candidate/index.vue"),
   home: () => import("@/views/home/index.vue"),
   portal: () => import("@/views/portal/index.vue"),
+  profile_career: () => import("@/views/profile/career/index.vue"),
+  profile_education: () => import("@/views/profile/education/index.vue"),
+  profile_project: () => import("@/views/profile/project/index.vue"),
+  profile_skill: () => import("@/views/profile/skill/index.vue"),
+  "resumes-editor": () => import("@/views/resumes-editor/index.vue"),
+  resumes: () => import("@/views/resumes/index.vue"),
 };

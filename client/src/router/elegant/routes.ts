@@ -9,7 +9,7 @@ export const generatedRoutes: GeneratedRoute[] = [
   {
     name: '403',
     path: '/403',
-    component: 'layout.blank$view.403',
+    component: 'layout.base$view.403',
     meta: {
       title: '403',
       i18nKey: 'route.403',
@@ -20,7 +20,7 @@ export const generatedRoutes: GeneratedRoute[] = [
   {
     name: '404',
     path: '/404',
-    component: 'layout.blank$view.404',
+    component: 'layout.base$view.404',
     meta: {
       title: '404',
       i18nKey: 'route.404',
@@ -31,7 +31,7 @@ export const generatedRoutes: GeneratedRoute[] = [
   {
     name: '500',
     path: '/500',
-    component: 'layout.blank$view.500',
+    component: 'layout.base$view.500',
     meta: {
       title: '500',
       i18nKey: 'route.500',
@@ -40,23 +40,12 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
-    name: 'candidate',
-    path: '/candidate',
-    component: 'layout.base$view.candidate',
-    meta: {
-      title: 'candidate',
-      i18nKey: 'route.candidate'
-    }
-  },
-  {
     name: 'home',
     path: '/home',
     component: 'layout.base$view.home',
     meta: {
       title: 'home',
-      i18nKey: 'route.home',
-      icon: 'mdi:monitor-dashboard',
-      order: 1
+      i18nKey: 'route.home'
     }
   },
   {
@@ -67,9 +56,7 @@ export const generatedRoutes: GeneratedRoute[] = [
     meta: {
       title: 'iframe-page',
       i18nKey: 'route.iframe-page',
-      constant: true,
-      hideInMenu: true,
-      keepAlive: true
+      hideInMenu: true
     }
   },
   {
@@ -91,6 +78,72 @@ export const generatedRoutes: GeneratedRoute[] = [
     meta: {
       title: 'portal',
       i18nKey: 'route.portal'
+    }
+  },
+  {
+    name: 'profile',
+    path: '/profile',
+    component: 'layout.base',
+    meta: {
+      title: 'profile',
+      i18nKey: 'route.profile'
+    },
+    children: [
+      {
+        name: 'profile_career',
+        path: '/profile/career',
+        component: 'view.profile_career',
+        meta: {
+          title: 'profile_career',
+          i18nKey: 'route.profile_career'
+        }
+      },
+      {
+        name: 'profile_education',
+        path: '/profile/education',
+        component: 'view.profile_education',
+        meta: {
+          title: 'profile_education',
+          i18nKey: 'route.profile_education'
+        }
+      },
+      {
+        name: 'profile_project',
+        path: '/profile/project',
+        component: 'view.profile_project',
+        meta: {
+          title: 'profile_project',
+          i18nKey: 'route.profile_project'
+        }
+      },
+      {
+        name: 'profile_skill',
+        path: '/profile/skill',
+        component: 'view.profile_skill',
+        meta: {
+          title: 'profile_skill',
+          i18nKey: 'route.profile_skill'
+        }
+      }
+    ]
+  },
+  {
+    name: 'resumes',
+    path: '/resumes',
+    component: 'layout.base$view.resumes',
+    meta: {
+      title: 'resumes',
+      i18nKey: 'route.resumes'
+    }
+  },
+  {
+    name: 'resumes-editor',
+    path: '/resumes-editor',
+    component: 'layout.base$view.resumes-editor',
+    meta: {
+      title: 'resumes-editor',
+      i18nKey: 'route.resumes-editor',
+      hideInMenu: true
     }
   }
 ];

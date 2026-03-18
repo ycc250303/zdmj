@@ -223,8 +223,14 @@ const local: App.I18n.Schema = {
     500: '服务器错误',
     'iframe-page': '外链页面',
     home: '首页',
-    "candidate": "候选人管理",
-    portal: '门户'
+    portal: '门户',
+    resumes: '简历库',
+    'resumes-editor': '简历编辑器',
+    "profile": "个人信息",
+    "profile_project": "项目经历管理",
+    "profile_education": '教育经历管理',
+    "profile_career":'工作经历管理',
+    "profile_skill":'技能管理'
   },
   page: {
     login: {
@@ -316,6 +322,96 @@ const local: App.I18n.Schema = {
       heroDesc: '面向软件工程大学生的智能、高效、一站式求职解决方案',
       actionEnter: '进入控制台',
       actionLogin: '立即登录体验'
+    },
+    "profile": {
+      "common": {
+        "add": "添加",
+        "edit": "编辑",
+        "delete": "删除",
+        "save": "保存内容",
+        "cancel": "取消",
+        "confirmDelete": "确定要删除这条记录吗？",
+        "requiredDesc": "带有 * 的为必填项",
+        "visibleInResume": "是否在简历中展示",
+        "visible": "展示",
+        "hidden": "隐藏",
+        "dateFormat": "YYYY-MM-DD",
+        "present": "至今",
+        "empty": "暂无数据，点击右上角添加吧"
+      },
+      "project": {
+        "title": "项目经历管理",
+        "addBtn": "添加新项目",
+        "name": "项目名称",
+        "namePlaceholder": "例如：企业级简历制作平台",
+        "role": "你的角色",
+        "rolePlaceholder": "例如：前端开发工程师",
+        "startDate": "开始时间",
+        "endDate": "结束时间",
+        "endDatePlaceholder": "选填，进行中可为空",
+        "description": "项目描述",
+        "descPlaceholder": "简要描述项目的目标和解决方案",
+        "contribution": "主要贡献",
+        "contriPlaceholder": "列出你的具体工作内容和技术难点突破",
+        "techStack": "技术栈",
+        "highlights": "项目亮点",
+        "hlPlaceholder": "选填，列出项目的突出成果或核心难点",
+        "url": "项目链接",
+        "urlPlaceholder": "选填，例如 GitHub 或线上地址",
+        "addSuccess": "项目添加成功",
+        "updateSuccess": "项目更新成功"
+      },
+      "education": {
+        "title": "教育经历管理",
+        "addBtn": "添加教育经历",
+        "school": "学校名称",
+        "schoolPlaceholder": "例如：同济大学",
+        "major": "专业",
+        "majorPlaceholder": "例如：软件工程",
+        "degree": "学历",
+        "startDate": "入学时间",
+        "endDate": "毕业时间",
+        "endDatePlaceholder": "选填，在读可为空",
+        "gpa": "成绩/绩点",
+        "gpaPlaceholder": "选填，例如：3.8/4.0 或 专业前10%",
+        "addSuccess": "教育经历添加成功",
+        "updateSuccess": "教育经历更新成功",
+        "degrees": {
+          "phd": "博士",
+          "master": "硕士",
+          "bachelor": "本科",
+          "associate": "大专",
+          "highSchool": "高中",
+          "other": "其他"
+        }
+      },
+      career: {
+        title: '工作/实习经历管理',
+        addBtn: '添加工作经历',
+        company: '公司名称',
+        companyPlaceholder: '例如：字节跳动',
+        position: '职位名称',
+        positionPlaceholder: '例如：前端实习生',
+        startDate: '入职时间',
+        endDate: '离职时间',
+        endDatePlaceholder: '选填，在职可为空',
+        details: '工作职责与业绩',
+        detailsPlaceholder: '详细描述你的工作内容、使用的技术及取得的成果',
+        addSuccess: '工作经历添加成功',
+        updateSuccess: '工作经历更新成功'
+      },
+      skill: {
+        title: '专业技能管理',
+        addBtn: '添加技能清单',
+        name: '清单名称',
+        namePlaceholder: '例如：专业技能',
+        category: '技能分类',
+        categoryPlaceholder: '例如：前端框架',
+        items: '技能详情 (输入后按回车键添加)',
+        addCategory: '添加技能分类',
+        addSuccess: '技能添加成功',
+        updateSuccess: '技能更新成功'
+      }
     }
   },
   form: {

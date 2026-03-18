@@ -92,7 +92,7 @@ function handleAction() {
         <div class="bg-white/60 backdrop-blur-lg rounded-3xl p-16 shadow-lg border border-white/50 max-w-4xl hover:shadow-xl transition-all duration-300">
           <NSpace vertical :size="32" align="center">
             
-            <NGradientText type="primary" class="text-5xl font-black drop-shadow-sm whitespace-pre-line">
+            <NGradientText type="primary" class="text-5xl font-black drop-shadow-sm whitespace-pre-line pb-2 leading-tight">
               {{ $t('page.portal.heroTitle') }}
             </NGradientText>
             

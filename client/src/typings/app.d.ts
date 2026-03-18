@@ -562,6 +562,96 @@ declare namespace App {
           actionEnter: string;
           actionLogin: string;
         };
+        profile: {
+          common: {
+            add: string;
+            edit: string;
+            delete: string;
+            save: string;
+            cancel: string;
+            confirmDelete: string;
+            requiredDesc: string;
+            visibleInResume: string;
+            visible: string;
+            hidden: string;
+            dateFormat: string;
+            present: string;
+            empty: string;
+          };
+          project: {
+            title: string;
+            addBtn: string;
+            name: string;
+            namePlaceholder: string;
+            role: string;
+            rolePlaceholder: string;
+            startDate: string;
+            endDate: string;
+            endDatePlaceholder: string;
+            description: string;
+            descPlaceholder: string;
+            contribution: string;
+            contriPlaceholder: string;
+            techStack: string;
+            highlights: string;
+            hlPlaceholder: string;
+            url: string;
+            urlPlaceholder: string;
+            addSuccess: string;
+            updateSuccess: string;
+          };
+          education: {
+            title: string;
+            addBtn: string;
+            school: string;
+            schoolPlaceholder: string;
+            major: string;
+            majorPlaceholder: string;
+            degree: string;
+            startDate: string;
+            endDate: string;
+            endDatePlaceholder: string;
+            gpa: string;
+            gpaPlaceholder: string;
+            addSuccess: string;
+            updateSuccess: string;
+            degrees: {
+              phd: string;
+              master: string;
+              bachelor: string;
+              associate: string;
+              highSchool: string;
+              other: string;
+            };
+          };
+          career: {
+            title: string;
+            addBtn: string;
+            company: string;
+            companyPlaceholder: string;
+            position: string;
+            positionPlaceholder: string;
+            startDate: string;
+            endDate: string;
+            endDatePlaceholder: string;
+            details: string;
+            detailsPlaceholder: string;
+            addSuccess: string;
+            updateSuccess: string;
+          };
+          skill: {
+            title: string;
+            addBtn: string;
+            name: string;
+            namePlaceholder: string;
+            category: string;
+            categoryPlaceholder: string;
+            items: string;
+            addCategory: string;
+            addSuccess: string;
+            updateSuccess: string;
+          };
+        };
       };
       form: {
         required: string;

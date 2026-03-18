@@ -226,8 +226,14 @@ const local: App.I18n.Schema = {
     500: 'Server Error',
     'iframe-page': 'Iframe',
     home: 'Home',
-    "candidate": "Candidate",
-    portal: 'portal'
+    portal: 'portal',
+    resumes: 'Resume Library',
+    'resumes-editor': 'Resume Editor',
+    "profile": "Personal Information",
+    "profile_project": "portfolio",
+    "profile_education": 'Education',
+    "profile_career":'Career',
+    "profile_skill":'Skills'
   },
   page: {
     login: {
@@ -319,6 +325,96 @@ const local: App.I18n.Schema = {
       heroDesc: 'An intelligent, efficient, one-stop job hunting solution for software engineering students',
       actionEnter: 'Enter Console',
       actionLogin: 'Experience Now'
+    },
+    "profile": {
+      "common": {
+        "add": "Add",
+        "edit": "Edit",
+        "delete": "Delete",
+        "save": "Save Content",
+        "cancel": "Cancel",
+        "confirmDelete": "Are you sure you want to delete this record?",
+        "requiredDesc": "Fields marked with * are required",
+        "visibleInResume": "Show in resume",
+        "visible": "Show",
+        "hidden": "Hide",
+        "dateFormat": "YYYY-MM-DD",
+        "present": "Present",
+        "empty": "No data yet, click the top right corner to add"
+      },
+      "project": {
+        "title": "Project Experience Management",
+        "addBtn": "Add New Project",
+        "name": "Project Name",
+        "namePlaceholder": "e.g., Enterprise Resume Builder Platform",
+        "role": "Your Role",
+        "rolePlaceholder": "e.g., Frontend Developer",
+        "startDate": "Start Date",
+        "endDate": "End Date",
+        "endDatePlaceholder": "Optional, can be left blank if ongoing",
+        "description": "Project Description",
+        "descPlaceholder": "Briefly describe the project's goals and solutions",
+        "contribution": "Key Contributions",
+        "contriPlaceholder": "List your specific work and technical breakthroughs",
+        "techStack": "Tech Stack",
+        "highlights": "Project Highlights",
+        "hlPlaceholder": "Optional, list outstanding outcomes or core challenges",
+        "url": "Project Link",
+        "urlPlaceholder": "Optional, e.g., GitHub or live demo URL",
+        "addSuccess": "Project added successfully",
+        "updateSuccess": "Project updated successfully"
+      },
+      "education": {
+        "title": "Education Experience Management",
+        "addBtn": "Add Education",
+        "school": "School Name",
+        "schoolPlaceholder": "e.g., Tongji University",
+        "major": "Major",
+        "majorPlaceholder": "e.g., Software Engineering",
+        "degree": "Degree",
+        "startDate": "Start Date",
+        "endDate": "End Date",
+        "endDatePlaceholder": "Optional, can be left blank if currently enrolled",
+        "gpa": "GPA/Grade",
+        "gpaPlaceholder": "Optional, e.g., 3.8/4.0 or Top 10%",
+        "addSuccess": "Education added successfully",
+        "updateSuccess": "Education updated successfully",
+        "degrees": {
+          "phd": "PhD",
+          "master": "Master's",
+          "bachelor": "Bachelor's",
+          "associate": "Associate Degree",
+          "highSchool": "High School",
+          "other": "Other"
+        }
+      },
+      career: {
+        title: "Career Experience Management",
+        addBtn: "Add Career Experience",
+        company: "Company Name",
+        companyPlaceholder: "e.g., ByteDance",
+        position: "Position",
+        positionPlaceholder: "e.g., Frontend Intern",
+        startDate: "Start Date",
+        endDate: "End Date",
+        endDatePlaceholder: "Optional, leave blank if currently employed",
+        details: "Responsibilities & Achievements",
+        detailsPlaceholder: "Detail your tasks, technologies used, and outcomes",
+        addSuccess: "Career experience added successfully",
+        updateSuccess: "Career experience updated successfully"
+      },
+      skill: {
+        title: "Professional Skills Management",
+        addBtn: "Add Skill Set",
+        name: "Skill Set Name",
+        namePlaceholder: "e.g., Professional Skills",
+        category: "Skill Category",
+        categoryPlaceholder: "e.g., Frontend Frameworks",
+        items: "Skill Details (Press Enter to add)",
+        addCategory: "Add Skill Category",
+        addSuccess: "Skill added successfully",
+        updateSuccess: "Skill updated successfully"
+      }
     }
   },
   form: {

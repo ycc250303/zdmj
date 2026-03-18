@@ -18,6 +18,7 @@ export function setupElegantRouter() {
 
         return `/login/:module(${moduleReg})?`;
       }
+      
 
       return routePath;
     },
@@ -37,5 +38,6 @@ export function setupElegantRouter() {
 
       return meta;
     }
+    
   });
 }
