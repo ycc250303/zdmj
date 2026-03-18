@@ -8,6 +8,7 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.util.RedisCacheUtil;
 import com.zdmj.common.util.RedisConstants;
+import com.zdmj.common.context.UserHolder;
 import com.zdmj.userAuthService.util.JwtUtil;
 import com.zdmj.userAuthService.util.PasswordUtil;
 import com.zdmj.userAuthService.dto.UserDTO;
@@ -15,6 +16,7 @@ import com.zdmj.userAuthService.dto.UserLoginDTO;
 import com.zdmj.userAuthService.dto.UserLoginResponseDTO;
 import com.zdmj.userAuthService.dto.UserRegisterDTO;
 import com.zdmj.userAuthService.dto.UserResetPasswordDTO;
+import com.zdmj.userAuthService.dto.UserUpdateDTO;
 import com.zdmj.userAuthService.entity.User;
 import com.zdmj.userAuthService.mapper.UserMapper;
 import com.zdmj.userAuthService.service.UserService;
@@ -194,6 +196,31 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
 
         log.info("用户密码重置成功: userId={}, email={}", user.getId(), resetPasswordDTO.getEmail());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public UserDTO updateCurrentUser(UserUpdateDTO updateDTO) {
+        Long userId = UserHolder.requireUserId();
+
+        User user = getById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        // 仅更新允许修改的字段
+        user.setName(updateDTO.getName());
+        user.setPhone(updateDTO.getPhone());
+        user.setWebsite(updateDTO.getHomepageUrl());
+        user.setUpdatedAt(DateTimeUtil.now());
+
+        boolean updated = updateById(user);
+        if (!updated) {
+            throw new BusinessException(ErrorCode.USER_REGISTER_FAILED);
+        }
+
+        log.info("用户信息更新成功: userId={}", userId);
+        return convertToDTO(user);
     }
 
     /**
