@@ -18,3 +18,5 @@ docs/backend/Prisma-AI功能分类-Spring-AI-vs-LangChain.md
 /backend/zdmj/src/main/resources/mapper
 /docs/temp
 /docs/sm
+/client/node_modules
+/client/packages
