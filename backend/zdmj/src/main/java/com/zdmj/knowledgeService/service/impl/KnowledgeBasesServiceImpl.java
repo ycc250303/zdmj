@@ -307,7 +307,7 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
             // #region agent log
             appendDebugLog("H2", "Embedding PythonServiceException", String.format(
                     "{\"knowledgeId\":%s,\"errorCode\":\"%s\",\"httpStatus\":\"%s\",\"message\":\"%s\"}",
-                    knowledgeId, safe(e.getCode()), safe(String.valueOf(e.getHttpStatus())), safe(e.getMessage())));
+                    knowledgeId, safe(String.valueOf(e.getCode())), safe(String.valueOf(e.getHttpStatus())), safe(e.getMessage())));
             // #endregion
             log.error("{}失败 (PythonServiceException): knowledgeId={}, errorCode={}, httpStatus={}, errorMsg={}",
                     actionDesc, knowledgeId, e.getCode(), e.getHttpStatus(), e.getMessage(), e);
