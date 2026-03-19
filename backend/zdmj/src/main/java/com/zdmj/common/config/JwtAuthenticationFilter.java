@@ -2,6 +2,8 @@ package com.zdmj.common.config;
 
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
+import com.zdmj.common.util.RedisCacheUtil;
+import com.zdmj.common.util.RedisConstants;
 import com.zdmj.userAuthService.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -26,6 +28,17 @@ import java.util.Collections;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    private final RedisCacheUtil redisCacheUtil;
+
+    /**
+     * 构造函数注入
+     *
+     * @param redisCacheUtil Redis缓存工具
+     */
+    public JwtAuthenticationFilter(RedisCacheUtil redisCacheUtil) {
+        this.redisCacheUtil = redisCacheUtil;
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
@@ -41,21 +54,31 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     String username = JwtUtil.getUsernameFromToken(token);
 
                     if (userId != null && username != null) {
-                        // 创建用户上下文并存储到ThreadLocal（避免重复解析HTTP请求）
-                        UserContext userContext = UserContext.of(userId, username);
-                        UserHolder.set(userContext);
+                        // 检查Redis中是否存在该Token
+                        String tokenKey = RedisConstants.JWT_TOKEN_KEY + userId;
+                        String storedToken = redisCacheUtil.getString(tokenKey);
 
-                        // 创建认证对象
-                        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                                userId, // principal
-                                null, // credentials
-                                Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")) // authorities
-                        );
-                        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        // 如果Redis中不存在该Token或Token不匹配，说明Token已被删除（如用户登出或重新登录），拒绝访问
+                        if (storedToken == null || !storedToken.equals(token)) {
+                            log.warn("JWT Token在Redis中不存在或已失效: userId={}, username={}", userId, username);
+                            // 不设置认证信息，后续的权限检查会拒绝访问
+                        } else {
+                            // Token有效，创建用户上下文并存储到ThreadLocal（避免重复解析HTTP请求）
+                            UserContext userContext = UserContext.of(userId, username);
+                            UserHolder.set(userContext);
 
-                        // 设置到Security上下文
-                        SecurityContextHolder.getContext().setAuthentication(authentication);
-                        log.debug("JWT认证成功: userId={}, username={}", userId, username);
+                            // 创建认证对象
+                            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                                    userId, // principal
+                                    null, // credentials
+                                    Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")) // authorities
+                            );
+                            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                            // 设置到Security上下文
+                            SecurityContextHolder.getContext().setAuthentication(authentication);
+                            log.debug("JWT认证成功: userId={}, username={}", userId, username);
+                        }
                     }
                 } catch (Exception e) {
                     log.error("JWT认证失败: {}", e.getMessage());

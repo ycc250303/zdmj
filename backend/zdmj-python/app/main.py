@@ -2,6 +2,8 @@
 FastAPI 应用入口
 包含 /api 前缀路由和生命周期管理
 """
+import logging
+import sys
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
@@ -12,6 +14,20 @@ from app.database import db
 from app.api import health, knowledge
 from app.exceptions import BusinessException, ValidationException, ServiceException
 from app.middleware import exception_handler
+
+# 配置日志系统，确保输出到控制台
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.StreamHandler(sys.stdout)  # 确保输出到控制台
+    ],
+    force=True  # 强制重新配置，覆盖之前的配置
+)
+
+# 设置根日志级别
+logging.getLogger().setLevel(logging.INFO)
 
 
 @asynccontextmanager

@@ -41,6 +41,14 @@ class Settings(BaseSettings):
     qwen_embedding_model: str = "text-embedding-v4"
     qwen_embedding_dimension: int = 1024  # text-embedding-v4 的向量维度
     
+    # GitHub 向量化配置
+    github_max_files: int = 1000  # GitHub仓库最大处理文件数（优化后支持大仓库，稳定处理）
+    github_max_file_size: int = 500 * 1024  # 单个文件最大大小（500KB）
+    embedding_batch_size: int = 30  # 向量化批次大小（降低批次大小，提高稳定性）
+    github_clone_timeout: int = 600  # GitHub仓库克隆超时时间（10分钟，支持大仓库）
+    github_file_read_timeout: float = 5.0  # 单个文件读取超时时间（秒）
+    github_progress_update_interval: int = 50  # 每处理多少个文件更新一次进度
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

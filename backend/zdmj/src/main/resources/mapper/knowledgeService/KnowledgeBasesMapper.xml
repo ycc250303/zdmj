@@ -8,21 +8,20 @@
 
     <!-- 根据用户ID查询所有知识库 -->
     <select id="selectByUserId" resultType="com.zdmj.knowledgeService.entity.KnowledgeBases"> SELECT
-        id, user_id, name, project_name, file_type, tag, type, content, vector_ids, created_at,
-        updated_at FROM knowledge_bases WHERE user_id = #{userId} ORDER BY created_at DESC </select>
+        id, user_id, name, project_id, tag, type, content, vector_ids, created_at, updated_at FROM
+        knowledge_bases WHERE user_id = #{userId} ORDER BY created_at DESC </select>
 
-    <!-- 根据用户ID和项目名称查询知识库列表 -->
-    <select id="selectByUserIdAndProjectName"
+    <!-- 根据用户ID和项目ID查询知识库列表 -->
+    <select id="selectByUserIdAndProjectId"
         resultType="com.zdmj.knowledgeService.entity.KnowledgeBases"> SELECT id, user_id, name,
-        project_name, file_type, tag, type, content, vector_ids, created_at, updated_at FROM
-        knowledge_bases WHERE user_id = #{userId} <if
-            test="projectName != null and projectName != ''"> AND project_name = #{projectName} </if>
-        ORDER BY created_at DESC </select>
+        project_id, tag, type, content, vector_ids, created_at, updated_at FROM knowledge_bases
+        WHERE user_id = #{userId} <if
+            test="projectId != null"> AND project_id = #{projectId} </if> ORDER BY created_at DESC </select>
 
     <!-- 根据用户ID和知识类型查询知识库列表 -->
     <select id="selectByUserIdAndType" resultType="com.zdmj.knowledgeService.entity.KnowledgeBases">
-        SELECT id, user_id, name, project_name, file_type, tag, type, content, vector_ids,
-        created_at, updated_at FROM knowledge_bases WHERE user_id = #{userId} <if
+        SELECT id, user_id, name, project_id, tag, type, content, vector_ids, created_at, updated_at
+        FROM knowledge_bases WHERE user_id = #{userId} <if
             test="type != null"> AND type = #{type} </if> ORDER BY created_at DESC </select>
 
     <!-- 检查用户是否存在同名知识库 -->
@@ -34,25 +33,25 @@
     <select id="countByUserId" resultType="java.lang.Long"> SELECT COUNT(*) FROM knowledge_bases
         WHERE user_id = #{userId} </select>
 
-    <!-- 根据项目名称查询知识库列表（用于项目相关的知识库查询） -->
-    <select id="selectByProjectName" resultType="com.zdmj.knowledgeService.entity.KnowledgeBases">
-        SELECT id, user_id, name, project_name, file_type, tag, type, content, vector_ids,
-        created_at, updated_at FROM knowledge_bases WHERE user_id = #{userId} AND project_name =
-        #{projectName} ORDER BY created_at DESC </select>
+    <!-- 根据项目ID查询知识库列表（用于项目相关的知识库查询） -->
+    <select id="selectByProjectId" resultType="com.zdmj.knowledgeService.entity.KnowledgeBases">
+        SELECT id, user_id, name, project_id, tag, type, content, vector_ids, created_at, updated_at
+        FROM knowledge_bases WHERE user_id = #{userId} AND project_id = #{projectId} ORDER BY
+        created_at DESC </select>
 
-    <!-- 分页查询知识库列表（支持项目名称和类型过滤） -->
+    <!-- 分页查询知识库列表（支持项目ID和类型过滤） -->
     <select id="selectPage" resultType="com.zdmj.knowledgeService.entity.KnowledgeBases"> SELECT id,
-        user_id, name, project_name, file_type, tag, type, content, vector_ids, created_at,
-        updated_at FROM knowledge_bases WHERE user_id = #{userId} <if
-            test="projectName != null and projectName != ''"> AND project_name = #{projectName} </if>
+        user_id, name, project_id, tag, type, content, vector_ids, created_at, updated_at FROM
+        knowledge_bases WHERE user_id = #{userId} <if
+            test="projectId != null"> AND project_id = #{projectId} </if>
         <if
             test="type != null"> AND type = #{type} </if> ORDER BY created_at DESC LIMIT #{limit}
         OFFSET #{offset} </select>
 
     <!-- 统计符合条件的知识库数量（用于分页） -->
     <select id="countPage" resultType="java.lang.Long"> SELECT COUNT(*) FROM knowledge_bases WHERE
-        user_id = #{userId} <if test="projectName != null and projectName != ''"> AND project_name =
-        #{projectName} </if>
-        <if test="type != null"> AND type = #{type} </if>
+        user_id = #{userId} <if test="projectId != null"> AND project_id = #{projectId} </if>
+        <if
+            test="type != null"> AND type = #{type} </if>
     </select>
 </mapper>

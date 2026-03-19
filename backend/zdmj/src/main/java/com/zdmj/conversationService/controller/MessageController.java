@@ -16,7 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 
 /**
- * 消息控制器
+ * 消息控制器（开发中）
  */
 @Slf4j
 @RestController

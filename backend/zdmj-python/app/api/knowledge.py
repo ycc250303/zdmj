@@ -8,7 +8,7 @@
 
 说明：
 - Python 服务只负责向量化与向量表/任务表的操作，不做权限和业务校验
-- Java 负责决定何时调用（例如仅在 content/fileType/type 变化时重跑）
+- Java 负责决定何时调用（例如仅在 content/type 变化时重跑）
 """
 
 from __future__ import annotations
@@ -23,11 +23,14 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from langchain_core.documents import Document
 
+from app.config import settings
 from app.database import db
 from app.models.response import ApiResponse
 from app.services.fetcher.cos_fetcher import COSFetcher
 from app.services.fetcher.github_fetcher import GitHubFetcher
 from app.services.processing.chunking import DocumentChunker
+from app.services.processing.ast_code_chunker import ASTCodeChunker
+from app.services.processing.code_enhancer import CodeEnhancer
 from app.services.vector.embedding import QwenEmbedding
 from app.services.vector.knowledge_vector_store import KnowledgeVectorStore
 from app.services.vector.project_code_vector_store import ProjectCodeVectorStore
@@ -174,7 +177,7 @@ async def _load_knowledge_row(
     async with db.postgres_pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT id, user_id, name, project_name, file_type, type, content, tag, vector_ids
+            SELECT id, user_id, name, project_id, type, content, tag, vector_ids
             FROM knowledge_bases
             WHERE id = $1
             """,
@@ -187,6 +190,105 @@ async def _load_knowledge_row(
     return dict(row)
 
 
+def _is_code_file(file_path: str) -> bool:
+    """
+    根据文件路径判断是否为代码文件
+    
+    :param file_path: 文件路径（可以是完整URL或相对路径）
+    :return: 如果是代码文件返回 True，否则返回 False
+    """
+    if not file_path:
+        return False
+    
+    # 代码文件扩展名列表
+    code_extensions = {
+        '.py', '.java', '.js', '.jsx', '.ts', '.tsx',
+        '.go', '.rs', '.cs', '.php', '.rb', '.kt', '.swift',
+        '.c', '.h', '.cpp', '.hpp', '.cc', '.cxx',
+        '.scala', '.clj', '.r', '.m', '.mm', '.sh', '.bash',
+        '.sql', '.pl', '.pm', '.lua', '.vim', '.el',
+    }
+    
+    # 从路径中提取扩展名（处理URL和普通路径）
+    path_lower = file_path.lower()
+    
+    # 如果是GitHub URL，提取文件路径部分
+    if 'github.com' in path_lower and '/blob/' in path_lower:
+        # 提取路径部分，例如：https://github.com/owner/repo/blob/branch/path/to/file.py
+        # 提取 path/to/file.py 部分
+        parts = path_lower.split('/blob/')
+        if len(parts) > 1:
+            file_part = parts[1].split('/')[-1]  # 获取文件名
+            if '.' in file_part:
+                ext = '.' + file_part.split('.')[-1]
+                return ext in code_extensions
+    else:
+        # 普通路径，直接提取扩展名
+        if '.' in path_lower:
+            ext = '.' + path_lower.split('.')[-1].split('?')[0].split('#')[0]  # 移除URL参数和锚点
+            return ext in code_extensions
+    
+    return False
+
+
+def _infer_file_format(content: str, knowledge_type: int) -> str:
+    """
+    根据内容和知识类型推断文件格式（仅支持PDF、MD和GitHub）
+    
+    验证规则：
+    - knowledge_type=1（项目文档）：必须是COS链接的PDF或MD文件
+    - knowledge_type=2（GitHub链接）：必须是GitHub链接
+    - knowledge_type=3（DeepWiki）：暂不支持
+    
+    Args:
+        content: 文档内容或URL
+        knowledge_type: 知识类型（1=项目文档，2=GitHub链接，3=项目DeepWiki文档）
+    
+    Returns:
+        推断的文件格式：'doc'（PDF）, 'md'（Markdown）, 'github'（GitHub链接）
+    
+    Raises:
+        ValueError: 当文件格式不支持或类型与内容不匹配时
+    """
+    if not content:
+        raise ValueError("内容不能为空")
+    
+    # 验证URL格式
+    if not content.startswith(("http://", "https://")):
+        raise ValueError("内容必须是有效的URL链接")
+    
+    # 根据知识类型进行验证和推断
+    if knowledge_type == 1:
+        # type=1：项目文档，必须是COS链接的PDF或MD文件
+        content_lower = content.lower()
+        is_pdf = ".pdf" in content_lower or "/pdf/" in content_lower
+        is_md = ".md" in content_lower or content.endswith(".md")
+        
+        if not is_pdf and not is_md:
+            raise ValueError(
+                f"项目文档类型（type=1）仅支持PDF和Markdown文件，当前URL: {content[:100]}"
+            )
+        
+        # 返回文件格式
+        return "doc" if is_pdf else "md"
+        
+    elif knowledge_type == 2:
+        # type=2：GitHub链接，必须是GitHub链接
+        if "github.com" not in content:
+            raise ValueError(
+                f"GitHub链接类型（type=2）必须是GitHub链接，当前URL: {content[:100]}"
+            )
+        return "github"
+        
+    elif knowledge_type == 3:
+        # type=3：DeepWiki文档，暂不支持
+        raise ValueError("项目DeepWiki文档类型（type=3）暂不支持")
+        
+    else:
+        # 未知的知识类型
+        raise ValueError(f"不支持的知识类型: {knowledge_type}")
+
+
 async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int) -> None:
     """
     异步执行知识库向量化任务：
@@ -196,6 +298,10 @@ async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int)
     - 保存到对应向量表
     - 更新任务状态与 vector_ids
     """
+    print(f"\n{'='*80}")
+    print(f"🚀 [向量化任务开始] task_id={task_id}, knowledge_id={knowledge_id}, user_id={user_id}")
+    print(f"{'='*80}\n")
+    
     await _update_task_status(task_id, status=TaskStatus.RUNNING)
 
     try:
@@ -216,31 +322,25 @@ async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int)
             )
             return
 
-        file_type: int = int(knowledge["file_type"])
         knowledge_type: int = int(knowledge["type"])
         content: str = knowledge["content"]
 
-        # 1. 根据 file_type / type 获取 Document 列表
+        # 1. 推断文件格式（仅支持PDF、MD和GitHub）
+        try:
+            inferred_format = _infer_file_format(content, knowledge_type)
+        except ValueError as e:
+            await _update_task_status(
+                task_id,
+                status=TaskStatus.FAILED,
+                error_message=str(e),
+            )
+            return
+
+        # 2. 根据推断的文件格式和知识类型获取 Document 列表
         documents: list[Document] = []
 
-        # file_type: 1=txt, 2=url, 3=doc(pdf), 4=md （参考 Java 常量）
-        # knowledge_type: 1=项目文档, 2=项目代码(GitHub), 3=技术文档, 4=其他, 5=项目DeepWiki文档
-
-        # 文本 / Markdown 直接按内容处理
-        if file_type in (1, 4):
-            documents = [
-                Document(
-                    page_content=content,
-                    metadata={
-                        "knowledge_id": knowledge_id,
-                        "file_type": file_type,
-                        "type": knowledge_type,
-                    },
-                )
-            ]
-
         # COS PDF (doc)
-        elif file_type == 3:
+        if inferred_format == "doc":
             cos_fetcher = COSFetcher()
             text = cos_fetcher.fetch_pdf_text(content)
             documents = [
@@ -248,72 +348,245 @@ async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int)
                     page_content=text,
                     metadata={
                         "knowledge_id": knowledge_id,
-                        "file_type": file_type,
                         "type": knowledge_type,
                         "source": content,
                     },
                 )
             ]
 
-        # URL 类型
-        elif file_type == 2:
-            # 如果是项目代码（GitHub），优先走 GitHubFetcher
-            if knowledge_type == 2 and "github.com" in content:
-                github_fetcher = GitHubFetcher()
-                if "/blob/" in content:
-                    text = github_fetcher.fetch_file_text(content)
-                    documents = [
-                        Document(
-                            page_content=text,
-                            metadata={
-                                "knowledge_id": knowledge_id,
-                                "file_type": file_type,
-                                "type": knowledge_type,
-                                "path": content,
-                            },
-                        )
-                    ]
-                else:
-                    # 仓库模式：拉取一定数量的代码/文本文件
-                    documents = github_fetcher.fetch_repository_documents(
-                        content,
-                        max_files=500,
-                    )
-                    # 补充知识库相关元数据
-                    for doc in documents:
-                        doc.metadata.setdefault("knowledge_id", knowledge_id)
-                        doc.metadata.setdefault("type", knowledge_type)
-            else:
-                # 其他 URL 简单按文本拉取（可按需扩展更复杂逻辑）
-                import requests
+        # Markdown格式：从COS下载
+        elif inferred_format == "md":
+            # 从COS下载Markdown文件
+            cos_fetcher = COSFetcher()
+            # 对于Markdown文件，下载字节后解码为文本
+            md_bytes = cos_fetcher.fetch_pdf_bytes(content)
+            text = md_bytes.decode("utf-8")
+            documents = [
+                Document(
+                    page_content=text,
+                    metadata={
+                        "knowledge_id": knowledge_id,
+                        "type": knowledge_type,
+                        "source": content,
+                    },
+                )
+            ]
 
-                resp = requests.get(content, timeout=10)
-                resp.raise_for_status()
-                text = resp.text
+        # GitHub链接
+        elif inferred_format == "github":
+            github_fetcher = GitHubFetcher()
+            if "/blob/" in content:
+                # 单个文件模式
+                text = github_fetcher.fetch_file_text(content)
                 documents = [
                     Document(
                         page_content=text,
                         metadata={
-                            "knowledge_id": knowledge_id,
-                            "file_type": file_type,
-                            "type": knowledge_type,
-                            "url": content,
+                            # 不添加 knowledge_id（表字段已有，避免冗余）
+                            "type": knowledge_type,  # 保留知识类型
+                            "path": content,  # 用于提取 file_path 表字段，之后会被删除
                         },
                     )
                 ]
+            else:
+                # 仓库模式：拉取一定数量的代码/文本文件（支持大仓库稳定处理）
+                print(f"\n📦 [GitHub仓库处理] 开始拉取仓库文档")
+                print(f"   Repository: {content}")
+                print(f"   Max Files: {settings.github_max_files}")
+                print(f"   Knowledge ID: {knowledge_id}\n")
+                
+                logger.info(
+                    "开始拉取GitHub仓库文档: knowledge_id=%d, repo_url=%s, max_files=%d",
+                    knowledge_id,
+                    content,
+                    settings.github_max_files,
+                )
+                
+                # 更新任务状态，告知用户开始处理GitHub仓库
+                await _update_task_status(
+                    task_id,
+                    status=TaskStatus.RUNNING,
+                    error_message=f"开始拉取GitHub仓库文档（最多{settings.github_max_files}个文件）",
+                )
+                
+                # 使用线程池执行同步的GitHub文件拉取操作，避免阻塞事件循环
+                loop = asyncio.get_event_loop()
+                # 使用 lambda 包装，因为 run_in_executor 不支持关键字参数
+                # 注意：fetch_repository_documents 的 max_files 是关键字参数（在 * 之后）
+                def fetch_docs():
+                    return github_fetcher.fetch_repository_documents(
+                        repo_url=content,
+                        max_files=settings.github_max_files
+                    )
+                documents = await loop.run_in_executor(None, fetch_docs)
+                
+                print(f"✅ [GitHub仓库处理] 文档拉取完成")
+                print(f"   文档数量: {len(documents)} 个文件\n")
+                
+                logger.info(
+                    "GitHub仓库文档拉取完成: knowledge_id=%d, 文档数量=%d",
+                    knowledge_id,
+                    len(documents),
+                )
+                
+                # 更新任务状态
+                await _update_task_status(
+                    task_id,
+                    status=TaskStatus.RUNNING,
+                    error_message=f"GitHub仓库文档拉取完成，共{len(documents)}个文档，开始分块",
+                )
+                # 补充知识库相关元数据
+                # 注意：不添加 knowledge_id 到 metadata（表字段已有，避免冗余）
+                for doc in documents:
+                    # 只添加 type（知识类型），用于后续过滤
+                    doc.metadata.setdefault("type", knowledge_type)
         else:
+            # 理论上不应该到达这里，因为 _infer_file_format 已经做了验证
             await _update_task_status(
                 task_id,
                 status=TaskStatus.FAILED,
-                error_message=f"不支持的 file_type={file_type}",
+                error_message=f"不支持的文件格式: {inferred_format}",
             )
             return
 
-        # 2. 分块
-        chunker = DocumentChunker(chunk_size=1500, chunk_overlap=200)
-        chunk_docs = chunker.chunk_documents(documents)
+        # 2. 分块（使用异步执行，避免阻塞）
+        print(f"📄 [文档分块] 开始处理")
+        print(f"   输入文档数: {len(documents)}")
+        print(f"   分块大小: 1500, 重叠: 200\n")
+        
+        logger.info(
+            "开始文档分块: knowledge_id=%d, 文档数量=%d",
+            knowledge_id,
+            len(documents),
+        )
+        
+        # 分离代码文件和文档文件
+        code_documents: list[Document] = []
+        doc_documents: list[Document] = []
+        
+        for doc in documents:
+            file_path = doc.metadata.get("path", doc.metadata.get("file_path", ""))
+            # 根据文件扩展名判断是否为代码文件
+            # 对于 knowledge_type == 2（GitHub链接），只将代码文件视为代码文件
+            # 对于其他类型，如果是代码文件扩展名，也视为代码文件
+            if _is_code_file(file_path):
+                code_documents.append(doc)
+            else:
+                doc_documents.append(doc)
+        
+        logger.info(
+            "文档分类完成: knowledge_id=%d, 代码文件=%d, 文档文件=%d",
+            knowledge_id,
+            len(code_documents),
+            len(doc_documents),
+        )
+        
+        # 对于大量文档，使用异步执行分块操作，避免阻塞事件循环
+        loop = asyncio.get_event_loop()
+        all_chunk_docs: list[Document] = []
+        
+        # 处理代码文件：使用 AST 分块器 + 代码增强器
+        if code_documents:
+            print(f"🔧 [代码分块] 开始处理代码文件")
+            print(f"   代码文件数: {len(code_documents)}")
+            print(f"   使用 AST 感知分块 + 代码增强\n")
+            
+            logger.info(
+                "开始代码文件 AST 分块: knowledge_id=%d, 代码文件数量=%d",
+                knowledge_id,
+                len(code_documents),
+            )
+            
+            ast_chunker = ASTCodeChunker(chunk_size=1500, chunk_overlap=200)
+            
+            # 在线程池中执行 AST 分块操作
+            code_chunks = await loop.run_in_executor(
+                None,
+                ast_chunker.chunk_documents,
+                code_documents
+            )
+            
+            if code_chunks:
+                print(f"✅ [代码分块] AST 分块完成")
+                print(f"   生成代码分块数: {len(code_chunks)} 个\n")
+                
+                logger.info(
+                    "代码文件 AST 分块完成: knowledge_id=%d, 代码分块数量=%d",
+                    knowledge_id,
+                    len(code_chunks),
+                )
+                
+                # 使用代码增强器增强代码块
+                print(f"✨ [代码增强] 开始增强代码块")
+                print(f"   代码分块数: {len(code_chunks)}\n")
+                
+                enhancer = CodeEnhancer()
+                
+                # 在线程池中执行代码增强操作
+                # 使用 lambda 包装，因为 run_in_executor 不支持关键字参数
+                def enhance_chunks():
+                    return enhancer.enhance_code_chunks(code_chunks, skip_non_code=True)
+                
+                enhanced_code_chunks = await loop.run_in_executor(None, enhance_chunks)
+                
+                print(f"✅ [代码增强] 完成")
+                print(f"   增强后代码分块数: {len(enhanced_code_chunks)} 个\n")
+                
+                logger.info(
+                    "代码增强完成: knowledge_id=%d, 增强后代码分块数量=%d",
+                    knowledge_id,
+                    len(enhanced_code_chunks),
+                )
+                
+                all_chunk_docs.extend(enhanced_code_chunks)
+            else:
+                logger.warning(
+                    "代码文件 AST 分块结果为空: knowledge_id=%d",
+                    knowledge_id,
+                )
+        
+        # 处理文档文件：使用 DocumentChunker
+        if doc_documents:
+            print(f"📄 [文档分块] 开始处理文档文件")
+            print(f"   文档文件数: {len(doc_documents)}")
+            print(f"   使用标准文档分块器\n")
+            
+            logger.info(
+                "开始文档文件分块: knowledge_id=%d, 文档文件数量=%d",
+                knowledge_id,
+                len(doc_documents),
+            )
+            
+            doc_chunker = DocumentChunker(chunk_size=1500, chunk_overlap=200)
+            
+            # 在线程池中执行文档分块操作
+            doc_chunks = await loop.run_in_executor(
+                None,
+                doc_chunker.chunk_documents,
+                doc_documents
+            )
+            
+            if doc_chunks:
+                print(f"✅ [文档分块] 完成")
+                print(f"   生成文档分块数: {len(doc_chunks)} 个\n")
+                
+                logger.info(
+                    "文档文件分块完成: knowledge_id=%d, 文档分块数量=%d",
+                    knowledge_id,
+                    len(doc_chunks),
+                )
+                
+                all_chunk_docs.extend(doc_chunks)
+            else:
+                logger.warning(
+                    "文档文件分块结果为空: knowledge_id=%d",
+                    knowledge_id,
+                )
+        
+        chunk_docs = all_chunk_docs
 
         if not chunk_docs:
+            print(f"❌ [文档分块] 失败: 分块结果为空\n")
             await _update_task_status(
                 task_id,
                 status=TaskStatus.FAILED,
@@ -321,10 +594,128 @@ async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int)
             )
             return
 
-        # 3. 向量化
+        print(f"✅ [文档分块] 完成")
+        print(f"   生成分块数: {len(chunk_docs)} 个\n")
+        
+        logger.info(
+            "文档分块完成: knowledge_id=%d, 分块数量=%d",
+            knowledge_id,
+            len(chunk_docs),
+        )
+        
+        # 更新任务进度
+        await _update_task_status(
+            task_id,
+            status=TaskStatus.RUNNING,
+            error_message=f"文档分块完成，共{len(chunk_docs)}个分块，开始向量化",
+        )
+
+        # 3. 向量化（分批处理，避免一次性处理过多）
+        print(f"🔢 [向量化] 开始处理")
+        print(f"   分块总数: {len(chunk_docs)}")
+        print(f"   批次大小: {settings.embedding_batch_size}")
+        
         embedding_service = QwenEmbedding()
         texts = [doc.page_content for doc in chunk_docs]
-        embeddings = embedding_service.embed_documents(texts)
+        
+        # 分批向量化，避免API限流和超时
+        batch_size = settings.embedding_batch_size
+        embeddings: list[list[float]] = []
+        total_batches = (len(texts) + batch_size - 1) // batch_size
+        
+        print(f"   总批次数: {total_batches}")
+        print(f"   预计处理时间: 约 {total_batches * 2} 秒\n")
+        
+        logger.info(
+            "开始向量化: knowledge_id=%d, 分块数量=%d, 批次大小=%d",
+            knowledge_id,
+            len(chunk_docs),
+            settings.embedding_batch_size,
+        )
+        
+        # 进度更新间隔（每处理一定批次更新一次任务状态）
+        progress_update_interval = max(5, total_batches // 20)  # 每5%更新一次
+        
+        for i in range(0, len(texts), batch_size):
+            batch_texts = texts[i : i + batch_size]
+            batch_num = i // batch_size + 1
+            
+            # 每批都打印进度（控制台输出）
+            progress_pct = (batch_num / total_batches) * 100
+            # 每批都显示进度，使用 \r 实现同一行更新
+            print(f"   ⏳ 批次 {batch_num}/{total_batches} ({progress_pct:.1f}%) - 处理中...", end="\r", flush=True)
+            
+            logger.info(
+                "向量化进度: knowledge_id=%d, 批次=%d/%d, 当前批次大小=%d",
+                knowledge_id,
+                batch_num,
+                total_batches,
+                len(batch_texts),
+            )
+            
+            # 定期更新任务状态，让用户知道进度
+            if batch_num % progress_update_interval == 0 or batch_num == total_batches:
+                await _update_task_status(
+                    task_id,
+                    status=TaskStatus.RUNNING,
+                    error_message=f"向量化中: {batch_num}/{total_batches} ({progress_pct:.1f}%)",
+                )
+                # 确保进度更新时换行显示（清除之前的 \r 输出）
+                print(f"\n   ✅ 批次 {batch_num}/{total_batches} ({progress_pct:.1f}%) - 完成")
+                logger.info(
+                    "向量化进度更新: task_id=%s, knowledge_id=%d, 进度=%d/%d (%.1f%%)",
+                    task_id,
+                    knowledge_id,
+                    batch_num,
+                    total_batches,
+                    progress_pct,
+                )
+            
+            # 向量化处理，添加重试机制提高稳定性
+            max_retries = 3
+            retry_count = 0
+            batch_embeddings = None
+            
+            while retry_count < max_retries:
+                try:
+                    batch_embeddings = embedding_service.embed_documents(batch_texts)
+                    break
+                except Exception as e:
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        logger.error(
+                            "向量化失败（已重试%d次）: knowledge_id=%d, batch=%d/%d, error=%s",
+                            max_retries,
+                            knowledge_id,
+                            batch_num,
+                            total_batches,
+                            e,
+                        )
+                        raise
+                    else:
+                        wait_time = retry_count * 2  # 递增等待时间：2s, 4s, 6s
+                        logger.warning(
+                            "向量化失败，%d秒后重试（第%d次）: knowledge_id=%d, batch=%d/%d, error=%s",
+                            wait_time,
+                            retry_count,
+                            knowledge_id,
+                            batch_num,
+                            total_batches,
+                            e,
+                        )
+                        await asyncio.sleep(wait_time)
+            
+            if batch_embeddings is not None:
+                embeddings.extend(batch_embeddings)
+        
+        print(f"\n✅ [向量化] 完成")
+        print(f"   生成向量数: {len(embeddings)} 个\n")
+        
+        logger.info(
+            "向量化完成: knowledge_id=%d, 向量数量=%d",
+            knowledge_id,
+            len(embeddings),
+        )
 
         if len(embeddings) != len(chunk_docs):
             await _update_task_status(
@@ -338,12 +729,29 @@ async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int)
         vector_ids: list[int] = []
 
         # 先删除旧向量（幂等重跑）
+        logger.info(
+            "开始删除旧向量: knowledge_id=%d, user_id=%d",
+            knowledge_id,
+            user_id,
+        )
         kv_store = KnowledgeVectorStore()
         pc_store = ProjectCodeVectorStore()
 
         # 删除知识库相关的所有旧向量（文本 + 代码）
-        await kv_store.delete(vector_ids=None, knowledge_id=knowledge_id, user_id=user_id)
-        await pc_store.delete(vector_ids=None, knowledge_id=knowledge_id, user_id=user_id)
+        try:
+            await kv_store.delete(vector_ids=None, knowledge_id=knowledge_id, user_id=user_id)
+            await pc_store.delete(vector_ids=None, knowledge_id=knowledge_id, user_id=user_id)
+            logger.info(
+                "旧向量删除完成: knowledge_id=%d",
+                knowledge_id,
+            )
+        except Exception as e:
+            logger.warning(
+                "删除旧向量时出错（可能不存在旧向量）: knowledge_id=%d, error=%s",
+                knowledge_id,
+                e,
+            )
+            # 继续执行，不影响新向量保存
 
         if knowledge_type == 2:
             # 项目代码 → project_code_vectors，knowledge_id 使用 knowledge_id 绑定
@@ -363,11 +771,20 @@ async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int)
             )
 
         # 5. 更新任务状态
+        print(f"💾 [保存向量] 开始保存到数据库...")
+        
         await _update_task_status(
             task_id,
             status=TaskStatus.SUCCESS,
             vector_ids=vector_ids,
         )
+
+        print(f"💾 [保存向量] 完成")
+        print(f"   保存向量数: {len(vector_ids)} 个")
+        print(f"\n{'='*80}")
+        print(f"🎉 [向量化任务完成] task_id={task_id}, knowledge_id={knowledge_id}")
+        print(f"   总向量数: {len(vector_ids)}")
+        print(f"{'='*80}\n")
 
         logger.info(
             "知识库向量化任务完成: task_id=%s, knowledge_id=%d, 向量数量=%d",
@@ -376,6 +793,10 @@ async def _process_embedding_task(task_id: str, knowledge_id: int, user_id: int)
             len(vector_ids),
         )
     except Exception as exc:  # 捕获所有异常，写入任务失败状态
+        print(f"\n❌ [向量化任务失败] task_id={task_id}, knowledge_id={knowledge_id}")
+        print(f"   错误信息: {str(exc)}")
+        print(f"{'='*80}\n")
+        
         logger.exception(
             "知识库向量化任务失败: task_id=%s, knowledge_id=%d, error=%s",
             task_id,

@@ -59,9 +59,12 @@ public class RedisCacheUtil {
             long actualExpireSeconds = calculateExpireTimeWithRandom(expireSeconds);
             redisTemplate.opsForValue().set(key, jsonValue, actualExpireSeconds, TimeUnit.SECONDS);
             log.debug("设置缓存成功: key={}, expire={}秒", key, actualExpireSeconds);
+        } catch (org.springframework.dao.QueryTimeoutException | io.lettuce.core.RedisCommandTimeoutException e) {
+            // Redis 超时异常降级为警告，不影响主流程
+            log.warn("设置缓存超时（不影响主流程）: key={}, error={}", key, e.getMessage());
         } catch (Exception e) {
-            log.error("设置缓存失败: key={}", key, e);
-            // 不抛出异常，避免影响主业务流程
+            // 其他异常记录为警告，避免过多错误日志
+            log.warn("设置缓存失败（不影响主流程）: key={}, error={}", key, e.getMessage());
         }
     }
 
@@ -77,8 +80,10 @@ public class RedisCacheUtil {
             long actualExpireSeconds = calculateExpireTimeWithRandom(expireSeconds);
             redisTemplate.opsForValue().set(key, value, actualExpireSeconds, TimeUnit.SECONDS);
             log.debug("设置缓存成功: key={}, expire={}秒", key, actualExpireSeconds);
+        } catch (org.springframework.dao.QueryTimeoutException | io.lettuce.core.RedisCommandTimeoutException e) {
+            log.warn("设置缓存超时（不影响主流程）: key={}, error={}", key, e.getMessage());
         } catch (Exception e) {
-            log.error("设置缓存失败: key={}", key, e);
+            log.warn("设置缓存失败（不影响主流程）: key={}, error={}", key, e.getMessage());
         }
     }
 
@@ -97,8 +102,11 @@ public class RedisCacheUtil {
                 return null;
             }
             return objectMapper.readValue(jsonValue, clazz);
+        } catch (org.springframework.dao.QueryTimeoutException | io.lettuce.core.RedisCommandTimeoutException e) {
+            log.warn("获取缓存超时（不影响主流程）: key={}, error={}", key, e.getMessage());
+            return null;
         } catch (Exception e) {
-            log.error("获取缓存失败: key={}", key, e);
+            log.warn("获取缓存失败（不影响主流程）: key={}, error={}", key, e.getMessage());
             return null;
         }
     }
@@ -118,8 +126,11 @@ public class RedisCacheUtil {
                 return null;
             }
             return objectMapper.readValue(jsonValue, typeReference);
+        } catch (org.springframework.dao.QueryTimeoutException | io.lettuce.core.RedisCommandTimeoutException e) {
+            log.warn("获取缓存超时（不影响主流程）: key={}, error={}", key, e.getMessage());
+            return null;
         } catch (Exception e) {
-            log.error("获取缓存失败: key={}", key, e);
+            log.warn("获取缓存失败（不影响主流程）: key={}, error={}", key, e.getMessage());
             return null;
         }
     }
@@ -133,8 +144,11 @@ public class RedisCacheUtil {
     public String getString(String key) {
         try {
             return redisTemplate.opsForValue().get(key);
+        } catch (org.springframework.dao.QueryTimeoutException | io.lettuce.core.RedisCommandTimeoutException e) {
+            log.warn("获取缓存超时（不影响主流程）: key={}, error={}", key, e.getMessage());
+            return null;
         } catch (Exception e) {
-            log.error("获取缓存失败: key={}", key, e);
+            log.warn("获取缓存失败（不影响主流程）: key={}, error={}", key, e.getMessage());
             return null;
         }
     }
@@ -148,8 +162,10 @@ public class RedisCacheUtil {
         try {
             redisTemplate.delete(key);
             log.debug("删除缓存成功: key={}", key);
+        } catch (org.springframework.dao.QueryTimeoutException | io.lettuce.core.RedisCommandTimeoutException e) {
+            log.warn("删除缓存超时（不影响主流程）: key={}, error={}", key, e.getMessage());
         } catch (Exception e) {
-            log.error("删除缓存失败: key={}", key, e);
+            log.warn("删除缓存失败（不影响主流程）: key={}, error={}", key, e.getMessage());
         }
     }
 
@@ -162,8 +178,11 @@ public class RedisCacheUtil {
     public boolean exists(String key) {
         try {
             return Boolean.TRUE.equals(redisTemplate.hasKey(key));
+        } catch (org.springframework.dao.QueryTimeoutException | io.lettuce.core.RedisCommandTimeoutException e) {
+            log.warn("检查缓存是否存在超时（不影响主流程）: key={}, error={}", key, e.getMessage());
+            return false;
         } catch (Exception e) {
-            log.error("检查缓存是否存在失败: key={}", key, e);
+            log.warn("检查缓存是否存在失败（不影响主流程）: key={}, error={}", key, e.getMessage());
             return false;
         }
     }
@@ -300,8 +319,10 @@ public class RedisCacheUtil {
                     log.debug("追加chunk到流式消息: messageId={}, chunkLength={}", messageId, chunk.length());
                 }
             }
+        } catch (org.springframework.dao.QueryTimeoutException | io.lettuce.core.RedisCommandTimeoutException e) {
+            log.warn("追加chunk到流式消息超时（不影响主流程）: messageId={}, error={}", messageId, e.getMessage());
         } catch (Exception e) {
-            log.error("追加chunk到流式消息失败: messageId={}", messageId, e);
+            log.warn("追加chunk到流式消息失败（不影响主流程）: messageId={}, error={}", messageId, e.getMessage());
         }
     }
 
@@ -321,8 +342,11 @@ public class RedisCacheUtil {
                         message.getContent() != null ? message.getContent().length() : 0);
             }
             return message;
+        } catch (org.springframework.dao.QueryTimeoutException | io.lettuce.core.RedisCommandTimeoutException e) {
+            log.warn("获取流式消息超时（不影响主流程）: messageId={}, error={}", messageId, e.getMessage());
+            return null;
         } catch (Exception e) {
-            log.error("获取流式消息失败: messageId={}", messageId, e);
+            log.warn("获取流式消息失败（不影响主流程）: messageId={}, error={}", messageId, e.getMessage());
             return null;
         }
     }
@@ -352,8 +376,10 @@ public class RedisCacheUtil {
                     log.warn("标记流式消息完成失败: 消息不存在, messageId={}", messageId);
                 }
             }
+        } catch (org.springframework.dao.QueryTimeoutException | io.lettuce.core.RedisCommandTimeoutException e) {
+            log.warn("标记流式消息完成超时（不影响主流程）: messageId={}, error={}", messageId, e.getMessage());
         } catch (Exception e) {
-            log.error("标记流式消息完成失败: messageId={}", messageId, e);
+            log.warn("标记流式消息完成失败（不影响主流程）: messageId={}, error={}", messageId, e.getMessage());
         }
     }
 
@@ -376,8 +402,10 @@ public class RedisCacheUtil {
                     log.warn("标记流式消息失败: 消息不存在, messageId={}", messageId);
                 }
             }
+        } catch (org.springframework.dao.QueryTimeoutException | io.lettuce.core.RedisCommandTimeoutException e) {
+            log.warn("标记流式消息失败状态超时（不影响主流程）: messageId={}, error={}", messageId, e.getMessage());
         } catch (Exception e) {
-            log.error("标记流式消息失败状态失败: messageId={}", messageId, e);
+            log.warn("标记流式消息失败状态失败（不影响主流程）: messageId={}, error={}", messageId, e.getMessage());
         }
     }
 }
