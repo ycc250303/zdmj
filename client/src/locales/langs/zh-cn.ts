@@ -231,7 +231,8 @@ const local: App.I18n.Schema = {
     "profile_education": '教育经历管理',
     "profile_career":'工作经历管理',
     "profile_skill":'技能管理',
-    "profile_basic-info":'基本信息'
+    "profile_basic-info":'基本信息',
+    "knowledge": '知识库'
   },
   page: {
     login: {
@@ -485,6 +486,43 @@ const local: App.I18n.Schema = {
       "pleaseInput": "请填写",
       "createFail": "创建失败"
     },
+    knowledge: {
+      title: '知识库管理',
+      addBtn: '添加知识',
+      searchPlaceholder: '搜索项目名称',
+      name: '知识库名称',
+      namePlaceholder: '请输入知识库名称',
+      projectName: '项目名称',
+      projectNamePlaceholder: '请输入项目名称',
+      type: '知识类型',
+      fileType: '文件类型',
+      content: '内容',
+      contentPlaceholder: '请输入内容',
+      tag: '知识标签',
+      status: '向量化状态',
+      addSuccess: '知识库创建成功',
+      updateSuccess: '知识库更新成功',
+      typeOptions: {
+        projectDoc: '项目文档',
+        projectCode: '项目代码',
+        techDoc: '技术文档',
+        other: '其他',
+        deepWiki: '项目DeepWiki'
+      },
+      fileTypeOptions: {
+        txt: '文本 (TXT)',
+        url: '链接 (URL)',
+        doc: '文档 (DOC/PDF)',
+        md: 'Markdown (MD)'
+      },
+      statusOptions: {
+        pending: '待处理',
+        processing: '向量化中',
+        success: '已完成',
+        failed: '失败',
+        cancelled: '已取消'
+      }
+    }
   },
   form: {
     required: '不能为空',

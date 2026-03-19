@@ -723,6 +723,43 @@ declare namespace App {
           "pleaseInput": string;
           "createFail": string;
         };
+        knowledge: {
+          title: string;
+          addBtn: string;
+          searchPlaceholder: string;
+          name: string;
+          namePlaceholder: string;
+          projectName: string;
+          projectNamePlaceholder: string;
+          type: string;
+          fileType: string;
+          content: string;
+          contentPlaceholder: string;
+          tag: string;
+          status: string;
+          addSuccess: string;
+          updateSuccess: string;
+          typeOptions: {
+            projectDoc: string;
+            projectCode: string;
+            techDoc: string;
+            other: string;
+            deepWiki: string;
+          };
+          fileTypeOptions: {
+            txt: string;
+            url: string;
+            doc: string;
+            md: string;
+          };
+          statusOptions: {
+            pending: string;
+            processing: string;
+            success: string;
+            failed: string;
+            cancelled: string;
+          };
+        };
       };
       form: {
         required: string;
