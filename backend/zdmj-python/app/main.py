@@ -4,6 +4,7 @@ FastAPI 应用入口
 """
 import logging
 import sys
+from logging.config import dictConfig
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
@@ -28,6 +29,50 @@ logging.basicConfig(
 
 # 设置根日志级别
 logging.getLogger().setLevel(logging.INFO)
+
+# 配置 uvicorn 日志格式，补充时间戳
+dictConfig({
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "uvicorn_default_with_time": {
+            "()": "uvicorn.logging.DefaultFormatter",
+            "fmt": "%(asctime)s [%(levelprefix)s] %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+            "use_colors": None
+        },
+        "uvicorn_access_with_time": {
+            "()": "uvicorn.logging.AccessFormatter",
+            "fmt": "%(asctime)s [%(levelprefix)s] %(client_addr)s - \"%(request_line)s\" %(status_code)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+            "use_colors": None
+        }
+    },
+    "handlers": {
+        "default": {
+            "formatter": "uvicorn_default_with_time",
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout"
+        },
+        "access": {
+            "formatter": "uvicorn_access_with_time",
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout"
+        }
+    },
+    "loggers": {
+        "uvicorn.error": {
+            "handlers": ["default"],
+            "level": "INFO",
+            "propagate": False
+        },
+        "uvicorn.access": {
+            "handlers": ["access"],
+            "level": "INFO",
+            "propagate": False
+        }
+    }
+})
 
 
 @asynccontextmanager
