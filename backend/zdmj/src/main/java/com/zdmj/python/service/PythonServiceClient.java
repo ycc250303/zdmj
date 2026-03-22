@@ -17,6 +17,10 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 
@@ -28,6 +32,7 @@ import java.util.LinkedHashMap;
 @Service
 public class PythonServiceClient {
 
+    private static final String DEBUG_LOG_PATH = "debug-4b2fab.log";
     private final WebClient webClient;
     private final PythonServiceConfig pythonServiceConfig;
     private final WebClientConfig webClientConfig;
@@ -112,6 +117,12 @@ public class PythonServiceClient {
             String uri, T request, Class<R> clazz, boolean retry) {
 
         log.debug("调用Python服务: POST {}, 请求: {}", uri, request);
+        // #region agent log
+        appendDebugLog("H2", "PythonServiceClient.post request start", String.format(
+                "{\"uri\":\"%s\",\"requestType\":\"%s\",\"retry\":%s,\"baseUrl\":\"%s\"}",
+                safe(uri), safe(request == null ? null : request.getClass().getSimpleName()), retry,
+                safe(pythonServiceConfig.getBaseUrl())));
+        // #endregion
 
         Mono<PythonApiResponse<R>> responseMono = webClient.post()
                 .uri(uri)
@@ -133,6 +144,11 @@ public class PythonServiceClient {
                 .bodyToMono(new ParameterizedTypeReference<PythonApiResponse<R>>() {
                 })
                 .map(response -> {
+                    // #region agent log
+                    appendDebugLog("H3", "PythonServiceClient.post response mapped", String.format(
+                            "{\"uri\":\"%s\",\"code\":%s,\"success\":%s,\"hasData\":%s}",
+                            safe(uri), response.getCode(), response.isSuccess(), response.getData() != null));
+                    // #endregion
                     // 检查响应状态码
                     if (response.getCode() == null || !response.isSuccess()) {
                         String errorMsg = response.getMsg() != null
@@ -155,6 +171,11 @@ public class PythonServiceClient {
                 .onErrorMap(WebClientRequestException.class, ex -> {
                     // 处理请求异常（连接超时、读取超时等）
                     log.error("Python服务请求异常: {}, URI: {}", ex.getMessage(), uri, ex);
+                    // #region agent log
+                    appendDebugLog("H2", "PythonServiceClient.post request exception", String.format(
+                            "{\"uri\":\"%s\",\"exception\":\"%s\",\"message\":\"%s\"}",
+                            safe(uri), safe(ex.getClass().getSimpleName()), safe(ex.getMessage())));
+                    // #endregion
                     if (ex.getMessage() != null) {
                         if (ex.getMessage().contains("timeout") || ex.getMessage().contains("Timeout")) {
                             return new PythonServiceException(
@@ -191,6 +212,11 @@ public class PythonServiceClient {
                         return ex;
                     }
                     log.error("Python服务调用未知异常: {}, URI: {}", ex.getMessage(), uri, ex);
+                    // #region agent log
+                    appendDebugLog("H4", "PythonServiceClient.post unknown exception", String.format(
+                            "{\"uri\":\"%s\",\"exception\":\"%s\",\"message\":\"%s\"}",
+                            safe(uri), safe(ex.getClass().getSimpleName()), safe(ex.getMessage())));
+                    // #endregion
                     return new PythonServiceException(
                             PythonErrorCode.UNKNOWN_ERROR.getCode(),
                             "Python服务调用失败: " + ex.getMessage(),
@@ -205,6 +231,27 @@ public class PythonServiceClient {
 
         return responseMono;
     }
+
+    // #region agent log
+    private void appendDebugLog(String hypothesisId, String message, String dataJson) {
+        try {
+            long ts = System.currentTimeMillis();
+            String line = String.format(
+                    "{\"sessionId\":\"4b2fab\",\"runId\":\"pre-fix\",\"hypothesisId\":\"%s\",\"location\":\"PythonServiceClient.post\",\"message\":\"%s\",\"data\":%s,\"timestamp\":%d}%n",
+                    safe(hypothesisId), safe(message), dataJson == null ? "{}" : dataJson, ts);
+            Files.writeString(Path.of(DEBUG_LOG_PATH), line, StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private String safe(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+    // #endregion
 
     /**
      * 通用GET请求方法

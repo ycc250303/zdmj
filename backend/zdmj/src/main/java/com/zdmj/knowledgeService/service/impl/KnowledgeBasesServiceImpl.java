@@ -27,6 +27,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.extern.slf4j.Slf4j;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,6 +40,7 @@ import java.util.List;
 public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper, KnowledgeBases>
         implements KnowledgeBasesService {
 
+    private static final String DEBUG_LOG_PATH = "debug-4b2fab.log";
     private final ProjectExperienceMapper projectExperienceMapper;
     private final PythonServiceClient pythonServiceClient;
 
@@ -85,6 +90,11 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         if (!saved) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_SAVE_FAILED);
         }
+        // #region agent log
+        appendDebugLog("H1", "Knowledge create saved", String.format(
+                "{\"knowledgeId\":%s,\"userId\":%s,\"projectId\":%s,\"type\":%s}",
+                knowledgeBases.getId(), userId, knowledgeBases.getProjectId(), knowledgeBases.getType()));
+        // #endregion
 
         // 6. 调用Python服务向量化（异步任务，仅负责触发，不影响事务）
         KnowledgeEmbeddingTaskResult task = triggerEmbeddingTask(knowledgeBases.getId(), userId, "创建知识库触发向量化任务");
@@ -246,6 +256,11 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
             KnowledgeEmbeddingRequest request = new KnowledgeEmbeddingRequest();
             request.setKnowledgeId(knowledgeId);
             request.setUserId(userId);
+            // #region agent log
+            appendDebugLog("H1", "Enter triggerEmbeddingTask", String.format(
+                    "{\"knowledgeId\":%s,\"userId\":%s,\"action\":\"%s\"}",
+                    knowledgeId, userId, safe(actionDesc)));
+            // #endregion
 
             log.debug("{}开始: knowledgeId={}, userId={}, 请求Python服务: POST /api/knowledge/embedding",
                     actionDesc, knowledgeId, userId);
@@ -262,24 +277,47 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
                 if (response.getData() != null) {
                     // PythonServiceClient 已经处理了类型转换，直接使用
                     KnowledgeEmbeddingTaskResult task = response.getData();
+                    // #region agent log
+                    appendDebugLog("H3", "Embedding task created", String.format(
+                            "{\"knowledgeId\":%s,\"taskId\":\"%s\",\"status\":\"%s\"}",
+                            knowledgeId, safe(task.getTaskId()), safe(task.getStatus())));
+                    // #endregion
                     log.info("{}成功: knowledgeId={}, taskId={}, status={}, message={}",
                             actionDesc, knowledgeId, task.getTaskId(), task.getStatus(), task.getMessage());
                     return task;
                 } else {
+                    // #region agent log
+                    appendDebugLog("H3", "Embedding response data null", String.format(
+                            "{\"knowledgeId\":%s,\"code\":%s,\"msg\":\"%s\"}",
+                            knowledgeId, response.getCode(), safe(response.getMsg())));
+                    // #endregion
                     log.warn("{}返回为空: knowledgeId={}, response.code={}, response.msg={}, response.data=null",
                             actionDesc, knowledgeId, response.getCode(), response.getMsg());
                     return null;
                 }
             } else {
+                // #region agent log
+                appendDebugLog("H3", "Embedding response null", String.format("{\"knowledgeId\":%s}", knowledgeId));
+                // #endregion
                 log.warn("{}响应为null: knowledgeId={}", actionDesc, knowledgeId);
                 return null;
             }
         } catch (PythonServiceException e) {
             // 不回滚业务事务，只记录错误，后续可支持手动重试
+            // #region agent log
+            appendDebugLog("H2", "Embedding PythonServiceException", String.format(
+                    "{\"knowledgeId\":%s,\"errorCode\":\"%s\",\"httpStatus\":\"%s\",\"message\":\"%s\"}",
+                    knowledgeId, safe(String.valueOf(e.getCode())), safe(String.valueOf(e.getHttpStatus())), safe(e.getMessage())));
+            // #endregion
             log.error("{}失败 (PythonServiceException): knowledgeId={}, errorCode={}, httpStatus={}, errorMsg={}",
                     actionDesc, knowledgeId, e.getCode(), e.getHttpStatus(), e.getMessage(), e);
             return null;
         } catch (Exception e) {
+            // #region agent log
+            appendDebugLog("H4", "Embedding unknown exception", String.format(
+                    "{\"knowledgeId\":%s,\"exception\":\"%s\",\"message\":\"%s\"}",
+                    knowledgeId, safe(e.getClass().getSimpleName()), safe(e.getMessage())));
+            // #endregion
             log.error("{}发生未知异常: knowledgeId={}, exceptionType={}, errorMsg={}",
                     actionDesc, knowledgeId, e.getClass().getName(), e.getMessage(), e);
             return null;
@@ -497,4 +535,25 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
                     "查询任务状态失败: " + e.getMessage());
         }
     }
+
+    // #region agent log
+    private void appendDebugLog(String hypothesisId, String message, String dataJson) {
+        try {
+            long ts = System.currentTimeMillis();
+            String line = String.format(
+                    "{\"sessionId\":\"4b2fab\",\"runId\":\"pre-fix\",\"hypothesisId\":\"%s\",\"location\":\"KnowledgeBasesServiceImpl\",\"message\":\"%s\",\"data\":%s,\"timestamp\":%d}%n",
+                    safe(hypothesisId), safe(message), dataJson == null ? "{}" : dataJson, ts);
+            Files.writeString(Path.of(DEBUG_LOG_PATH), line, StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private String safe(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+    // #endregion
 }
