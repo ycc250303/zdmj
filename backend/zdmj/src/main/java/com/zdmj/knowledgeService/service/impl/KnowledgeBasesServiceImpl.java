@@ -10,6 +10,7 @@ import com.zdmj.knowledgeService.dto.KnowledgeBasesDTO;
 import com.zdmj.knowledgeService.entity.KnowledgeBases;
 import com.zdmj.knowledgeService.mapper.KnowledgeBasesMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
+import com.zdmj.resumeService.entity.ProjectExperience;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
 import com.zdmj.python.dto.PythonApiResponse;
 import com.zdmj.python.dto.knowledge.DeleteVectorsRequest;
@@ -55,8 +56,12 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NAME_EXISTS);
         }
 
-        // 2. 检查项目名称是否存在
-        if (projectExperienceMapper.selectIdByUserIdAndName(userId, knowledgeBasesDTO.getProjectName()) == null) {
+        // 2. 检查项目ID是否存在且属于当前用户
+        if (knowledgeBasesDTO.getProjectId() == null) {
+            throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_NOT_FOUND);
+        }
+        ProjectExperience projectExperience = projectExperienceMapper.selectById(knowledgeBasesDTO.getProjectId());
+        if (projectExperience == null || !projectExperience.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_NOT_FOUND);
         }
 
@@ -67,8 +72,7 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         KnowledgeBases knowledgeBases = new KnowledgeBases();
         knowledgeBases.setUserId(userId);
         knowledgeBases.setName(knowledgeBasesDTO.getName());
-        knowledgeBases.setProjectName(knowledgeBasesDTO.getProjectName());
-        knowledgeBases.setFileType(knowledgeBasesDTO.getFileType());
+        knowledgeBases.setProjectId(knowledgeBasesDTO.getProjectId());
         // 直接设置List，TypeHandler会自动处理JSONB转换
         knowledgeBases.setTag(knowledgeBasesDTO.getTag());
         knowledgeBases.setType(knowledgeBasesDTO.getType());
@@ -106,7 +110,7 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
     }
 
     @Override
-    public PageResult<KnowledgeBases> getPage(Integer page, Integer limit, String projectName, Integer type) {
+    public PageResult<KnowledgeBases> getPage(Integer page, Integer limit, Long projectId, Integer type) {
         Long userId = UserHolder.requireUserId();
         // 参数校验和默认值设置
         if (page == null || page < 1) {
@@ -118,9 +122,9 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         // 计算偏移量
         int offset = (page - 1) * limit;
         // 查询数据列表
-        List<KnowledgeBases> data = baseMapper.selectPage(userId, offset, limit, projectName, type);
+        List<KnowledgeBases> data = baseMapper.selectPage(userId, offset, limit, projectId, type);
         // 查询总数
-        Long total = baseMapper.countPage(userId, projectName, type);
+        Long total = baseMapper.countPage(userId, projectId, type);
         // 构建分页结果
         return PageResult.of(data, total, page, limit);
     }
@@ -159,34 +163,26 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
 
         // 4. 组合更新后的文件类型与内容用于校验（DTO 优先，其次使用原值）
         KnowledgeBasesDTO validateDTO = new KnowledgeBasesDTO();
-        validateDTO.setFileType(
-                knowledgeBasesDTO.getFileType() != null ? knowledgeBasesDTO.getFileType()
-                        : knowledgeBases.getFileType());
         validateDTO.setContent(
                 knowledgeBasesDTO.getContent() != null ? knowledgeBasesDTO.getContent()
                         : knowledgeBases.getContent());
         validateContent(validateDTO);
 
-        // 5. 项目名称一旦确定，不能修改（如果前端传了 projectName 且与原值不同则报错）
-        if (knowledgeBasesDTO.getProjectName() != null
-                && !knowledgeBases.getProjectName().equals(knowledgeBasesDTO.getProjectName())) {
+        // 5. 项目ID一旦确定，不能修改（如果前端传了 projectId 且与原值不同则报错）
+        if (knowledgeBasesDTO.getProjectId() != null
+                && !knowledgeBases.getProjectId().equals(knowledgeBasesDTO.getProjectId())) {
             throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_NAME_NOT_ALLOW_CHANGE);
         }
 
         // 6. 判断是否需要新向量化（基于原始值与 DTO 中的非空值比较）
         boolean contentChanged = knowledgeBasesDTO.getContent() != null
                 && !knowledgeBasesDTO.getContent().equals(knowledgeBases.getContent());
-        boolean fileTypeChanged = knowledgeBasesDTO.getFileType() != null
-                && !knowledgeBasesDTO.getFileType().equals(knowledgeBases.getFileType());
         boolean typeChanged = knowledgeBasesDTO.getType() != null
                 && !knowledgeBasesDTO.getType().equals(knowledgeBases.getType());
 
         // 7. 更新知识库信息（只有非空字段才会覆盖原值）
         if (knowledgeBasesDTO.getName() != null) {
             knowledgeBases.setName(knowledgeBasesDTO.getName());
-        }
-        if (knowledgeBasesDTO.getFileType() != null) {
-            knowledgeBases.setFileType(knowledgeBasesDTO.getFileType());
         }
         if (knowledgeBasesDTO.getTag() != null) {
             // 直接设置List，TypeHandler会自动处理JSONB转换
@@ -200,8 +196,8 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         }
 
         // 如果只是知识库名称和标签变化，不需要重新向量化；
-        // 如果知识库内容（content）、文件类型（fileType）、知识类型（type）有任一变化，则需要重新向量化
-        if (contentChanged || fileTypeChanged || typeChanged) {
+        // 如果知识库内容（content）或知识类型（type）有任一变化，则需要重新向量化
+        if (contentChanged || typeChanged) {
             // 重置向量ID为空数组，等待重新向量化
             knowledgeBases.setVectorIds(new ArrayList<>());
             // 调用Python服务重新向量化（异步任务）
@@ -339,52 +335,73 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
     }
 
     /**
-     * 文件类型常量
+     * 知识类型常量
      */
-    private class FileTypeConstant {
-        /** 文本类型 */
-        public static final int TXT = 1;
-        /** URL链接类型 */
-        public static final int URL = 2;
-        /** PDF文档类型 */
-        public static final int DOC = 3;
-        /** Markdown文档类型 */
-        public static final int MD = 4;
+    private static class TypeConstant {
+        /** 项目文档类型（包含txt、pdf、md、普通URL等） */
+        public static final int PROJECT_DOCUMENT = 1;
+        /** GitHub链接类型（GitHub仓库或文件） */
+        public static final int GITHUB_REPO = 2;
+        /** 项目DeepWiki文档类型（暂不实现，留作扩展） */
+        public static final int PROJECT_DEEPWIKI = 3;
     }
 
     /**
      * 验证内容
+     * 
+     * 验证规则：
+     * - type=1（项目文档）：必须是COS链接的PDF或MD文件
+     * - type=2（GitHub链接）：必须是GitHub链接
+     * - type=3（DeepWiki）：暂不支持
      */
     private void validateContent(KnowledgeBasesDTO dto) {
-        Integer fileType = dto.getFileType();
+        Integer type = dto.getType();
         String content = dto.getContent();
 
-        // fileType 为空时，说明更新场景下该字段可能未传，直接跳过校验
-        if (fileType == null) {
+        // type 为空时，说明更新场景下该字段可能未传，直接跳过校验
+        if (type == null || content == null) {
             return;
         }
 
-        // 验证doc或md类型：检查COS文件是否存在
-        if (fileType == FileTypeConstant.DOC || fileType == FileTypeConstant.MD) {
-            if (content == null || !content.startsWith("http")) {
-                if (fileType == FileTypeConstant.DOC) {
-                    throw new BusinessException(ErrorCode.PDF_URL_REQUIRED);
-                } else {
-                    throw new BusinessException(ErrorCode.MARKDOWN_URL_REQUIRED);
-                }
+        // 验证URL格式
+        if (!content.startsWith("http://") && !content.startsWith("https://")) {
+            throw new BusinessException(ErrorCode.URL_FORMAT_ERROR.getCode(),
+                    "内容必须是有效的URL链接");
+        }
+
+        // 根据知识类型进行验证
+        if (type == TypeConstant.PROJECT_DOCUMENT) {
+            // type=1：项目文档，必须是COS链接的PDF或MD文件
+            String lowerContent = content.toLowerCase();
+            boolean isPdf = lowerContent.contains(".pdf") || lowerContent.contains("/pdf/");
+            boolean isMd = lowerContent.contains(".md") || content.endsWith(".md");
+
+            if (!isPdf && !isMd) {
+                throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS.getCode(),
+                        "项目文档类型（type=1）仅支持PDF和Markdown文件");
             }
-            // 从URL中提取COS key并验证文件是否存在
+
+            // 验证COS文件是否存在
             String cosKey = extractCosKeyFromUrl(content);
             if (cosKey != null && !CosUtil.fileExists(cosKey)) {
                 throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS);
             }
-        }
 
-        // 验证url类型：检查URL格式
-        if (fileType == FileTypeConstant.URL) {
-            if (content == null || (!content.startsWith("http://") && !content.startsWith("https://"))) {
-                throw new BusinessException(ErrorCode.URL_FORMAT_ERROR);
+        } else if (type == TypeConstant.GITHUB_REPO) {
+            // type=2：GitHub链接，必须是GitHub链接
+            if (!content.contains("github.com")) {
+                throw new BusinessException(ErrorCode.URL_FORMAT_ERROR.getCode(),
+                        "GitHub链接类型（type=2）必须是GitHub链接，当前内容不是GitHub链接");
             }
+
+        } else if (type == TypeConstant.PROJECT_DEEPWIKI) {
+            // type=3：DeepWiki文档，暂不支持
+            throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS.getCode(),
+                    "项目DeepWiki文档类型（type=3）暂不支持");
+        } else {
+            // 未知的知识类型
+            throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS.getCode(),
+                    "不支持的知识类型: " + type);
         }
     }
 

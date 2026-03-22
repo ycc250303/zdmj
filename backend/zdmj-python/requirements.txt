@@ -30,4 +30,13 @@ langchain-community
 langchain-text-splitters
 
 # 千问 Embedding SDK
-dashscope 
+dashscope
+
+# 代码向量化 - AST解析
+tree-sitter
+tree-sitter-python
+tree-sitter-java
+tree-sitter-javascript
+tree-sitter-typescript
+tree-sitter-go
+tree-sitter-cpp

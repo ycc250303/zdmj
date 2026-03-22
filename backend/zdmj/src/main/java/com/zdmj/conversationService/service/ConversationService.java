@@ -2,7 +2,6 @@ package com.zdmj.conversationService.service;
 
 import java.util.List;
 
-import com.zdmj.conversationService.dto.ConversationsDTO;
 import com.zdmj.conversationService.entity.Conversations;
 
 /**
@@ -13,10 +12,10 @@ public interface ConversationService {
     /**
      * 创建会话
      * 
-     * @param conversationDTO 会话DTO
+     * @param projectId 项目ID（可选）
      * @return 会话
      */
-    Conversations create(ConversationsDTO conversationDTO);
+    Conversations create(Long projectId);
 
     /**
      * 根据用户ID查询会话列表

@@ -6,6 +6,9 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.DateTimeUtil;
+import com.zdmj.common.util.RedisCacheUtil;
+import com.zdmj.common.util.RedisConstants;
+import com.zdmj.common.context.UserHolder;
 import com.zdmj.userAuthService.util.JwtUtil;
 import com.zdmj.userAuthService.util.PasswordUtil;
 import com.zdmj.userAuthService.dto.UserDTO;
@@ -13,6 +16,7 @@ import com.zdmj.userAuthService.dto.UserLoginDTO;
 import com.zdmj.userAuthService.dto.UserLoginResponseDTO;
 import com.zdmj.userAuthService.dto.UserRegisterDTO;
 import com.zdmj.userAuthService.dto.UserResetPasswordDTO;
+import com.zdmj.userAuthService.dto.UserUpdateDTO;
 import com.zdmj.userAuthService.entity.User;
 import com.zdmj.userAuthService.mapper.UserMapper;
 import com.zdmj.userAuthService.service.UserService;
@@ -32,14 +36,17 @@ import java.time.LocalDateTime;
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
     private final VerificationCodeService verificationCodeService;
+    private final RedisCacheUtil redisCacheUtil;
 
     /**
      * 构造函数注入（推荐方式）
      *
      * @param verificationCodeService 验证码服务
+     * @param redisCacheUtil          Redis缓存工具
      */
-    public UserServiceImpl(VerificationCodeService verificationCodeService) {
+    public UserServiceImpl(VerificationCodeService verificationCodeService, RedisCacheUtil redisCacheUtil) {
         this.verificationCodeService = verificationCodeService;
+        this.redisCacheUtil = redisCacheUtil;
     }
 
     @Override
@@ -107,10 +114,21 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
         log.info("用户登录成功: {}", user.getUsername());
 
-        // 4. 生成JWT Token
+        // 4. 删除用户旧的JWT Token（如果存在）
+        String tokenKey = RedisConstants.JWT_TOKEN_KEY + user.getId();
+        if (redisCacheUtil.exists(tokenKey)) {
+            redisCacheUtil.delete(tokenKey);
+            log.debug("删除用户旧Token: userId={}", user.getId());
+        }
+
+        // 5. 生成新的JWT Token
         String token = JwtUtil.generateToken(user.getId(), user.getUsername());
 
-        // 5. 构建登录响应
+        // 6. 将新Token存储到Redis，过期时间为7天
+        redisCacheUtil.setString(tokenKey, token, RedisConstants.JWT_TOKEN_TTL);
+        log.debug("存储JWT Token到Redis: userId={}, expire={}秒", user.getId(), RedisConstants.JWT_TOKEN_TTL);
+
+        // 7. 构建登录响应
         UserLoginResponseDTO response = new UserLoginResponseDTO();
         response.setToken(token);
         response.setUser(convertToDTO(user));
@@ -178,6 +196,31 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
 
         log.info("用户密码重置成功: userId={}, email={}", user.getId(), resetPasswordDTO.getEmail());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public UserDTO updateCurrentUser(UserUpdateDTO updateDTO) {
+        Long userId = UserHolder.requireUserId();
+
+        User user = getById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        // 仅更新允许修改的字段
+        user.setName(updateDTO.getName());
+        user.setPhone(updateDTO.getPhone());
+        user.setWebsite(updateDTO.getHomepageUrl());
+        user.setUpdatedAt(DateTimeUtil.now());
+
+        boolean updated = updateById(user);
+        if (!updated) {
+            throw new BusinessException(ErrorCode.USER_REGISTER_FAILED);
+        }
+
+        log.info("用户信息更新成功: userId={}", userId);
+        return convertToDTO(user);
     }
 
     /**

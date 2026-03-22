@@ -5,7 +5,7 @@
 
 ```
 zdmj/
-├── backend/          # 后端服务
+├── backend/         # 后端服务
 │   ├── zdmj/        # Java Spring Boot 主服务
 │   └── zdmj-python/ # Python FastAPI AI服务
 ├── client/          # 客户端
@@ -16,10 +16,10 @@ zdmj/
 
 ## 技术栈
 
-| 分类 | 技术 |
-|------|------|
-| Java 主服务 | Spring Boot、Java、MyBatis-Plus、Spring Security、Spring WebFlux |
-| Python AI服务 | FastAPI、asyncpg、Pydantic |
-| 数据库 | PostgreSQL、Redis、MongoDB |
-| 第三方工具 | JWT、腾讯云COS SDK |
-| DevOps | Docker、Nginx |
+| 分类          | 技术                                                       |
+| ------------- | ---------------------------------------------------------- |
+| Java 主服务   | Spring Boot、MyBatis-Plus、Spring Security、Spring WebFlux |
+| Python AI服务 | FastAPI、asyncpg                                           |
+| 数据库        | pgSQL、Redis                                               |
+| 第三方工具    | JWT、腾讯云COS SDK                                         |
+| DevOps        | Docker、Nginx、Github Actions                              |

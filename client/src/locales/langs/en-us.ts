@@ -234,7 +234,8 @@ const local: App.I18n.Schema = {
     "profile_education": 'Education',
     "profile_career":'Career',
     "profile_skill":'Skills',
-    "profile_basic-info":'basic-info'
+    "profile_basic-info":'basic-info',
+    "knowledge": 'Knowledge Base'
   },
   page: {
     login: {
@@ -487,7 +488,44 @@ const local: App.I18n.Schema = {
           "getFail": "Failed to fetch data",
           "pleaseInput": "Please input",
           "createFail": "Creation failed"
-        }
+        },
+    knowledge: {
+      title: 'Knowledge Base Management',
+      addBtn: 'Add Knowledge',
+      searchPlaceholder: 'Search project name',
+      name: 'Knowledge Name',
+      namePlaceholder: 'Enter knowledge name',
+      projectName: 'Project Name',
+      projectNamePlaceholder: 'Enter project name',
+      type: 'Knowledge Type',
+      fileType: 'File Type',
+      content: 'Content',
+      contentPlaceholder: 'Enter content',
+      tag: 'Knowledge Tags',
+      status: 'Vectorization Status',
+      addSuccess: 'Knowledge created successfully',
+      updateSuccess: 'Knowledge updated successfully',
+      typeOptions: {
+        projectDoc: 'Project Doc',
+        projectCode: 'Project Code',
+        techDoc: 'Tech Doc',
+        other: 'Other',
+        deepWiki: 'DeepWiki'
+      },
+      fileTypeOptions: {
+        txt: 'Text (TXT)',
+        url: 'URL',
+        doc: 'Document (DOC/PDF)',
+        md: 'Markdown (MD)'
+      },
+      statusOptions: {
+        pending: 'Pending',
+        processing: 'Processing',
+        success: 'Completed',
+        failed: 'Failed',
+        cancelled: 'Cancelled'
+      }
+    }
   },
   form: {
     required: 'Cannot be empty',

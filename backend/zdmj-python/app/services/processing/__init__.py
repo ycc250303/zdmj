@@ -4,5 +4,6 @@
 """
 
 from app.services.processing.chunking import DocumentChunker
+from app.services.processing.ast_code_chunker import ASTCodeChunker
 
-__all__ = ["DocumentChunker"]
+__all__ = ["DocumentChunker", "ASTCodeChunker"]

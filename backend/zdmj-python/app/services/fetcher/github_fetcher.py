@@ -125,6 +125,7 @@ class GitHubFetcher:
         使用 git clone --depth=1 将 GitHub 仓库克隆到临时目录，返回本地路径。
 
         注意：只拉取最新一次提交，避免传输过大历史。
+        优化：添加超时控制和进度日志。
         """
         owner, repo = GitHubFetcher._parse_repo_root(repo_url)
         tmp_dir = tempfile.mkdtemp(prefix="github_repo_")
@@ -137,11 +138,41 @@ class GitHubFetcher:
         )
 
         try:
-            Repo.clone_from(
-                f"https://github.com/{owner}/{repo}.git",
-                tmp_dir,
-                depth=1,
+            # 从配置获取超时时间
+            try:
+                from app.config import settings
+                timeout = settings.github_clone_timeout
+            except Exception:
+                timeout = 300  # 默认5分钟
+            
+            # 使用 subprocess 执行 git clone，可以更好地控制超时
+            import subprocess
+            
+            clone_url = f"https://github.com/{owner}/{repo}.git"
+            cmd = ["git", "clone", "--depth", "1", clone_url, tmp_dir]
+            
+            # 执行 git clone，设置超时
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=None
             )
+            
+            try:
+                stdout, stderr = process.communicate(timeout=timeout)
+                if process.returncode != 0:
+                    error_msg = stderr.decode('utf-8', errors='ignore') if stderr else "未知错误"
+                    raise RuntimeError(f"Git clone 失败: {error_msg}")
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+                raise RuntimeError(f"Git clone 超时（{timeout}秒）")
+                
+        except subprocess.TimeoutExpired:
+            logger.exception("克隆 GitHub 仓库超时")
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            raise RuntimeError(f"克隆 GitHub 仓库超时（{timeout}秒）")
         except Exception as exc:
             logger.exception("克隆 GitHub 仓库失败: %s", exc)
             shutil.rmtree(tmp_dir, ignore_errors=True)
@@ -293,6 +324,19 @@ class GitHubFetcher:
             )
 
             count = 0
+            skipped_large = 0
+            skipped_errors = 0
+            
+            # 从配置中获取最大文件大小限制（如果可用），否则使用默认值
+            try:
+                from app.config import settings
+                max_file_size = settings.github_max_file_size
+            except Exception:
+                max_file_size = 500 * 1024  # 默认500KB
+            
+            # 优化：先收集所有符合条件的文件路径，然后批量处理
+            # 这样可以更好地控制进度和避免过早中断
+            file_paths = []
             for path in root_path.rglob("*"):
                 if not path.is_file():
                     continue
@@ -301,16 +345,73 @@ class GitHubFetcher:
                 if exts is not None and suffix not in exts:
                     continue
 
+                # 检查文件大小，跳过过大的文件
+                try:
+                    file_size = path.stat().st_size
+                    if file_size > max_file_size:
+                        skipped_large += 1
+                        if skipped_large <= 10:  # 只记录前10个
+                            logger.debug(
+                                "跳过过大文件: path=%s, size=%d bytes (限制=%d bytes)",
+                                path,
+                                file_size,
+                                max_file_size,
+                            )
+                        continue
+                except Exception as exc:
+                    skipped_errors += 1
+                    logger.warning(
+                        "获取文件大小失败，已跳过: path=%s, error=%s", path, exc
+                    )
+                    continue
+
+                file_paths.append((path, file_size))
+                
+                if max_files is not None and len(file_paths) >= max_files:
+                    logger.info(
+                        "已达到最大文件数限制: max_files=%d, 已收集=%d",
+                        max_files,
+                        len(file_paths),
+                    )
+                    break
+            
+            print(f"   📋 文件收集完成: 总数={len(file_paths)}, 跳过过大文件={skipped_large}, 跳过错误={skipped_errors}")
+            
+            logger.info(
+                "文件收集完成: 总数=%d, 跳过过大文件=%d, 跳过错误=%d",
+                len(file_paths),
+                skipped_large,
+                skipped_errors,
+            )
+            
+            # 批量处理文件，每处理一定数量记录一次进度
+            # 从配置获取进度更新间隔
+            try:
+                from app.config import settings
+                progress_interval = settings.github_progress_update_interval
+            except Exception:
+                progress_interval = max(1, len(file_paths) // 20)  # 默认每5%记录一次
+            
+            for idx, (path, file_size) in enumerate(file_paths, 1):
                 try:
                     rel_path = path.relative_to(root_path)
                 except ValueError:
                     rel_path = Path(os.path.basename(path))
 
                 try:
-                    content = path.read_text(encoding="utf-8")
-                except UnicodeDecodeError:
-                    content = path.read_text(encoding="utf-8", errors="replace")
+                    # 直接读取文件（文件大小已经检查过，不会太大，读取通常很快）
+                    # 对于大文件，使用 errors='replace' 避免编码错误导致整个任务失败
+                    try:
+                        content = path.read_text(encoding="utf-8")
+                    except UnicodeDecodeError:
+                        # UTF-8解码失败，尝试使用 errors='replace' 替换无效字符
+                        content = path.read_text(encoding="utf-8", errors="replace")
+                        logger.debug(
+                            "文件包含非UTF-8字符，已替换: path=%s", path
+                        )
+                        
                 except Exception as exc:
+                    skipped_errors += 1
                     logger.warning(
                         "读取文件失败，已跳过: path=%s, error=%s", path, exc
                     )
@@ -322,13 +423,23 @@ class GitHubFetcher:
                         metadata={
                             "path": str(rel_path),
                             "repo_url": repo_url,
+                            "file_size": file_size,
                         },
                     )
                 )
 
                 count += 1
-                if max_files is not None and count >= max_files:
-                    break
+                
+                # 定期记录进度（控制台输出）
+                if idx % progress_interval == 0 or idx == len(file_paths):
+                    progress_pct = (idx / len(file_paths)) * 100
+                    print(f"   📁 文件处理进度: {idx}/{len(file_paths)} ({progress_pct:.1f}%)", end="\r")
+                    logger.info(
+                        "文件处理进度: %d/%d (%.1f%%)",
+                        idx,
+                        len(file_paths),
+                        progress_pct,
+                    )
 
             logger.info(
                 "仓库 Document 组装完成，共生成文档数：%d", len(docs)

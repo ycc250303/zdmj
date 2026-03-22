@@ -51,19 +51,19 @@ public class KnowledgeBasesController {
     /**
      * 分页查询知识库列表
      * 
-     * @param page        页码，默认为1
-     * @param limit       每页数量，默认为10
-     * @param projectName 项目名称（可选）
-     * @param type        知识类型（可选）
+     * @param page      页码，默认为1
+     * @param limit     每页数量，默认为10
+     * @param projectId 项目ID（可选）
+     * @param type      知识类型（可选）
      * @return 分页结果
      */
     @GetMapping()
     public Result<PageResult<KnowledgeBases>> getKnowledgeBases(
             @RequestParam(required = false, defaultValue = "1") Integer page,
             @RequestParam(required = false, defaultValue = "10") Integer limit,
-            @RequestParam(required = false) String projectName,
+            @RequestParam(required = false) Long projectId,
             @RequestParam(required = false) Integer type) {
-        return Result.success("查询知识库成功", knowledgeBasesService.getPage(page, limit, projectName, type));
+        return Result.success("查询知识库成功", knowledgeBasesService.getPage(page, limit, projectId, type));
     }
 
     /**

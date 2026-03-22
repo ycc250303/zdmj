@@ -60,6 +60,15 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
+    name: 'knowledge',
+    path: '/knowledge',
+    component: 'layout.base$view.knowledge',
+    meta: {
+      title: 'knowledge',
+      i18nKey: 'route.knowledge'
+    }
+  },
+  {
     name: 'login',
     path: '/login/:module(pwd-login|code-login|register|reset-pwd|bind-wechat)?',
     component: 'layout.blank$view.login',
