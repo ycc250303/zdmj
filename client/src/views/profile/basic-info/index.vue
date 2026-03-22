@@ -42,6 +42,7 @@ async function handleSubmit() {
     
     const payload = { ...formData };
     if (!payload.homepageUrl) delete payload.homepageUrl;
+    //if (!payload.homepageUrl) (payload as any).homepageUrl = null;
 
     const { error, data } = await fetchUpdateUserInfo(payload);
     

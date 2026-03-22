@@ -14,7 +14,27 @@ async function loadData() {
   loading.value = true;
   try {
     const res = await fetchGetProjectList();
-    projectList.value = res.data || []; 
+    const rawList = res.data || []; 
+    
+    projectList.value = rawList.map((item: any) => {
+      let parsedTech = item.techStack;
+      
+      if (typeof parsedTech === 'string') {
+        try {
+          parsedTech = JSON.parse(parsedTech);
+        } catch (e) {
+          parsedTech = parsedTech
+            .replace(/^\[|\]$/g, '') 
+            .split(',') 
+            .map((s: string) => s.trim().replace(/^"|"$/g, ''))
+            .filter(Boolean); 
+        }
+      }
+      return { 
+        ...item, 
+        techStack: Array.isArray(parsedTech) ? parsedTech : [] 
+      };
+    });
   } finally {
     loading.value = false;
   }

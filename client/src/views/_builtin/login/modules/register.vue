@@ -51,7 +51,7 @@ async function handleSubmit() {
   const { error } = await fetchRegister(model.username, model.password, model.email, model.code);
   
   if (!error) {
-    window.$message?.success('page.login.register.success');
+    window.$message?.success($t('page.login.register.success'));
     sessionStorage.setItem('new_username', model.username);
     sessionStorage.setItem('new_password', model.password);
     toggleLoginModule('pwd-login');

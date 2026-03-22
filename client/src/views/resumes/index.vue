@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
+
 import { $t } from '@/locales'; 
 import { 
   fetchGetResumeList, 
@@ -144,11 +145,11 @@ function handleDelete() {
 </script>
 
 <template>
-  <div class="h-full p-6 bg-slate-50/50" v-loading="loading">
+  <NSpin :show="loading">
+    <div class="h-full p-6 bg-slate-50/50 min-h-[500px]">
     <div class="mb-6">
-      <h1 class="text-2xl font-bold text-slate-800">{{ $t('page.resume.myResumes') }}</h1>
-      <p class="text-slate-500 mt-1 text-sm">{{ $t('page.resume.subtitle') }}</p>
-    </div>
+        <h1 class="text-2xl font-bold text-slate-800">{{ $t('page.resume.myResumes') }}</h1>
+        </div>
 
     <div v-if="hasResume" class="max-w-3xl">
       <NCard hoverable class="rounded-2xl border-slate-200" content-style="padding: 0;">
@@ -228,4 +229,5 @@ function handleDelete() {
       </template>
     </NModal>
   </div>
+  </NSpin>
 </template>

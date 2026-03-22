@@ -2,16 +2,19 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { 
-  fetchGetResumeFullContentDetail, 
-  fetchUpdateProject, 
-  fetchUpdateCareer, 
-  fetchUpdateEducation, 
-  fetchUpdateSkill, 
+  fetchGetResumeDetail,        // 只拉取简历的外壳（名称、绑定的技能ID）
   fetchUpdateResume,
-  fetchUpdateUserInfo, // 新增：引入更新用户信息的接口
+  fetchGetEducationList,       // 拉取全局教育经历池
+  fetchUpdateEducation, 
+  fetchGetProjectList,         // 拉取全局项目经历池
+  fetchUpdateProject, 
+  fetchGetCareerList,          // 拉取全局实习经历池
+  fetchUpdateCareer, 
+  fetchGetSkillList,           // 拉取技能池
+  fetchUpdateUserInfo, 
   ResumeApi 
 } from '@/service/api/resume';
-import { useAuthStore } from '@/store/modules/auth'; // 新增：引入全局用户信息 Store
+import { useAuthStore } from '@/store/modules/auth';
 import { $t } from '@/locales';
 
 export const useResumeStore = defineStore('resume-editor', () => {
@@ -19,20 +22,40 @@ export const useResumeStore = defineStore('resume-editor', () => {
   const isLoading = ref(false);
   const isSaving = ref(false);
 
-  // 基础信息 (增加了 homepageUrl)
   const personalInfo = ref({
     fullName: '',
     phone: '',
     email: '',
-    major: '', // 注意：后端目前没有 major 字段，这部分暂存前端，如果要保存需后端在 User 实体加字段
+    major: '',
     homepageUrl: '' 
   });
 
   async function initResumeData(resumeId: number) {
     isLoading.value = true;
     try {
-      const { data } = await fetchGetResumeFullContentDetail(resumeId);
-      if (data) resumeData.value = JSON.parse(JSON.stringify(data));
+      const resumeRes = await fetchGetResumeDetail(resumeId);
+      if (!resumeRes.data) throw new Error('简历不存在');
+      const baseResume = resumeRes.data;
+
+      const [eduRes, projRes, careerRes, skillRes] = await Promise.all([
+        fetchGetEducationList(),
+        fetchGetProjectList(),
+        fetchGetCareerList(),
+        fetchGetSkillList()
+      ]);
+
+      const currentSkill = skillRes.data?.find((s:any) => s.id === baseResume.skillId) 
+        || skillRes.data?.[0] 
+        || { id: baseResume.skillId, name: '默认技能', content: [] };
+
+      resumeData.value = {
+        id: baseResume.id,
+        name: baseResume.name,
+        skill: currentSkill as ResumeApi.SkillDTO,
+        educations: eduRes.data || [],
+        projects: projRes.data || [],
+        careers: careerRes.data || []
+      };
 
       const authStore = useAuthStore();
       if (authStore.userInfo) {
@@ -43,7 +66,8 @@ export const useResumeStore = defineStore('resume-editor', () => {
         personalInfo.value.homepageUrl = user.website || user.homepageUrl || '';
       }
     } catch (error) {
-      console.error('获取简历失败', error);
+      console.error('获取全局信息失败', error);
+      window.$message?.error('拉取全局经历失败，请刷新重试');
     } finally {
       isLoading.value = false;
     }
@@ -55,7 +79,6 @@ export const useResumeStore = defineStore('resume-editor', () => {
     try {
       const updatePromises = [];
 
-      // 简历外壳
       updatePromises.push(fetchUpdateResume({ 
         id: resumeData.value.id, 
         name: resumeData.value.name, 
@@ -67,16 +90,15 @@ export const useResumeStore = defineStore('resume-editor', () => {
         phone: personalInfo.value.phone,
         homepageUrl: personalInfo.value.homepageUrl
       };
-  
-      const userInfoPromise = fetchUpdateUserInfo(userPayload).then(res => {
-        if (res.data) {
-          const authStore = useAuthStore();
-          Object.assign(authStore.userInfo as any, res.data);
-        }
-      });
-      updatePromises.push(userInfoPromise);
+      updatePromises.push(
+        fetchUpdateUserInfo(userPayload).then(res => {
+          if (res.data) {
+            const authStore = useAuthStore();
+            Object.assign(authStore.userInfo as any, res.data);
+          }
+        })
+      );
 
-      // 更新所有内容模块
       if (resumeData.value.projects?.length) {
         updatePromises.push(...resumeData.value.projects.map(p => fetchUpdateProject(p)));
       }

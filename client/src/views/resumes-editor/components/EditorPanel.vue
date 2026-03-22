@@ -43,6 +43,7 @@ async function handleSaveResume() {
         </NCollapseItem>
 
         <NCollapseItem :title="$t('page.resume.education')" name="educations">
+          <template v-if="resumeStore.resumeData.educations && resumeStore.resumeData.educations.length > 0">
           <div v-for="(edu, index) in resumeStore.resumeData.educations" :key="edu.id" class="mb-6 pb-6 border-b border-slate-100 last:border-0">
             <div class="flex justify-between items-center mb-4">
               <span class="font-bold text-slate-700">{{ edu.school || `${$t('page.resume.education')} ${index + 1}` }}</span>
@@ -56,9 +57,17 @@ async function handleSaveResume() {
               <NFormItem :label="$t('page.resume.gpa')"><NInput v-model:value="edu.gpa" /></NFormItem>
             </NGrid>
           </div>
+          </template>
+
+          <div v-else class="py-6 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
+            <div class="i-mdi-text-box-remove-outline text-3xl mb-2 text-slate-300"></div>
+            <p class="text-sm">暂无教育经历数据</p>
+            <p class="text-xs mt-1">请前往左侧菜单的“个人信息管理”中添加</p>
+          </div>
         </NCollapseItem>
 
         <NCollapseItem :title="$t('page.resume.projects')" name="projects">
+          <template v-if="resumeStore.resumeData.projects && resumeStore.resumeData.projects.length > 0">
           <div v-for="(proj, index) in resumeStore.resumeData.projects" :key="proj.id" class="mb-6 pb-6 border-b border-slate-100 last:border-0">
             <div class="flex justify-between items-center mb-4">
               <span class="font-bold text-slate-700">{{ proj.name || `${$t('page.resume.projects')} ${index + 1}` }}</span>
@@ -73,9 +82,17 @@ async function handleSaveResume() {
               <RichTextEditor v-model="proj.description" />
             </NFormItem>
           </div>
+          </template>
+
+          <div v-else class="py-6 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
+            <div class="i-mdi-text-box-remove-outline text-3xl mb-2 text-slate-300"></div>
+            <p class="text-sm">暂无项目经历数据</p>
+            <p class="text-xs mt-1">请前往左侧菜单的“个人信息管理”中添加</p>
+          </div>
         </NCollapseItem>
 
         <NCollapseItem :title="$t('page.resume.experience')" name="careers">
+          <template v-if="resumeStore.resumeData.careers && resumeStore.resumeData.careers.length > 0">
           <div v-for="(career, index) in resumeStore.resumeData.careers" :key="career.id" class="mb-6 pb-6 border-b border-slate-100 last:border-0">
             <div class="flex justify-between items-center mb-4">
               <span class="font-bold text-slate-700">{{ career.company || `${$t('page.resume.experience')} ${index + 1}` }}</span>
@@ -86,6 +103,14 @@ async function handleSaveResume() {
               <RichTextEditor v-model="career.details" />
             </NFormItem>
           </div>
+          </template>
+
+          <div v-else class="py-6 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
+            <div class="i-mdi-text-box-remove-outline text-3xl mb-2 text-slate-300"></div>
+            <p class="text-sm">暂无实习经历数据</p>
+            <p class="text-xs mt-1">请前往左侧菜单的“个人信息管理”中添加</p>
+          </div>
+
         </NCollapseItem>
 
         <NCollapseItem :title="$t('page.resume.skills')" name="skills">

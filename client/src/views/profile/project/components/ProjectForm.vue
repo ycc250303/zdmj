@@ -27,20 +27,39 @@ const formData = reactive<ResumeApi.ProjectCreate>({
   visible: true
 });
 
-watch(() => props.initialData, (newVal) => {
+watch(() => props.initialData, (newVal: any) => {
   if (newVal) {
     Object.assign(formData, newVal);
-    // 确保 techStack 是数组
-    if (!formData.techStack) formData.techStack = [];
+    
+    let parsedTech = newVal.techStack;
+    if (typeof parsedTech === 'string') {
+      try {
+        parsedTech = JSON.parse(parsedTech);
+      } catch (e) {
+        parsedTech = parsedTech.replace(/^\[|\]$/g, '').split(',').map((s:string) => s.trim().replace(/^"|"$/g, '')).filter(Boolean);
+      }
+    }
+    formData.techStack = Array.isArray(parsedTech) ? parsedTech : [];
+    if (newVal.highlights) {
+      try {
+        const parsedHl = JSON.parse(newVal.highlights);
+        if (Array.isArray(parsedHl)) {
+          formData.highlights = parsedHl.join('\n');
+        }
+      } catch (e) {
+        formData.highlights = newVal.highlights;
+      }
+    }
   }
 }, { immediate: true });
 
-// 使用 computed 保证国际化语言切换时校验信息也能切换
 const rules = computed<FormRules>(() => ({
   name: [{ required: true, message: $t('page.profile.project.name'), trigger: 'blur' }],
   role: [{ required: true, message: $t('page.profile.project.role'), trigger: 'blur' }],
   startDate: [
     { required: true, message: $t('page.profile.project.startDate'), trigger: 'blur' },
+    { pattern: /^\d{4}-\d{2}-\d{2}$/, message: $t('page.profile.common.dateFormat'), trigger: 'blur' }
+  ],endDate: [
     { pattern: /^\d{4}-\d{2}-\d{2}$/, message: $t('page.profile.common.dateFormat'), trigger: 'blur' }
   ],
   description: [{ required: true, message: $t('page.profile.project.description'), trigger: 'blur' }],
@@ -53,9 +72,14 @@ async function handleSubmit() {
     loading.value = true;
     
     const payload = { ...formData };
+    payload.techStack = [...(formData.techStack || [])];
     if (!payload.endDate) delete payload.endDate;
-    if (!payload.highlights) delete payload.highlights;
     if (!payload.url) delete payload.url;
+    if (payload.highlights) {
+      payload.highlights = JSON.stringify([payload.highlights]);
+    } else {
+      delete payload.highlights;
+    }
 
     if (props.initialData?.id) {
       const { error } = await fetchUpdateProject({ ...payload, id: props.initialData.id });

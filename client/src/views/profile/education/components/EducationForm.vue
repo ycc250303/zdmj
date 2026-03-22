@@ -45,6 +45,9 @@ const rules = computed<FormRules>(() => ({
   startDate: [
     { required: true, message: $t('page.profile.education.startDate'), trigger: 'blur' },
     { pattern: /^\d{4}-\d{2}-\d{2}$/, message: $t('page.profile.common.dateFormat'), trigger: 'blur' }
+  ],
+  endDate: [
+    { pattern: /^\d{4}-\d{2}-\d{2}$/, message: $t('page.profile.common.dateFormat'), trigger: 'blur' }
   ]
 }));
 
