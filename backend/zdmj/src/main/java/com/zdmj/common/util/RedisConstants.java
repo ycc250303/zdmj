@@ -33,4 +33,11 @@ public class RedisConstants {
     public static final String JWT_TOKEN_KEY = "jwt:token:";
     // JWT Token过期时间（秒）- 7天
     public static final int JWT_TOKEN_TTL = 7 * 24 * 60 * 60;
+
+    // 岗位详情缓存前缀
+    public static final String JOB_DETAIL_KEY = "job:detail:";
+    // 岗位详情缓存过期时间（秒）- 10 分钟
+    public static final int JOB_DETAIL_TTL = 10 * 60;
+    // 岗位不存在时的空值标记 TTL（秒）
+    public static final int JOB_DETAIL_NULL_TTL = 60;
 }

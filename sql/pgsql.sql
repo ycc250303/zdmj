@@ -492,6 +492,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     -- 岗位名称
     company_id BIGINT NOT NULL,
     -- 公司ID（逻辑外键：companies.id）
+    company_name VARCHAR(255) NOT NULL,
+    -- 公司名称（冗余字段，用于查询）
     description TEXT NOT NULL,
     -- 岗位描述
     embedding VECTOR(1024),
@@ -521,6 +523,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 );
 CREATE INDEX IF NOT EXISTS idx_jobs_location ON jobs(location);
 CREATE INDEX IF NOT EXISTS idx_jobs_company_id ON jobs(company_id);
+CREATE INDEX IF NOT EXISTS idx_jobs_company_name ON jobs(company_name);
 -- 4.2 公司表
 CREATE TABLE IF NOT EXISTS companies (
     id BIGSERIAL PRIMARY KEY,
@@ -531,13 +534,13 @@ CREATE TABLE IF NOT EXISTS companies (
     -- 公司行业
     -- industries 示例
     -- ["计算机软件", "IT服务", "专业技术服务"]
-    size SMALLINT NOT NULL,
+    size SMALLINT,
     -- 公司人员规模
     -- 1=20人以下/2=20-99人/3=100-299人/4=300-499人/5=500-999人/6=1000-9999人/7=10000人以上
     type SMALLINT,
     -- 公司类型（融资阶段）
     -- 1=A轮/2=B轮/3=C轮/4=D轮及以上/5=不需要融资/6=天使轮/7=已上市/8=未融资
-    introduction VARCHAR(1000),
+    introduction TEXT,
     -- 公司详情
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     -- 创建时间
@@ -546,7 +549,7 @@ CREATE TABLE IF NOT EXISTS companies (
 CREATE INDEX IF NOT EXISTS idx_companies_name ON companies(name);
 CREATE INDEX IF NOT EXISTS idx_companies_size ON companies(size);
 CREATE INDEX IF NOT EXISTS idx_companies_type ON companies(type);
-CREATE INDEX IF NOT EXISTS idx_companies_industry ON companies(industry);
+CREATE INDEX IF NOT EXISTS idx_companies_industries ON companies(industries);
 --
 -- ==========================5 知识库模块==========================
 --

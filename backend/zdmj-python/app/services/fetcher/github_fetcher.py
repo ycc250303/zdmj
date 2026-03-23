@@ -18,7 +18,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Sequence
 
-from git import Repo  # type: ignore
 from langchain_core.documents import Document
 import requests
 
