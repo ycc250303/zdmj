@@ -7,6 +7,7 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.resumeService.dto.ProjectExperienceDTO;
 import com.zdmj.resumeService.entity.ProjectExperience;
+import com.zdmj.resumeService.enums.ProjectStatusEnum;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
 import com.zdmj.resumeService.mapper.ProjectExperiencePatchMapper;
 import com.zdmj.resumeService.service.ProjectExperienceService;
@@ -45,8 +46,8 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
         projectExperience.setHighlights(projectExperienceDTO.getHighlights());
         projectExperience.setUrl(projectExperienceDTO.getUrl());
         projectExperience.setVisible(projectExperienceDTO.getVisible());
-        // 设置默认状态：1=committed已提交
-        projectExperience.setStatus(1);
+        // 设置默认状态：committed 已提交
+        projectExperience.setStatus(ProjectStatusEnum.COMMITTED.getCode());
         projectExperience.setLookupResult(null);
         LocalDateTime now = DateTimeUtil.now();
         projectExperience.setCreatedAt(now);

@@ -8,6 +8,7 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.knowledgeService.dto.KnowledgeBasesDTO;
 import com.zdmj.knowledgeService.entity.KnowledgeBases;
+import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeBasesMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 import com.zdmj.resumeService.entity.ProjectExperience;
@@ -211,18 +212,6 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
     }
 
     /**
-     * 知识类型常量
-     */
-    private static class TypeConstant {
-        /** 项目文档类型（包含txt、pdf、md、普通URL等） */
-        public static final int PROJECT_DOCUMENT = 1;
-        /** GitHub链接类型（GitHub仓库或文件） */
-        public static final int GITHUB_REPO = 2;
-        /** 项目DeepWiki文档类型（暂不实现，留作扩展） */
-        public static final int PROJECT_DEEPWIKI = 3;
-    }
-
-    /**
      * 验证内容
      * 
      * 验证规则：
@@ -246,7 +235,7 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         }
 
         // 根据知识类型进行验证
-        if (type == TypeConstant.PROJECT_DOCUMENT) {
+        if (type == KnowledgeTypeEnum.PROJECT_DOCUMENT.getCode()) {
             // type=1：项目文档，必须是COS链接的PDF或MD文件
             String lowerContent = content.toLowerCase();
             boolean isPdf = lowerContent.contains(".pdf") || lowerContent.contains("/pdf/");
@@ -263,14 +252,14 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
                 throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS);
             }
 
-        } else if (type == TypeConstant.GITHUB_REPO) {
+        } else if (type == KnowledgeTypeEnum.GITHUB_REPO.getCode()) {
             // type=2：GitHub链接，必须是GitHub链接
             if (!content.contains("github.com")) {
                 throw new BusinessException(ErrorCode.URL_FORMAT_ERROR.getCode(),
                         "GitHub链接类型（type=2）必须是GitHub链接，当前内容不是GitHub链接");
             }
 
-        } else if (type == TypeConstant.PROJECT_DEEPWIKI) {
+        } else if (type == KnowledgeTypeEnum.PROJECT_DEEPWIKI.getCode()) {
             // type=3：DeepWiki文档，暂不支持
             throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS.getCode(),
                     "项目DeepWiki文档类型（type=3）暂不支持");

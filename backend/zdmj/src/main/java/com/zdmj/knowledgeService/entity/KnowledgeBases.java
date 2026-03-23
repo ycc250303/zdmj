@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.zdmj.common.model.BaseEntity;
 import com.zdmj.common.typehandler.JsonbListTypeHandler;
+import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -75,4 +76,18 @@ public class KnowledgeBases extends BaseEntity {
      * 最近一次任务状态（PENDING/RUNNING/SUCCESS/FAILED/CANCELLED）
      */
     private String vectorTaskStatus;
+
+    /**
+     * 获取知识类型枚举（字段仍使用整数存储）
+     */
+    public KnowledgeTypeEnum getTypeEnum() {
+        return KnowledgeTypeEnum.fromCode(this.type);
+    }
+
+    /**
+     * 设置知识类型枚举（字段仍使用整数存储）
+     */
+    public void setTypeEnum(KnowledgeTypeEnum typeEnum) {
+        this.type = typeEnum != null ? typeEnum.getCode() : null;
+    }
 }
