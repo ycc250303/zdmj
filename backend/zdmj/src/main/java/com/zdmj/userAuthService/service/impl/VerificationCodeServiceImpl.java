@@ -1,6 +1,6 @@
 package com.zdmj.userAuthService.service.impl;
 
-import com.zdmj.common.util.RedisConstants;
+import com.zdmj.common.cache.RedisConstants;
 import com.zdmj.userAuthService.service.EmailService;
 import com.zdmj.userAuthService.service.VerificationCodeService;
 import lombok.extern.slf4j.Slf4j;

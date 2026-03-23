@@ -5,7 +5,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.util.DateTimeUtil;
-import com.zdmj.common.util.DtoConverter;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.resumeService.dto.*;
@@ -17,6 +16,7 @@ import com.zdmj.resumeService.mapper.ResumeMapper;
 import com.zdmj.resumeService.mapper.SkillMapper;
 import com.zdmj.resumeService.service.ResumeService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -168,13 +168,13 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
         resumeContentDTO.setSkill(skill != null ? convertSkillToDTO(skill) : null);
         resumeContentDTO.setEducations(educations.stream()
-                .map(education -> DtoConverter.toDTO(education, EducationDTO.class))
+                .map(education -> convertSimpleEntityToDTO(education, EducationDTO.class))
                 .collect(Collectors.toList()));
         resumeContentDTO.setCareers(careers.stream()
-                .map(career -> DtoConverter.toDTO(career, CareerDTO.class))
+                .map(career -> convertSimpleEntityToDTO(career, CareerDTO.class))
                 .collect(Collectors.toList()));
         resumeContentDTO.setProjects(projects.stream()
-                .map(project -> DtoConverter.toDTO(project, ProjectExperienceDTO.class))
+                .map(project -> convertSimpleEntityToDTO(project, ProjectExperienceDTO.class))
                 .collect(Collectors.toList()));
 
         return resumeContentDTO;
@@ -262,6 +262,22 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
             dto.setContent(java.util.Collections.emptyList());
         }
         return dto;
+    }
+
+    /**
+     * 轻量通用转换：用于字段名一致且无需复杂转换的实体->DTO映射
+     */
+    private <S, T> T convertSimpleEntityToDTO(S source, Class<T> targetClass) {
+        if (source == null) {
+            return null;
+        }
+        try {
+            T target = targetClass.getDeclaredConstructor().newInstance();
+            BeanUtils.copyProperties(source, target);
+            return target;
+        } catch (Exception e) {
+            throw new RuntimeException("对象转换失败: " + targetClass.getSimpleName(), e);
+        }
     }
 
 }

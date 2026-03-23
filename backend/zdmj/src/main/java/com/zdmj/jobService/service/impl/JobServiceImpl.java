@@ -1,16 +1,17 @@
 package com.zdmj.jobService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.zdmj.common.cache.RedisCacheUtil;
+import com.zdmj.common.cache.RedisConstants;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.model.PageResult;
-import com.zdmj.common.util.RedisCacheUtil;
-import com.zdmj.common.util.RedisConstants;
 import com.zdmj.jobService.dto.JobDetailDTO;
 import com.zdmj.jobService.dto.JobListItemDTO;
 import com.zdmj.jobService.dto.JobDTO;
 import com.zdmj.jobService.entity.Company;
 import com.zdmj.jobService.entity.Job;
+import com.zdmj.jobService.enums.CompanySizeEnum;
 import com.zdmj.jobService.mapper.CompanyMapper;
 import com.zdmj.jobService.mapper.JobMapper;
 import com.zdmj.jobService.service.JobService;
@@ -134,7 +135,7 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
         }
         Company created = new Company();
         created.setName(dto.getCompanyName());
-        created.setSize(dto.getCompanySize() == null ? 1 : dto.getCompanySize());
+        created.setSize(dto.getCompanySize() == null ? CompanySizeEnum.BELOW_20.getCode() : dto.getCompanySize());
         created.setType(dto.getCompanyFundingType());
         created.setIndustries(dto.getCompanyIndustries() == null ? new ArrayList<>() : dto.getCompanyIndustries());
         created.setIntroduction(dto.getCompanyIntroduction());

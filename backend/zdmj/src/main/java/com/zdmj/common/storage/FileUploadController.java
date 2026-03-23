@@ -1,8 +1,6 @@
-package com.zdmj.common.controller;
+package com.zdmj.common.storage;
 
 import com.zdmj.common.Result;
-import com.zdmj.common.model.FileUploadResult;
-import com.zdmj.common.util.FileUploadUtil;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;

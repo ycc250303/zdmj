@@ -90,19 +90,19 @@ public class ProjectExperience extends BaseEntity {
      * AI分析结果（JSONB格式，包含问题、解决方案、评分）
      * 示例：
      * {
-     *   "problem": [
-     *     {
-     *       "type": "问题类型",
-     *       "content": "问题描述"
-     *     }
-     *   ],
-     *   "solution": [
-     *     {
-     *       "type": "解决方案类型",
-     *       "content": "解决方案描述"
-     *     }
-     *   ],
-     *   "score": 85
+     * "problem": [
+     * {
+     * "type": "问题类型",
+     * "content": "问题描述"
+     * }
+     * ],
+     * "solution": [
+     * {
+     * "type": "解决方案类型",
+     * "content": "解决方案描述"
+     * }
+     * ],
+     * "score": 85
      * }
      */
     private String lookupResult;

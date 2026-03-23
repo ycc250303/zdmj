@@ -1,9 +1,9 @@
-package com.zdmj.common.util;
+package com.zdmj.common.storage;
 
-import com.zdmj.common.model.FileUploadResult;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.common.util.CosUtil;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

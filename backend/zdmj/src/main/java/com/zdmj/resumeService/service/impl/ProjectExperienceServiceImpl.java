@@ -2,13 +2,13 @@ package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.util.BeanUtil;
 import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.resumeService.dto.ProjectExperienceDTO;
 import com.zdmj.resumeService.entity.ProjectExperience;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
+import com.zdmj.resumeService.mapper.ProjectExperiencePatchMapper;
 import com.zdmj.resumeService.service.ProjectExperienceService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,6 +23,12 @@ import java.util.List;
 @Service
 public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceMapper, ProjectExperience> 
         implements ProjectExperienceService {
+
+    private final ProjectExperiencePatchMapper projectExperiencePatchMapper;
+
+    public ProjectExperienceServiceImpl(ProjectExperiencePatchMapper projectExperiencePatchMapper) {
+        this.projectExperiencePatchMapper = projectExperiencePatchMapper;
+    }
 
     @Override
     public ProjectExperience create(ProjectExperienceDTO projectExperienceDTO) {
@@ -73,9 +79,7 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
         }
         ProjectExperience projectExperience = requireProjectExperienceAndCheckOwnership(id, userId, "修改");
 
-        Long savedId = projectExperience.getId();
-        BeanUtil.copyNonNullProperties(projectExperienceDTO, projectExperience);
-        projectExperience.setId(savedId);
+        projectExperiencePatchMapper.updateEntityFromDto(projectExperienceDTO, projectExperience);
 
         if (projectExperience.getStartDate() != null && projectExperience.getEndDate() != null) {
             if (projectExperience.getEndDate().isBefore(projectExperience.getStartDate())) {

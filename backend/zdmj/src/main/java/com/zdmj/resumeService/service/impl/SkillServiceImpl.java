@@ -151,7 +151,8 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
     private Skill requireSkillAndCheckOwnership(Long id, Long userId, String action) {
         Skill skill = requireSkill(id);
         if (!skill.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(), ErrorCode.NO_PERMISSION.getMessage() + action + "他人技能");
+            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(),
+                    ErrorCode.NO_PERMISSION.getMessage() + action + "他人技能");
         }
         return skill;
     }
@@ -173,7 +174,8 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            throw new BusinessException(ErrorCode.SKILL_CONTENT_FORMAT_ERROR.getCode(), ErrorCode.SKILL_CONTENT_FORMAT_ERROR.getMessage() + ": " + e.getMessage());
+            throw new BusinessException(ErrorCode.SKILL_CONTENT_FORMAT_ERROR.getCode(),
+                    ErrorCode.SKILL_CONTENT_FORMAT_ERROR.getMessage() + ": " + e.getMessage());
         }
     }
 
@@ -188,7 +190,8 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
             return objectMapper.readValue(json, new TypeReference<List<SkillItemDTO>>() {
             });
         } catch (Exception e) {
-            throw new BusinessException(ErrorCode.SKILL_CONTENT_PARSE_FAILED.getCode(), ErrorCode.SKILL_CONTENT_PARSE_FAILED.getMessage() + ": " + e.getMessage());
+            throw new BusinessException(ErrorCode.SKILL_CONTENT_PARSE_FAILED.getCode(),
+                    ErrorCode.SKILL_CONTENT_PARSE_FAILED.getMessage() + ": " + e.getMessage());
         }
     }
 }

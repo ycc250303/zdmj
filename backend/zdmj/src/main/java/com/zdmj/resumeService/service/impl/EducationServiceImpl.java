@@ -2,12 +2,12 @@ package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.util.BeanUtil;
 import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.resumeService.dto.EducationDTO;
 import com.zdmj.resumeService.entity.Education;
+import com.zdmj.resumeService.mapper.EducationPatchMapper;
 import com.zdmj.resumeService.mapper.EducationMapper;
 import com.zdmj.resumeService.service.EducationService;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +22,12 @@ import java.util.List;
 @Slf4j
 @Service
 public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education> implements EducationService {
+
+    private final EducationPatchMapper educationPatchMapper;
+
+    public EducationServiceImpl(EducationPatchMapper educationPatchMapper) {
+        this.educationPatchMapper = educationPatchMapper;
+    }
 
     /**
      * 添加教育经历
@@ -71,12 +77,7 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
         Education existingEducation = requireEducationAndCheckOwnership(id, userId, "修改");
 
         // 只更新提供的字段（非空字段才更新）
-        // 使用工具类简化代码，自动复制DTO中所有非null的属性到实体对象
-        // 先保存原有的ID，防止被覆盖
-        Long savedId = existingEducation.getId();
-        BeanUtil.copyNonNullProperties(educationDTO, existingEducation);
-        // 确保ID不被覆盖
-        existingEducation.setId(savedId);
+        educationPatchMapper.updateEntityFromDto(educationDTO, existingEducation);
 
         // 验证日期逻辑：如果两个日期都提供了，需要验证结束时间不早于开始时间
         if (existingEducation.getStartDate() != null && existingEducation.getEndDate() != null) {
@@ -166,7 +167,8 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
     private Education requireEducationAndCheckOwnership(Long id, Long userId, String action) {
         Education education = requireEducation(id);
         if (!education.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(), ErrorCode.NO_PERMISSION.getMessage() + action + "他人教育经历");
+            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(),
+                    ErrorCode.NO_PERMISSION.getMessage() + action + "他人教育经历");
         }
         return education;
     }

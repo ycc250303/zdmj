@@ -12,25 +12,12 @@ import com.zdmj.knowledgeService.mapper.KnowledgeBasesMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 import com.zdmj.resumeService.entity.ProjectExperience;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
-import com.zdmj.python.dto.PythonApiResponse;
-import com.zdmj.python.dto.knowledge.DeleteVectorsRequest;
-import com.zdmj.python.dto.knowledge.DeleteVectorsResult;
-import com.zdmj.python.dto.knowledge.KnowledgeEmbeddingRequest;
-import com.zdmj.python.dto.knowledge.KnowledgeEmbeddingTaskResult;
-import com.zdmj.python.dto.knowledge.TaskStatusResponse;
-import com.zdmj.python.service.PythonServiceClient;
-import com.zdmj.python.constant.PythonAPI;
-import com.zdmj.common.exception.PythonServiceException;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.extern.slf4j.Slf4j;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,14 +27,10 @@ import java.util.List;
 public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper, KnowledgeBases>
         implements KnowledgeBasesService {
 
-    private static final String DEBUG_LOG_PATH = "debug-4b2fab.log";
     private final ProjectExperienceMapper projectExperienceMapper;
-    private final PythonServiceClient pythonServiceClient;
 
-    public KnowledgeBasesServiceImpl(ProjectExperienceMapper projectExperienceMapper,
-            PythonServiceClient pythonServiceClient) {
+    public KnowledgeBasesServiceImpl(ProjectExperienceMapper projectExperienceMapper) {
         this.projectExperienceMapper = projectExperienceMapper;
-        this.pythonServiceClient = pythonServiceClient;
     }
 
     @Override
@@ -90,27 +73,7 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         if (!saved) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_SAVE_FAILED);
         }
-        // #region agent log
-        appendDebugLog("H1", "Knowledge create saved", String.format(
-                "{\"knowledgeId\":%s,\"userId\":%s,\"projectId\":%s,\"type\":%s}",
-                knowledgeBases.getId(), userId, knowledgeBases.getProjectId(), knowledgeBases.getType()));
-        // #endregion
-
-        // 6. 调用Python服务向量化（异步任务，仅负责触发，不影响事务）
-        KnowledgeEmbeddingTaskResult task = triggerEmbeddingTask(knowledgeBases.getId(), userId, "创建知识库触发向量化任务");
-        if (task != null) {
-            // 将任务ID和状态保存到知识库记录
-            knowledgeBases.setVectorTaskId(task.getTaskId());
-            knowledgeBases.setVectorTaskStatus(task.getStatus());
-            updateById(knowledgeBases);
-            log.info("创建知识库触发向量化任务成功: knowledgeId={}, taskId={}, status={}",
-                    knowledgeBases.getId(), task.getTaskId(), task.getStatus());
-        } else {
-            // 任务创建失败，仅记录日志，不回滚知识库创建事务
-            log.warn("创建知识库触发向量化任务失败: knowledgeId={}，知识库已创建，但向量化任务未启动，可稍后手动重试",
-                    knowledgeBases.getId());
-        }
-        log.info("创建知识库任务已创建，ID: {}，向量化耗时较长，请耐心等待...", knowledgeBases.getId());
+        log.info("创建知识库成功（已下线在线向量化流程），ID: {}", knowledgeBases.getId());
         return knowledgeBases;
     }
 
@@ -184,11 +147,9 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
             throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_NAME_NOT_ALLOW_CHANGE);
         }
 
-        // 6. 判断是否需要新向量化（基于原始值与 DTO 中的非空值比较）
+        // 6. 判断内容是否变化
         boolean contentChanged = knowledgeBasesDTO.getContent() != null
                 && !knowledgeBasesDTO.getContent().equals(knowledgeBases.getContent());
-        boolean typeChanged = knowledgeBasesDTO.getType() != null
-                && !knowledgeBasesDTO.getType().equals(knowledgeBases.getType());
 
         // 7. 更新知识库信息（只有非空字段才会覆盖原值）
         if (knowledgeBasesDTO.getName() != null) {
@@ -205,27 +166,18 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
             knowledgeBases.setContent(knowledgeBasesDTO.getContent());
         }
 
-        // 如果只是知识库名称和标签变化，不需要重新向量化；
-        // 如果知识库内容（content）或知识类型（type）有任一变化，则需要重新向量化
-        if (contentChanged || typeChanged) {
-            // 重置向量ID为空数组，等待重新向量化
+        // 在线向量化已下线：内容变化时仅清空历史向量元数据
+        if (contentChanged) {
             knowledgeBases.setVectorIds(new ArrayList<>());
-            // 调用Python服务重新向量化（异步任务）
-            KnowledgeEmbeddingTaskResult task = triggerEmbeddingTask(knowledgeBases.getId(), userId, "更新知识库触发重新向量化任务");
-            if (task != null) {
-                // 将任务ID和状态保存到知识库记录
-                knowledgeBases.setVectorTaskId(task.getTaskId());
-                knowledgeBases.setVectorTaskStatus(task.getStatus());
-            } else {
-                throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED);
-            }
+            knowledgeBases.setVectorTaskId(null);
+            knowledgeBases.setVectorTaskStatus(null);
         }
         boolean updated = updateById(knowledgeBases);
         if (!updated) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_UPDATE_FAILED);
         }
 
-        log.info("更新知识库任务已创建，ID: {}，向量化耗时较长，请耐心等待...", knowledgeBases.getId());
+        log.info("更新知识库成功（在线向量化已下线），ID: {}", knowledgeBases.getId());
         return knowledgeBases;
     }
 
@@ -238,121 +190,7 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         if (!removed) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_DELETE_FAILED);
         }
-        // 调用Python服务异步删除向量数据
-        triggerDeleteVectorsTask(id, userId);
         log.info("删除知识库任务已创建: {}", knowledgeBases.getName());
-    }
-
-    /**
-     * 触发知识库向量化/重新向量化任务（创建或更新场景共用）
-     *
-     * @param knowledgeId 知识库ID
-     * @param userId      用户ID
-     * @param actionDesc  日志中的动作描述（例如：创建/更新）
-     * @return 任务结果，如果创建失败或返回为空则返回 null
-     */
-    private KnowledgeEmbeddingTaskResult triggerEmbeddingTask(Long knowledgeId, Long userId, String actionDesc) {
-        try {
-            KnowledgeEmbeddingRequest request = new KnowledgeEmbeddingRequest();
-            request.setKnowledgeId(knowledgeId);
-            request.setUserId(userId);
-            // #region agent log
-            appendDebugLog("H1", "Enter triggerEmbeddingTask", String.format(
-                    "{\"knowledgeId\":%s,\"userId\":%s,\"action\":\"%s\"}",
-                    knowledgeId, userId, safe(actionDesc)));
-            // #endregion
-
-            log.debug("{}开始: knowledgeId={}, userId={}, 请求Python服务: POST /api/knowledge/embedding",
-                    actionDesc, knowledgeId, userId);
-
-            PythonApiResponse<KnowledgeEmbeddingTaskResult> response = pythonServiceClient
-                    .post(PythonAPI.Knowledge.EMBEDDING, request, KnowledgeEmbeddingTaskResult.class)
-                    .block();
-
-            // 详细记录响应信息用于诊断
-            if (response != null) {
-                log.debug("{}响应接收: knowledgeId={}, code={}, msg={}, data={}",
-                        actionDesc, knowledgeId, response.getCode(), response.getMsg(), response.getData());
-
-                if (response.getData() != null) {
-                    // PythonServiceClient 已经处理了类型转换，直接使用
-                    KnowledgeEmbeddingTaskResult task = response.getData();
-                    // #region agent log
-                    appendDebugLog("H3", "Embedding task created", String.format(
-                            "{\"knowledgeId\":%s,\"taskId\":\"%s\",\"status\":\"%s\"}",
-                            knowledgeId, safe(task.getTaskId()), safe(task.getStatus())));
-                    // #endregion
-                    log.info("{}成功: knowledgeId={}, taskId={}, status={}, message={}",
-                            actionDesc, knowledgeId, task.getTaskId(), task.getStatus(), task.getMessage());
-                    return task;
-                } else {
-                    // #region agent log
-                    appendDebugLog("H3", "Embedding response data null", String.format(
-                            "{\"knowledgeId\":%s,\"code\":%s,\"msg\":\"%s\"}",
-                            knowledgeId, response.getCode(), safe(response.getMsg())));
-                    // #endregion
-                    log.warn("{}返回为空: knowledgeId={}, response.code={}, response.msg={}, response.data=null",
-                            actionDesc, knowledgeId, response.getCode(), response.getMsg());
-                    return null;
-                }
-            } else {
-                // #region agent log
-                appendDebugLog("H3", "Embedding response null", String.format("{\"knowledgeId\":%s}", knowledgeId));
-                // #endregion
-                log.warn("{}响应为null: knowledgeId={}", actionDesc, knowledgeId);
-                return null;
-            }
-        } catch (PythonServiceException e) {
-            // 不回滚业务事务，只记录错误，后续可支持手动重试
-            // #region agent log
-            appendDebugLog("H2", "Embedding PythonServiceException", String.format(
-                    "{\"knowledgeId\":%s,\"errorCode\":\"%s\",\"httpStatus\":\"%s\",\"message\":\"%s\"}",
-                    knowledgeId, safe(String.valueOf(e.getCode())), safe(String.valueOf(e.getHttpStatus())), safe(e.getMessage())));
-            // #endregion
-            log.error("{}失败 (PythonServiceException): knowledgeId={}, errorCode={}, httpStatus={}, errorMsg={}",
-                    actionDesc, knowledgeId, e.getCode(), e.getHttpStatus(), e.getMessage(), e);
-            return null;
-        } catch (Exception e) {
-            // #region agent log
-            appendDebugLog("H4", "Embedding unknown exception", String.format(
-                    "{\"knowledgeId\":%s,\"exception\":\"%s\",\"message\":\"%s\"}",
-                    knowledgeId, safe(e.getClass().getSimpleName()), safe(e.getMessage())));
-            // #endregion
-            log.error("{}发生未知异常: knowledgeId={}, exceptionType={}, errorMsg={}",
-                    actionDesc, knowledgeId, e.getClass().getName(), e.getMessage(), e);
-            return null;
-        }
-    }
-
-    /**
-     * 触发整库向量删除任务（删除知识库时使用）
-     *
-     * @param knowledgeId 知识库ID
-     * @param userId      用户ID
-     */
-    private void triggerDeleteVectorsTask(Long knowledgeId, Long userId) {
-        try {
-            DeleteVectorsRequest request = new DeleteVectorsRequest();
-            request.setKnowledgeId(knowledgeId);
-            request.setUserId(userId);
-
-            PythonApiResponse<DeleteVectorsResult> response = pythonServiceClient
-                    .post(PythonAPI.Knowledge.DELETE_VECTORS, request, DeleteVectorsResult.class)
-                    .block();
-
-            if (response != null && response.getData() != null) {
-                DeleteVectorsResult task = response.getData();
-                log.info("删除知识库触发整库向量删除任务成功: knowledgeId={}, taskId={}, status={}",
-                        knowledgeId, task.getTaskId(), task.getStatus());
-            } else {
-                log.warn("删除知识库触发整库向量删除任务返回为空: knowledgeId={}", knowledgeId);
-            }
-        } catch (PythonServiceException e) {
-            // 不回滚业务删除，只记录错误，后续可通过任务查询或管理工具补偿
-            log.error("调用Python服务删除知识库向量失败: knowledgeId={}, error={}", knowledgeId, e.getMessage(), e);
-        } catch (Exception e) {
-            log.error("调用Python服务删除知识库向量发生未知异常: knowledgeId={}, error={}", knowledgeId, e.getMessage(), e);
-        }
     }
 
     private KnowledgeBases requireKnowledgeBases(Long id) {
@@ -462,98 +300,4 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         }
     }
 
-    @Override
-    public TaskStatusResponse refreshVectorTaskStatus(Long knowledgeId) {
-        Long userId = UserHolder.requireUserId();
-        // 1. 查询知识库并校验所有权
-        KnowledgeBases knowledgeBases = requireKnowledgeBasesAndCheckOwnership(knowledgeId, userId, "查询");
-
-        // 2. 检查是否有任务ID
-        if (knowledgeBases.getVectorTaskId() == null || knowledgeBases.getVectorTaskId().isEmpty()) {
-            log.warn("知识库 {} 未触发向量化任务", knowledgeId);
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND.getCode(), "未触发向量化任务");
-        }
-
-        String taskId = knowledgeBases.getVectorTaskId();
-        log.info("刷新向量化任务状态: knowledgeId={}, taskId={}", knowledgeId, taskId);
-
-        try {
-            // 3. 调用 Python 服务查询任务状态
-            PythonApiResponse<TaskStatusResponse> response = pythonServiceClient
-                    .get(PythonAPI.Knowledge.EMBEDDING_TASK_STATUS + taskId, TaskStatusResponse.class)
-                    .block();
-
-            if (response == null || response.getData() == null) {
-                log.warn("查询任务状态返回为空: knowledgeId={}, taskId={}", knowledgeId, taskId);
-                throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND.getCode(), "任务状态查询失败");
-            }
-
-            // PythonServiceClient 已经处理了类型转换，直接使用
-            TaskStatusResponse taskStatus = response.getData();
-
-            String status = taskStatus.getStatus();
-
-            // 4. 更新任务状态
-            knowledgeBases.setVectorTaskStatus(status);
-
-            // 5. 根据状态处理向量ID和错误信息
-            if ("SUCCESS".equals(status)) {
-                // 任务成功，更新向量ID
-                if (taskStatus.getVectorIds() != null && !taskStatus.getVectorIds().isEmpty()) {
-                    knowledgeBases.setVectorIds(taskStatus.getVectorIds());
-                    log.info("任务成功，更新向量ID: knowledgeId={}, taskId={}, vectorIds={}",
-                            knowledgeId, taskId, taskStatus.getVectorIds());
-                } else {
-                    log.warn("任务成功但未返回向量ID: knowledgeId={}, taskId={}", knowledgeId, taskId);
-                }
-            } else if ("FAILED".equals(status)) {
-                // 任务失败，记录错误信息
-                String errorMessage = taskStatus.getErrorMessage();
-                log.error("向量化任务失败: knowledgeId={}, taskId={}, errorMessage={}",
-                        knowledgeId, taskId, errorMessage);
-                // 不修改 vectorIds，保持为空或旧值
-            } else {
-                // PENDING/RUNNING/CANCELLED 状态，仅更新状态，不修改 vectorIds
-                log.debug("任务状态更新: knowledgeId={}, taskId={}, status={}", knowledgeId, taskId, status);
-            }
-
-            // 6. 写入数据库
-            updateById(knowledgeBases);
-
-            log.info("任务状态刷新完成: knowledgeId={}, taskId={}, status={}", knowledgeId, taskId, status);
-            return taskStatus;
-
-        } catch (PythonServiceException e) {
-            log.error("查询任务状态失败: knowledgeId={}, taskId={}, error={}",
-                    knowledgeId, taskId, e.getMessage(), e);
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND.getCode(),
-                    "查询任务状态失败: " + e.getMessage());
-        } catch (Exception e) {
-            log.error("查询任务状态发生未知异常: knowledgeId={}, taskId={}, error={}",
-                    knowledgeId, taskId, e.getMessage(), e);
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND.getCode(),
-                    "查询任务状态失败: " + e.getMessage());
-        }
-    }
-
-    // #region agent log
-    private void appendDebugLog(String hypothesisId, String message, String dataJson) {
-        try {
-            long ts = System.currentTimeMillis();
-            String line = String.format(
-                    "{\"sessionId\":\"4b2fab\",\"runId\":\"pre-fix\",\"hypothesisId\":\"%s\",\"location\":\"KnowledgeBasesServiceImpl\",\"message\":\"%s\",\"data\":%s,\"timestamp\":%d}%n",
-                    safe(hypothesisId), safe(message), dataJson == null ? "{}" : dataJson, ts);
-            Files.writeString(Path.of(DEBUG_LOG_PATH), line, StandardCharsets.UTF_8,
-                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-        } catch (Exception ignored) {
-        }
-    }
-
-    private String safe(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
-    }
-    // #endregion
 }

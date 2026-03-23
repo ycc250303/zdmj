@@ -7,9 +7,9 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.resumeService.dto.CareerDTO;
 import com.zdmj.resumeService.entity.Career;
+import com.zdmj.resumeService.mapper.CareerPatchMapper;
 import com.zdmj.resumeService.mapper.CareerMapper;
 import com.zdmj.resumeService.service.CareerService;
-import com.zdmj.common.util.BeanUtil;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -20,6 +20,12 @@ import java.util.List;
 @Slf4j
 @Service
 public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> implements CareerService {
+
+    private final CareerPatchMapper careerPatchMapper;
+
+    public CareerServiceImpl(CareerPatchMapper careerPatchMapper) {
+        this.careerPatchMapper = careerPatchMapper;
+    }
 
     @Override
     public Career create(CareerDTO careerDTO) {
@@ -63,9 +69,7 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
         }
         Career career = requireCareerAndCheckOwnership(id, userId, "修改");
 
-        Long savedId = career.getId();
-        BeanUtil.copyNonNullProperties(careerDTO, career);
-        career.setId(savedId);
+        careerPatchMapper.updateEntityFromDto(careerDTO, career);
 
         if (career.getStartDate() != null && career.getEndDate() != null) {
             if (career.getEndDate().isBefore(career.getStartDate())) {

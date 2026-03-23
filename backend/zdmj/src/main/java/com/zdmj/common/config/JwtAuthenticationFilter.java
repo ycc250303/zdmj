@@ -1,9 +1,9 @@
 package com.zdmj.common.config;
 
+import com.zdmj.common.cache.RedisCacheUtil;
+import com.zdmj.common.cache.RedisConstants;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.util.RedisCacheUtil;
-import com.zdmj.common.util.RedisConstants;
 import com.zdmj.userAuthService.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

@@ -1,4 +1,4 @@
-package com.zdmj.common.util;
+package com.zdmj.common.cache;
 
 public class RedisConstants {
     // 验证码前缀

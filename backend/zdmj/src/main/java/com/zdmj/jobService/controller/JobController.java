@@ -38,6 +38,7 @@ public class JobController {
 
     /**
      * 查询岗位详情
+     * 
      * @param id 岗位ID
      * @return 岗位详情
      */
@@ -48,11 +49,12 @@ public class JobController {
 
     /**
      * 查询岗位列表
-     * @param page 页码
-     * @param limit 每页条数
+     * 
+     * @param page         页码
+     * @param limit        每页条数
      * @param companySizes 公司规模
      * @param fundingTypes 融资类型
-     * @param industries 行业
+     * @param industries   行业
      * @return 岗位列表
      */
     @GetMapping
@@ -68,6 +70,7 @@ public class JobController {
 
     /**
      * 创建岗位
+     * 
      * @param dto 岗位DTO
      * @return 创建的岗位
      */
@@ -78,6 +81,7 @@ public class JobController {
 
     /**
      * 更新岗位
+     * 
      * @param dto 岗位DTO
      * @return 更新的岗位
      */
@@ -88,6 +92,7 @@ public class JobController {
 
     /**
      * 删除岗位
+     * 
      * @param id 岗位ID
      * @return 删除的岗位
      */
