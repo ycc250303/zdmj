@@ -26,8 +26,6 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-
 /**
  * 用户服务实现类
  */
@@ -72,10 +70,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         user.setUsername(registerDTO.getUsername());
         user.setPassword(PasswordUtil.encode(registerDTO.getPassword())); // 加密密码
         user.setEmail(registerDTO.getEmail());
-        // 使用统一的日期时间工具类，确保时区一致性
-        LocalDateTime now = DateTimeUtil.now();
-        user.setCreatedAt(now);
-        user.setUpdatedAt(now);
 
         // 5. 保存到数据库
         boolean saved = save(user);
@@ -209,11 +203,15 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
 
         // 仅更新允许修改的字段
-        user.setName(updateDTO.getName());
-        user.setPhone(updateDTO.getPhone());
-        user.setWebsite(updateDTO.getHomepageUrl());
-        user.setUpdatedAt(DateTimeUtil.now());
-
+        if (updateDTO.getName() != null) {
+            user.setName(updateDTO.getName());
+        }
+        if (updateDTO.getPhone() != null) {
+            user.setPhone(updateDTO.getPhone());
+        }
+        if (updateDTO.getWebsite() != null) {
+            user.setWebsite(updateDTO.getWebsite());
+        }
         boolean updated = updateById(user);
         if (!updated) {
             throw new BusinessException(ErrorCode.USER_REGISTER_FAILED);
@@ -225,13 +223,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     /**
      * 将User实体转换为UserDTO
-     * 
-     * @param user 用户实体
-     * @return 用户DTO
      */
     private UserDTO convertToDTO(User user) {
         UserDTO dto = new UserDTO();
         BeanUtils.copyProperties(user, dto);
         return dto;
     }
+
 }

@@ -10,6 +10,7 @@ import com.zdmj.knowledgeService.dto.KnowledgeBasesDTO;
 import com.zdmj.knowledgeService.entity.KnowledgeBases;
 import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeBasesMapper;
+import com.zdmj.knowledgeService.mapper.KnowledgeBasesStructMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 import com.zdmj.resumeService.entity.ProjectExperience;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
@@ -29,9 +30,12 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         implements KnowledgeBasesService {
 
     private final ProjectExperienceMapper projectExperienceMapper;
+    private final KnowledgeBasesStructMapper knowledgeBasesStructMapper;
 
-    public KnowledgeBasesServiceImpl(ProjectExperienceMapper projectExperienceMapper) {
+    public KnowledgeBasesServiceImpl(ProjectExperienceMapper projectExperienceMapper,
+            KnowledgeBasesStructMapper knowledgeBasesStructMapper) {
         this.projectExperienceMapper = projectExperienceMapper;
+        this.knowledgeBasesStructMapper = knowledgeBasesStructMapper;
     }
 
     @Override
@@ -58,14 +62,8 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         validateContent(knowledgeBasesDTO);
 
         // 4. 创建知识库实体
-        KnowledgeBases knowledgeBases = new KnowledgeBases();
+        KnowledgeBases knowledgeBases = knowledgeBasesStructMapper.fromDto(knowledgeBasesDTO);
         knowledgeBases.setUserId(userId);
-        knowledgeBases.setName(knowledgeBasesDTO.getName());
-        knowledgeBases.setProjectId(knowledgeBasesDTO.getProjectId());
-        // 直接设置List，TypeHandler会自动处理JSONB转换
-        knowledgeBases.setTag(knowledgeBasesDTO.getTag());
-        knowledgeBases.setType(knowledgeBasesDTO.getType());
-        knowledgeBases.setContent(knowledgeBasesDTO.getContent());
         // 初始化vectorIds为空数组
         knowledgeBases.setVectorIds(new ArrayList<>());
 
@@ -153,19 +151,7 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
                 && !knowledgeBasesDTO.getContent().equals(knowledgeBases.getContent());
 
         // 7. 更新知识库信息（只有非空字段才会覆盖原值）
-        if (knowledgeBasesDTO.getName() != null) {
-            knowledgeBases.setName(knowledgeBasesDTO.getName());
-        }
-        if (knowledgeBasesDTO.getTag() != null) {
-            // 直接设置List，TypeHandler会自动处理JSONB转换
-            knowledgeBases.setTag(knowledgeBasesDTO.getTag());
-        }
-        if (knowledgeBasesDTO.getType() != null) {
-            knowledgeBases.setType(knowledgeBasesDTO.getType());
-        }
-        if (knowledgeBasesDTO.getContent() != null) {
-            knowledgeBases.setContent(knowledgeBasesDTO.getContent());
-        }
+        knowledgeBasesStructMapper.updateEntityFromDto(knowledgeBasesDTO, knowledgeBases);
 
         // 在线向量化已下线：内容变化时仅清空历史向量元数据
         if (contentChanged) {

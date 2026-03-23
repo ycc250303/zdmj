@@ -2,28 +2,26 @@ package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.resumeService.dto.CareerDTO;
 import com.zdmj.resumeService.entity.Career;
-import com.zdmj.resumeService.mapper.CareerPatchMapper;
+import com.zdmj.resumeService.mapper.CareerStructMapper;
 import com.zdmj.resumeService.mapper.CareerMapper;
 import com.zdmj.resumeService.service.CareerService;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
 @Service
 public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> implements CareerService {
 
-    private final CareerPatchMapper careerPatchMapper;
+    private final CareerStructMapper careerPatchMapper;
 
-    public CareerServiceImpl(CareerPatchMapper careerPatchMapper) {
+    public CareerServiceImpl(CareerStructMapper careerPatchMapper) {
         this.careerPatchMapper = careerPatchMapper;
     }
 
@@ -38,9 +36,6 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
         career.setEndDate(careerDTO.getEndDate());
         career.setVisible(careerDTO.getVisible());
         career.setDetails(careerDTO.getDetails());
-        LocalDateTime now = DateTimeUtil.now();
-        career.setCreatedAt(now);
-        career.setUpdatedAt(now);
         boolean saved = save(career);
         if (!saved) {
             throw new BusinessException(ErrorCode.CAREER_ADD_FAILED);
@@ -76,9 +71,6 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
                 throw new BusinessException(ErrorCode.CAREER_LEAVE_TIME_INVALID);
             }
         }
-
-        LocalDateTime now = DateTimeUtil.now();
-        career.setUpdatedAt(now);
 
         boolean updated = updateById(career);
         if (!updated) {

@@ -2,18 +2,16 @@ package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.resumeService.dto.EducationDTO;
 import com.zdmj.resumeService.entity.Education;
-import com.zdmj.resumeService.mapper.EducationPatchMapper;
+import com.zdmj.resumeService.mapper.EducationStructMapper;
 import com.zdmj.resumeService.mapper.EducationMapper;
 import com.zdmj.resumeService.service.EducationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -23,9 +21,9 @@ import java.util.List;
 @Service
 public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education> implements EducationService {
 
-    private final EducationPatchMapper educationPatchMapper;
+    private final EducationStructMapper educationPatchMapper;
 
-    public EducationServiceImpl(EducationPatchMapper educationPatchMapper) {
+    public EducationServiceImpl(EducationStructMapper educationPatchMapper) {
         this.educationPatchMapper = educationPatchMapper;
     }
 
@@ -47,11 +45,6 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
         education.setEndDate(educationDTO.getEndDate());
         education.setVisible(educationDTO.getVisible());
         education.setGpa(educationDTO.getGpa());
-        // 使用统一的日期时间工具类，确保时区一致性
-        LocalDateTime now = DateTimeUtil.now();
-        education.setCreatedAt(now);
-        education.setUpdatedAt(now);
-
         boolean saved = save(education);
         if (!saved) {
             throw new BusinessException(ErrorCode.EDUCATION_ADD_FAILED);
@@ -85,9 +78,6 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
                 throw new BusinessException(ErrorCode.EDUCATION_GRADUATE_TIME_INVALID);
             }
         }
-
-        // 更新更新时间
-        existingEducation.setUpdatedAt(DateTimeUtil.now());
 
         // 使用 MyBatis-Plus 的 updateById 方法，根据ID更新（只更新非null字段）
         boolean updated = updateById(existingEducation);

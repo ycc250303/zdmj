@@ -11,15 +11,15 @@ import com.zdmj.jobService.dto.JobListItemDTO;
 import com.zdmj.jobService.dto.JobDTO;
 import com.zdmj.jobService.entity.Company;
 import com.zdmj.jobService.entity.Job;
-import com.zdmj.jobService.enums.CompanySizeEnum;
+import com.zdmj.jobService.mapper.CompanyStructMapper;
 import com.zdmj.jobService.mapper.CompanyMapper;
+import com.zdmj.jobService.mapper.JobStructMapper;
 import com.zdmj.jobService.mapper.JobMapper;
 import com.zdmj.jobService.service.JobService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -29,10 +29,15 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
 
     private final CompanyMapper companyMapper;
     private final RedisCacheUtil redisCacheUtil;
+    private final JobStructMapper jobStructMapper;
+    private final CompanyStructMapper companyStructMapper;
 
-    public JobServiceImpl(CompanyMapper companyMapper, RedisCacheUtil redisCacheUtil) {
+    public JobServiceImpl(CompanyMapper companyMapper, RedisCacheUtil redisCacheUtil,
+            JobStructMapper jobStructMapper, CompanyStructMapper companyStructMapper) {
         this.companyMapper = companyMapper;
         this.redisCacheUtil = redisCacheUtil;
+        this.jobStructMapper = jobStructMapper;
+        this.companyStructMapper = companyStructMapper;
     }
 
     @Override
@@ -113,15 +118,9 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
     }
 
     private void fillJobFromDto(Job job, JobDTO dto, Company company) {
-        job.setJobName(dto.getJobName());
+        jobStructMapper.patchFromDto(dto, job);
         job.setCompanyId(company.getId());
         job.setCompanyName(company.getName());
-        job.setDescription(dto.getDescription());
-        job.setLocation(dto.getLocation());
-        job.setSalary(dto.getSalary());
-        job.setLink(dto.getLink());
-        job.setContent(dto.getContent());
-        job.setRequirements(dto.getRequirements());
     }
 
     /**
@@ -133,12 +132,7 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
         if (company != null) {
             return company;
         }
-        Company created = new Company();
-        created.setName(dto.getCompanyName());
-        created.setSize(dto.getCompanySize() == null ? CompanySizeEnum.BELOW_20.getCode() : dto.getCompanySize());
-        created.setType(dto.getCompanyFundingType());
-        created.setIndustries(dto.getCompanyIndustries() == null ? new ArrayList<>() : dto.getCompanyIndustries());
-        created.setIntroduction(dto.getCompanyIntroduction());
+        Company created = companyStructMapper.fromJobDto(dto);
         companyMapper.insert(created);
         return created;
     }
