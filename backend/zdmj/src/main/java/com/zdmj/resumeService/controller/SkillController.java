@@ -3,7 +3,9 @@ package com.zdmj.resumeService.controller;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
+import org.springframework.beans.BeanUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -41,8 +43,8 @@ public class SkillController {
      * @return 技能
      */
     @PostMapping
-    public Result<Skill> addSkill(@Validated(CreateGroup.class) @RequestBody SkillDTO skillDTO) {
-        return Result.success("添加技能成功", skillService.create(skillDTO));
+    public Result<SkillDTO> addSkill(@Validated(CreateGroup.class) @RequestBody SkillDTO skillDTO) {
+        return Result.success("添加技能成功", toDto(skillService.create(skillDTO)));
     }
 
     /**
@@ -52,8 +54,8 @@ public class SkillController {
      * @return 技能
      */
     @PutMapping
-    public Result<Skill> updateSkill(@Validated(UpdateGroup.class) @RequestBody SkillDTO skillDTO) {
-        return Result.success("更新技能成功", skillService.update(skillDTO));
+    public Result<SkillDTO> updateSkill(@Validated(UpdateGroup.class) @RequestBody SkillDTO skillDTO) {
+        return Result.success("更新技能成功", toDto(skillService.update(skillDTO)));
     }
 
     /**
@@ -75,8 +77,8 @@ public class SkillController {
      * @return 技能
      */
     @GetMapping("/{id}")
-    public Result<Skill> getSkillById(@PathVariable Long id) {
-        return Result.success("查询技能成功", skillService.getById(id));
+    public Result<SkillDTO> getSkillById(@PathVariable Long id) {
+        return Result.success("查询技能成功", toDto(skillService.getById(id)));
     }
 
     /**
@@ -85,7 +87,14 @@ public class SkillController {
      * @return 技能列表
      */
     @GetMapping
-    public Result<List<Skill>> getSkills() {
-        return Result.success("查询技能成功", skillService.getByUserId());
+    public Result<List<SkillDTO>> getSkills() {
+        List<SkillDTO> list = skillService.getByUserId().stream().map(this::toDto).collect(Collectors.toList());
+        return Result.success("查询技能成功", list);
+    }
+
+    private SkillDTO toDto(Skill skill) {
+        SkillDTO dto = new SkillDTO();
+        BeanUtils.copyProperties(skill, dto);
+        return dto;
     }
 }

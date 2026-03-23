@@ -1,10 +1,7 @@
 package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.resumeService.dto.*;
@@ -20,7 +17,6 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -33,7 +29,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     private final EducationMapper educationMapper;
     private final ProjectExperienceMapper projectExperienceMapper;
     private final CareerMapper careerMapper;
-    private final ObjectMapper objectMapper = new ObjectMapper();
     private final SkillMapper skillMapper;
 
     public ResumeServiceImpl(EducationMapper educationMapper,
@@ -67,9 +62,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         resume.setCareers(careerIds);
         resume.setProjects(projectExperienceIds);
 
-        LocalDateTime now = DateTimeUtil.now();
-        resume.setCreatedAt(now);
-        resume.setUpdatedAt(now);
         boolean saved = save(resume);
         if (!saved) {
             throw new BusinessException(ErrorCode.RESUME_CREATE_FAILED);
@@ -118,8 +110,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         resume.setEducations(educationIds);
         resume.setCareers(careerIds);
         resume.setProjects(projectExperienceIds);
-        resume.setUpdatedAt(DateTimeUtil.now());
-
         boolean updated = updateById(resume);
         if (!updated) {
             throw new BusinessException(ErrorCode.RESUME_UPDATE_FAILED);
@@ -235,7 +225,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
     /**
      * 将 Skill 实体转换为 SkillDTO
-     * 手写转换函数，处理特殊字段（content: JSON String -> List<SkillItemDTO>）
+     * content 已改为强类型对象数组，可直接复制
      */
     private SkillDTO convertSkillToDTO(Skill skill) {
         if (skill == null) {
@@ -245,22 +235,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         SkillDTO dto = new SkillDTO();
         dto.setId(skill.getId());
         dto.setName(skill.getName());
-
-        // 将 JSON 字符串转换为 List<SkillItemDTO>
-        if (skill.getContent() != null && !skill.getContent().isEmpty()) {
-            try {
-                List<SkillItemDTO> contentList = objectMapper.readValue(
-                        skill.getContent(),
-                        new TypeReference<List<SkillItemDTO>>() {
-                        });
-                dto.setContent(contentList);
-            } catch (Exception e) {
-                log.warn("技能内容解析失败: {}", e.getMessage());
-                dto.setContent(java.util.Collections.emptyList());
-            }
-        } else {
-            dto.setContent(java.util.Collections.emptyList());
-        }
+        dto.setContent(skill.getContent() != null ? skill.getContent() : java.util.Collections.emptyList());
         return dto;
     }
 
