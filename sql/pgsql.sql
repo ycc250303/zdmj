@@ -24,9 +24,9 @@ CREATE TABLE IF NOT EXISTS users (
     -- 密码（加密）
     email VARCHAR(100) NOT NULL,
     -- 邮箱
-    name VARCHAR(50) NOT NULL,
+    name VARCHAR(50),
     -- 姓名
-    phone VARCHAR(20) NOT NULL,
+    phone VARCHAR(20),
     -- 电话
     website VARCHAR(500),
     -- 主页链接
@@ -743,7 +743,6 @@ CREATE TABLE IF NOT EXISTS conversations (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
 );
 CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
-CREATE INDEX IF NOT EXISTS idx_conversations_user_id_status ON conversations(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_conversations_user_id_created_at ON conversations(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_conversations_project_id ON conversations(project_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_user_id_project_id ON conversations(user_id, project_id);
@@ -768,32 +767,17 @@ CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_id_sequence ON messages(conversation_id, sequence);
 CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id);
 CREATE INDEX IF NOT EXISTS idx_messages_user_id_conversation_id ON messages(user_id, conversation_id);
--- 7.3 消息向量表（用于检索历史对话，支持RAG功能）
-CREATE TABLE IF NOT EXISTS message_vectors (
-    id BIGSERIAL PRIMARY KEY,
-    -- 向量ID
-    message_id BIGINT NOT NULL,
-    -- 消息ID（逻辑外键：messages.id）
-    conversation_id BIGINT NOT NULL,
-    -- 会话ID（逻辑外键：conversations.id，用于快速查询）
-    user_id BIGINT NOT NULL,
-    -- 用户ID（逻辑外键：users.id，数据隔离）
-    embedding VECTOR(1024) NOT NULL,
-    -- 消息向量（1024维，使用text-embedding-v4模型）
+
+--
+-- 7.3 Spring AI Chat Memory（用于 /messages/chat 的对话上下文）
+--
+-- Spring AI JDBC ChatMemory 在 PostgreSQL 中使用表：SPRING_AI_CHAT_MEMORY
+-- 其中 "timestamp" 需要使用双引号以匹配 Spring AI 生成的 SQL。
+CREATE TABLE IF NOT EXISTS SPRING_AI_CHAT_MEMORY (
+    conversation_id VARCHAR(36) NOT NULL,
     content TEXT NOT NULL,
-    -- 消息内容（存储用于检索的文本）
-    metadata JSONB,
-    -- 元数据（角色、时间等）
-    -- metadata 示例
-    -- {
-    --   "role": "user",
-    --   "conversation_id": 123,
-    --   "sequence": 1,
-    --   "created_at": "2024-01-01 12:00:00"
-    -- }
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 创建时间
+    type VARCHAR(10) NOT NULL,
+    "timestamp" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX IF NOT EXISTS idx_message_vectors_user_id ON message_vectors(user_id);
-CREATE INDEX IF NOT EXISTS idx_message_vectors_conversation_id ON message_vectors(conversation_id);
-CREATE INDEX IF NOT EXISTS idx_message_vectors_message_id ON message_vectors(message_id);
-CREATE INDEX IF NOT EXISTS idx_message_vectors_embedding ON message_vectors USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+CREATE INDEX IF NOT EXISTS idx_spring_ai_chat_memory_conv_ts
+    ON SPRING_AI_CHAT_MEMORY(conversation_id, "timestamp");

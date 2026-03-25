@@ -1,6 +1,7 @@
 package com.zdmj.conversationService.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.zdmj.common.model.PageResult;
 import com.zdmj.conversationService.dto.MessageDTO;
 import com.zdmj.conversationService.entity.Message;
 
@@ -16,12 +17,13 @@ import org.springframework.http.codec.ServerSentEvent;
 public interface MessageService extends IService<Message> {
 
     /**
-     * 根据会话ID查询消息列表
-     * 
+     * 根据会话ID分页查询消息列表（按 sequence 升序）
+     *
      * @param conversationId 会话ID
-     * @return 消息列表
+     * @param page           页码，从 1 开始
+     * @param limit          每页条数
      */
-    List<Message> getByConversationId(Long conversationId);
+    PageResult<Message> getMessagesByConversationId(Long conversationId, Integer page, Integer limit);
 
     /**
      * 创建流式消息
@@ -35,7 +37,7 @@ public interface MessageService extends IService<Message> {
      * 恢复流式消息
      * 
      * @param streamId 流式消息ID
-     * @param offset 偏移量
+     * @param offset   偏移量
      * @return 流式消息
      */
     Flux<ServerSentEvent<String>> resumeStream(Long streamId, int offset);

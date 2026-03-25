@@ -8,16 +8,17 @@ spring:
     # 时区配置：确保Java的LocalDateTime与PostgreSQL的TIMESTAMP WITH TIME ZONE正确转换
     # Asia/Shanghai: 中国时区（UTC+8）
     # 当数据库使用TIMESTAMP WITH TIME ZONE时，PostgreSQL会自动转换为连接时区
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    url: jdbc:postgresql://${app.remote.host}:5432/zdmj?currentSchema=public&stringtype=unspecified&TimeZone=Asia/Shanghai
+    username: zdmj
+    password: zdmj
   
   # Redis 配置
   data:
     redis:
-      host: ${SPRING_DATA_REDIS_HOST}
-      port: ${SPRING_DATA_REDIS_PORT:6379}
-      password: ${SPRING_DATA_REDIS_PASSWORD}
+      host: ${app.remote.host}
+      port: 6379
+
+      password: zdmj123
       timeout: 10000ms  # 增加到10秒，避免超时
       lettuce:
         pool:
@@ -30,8 +31,8 @@ spring:
   mail:
     host: smtp.163.com  # 163邮箱SMTP服务器
     port: 465  # SSL端口，也可以使用587（TLS）
-    username: ${SPRING_MAIL_USERNAME}  # 发送邮件的163邮箱
-    password: ${SPRING_MAIL_PASSWORD}  # 163邮箱授权码（不是登录密码，需要在邮箱设置中开启SMTP服务获取）
+    username: zdmj123456@163.com
+    password: XCtkmZ9FMRPVcNCi
     default-encoding: UTF-8
     properties:
       mail:
@@ -48,7 +49,7 @@ spring:
   ai:
     dashscope:
       base-url: https://dashscope.aliyuncs.com
-      api-key: ${DASHSCOPE_API_KEY}
+      api-key: sk-d1cd60a55bd24eae942ba77605c9114c
       chat:
         options:
           model: ${AL_MODEL:qwen-plus}
@@ -123,37 +124,19 @@ logging:
 # 环境变量优先级高于配置文件中的值
 cos:
   # 腾讯云SecretId（访问密钥ID）
-  secret-id: ${COS_SECRET_ID}
-  
-  # 腾讯云SecretKey（访问密钥）
-  secret-key: ${COS_SECRET_KEY}
-  
+  secret-id: AKIDvz2Fgtra4Jav6322XxIblh5JI7nHWXJr
+  secret-key: ndVMC1qW3OboskMsNiTDozCJE7tZ3ITR
   # 地域（Region）
   # 生产环境建议使用环境变量：export COS_REGION=ap-shanghai
-  region: ${COS_REGION:ap-shanghai}
+  region: ap-shanghai
   
   # 存储桶名称（Bucket Name）
-  bucket-name: ${COS_BUCKET_NAME}
+  bucket-name: zdmj-1381832847
   
   # 预签名URL过期时间（秒），默认1小时（3600秒）
   presigned-url-expiration: 3600
 
-# Python AI服务配置
-python:
-  # Python服务基础URL（支持环境变量配置）
-  # 同一服务器上建议使用localhost（性能更好），也可通过环境变量设置为服务器IP
-  base-url: ${PYTHON_SERVICE_URL:http://localhost:8000}
-  # 连接超时时间（毫秒），默认5秒
-  connect-timeout: ${PYTHON_CONNECT_TIMEOUT:5000}
-  # 读取超时时间（毫秒），默认30秒（AI处理可能需要较长时间）
-  read-timeout: ${PYTHON_READ_TIMEOUT:30000}
-  # 写入超时时间（毫秒），默认10秒
-  write-timeout: ${PYTHON_WRITE_TIMEOUT:10000}
-  # 重试配置
-  retry:
-    # 是否启用重试，默认启用
-    enabled: ${PYTHON_RETRY_ENABLED:true}
-    # 最大重试次数，默认3次
-    max-attempts: ${PYTHON_RETRY_MAX_ATTEMPTS:3}
-    # 重试间隔（毫秒），默认1000ms
-    retry-interval: ${PYTHON_RETRY_INTERVAL:1000}
+app:
+  remote:
+    host: 111.229.81.45
+

@@ -8,29 +8,30 @@ spring:
     # 时区配置：确保Java的LocalDateTime与PostgreSQL的TIMESTAMP WITH TIME ZONE正确转换
     # Asia/Shanghai: 中国时区（UTC+8）
     # 当数据库使用TIMESTAMP WITH TIME ZONE时，PostgreSQL会自动转换为连接时区
-    url: jdbc:postgresql://localhost:5432/zdmj?currentSchema=public&stringtype=unspecified&TimeZone=Asia/Shanghai
-    username: your-db-username
-    password: your-db-password
+    url: jdbc:postgresql://${app.remote.host}:5432/zdmj?currentSchema=public&stringtype=unspecified&TimeZone=Asia/Shanghai
+    username: your-postgres-user
+    password: your-postgres-password
   
   # Redis 配置
   data:
     redis:
-      host: localhost
+      host: ${app.remote.host}
       port: 6379
-      password: your-redis-password  # 如果Redis没有密码，可以留空或删除此行
-      timeout: 3000ms
+      password: your-redis-password
+      timeout: 10000ms  # 增加到10秒，避免超时
       lettuce:
         pool:
-          max-active: 8
+          max-active: 16  # 增加连接池大小
           max-idle: 8
-          min-idle: 0
+          min-idle: 2  # 保持最小连接数
+        shutdown-timeout: 200ms
   
   # 邮件配置（163邮箱）
   mail:
     host: smtp.163.com  # 163邮箱SMTP服务器
     port: 465  # SSL端口，也可以使用587（TLS）
-    username: your-email@163.com  # 发送邮件的163邮箱
-    password: your-email-auth-code  # 163邮箱授权码（不是登录密码，需要在邮箱设置中开启SMTP服务获取）
+    username: your-mail-username
+    password: your-mail-password
     default-encoding: UTF-8
     properties:
       mail:
@@ -42,6 +43,31 @@ spring:
           starttls:
             enable: false  # 使用SSL时，starttls设为false
             required: false
+   
+  # 模型配置
+  ai:
+    dashscope:
+      base-url: https://dashscope.aliyuncs.com
+      api-key: your-dashscope-api-key
+      chat:
+        options:
+          model: qwen-plus
+      # Embedding模型配置
+      embedding:
+        options:
+          model: text-embedding-v4
+      # 禁用自动重试机制，让异常立即返回
+      retry:
+        max-attempts: 1
+        on-client-errors: false
+      # PostgreSQL Vector Store配置
+      vectorstore:
+        pgvector:
+          index-type: HNSW
+          distance-type: COSINE_DISTANCE
+          dimensions: 1024  # text-embedding-v4 实际生成的向量维度
+          initialize-schema: true
+          remove-existing-vector-store-table: false
 
 # MyBatis-Plus 配置
 mybatis-plus:
@@ -86,32 +112,30 @@ management:
       exposure:
         include: health,info
 
+# 日志配置
+logging:
+  level:
+    org.springframework.ai.chat.client.advisor: DEBUG
+    com.zdmj: DEBUG
+
 # 腾讯云COS配置
 # 注意：生产环境建议使用环境变量配置敏感信息，避免将密钥直接写在配置文件中
 # 环境变量优先级高于配置文件中的值
 cos:
   # 腾讯云SecretId（访问密钥ID）
-  # 获取方式：腾讯云控制台 -> 访问管理 -> API密钥管理
-  # 生产环境建议使用环境变量：export COS_SECRET_ID=your-secret-id
-  secret-id: ${COS_SECRET_ID:your-secret-id}
-  
-  # 腾讯云SecretKey（访问密钥）
-  # 获取方式：腾讯云控制台 -> 访问管理 -> API密钥管理
-  # 生产环境建议使用环境变量：export COS_SECRET_KEY=your-secret-key
-  secret-key: ${COS_SECRET_KEY:your-secret-key}
-  
+  secret-id: your-cos-secret-id
+  secret-key: your-cos-secret-key
   # 地域（Region）
-  # 可选值：ap-beijing（北京）、ap-shanghai（上海）、ap-guangzhou（广州）、ap-chengdu（成都）等
-  # 必须与存储桶实际创建的地域一致
   # 生产环境建议使用环境变量：export COS_REGION=ap-shanghai
-  region: ${COS_REGION:ap-shanghai}
+  region: your-cos-region
   
   # 存储桶名称（Bucket Name）
-  # 格式：bucketname-appid（如：mybucket-1234567890）
-  # 注意：必须包含APPID后缀，否则会报InvalidRequest错误
-  # 获取方式：腾讯云控制台 -> 对象存储 -> 存储桶列表 -> 查看存储桶名称
-  # 生产环境建议使用环境变量：export COS_BUCKET_NAME=your-bucket-name-appid
-  bucket-name: ${COS_BUCKET_NAME:your-bucket-name-appid}
+  bucket-name: your-cos-bucket-name
   
   # 预签名URL过期时间（秒），默认1小时（3600秒）
   presigned-url-expiration: 3600
+
+app:
+  remote:
+    host: your-server-ip
+
