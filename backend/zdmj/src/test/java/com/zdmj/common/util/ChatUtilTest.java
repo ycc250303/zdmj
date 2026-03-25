@@ -18,11 +18,14 @@ class ChatUtilTest {
     @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     private ChatClient chatClient;
 
+    @Mock
+    private PromptUtil promptUtil;
+
     private ChatUtil chatUtil;
 
     @BeforeEach
     void setUp() {
-        chatUtil = new ChatUtil(chatClient);
+        chatUtil = new ChatUtil(chatClient, promptUtil);
     }
 
     @Test

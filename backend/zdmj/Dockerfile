@@ -8,7 +8,7 @@ COPY pom.xml .
 COPY src ./src
 
 # 构建应用（跳过测试，因为CI阶段已经运行过）
-RUN mvn clean package -DskipTests
+RUN mvn clean package -Dmaven.test.skip=true
 
 # 阶段2: 运行应用
 FROM eclipse-temurin:21-jre-alpine
