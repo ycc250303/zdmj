@@ -103,6 +103,7 @@ docker logs --tail=200 zdmj-backend
 # 6.手动部署
 
 ```
+cd ..
 cd /opt/zdmj/zdmj
 git pull --ff-only origin main
 ./deploy/deploy.sh
