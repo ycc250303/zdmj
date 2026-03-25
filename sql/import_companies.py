@@ -137,8 +137,8 @@ def main():
         """
 
         insert_sql_job = """
-            INSERT INTO jobs (job_name, company_id, description, location, salary, link)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO jobs (job_name, company_id, company_name, description, location, salary, link)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
         """
 
         inserted_company_count = 0
@@ -241,6 +241,7 @@ def main():
                     (
                         job_name,
                         company_id,
+                        name,
                         job_detail,  # description
                         location,
                         salary,

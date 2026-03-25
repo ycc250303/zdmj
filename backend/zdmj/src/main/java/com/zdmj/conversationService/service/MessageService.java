@@ -1,76 +1,42 @@
 package com.zdmj.conversationService.service;
 
+import com.baomidou.mybatisplus.extension.service.IService;
+import com.zdmj.conversationService.dto.MessageDTO;
+import com.zdmj.conversationService.entity.Message;
+
+import reactor.core.publisher.Flux;
+
 import java.util.List;
 
 import org.springframework.http.codec.ServerSentEvent;
 
-import com.zdmj.conversationService.entity.Messages;
-
-import reactor.core.publisher.Flux;
-
 /**
- * 消息服务接口
+ * 消息 Service 骨架
  */
-public interface MessageService {
+public interface MessageService extends IService<Message> {
 
     /**
-     * 创建消息（流式输出）
-     * 
-     * @param content        消息内容
-     * @param conversationId 会话ID
-     * @return SSE流式事件
-     */
-    Flux<ServerSentEvent<String>> createMessage(String content, Long conversationId);
-
-    /**
-     * 根据会话ID查询消息列表（分页）
+     * 根据会话ID查询消息列表
      * 
      * @param conversationId 会话ID
-     * @param page           页码（从1开始）
-     * @param size           每页数量
      * @return 消息列表
      */
-    List<Messages> getMessagesByConversationId(Long conversationId, Integer page, Integer size);
+    List<Message> getByConversationId(Long conversationId);
 
     /**
-     * 根据消息ID获取消息详情
+     * 创建流式消息
      * 
-     * @param messageId 消息ID
-     * @return 消息
+     * @param dto 消息DTO
+     * @return 流式消息
      */
-    Messages getById(Long messageId);
+    Flux<ServerSentEvent<String>> createStream(MessageDTO dto);
 
     /**
-     * 删除消息（待实现）
+     * 恢复流式消息
      * 
-     * @param messageId 消息ID
+     * @param streamId 流式消息ID
+     * @param offset 偏移量
+     * @return 流式消息
      */
-    void delete(Long messageId);
-
-    /**
-     * 编辑消息并重新发送（待实现）
-     * 
-     * @param messageId  消息ID
-     * @param newContent 新的消息内容
-     * @return 重新生成的消息
-     */
-    Flux<ServerSentEvent<String>> editAndResend(Long messageId, Long conversationId, String newContent);
-
-    /**
-     * 引用消息（待实现）
-     * 
-     * @param messageId      被引用的消息ID
-     * @param conversationId 会话ID
-     * @return 引用消息的ID
-     */
-    Long quote(Long messageId, Long conversationId);
-
-    /**
-     * 获取消息流（支持断点续传）
-     * 
-     * @param messageId 消息ID
-     * @param recover   是否恢复之前的流式输出
-     * @return SSE流式事件
-     */
-    Flux<ServerSentEvent<String>> getStreamWithRecover(Long messageId, boolean recover);
+    Flux<ServerSentEvent<String>> resumeStream(Long streamId, int offset);
 }

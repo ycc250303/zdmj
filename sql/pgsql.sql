@@ -163,7 +163,7 @@ CREATE TABLE IF NOT EXISTS skills (
     -- 用户ID（逻辑外键：users.id）
     name VARCHAR(255) NOT NULL,
     -- 技能清单名称
-    content JSONB NOT NULL,
+    content JSONB NOT NULL DEFAULT '[]'::jsonb,
     -- 职业技能描述（数组对象，包含type和content字段）
     -- content 示例
     -- [
@@ -175,7 +175,8 @@ CREATE TABLE IF NOT EXISTS skills (
     --     "type": "开发语言",
     --     "content": ["TypeScript", "JavaScript"]
     --   }
-    -- ]
+    -- ],
+    CONSTRAINT chk_skills_content_is_array CHECK (jsonb_typeof(content) = 'array'),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
@@ -492,6 +493,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     -- 岗位名称
     company_id BIGINT NOT NULL,
     -- 公司ID（逻辑外键：companies.id）
+    company_name VARCHAR(255) NOT NULL,
+    -- 公司名称（冗余字段，用于查询）
     description TEXT NOT NULL,
     -- 岗位描述
     embedding VECTOR(1024),
@@ -521,6 +524,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 );
 CREATE INDEX IF NOT EXISTS idx_jobs_location ON jobs(location);
 CREATE INDEX IF NOT EXISTS idx_jobs_company_id ON jobs(company_id);
+CREATE INDEX IF NOT EXISTS idx_jobs_company_name ON jobs(company_name);
 -- 4.2 公司表
 CREATE TABLE IF NOT EXISTS companies (
     id BIGSERIAL PRIMARY KEY,
@@ -531,13 +535,13 @@ CREATE TABLE IF NOT EXISTS companies (
     -- 公司行业
     -- industries 示例
     -- ["计算机软件", "IT服务", "专业技术服务"]
-    size SMALLINT NOT NULL,
+    size SMALLINT,
     -- 公司人员规模
     -- 1=20人以下/2=20-99人/3=100-299人/4=300-499人/5=500-999人/6=1000-9999人/7=10000人以上
     type SMALLINT,
     -- 公司类型（融资阶段）
     -- 1=A轮/2=B轮/3=C轮/4=D轮及以上/5=不需要融资/6=天使轮/7=已上市/8=未融资
-    introduction VARCHAR(1000),
+    introduction TEXT,
     -- 公司详情
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     -- 创建时间
@@ -546,7 +550,7 @@ CREATE TABLE IF NOT EXISTS companies (
 CREATE INDEX IF NOT EXISTS idx_companies_name ON companies(name);
 CREATE INDEX IF NOT EXISTS idx_companies_size ON companies(size);
 CREATE INDEX IF NOT EXISTS idx_companies_type ON companies(type);
-CREATE INDEX IF NOT EXISTS idx_companies_industry ON companies(industry);
+CREATE INDEX IF NOT EXISTS idx_companies_industries ON companies(industries);
 --
 -- ==========================5 知识库模块==========================
 --
@@ -557,8 +561,8 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     user_id BIGINT NOT NULL,
     -- 用户ID（逻辑外键：users.id）
     name VARCHAR(255) NOT NULL,
-    -- 知识库名称
-    project_name VARCHAR(255) NOT NULL,
+    -- 知识库id
+    project_id BIGINT NOT NULL,
     -- 关联项目名称
     tag JSONB DEFAULT '[]'::jsonb,
     -- 知识标签数组
@@ -581,7 +585,7 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
 );
 CREATE INDEX IF NOT EXISTS idx_knowledge_bases_user_id ON knowledge_bases(user_id);
-CREATE INDEX IF NOT EXISTS idx_knowledge_bases_user_id_project_name ON knowledge_bases(user_id, project_name);
+CREATE INDEX IF NOT EXISTS idx_knowledge_bases_user_id_project_id ON knowledge_bases(user_id, project_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_bases_type ON knowledge_bases(type);
 --
 -- ==========================6 向量检索模块==========================
@@ -665,7 +669,7 @@ CREATE TABLE IF NOT EXISTS project_code_vectors (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 创建时间
 );
 CREATE INDEX IF NOT EXISTS idx_project_code_vectors_user_id ON project_code_vectors(user_id);
-CREATE INDEX IF NOT EXISTS idx_project_code_vectors_project_id ON project_code_vectors(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_code_vectors_knowledge_id ON project_code_vectors(knowledge_id);
 CREATE INDEX IF NOT EXISTS idx_project_code_vectors_embedding ON project_code_vectors USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 -- 6.4 向量化任务表（异步任务）
 CREATE TABLE IF NOT EXISTS knowledge_vector_tasks (
@@ -758,19 +762,6 @@ CREATE TABLE IF NOT EXISTS messages (
     -- 消息内容
     sequence INTEGER NOT NULL,
     -- 消息序号（在会话中的顺序，从1开始）
-    metadata JSONB DEFAULT '{}'::jsonb,
-    -- 消息元数据（token数、模型版本、生成时间等）
-    -- metadata 示例
-    -- {
-    --   "tokens": {
-    --     "prompt": 150,
-    --     "completion": 200,
-    --     "total": 350
-    --   },
-    --   "model": "gpt-4",
-    --   "finish_reason": "stop",
-    --   "generation_time_ms": 1234
-    -- }
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 消息创建时间
 );
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);

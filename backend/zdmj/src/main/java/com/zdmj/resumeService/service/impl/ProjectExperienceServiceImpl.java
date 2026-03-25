@@ -2,27 +2,29 @@ package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.util.BeanUtil;
-import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.resumeService.dto.ProjectExperienceDTO;
 import com.zdmj.resumeService.entity.ProjectExperience;
+import com.zdmj.resumeService.enums.ProjectStatusEnum;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
+import com.zdmj.resumeService.mapper.ProjectExperienceStructMapper;
 import com.zdmj.resumeService.service.ProjectExperienceService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
  * 项目经历服务实现类
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
-public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceMapper, ProjectExperience> 
+public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceMapper, ProjectExperience>
         implements ProjectExperienceService {
+
+    private final ProjectExperienceStructMapper projectExperiencePatchMapper;
 
     @Override
     public ProjectExperience create(ProjectExperienceDTO projectExperienceDTO) {
@@ -39,12 +41,9 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
         projectExperience.setHighlights(projectExperienceDTO.getHighlights());
         projectExperience.setUrl(projectExperienceDTO.getUrl());
         projectExperience.setVisible(projectExperienceDTO.getVisible());
-        // 设置默认状态：1=committed已提交
-        projectExperience.setStatus(1);
+        // 设置默认状态：committed 已提交
+        projectExperience.setStatus(ProjectStatusEnum.COMMITTED.getCode());
         projectExperience.setLookupResult(null);
-        LocalDateTime now = DateTimeUtil.now();
-        projectExperience.setCreatedAt(now);
-        projectExperience.setUpdatedAt(now);
         boolean saved = save(projectExperience);
         if (!saved) {
             throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_ADD_FAILED);
@@ -73,18 +72,13 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
         }
         ProjectExperience projectExperience = requireProjectExperienceAndCheckOwnership(id, userId, "修改");
 
-        Long savedId = projectExperience.getId();
-        BeanUtil.copyNonNullProperties(projectExperienceDTO, projectExperience);
-        projectExperience.setId(savedId);
+        projectExperiencePatchMapper.updateEntityFromDto(projectExperienceDTO, projectExperience);
 
         if (projectExperience.getStartDate() != null && projectExperience.getEndDate() != null) {
             if (projectExperience.getEndDate().isBefore(projectExperience.getStartDate())) {
                 throw new BusinessException(ErrorCode.PROJECT_END_TIME_INVALID);
             }
         }
-
-        LocalDateTime now = DateTimeUtil.now();
-        projectExperience.setUpdatedAt(now);
 
         boolean updated = updateById(projectExperience);
         if (!updated) {
@@ -134,7 +128,8 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
     private ProjectExperience requireProjectExperienceAndCheckOwnership(Long id, Long userId, String action) {
         ProjectExperience projectExperience = requireProjectExperience(id);
         if (!projectExperience.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(), ErrorCode.NO_PERMISSION.getMessage() + action + "他人项目经历");
+            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(),
+                    ErrorCode.NO_PERMISSION.getMessage() + action + "他人项目经历");
         }
         return projectExperience;
     }

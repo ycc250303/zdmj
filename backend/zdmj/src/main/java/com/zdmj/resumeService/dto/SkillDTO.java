@@ -31,8 +31,8 @@ public class SkillDTO {
     private String name;
 
     /**
-     * 职业技能描述（JSONB格式）
-     * 示例：[{"type": "前端框架", "content": ["React", "Vue.js"]}, ...]
+     * 职业技能描述（结构化对象数组）
+     * 对应数据库 JSONB 数组字段 content
      */
     @Valid
     @NotEmpty(message = "技能内容不能为空", groups = CreateGroup.class)

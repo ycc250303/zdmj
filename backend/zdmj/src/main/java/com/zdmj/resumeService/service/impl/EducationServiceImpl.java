@@ -2,26 +2,28 @@ package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.util.BeanUtil;
-import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.resumeService.dto.EducationDTO;
 import com.zdmj.resumeService.entity.Education;
+import com.zdmj.resumeService.mapper.EducationStructMapper;
 import com.zdmj.resumeService.mapper.EducationMapper;
 import com.zdmj.resumeService.service.EducationService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
  * 教育经历服务实现类
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education> implements EducationService {
+
+    private final EducationStructMapper educationPatchMapper;
 
     /**
      * 添加教育经历
@@ -41,11 +43,6 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
         education.setEndDate(educationDTO.getEndDate());
         education.setVisible(educationDTO.getVisible());
         education.setGpa(educationDTO.getGpa());
-        // 使用统一的日期时间工具类，确保时区一致性
-        LocalDateTime now = DateTimeUtil.now();
-        education.setCreatedAt(now);
-        education.setUpdatedAt(now);
-
         boolean saved = save(education);
         if (!saved) {
             throw new BusinessException(ErrorCode.EDUCATION_ADD_FAILED);
@@ -71,12 +68,7 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
         Education existingEducation = requireEducationAndCheckOwnership(id, userId, "修改");
 
         // 只更新提供的字段（非空字段才更新）
-        // 使用工具类简化代码，自动复制DTO中所有非null的属性到实体对象
-        // 先保存原有的ID，防止被覆盖
-        Long savedId = existingEducation.getId();
-        BeanUtil.copyNonNullProperties(educationDTO, existingEducation);
-        // 确保ID不被覆盖
-        existingEducation.setId(savedId);
+        educationPatchMapper.updateEntityFromDto(educationDTO, existingEducation);
 
         // 验证日期逻辑：如果两个日期都提供了，需要验证结束时间不早于开始时间
         if (existingEducation.getStartDate() != null && existingEducation.getEndDate() != null) {
@@ -84,9 +76,6 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
                 throw new BusinessException(ErrorCode.EDUCATION_GRADUATE_TIME_INVALID);
             }
         }
-
-        // 更新更新时间
-        existingEducation.setUpdatedAt(DateTimeUtil.now());
 
         // 使用 MyBatis-Plus 的 updateById 方法，根据ID更新（只更新非null字段）
         boolean updated = updateById(existingEducation);
@@ -166,7 +155,8 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
     private Education requireEducationAndCheckOwnership(Long id, Long userId, String action) {
         Education education = requireEducation(id);
         if (!education.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(), ErrorCode.NO_PERMISSION.getMessage() + action + "他人教育经历");
+            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(),
+                    ErrorCode.NO_PERMISSION.getMessage() + action + "他人教育经历");
         }
         return education;
     }

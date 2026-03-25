@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.zdmj.common.model.BaseEntity;
+import com.zdmj.resumeService.enums.EducationDegreeEnum;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -65,4 +66,18 @@ public class Education extends BaseEntity {
      * 绩点
      */
     private String gpa;
+
+    /**
+     * 获取学历枚举（字段仍使用整数存储）
+     */
+    public EducationDegreeEnum getDegreeEnum() {
+        return EducationDegreeEnum.fromCode(this.degree);
+    }
+
+    /**
+     * 设置学历枚举（字段仍使用整数存储）
+     */
+    public void setDegreeEnum(EducationDegreeEnum degreeEnum) {
+        this.degree = degreeEnum != null ? degreeEnum.getCode() : null;
+    }
 }

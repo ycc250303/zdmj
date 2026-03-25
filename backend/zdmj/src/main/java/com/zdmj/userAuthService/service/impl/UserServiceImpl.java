@@ -6,8 +6,8 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.DateTimeUtil;
-import com.zdmj.common.util.RedisCacheUtil;
-import com.zdmj.common.util.RedisConstants;
+import com.zdmj.common.cache.RedisUtil;
+import com.zdmj.common.cache.RedisConstants;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.userAuthService.util.JwtUtil;
 import com.zdmj.userAuthService.util.PasswordUtil;
@@ -21,33 +21,22 @@ import com.zdmj.userAuthService.entity.User;
 import com.zdmj.userAuthService.mapper.UserMapper;
 import com.zdmj.userAuthService.service.UserService;
 import com.zdmj.userAuthService.service.VerificationCodeService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-
 /**
  * 用户服务实现类
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
     private final VerificationCodeService verificationCodeService;
-    private final RedisCacheUtil redisCacheUtil;
-
-    /**
-     * 构造函数注入（推荐方式）
-     *
-     * @param verificationCodeService 验证码服务
-     * @param redisCacheUtil          Redis缓存工具
-     */
-    public UserServiceImpl(VerificationCodeService verificationCodeService, RedisCacheUtil redisCacheUtil) {
-        this.verificationCodeService = verificationCodeService;
-        this.redisCacheUtil = redisCacheUtil;
-    }
+    private final RedisUtil redisCacheUtil;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -72,10 +61,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         user.setUsername(registerDTO.getUsername());
         user.setPassword(PasswordUtil.encode(registerDTO.getPassword())); // 加密密码
         user.setEmail(registerDTO.getEmail());
-        // 使用统一的日期时间工具类，确保时区一致性
-        LocalDateTime now = DateTimeUtil.now();
-        user.setCreatedAt(now);
-        user.setUpdatedAt(now);
 
         // 5. 保存到数据库
         boolean saved = save(user);
@@ -209,11 +194,15 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
 
         // 仅更新允许修改的字段
-        user.setName(updateDTO.getName());
-        user.setPhone(updateDTO.getPhone());
-        user.setWebsite(updateDTO.getHomepageUrl());
-        user.setUpdatedAt(DateTimeUtil.now());
-
+        if (updateDTO.getName() != null) {
+            user.setName(updateDTO.getName());
+        }
+        if (updateDTO.getPhone() != null) {
+            user.setPhone(updateDTO.getPhone());
+        }
+        if (updateDTO.getWebsite() != null) {
+            user.setWebsite(updateDTO.getWebsite());
+        }
         boolean updated = updateById(user);
         if (!updated) {
             throw new BusinessException(ErrorCode.USER_REGISTER_FAILED);
@@ -225,13 +214,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     /**
      * 将User实体转换为UserDTO
-     * 
-     * @param user 用户实体
-     * @return 用户DTO
      */
     private UserDTO convertToDTO(User user) {
         UserDTO dto = new UserDTO();
         BeanUtils.copyProperties(user, dto);
         return dto;
     }
+
 }

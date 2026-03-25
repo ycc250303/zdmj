@@ -1,11 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.zdmj.resumeService.mapper.ProjectExperienceMapper">
-    <!-- 
-        注意：基础 CRUD 方法（insert, selectById, updateById, deleteById）已由 MyBatis-Plus 的 BaseMapper 自动提供
-        无需在此 XML 中定义，MyBatis-Plus 会自动生成对应的 SQL
-        JSONB 字段会自动处理：Java String <-> PostgreSQL JSONB
-    -->
 
     <!-- 根据用户ID查询所有项目经历 -->
     <select id="selectByUserId" resultType="com.zdmj.resumeService.entity.ProjectExperience"> SELECT

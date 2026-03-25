@@ -9,13 +9,6 @@ import java.util.List;
 
 /**
  * 工作/实习经历Mapper接口
- * 继承 MyBatis-Plus 的 BaseMapper，自动拥有基础的 CRUD 方法：
- * - insert(entity) - 插入
- * - selectById(id) - 根据ID查询
- * - updateById(entity) - 根据ID更新
- * - deleteById(id) - 根据ID删除
- * - selectList(wrapper) - 条件查询列表
- * - 等等...
  */
 @Mapper
 public interface CareerMapper extends BaseMapper<Career> {

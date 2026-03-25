@@ -1,11 +1,7 @@
 package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.util.DateTimeUtil;
-import com.zdmj.common.util.DtoConverter;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.resumeService.dto.*;
@@ -16,11 +12,12 @@ import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
 import com.zdmj.resumeService.mapper.ResumeMapper;
 import com.zdmj.resumeService.mapper.SkillMapper;
 import com.zdmj.resumeService.service.ResumeService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -28,21 +25,13 @@ import java.util.stream.Collectors;
  * 简历服务实现类
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> implements ResumeService {
     private final EducationMapper educationMapper;
     private final ProjectExperienceMapper projectExperienceMapper;
     private final CareerMapper careerMapper;
-    private final ObjectMapper objectMapper = new ObjectMapper();
     private final SkillMapper skillMapper;
-
-    public ResumeServiceImpl(EducationMapper educationMapper,
-            ProjectExperienceMapper projectExperienceMapper, CareerMapper careerMapper, SkillMapper skillMapper) {
-        this.educationMapper = educationMapper;
-        this.projectExperienceMapper = projectExperienceMapper;
-        this.careerMapper = careerMapper;
-        this.skillMapper = skillMapper;
-    }
 
     @Override
     public Resume create(ResumeDTO resumeDTO) {
@@ -67,9 +56,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         resume.setCareers(careerIds);
         resume.setProjects(projectExperienceIds);
 
-        LocalDateTime now = DateTimeUtil.now();
-        resume.setCreatedAt(now);
-        resume.setUpdatedAt(now);
         boolean saved = save(resume);
         if (!saved) {
             throw new BusinessException(ErrorCode.RESUME_CREATE_FAILED);
@@ -118,8 +104,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         resume.setEducations(educationIds);
         resume.setCareers(careerIds);
         resume.setProjects(projectExperienceIds);
-        resume.setUpdatedAt(DateTimeUtil.now());
-
         boolean updated = updateById(resume);
         if (!updated) {
             throw new BusinessException(ErrorCode.RESUME_UPDATE_FAILED);
@@ -168,13 +152,13 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
         resumeContentDTO.setSkill(skill != null ? convertSkillToDTO(skill) : null);
         resumeContentDTO.setEducations(educations.stream()
-                .map(education -> DtoConverter.toDTO(education, EducationDTO.class))
+                .map(education -> convertSimpleEntityToDTO(education, EducationDTO.class))
                 .collect(Collectors.toList()));
         resumeContentDTO.setCareers(careers.stream()
-                .map(career -> DtoConverter.toDTO(career, CareerDTO.class))
+                .map(career -> convertSimpleEntityToDTO(career, CareerDTO.class))
                 .collect(Collectors.toList()));
         resumeContentDTO.setProjects(projects.stream()
-                .map(project -> DtoConverter.toDTO(project, ProjectExperienceDTO.class))
+                .map(project -> convertSimpleEntityToDTO(project, ProjectExperienceDTO.class))
                 .collect(Collectors.toList()));
 
         return resumeContentDTO;
@@ -235,7 +219,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
     /**
      * 将 Skill 实体转换为 SkillDTO
-     * 手写转换函数，处理特殊字段（content: JSON String -> List<SkillItemDTO>）
+     * content 已改为强类型对象数组，可直接复制
      */
     private SkillDTO convertSkillToDTO(Skill skill) {
         if (skill == null) {
@@ -245,23 +229,24 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         SkillDTO dto = new SkillDTO();
         dto.setId(skill.getId());
         dto.setName(skill.getName());
-
-        // 将 JSON 字符串转换为 List<SkillItemDTO>
-        if (skill.getContent() != null && !skill.getContent().isEmpty()) {
-            try {
-                List<SkillItemDTO> contentList = objectMapper.readValue(
-                        skill.getContent(),
-                        new TypeReference<List<SkillItemDTO>>() {
-                        });
-                dto.setContent(contentList);
-            } catch (Exception e) {
-                log.warn("技能内容解析失败: {}", e.getMessage());
-                dto.setContent(java.util.Collections.emptyList());
-            }
-        } else {
-            dto.setContent(java.util.Collections.emptyList());
-        }
+        dto.setContent(skill.getContent() != null ? skill.getContent() : java.util.Collections.emptyList());
         return dto;
+    }
+
+    /**
+     * 轻量通用转换：用于字段名一致且无需复杂转换的实体->DTO映射
+     */
+    private <S, T> T convertSimpleEntityToDTO(S source, Class<T> targetClass) {
+        if (source == null) {
+            return null;
+        }
+        try {
+            T target = targetClass.getDeclaredConstructor().newInstance();
+            BeanUtils.copyProperties(source, target);
+            return target;
+        } catch (Exception e) {
+            throw new RuntimeException("对象转换失败: " + targetClass.getSimpleName(), e);
+        }
     }
 
 }

@@ -15,19 +15,17 @@ import com.zdmj.resumeService.entity.Career;
 import com.zdmj.resumeService.service.CareerService;
 
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 
 /**
  * 工作(实习)经历控制器
  */
 @Slf4j
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/career")
 public class CareerController {
     private final CareerService careerService;
-
-    public CareerController(CareerService careerService) {
-        this.careerService = careerService;
-    }
 
     /**
      * 添加工作经历

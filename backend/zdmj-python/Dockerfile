@@ -5,15 +5,22 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # 设置环境变量
+# GitPython 会调用系统 git；必须安装 git 包，并显式指定路径避免 slim 镜像里偶发找不到
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    GIT_PYTHON_GIT_EXECUTABLE=/usr/bin/git \
+    GIT_PYTHON_REFRESH=quiet
 
 # 安装系统依赖
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+    git \
+    openssh-client \
+    ca-certificates \
     gcc \
     postgresql-client \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && git --version
 
 # 复制依赖文件
 COPY requirements.txt .
