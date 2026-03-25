@@ -107,7 +107,11 @@ public enum ErrorCode {
     MESSAGE_CREATE_FAILED(9005, "创建消息失败"),
     MESSAGE_NOT_FOUND(9006, "消息不存在"),
     MESSAGE_DELETE_FAILED(9007, "删除消息失败"),
-    FEATURE_NOT_IMPLEMENTED(9999, "功能暂未实现");
+    FEATURE_NOT_IMPLEMENTED(9999, "功能暂未实现"),
+
+    // ========== 岗位与公司 (82xx) ==========
+    JOB_NOT_FOUND(8201, "岗位不存在"),
+    COMPANY_NOT_FOUND(8202, "公司不存在");
 
     private final Integer code;
     private final String message;

@@ -1,10 +1,13 @@
 package com.zdmj.common.util.json;
 
-import java.util.Set;
+import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.resumeService.dto.SkillItemDTO;
+
+import java.util.List;
 
 /**
  * 技能内容验证器
- * 使用通用验证器进行验证，避免重复代码
  * 
  * 验证规则：
  * - 根节点必须是数组
@@ -13,33 +16,35 @@ import java.util.Set;
  * - 严格模式：不允许其他字段
  */
 public class SkillContentValidator {
-    // 定义验证规则（使用静态初始化，避免每次调用都创建）
-    private static final JsonStructureRule VALIDATION_RULE = JsonStructureRule.builder()
-            .rootType(JsonStructureRule.RootType.ARRAY)
-            .arrayElementRule(JsonFieldRule.builder()
-                    .fieldName("item")
-                    .type(JsonFieldRule.JsonNodeType.OBJECT)
-                    .nestedRules(Set.of(
-                            JsonFieldRule.builder()
-                                    .fieldName("type")
-                                    .required(true)
-                                    .type(JsonFieldRule.JsonNodeType.STRING)
-                                    .build(),
-                            JsonFieldRule.builder()
-                                    .fieldName("content")
-                                    .required(true)
-                                    .type(JsonFieldRule.JsonNodeType.ARRAY)
-                                    .build()))
-                    .build())
-            .strictMode(true)
-            .errorMessagePrefix("技能内容")
-            .build();
 
     /**
-     * 验证并清理 content JSON，确保只有 type 和 content 字段
-     * 使用通用验证器进行验证
+     * 验证技能内容结构（强类型）
      */
-    public static String validate(String contentJson) {
-        return GenericJsonValidator.validate(contentJson, VALIDATION_RULE);
+    public static List<SkillItemDTO> validate(List<SkillItemDTO> contentList) {
+        if (contentList == null || contentList.isEmpty()) {
+            throw new BusinessException(ErrorCode.ILLEGAL_ARGUMENT.getCode(), "技能内容不能为空");
+        }
+
+        for (int i = 0; i < contentList.size(); i++) {
+            SkillItemDTO item = contentList.get(i);
+            String path = "skills[" + i + "]";
+            if (item == null) {
+                throw new BusinessException(ErrorCode.ILLEGAL_ARGUMENT.getCode(), path + " 不能为空");
+            }
+            if (item.getType() == null || item.getType().trim().isEmpty()) {
+                throw new BusinessException(ErrorCode.ILLEGAL_ARGUMENT.getCode(), path + ".type 不能为空");
+            }
+            if (item.getContent() == null || item.getContent().isEmpty()) {
+                throw new BusinessException(ErrorCode.ILLEGAL_ARGUMENT.getCode(), path + ".content 不能为空");
+            }
+            for (int j = 0; j < item.getContent().size(); j++) {
+                String value = item.getContent().get(j);
+                if (value == null || value.trim().isEmpty()) {
+                    throw new BusinessException(ErrorCode.ILLEGAL_ARGUMENT.getCode(),
+                            path + ".content[" + j + "] 不能为空");
+                }
+            }
+        }
+        return contentList;
     }
 }

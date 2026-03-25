@@ -1,36 +1,47 @@
 package com.zdmj.conversationService.service;
 
+import com.baomidou.mybatisplus.extension.service.IService;
+import com.zdmj.conversationService.dto.ConversationDTO;
+import com.zdmj.conversationService.entity.Conversation;
+
 import java.util.List;
 
-import com.zdmj.conversationService.entity.Conversations;
-
 /**
- * 会话服务接口
+ * 会话 Service 骨架
  */
-public interface ConversationService {
+public interface ConversationService extends IService<Conversation> {
 
     /**
      * 创建会话
      * 
-     * @param projectId 项目ID（可选）
-     * @return 会话
+     * @param conversationDTO 会话DTO
+     * @return 创建的会话
      */
-    Conversations create(Long projectId);
+    Conversation create(ConversationDTO conversationDTO);
 
     /**
-     * 根据用户ID查询会话列表
-     * 
-     * @return 会话列表
-     */
-    List<Conversations> getByUserId();
-
-    /**
-     * 根据会话ID获取会话详情
+     * 根据ID查询会话
      * 
      * @param id 会话ID
-     * @return 会话
+     * @return 查询的会话
      */
-    Conversations getById(Long id);
+    Conversation getById(Long id);
+
+    /**
+     * 查询所有会话列表
+     * 
+     * @return 查询的会话列表
+     */
+    List<Conversation> getByUserId();
+
+    /**
+     * 修改会话标题
+     * 
+     * @param id    会话ID
+     * @param title 新会话标题
+     * @return 更新后的会话
+     */
+    Conversation updateTitle(Long id, String title);
 
     /**
      * 删除会话
@@ -38,12 +49,4 @@ public interface ConversationService {
      * @param id 会话ID
      */
     void delete(Long id);
-
-    /**
-     * 重命名会话
-     * 
-     * @param id    会话ID
-     * @param title 新标题
-     */
-    void rename(Long id, String title);
 }

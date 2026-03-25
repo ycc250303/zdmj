@@ -13,6 +13,7 @@ import com.zdmj.userAuthService.service.VerificationCodeService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,19 +23,11 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @RestController
 @RequestMapping("/users")
+@RequiredArgsConstructor
 public class UserController {
 
     private final UserService userService;
     private final VerificationCodeService verificationCodeService;
-
-    /**
-     * @param userService             用户服务
-     * @param verificationCodeService 验证码服务
-     */
-    public UserController(UserService userService, VerificationCodeService verificationCodeService) {
-        this.userService = userService;
-        this.verificationCodeService = verificationCodeService;
-    }
 
     /**
      * 创建用户（用户注册）

@@ -2,24 +2,26 @@ package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.resumeService.dto.CareerDTO;
 import com.zdmj.resumeService.entity.Career;
+import com.zdmj.resumeService.mapper.CareerStructMapper;
 import com.zdmj.resumeService.mapper.CareerMapper;
 import com.zdmj.resumeService.service.CareerService;
-import com.zdmj.common.util.BeanUtil;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> implements CareerService {
+
+    private final CareerStructMapper careerPatchMapper;
 
     @Override
     public Career create(CareerDTO careerDTO) {
@@ -32,9 +34,6 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
         career.setEndDate(careerDTO.getEndDate());
         career.setVisible(careerDTO.getVisible());
         career.setDetails(careerDTO.getDetails());
-        LocalDateTime now = DateTimeUtil.now();
-        career.setCreatedAt(now);
-        career.setUpdatedAt(now);
         boolean saved = save(career);
         if (!saved) {
             throw new BusinessException(ErrorCode.CAREER_ADD_FAILED);
@@ -63,18 +62,13 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
         }
         Career career = requireCareerAndCheckOwnership(id, userId, "修改");
 
-        Long savedId = career.getId();
-        BeanUtil.copyNonNullProperties(careerDTO, career);
-        career.setId(savedId);
+        careerPatchMapper.updateEntityFromDto(careerDTO, career);
 
         if (career.getStartDate() != null && career.getEndDate() != null) {
             if (career.getEndDate().isBefore(career.getStartDate())) {
                 throw new BusinessException(ErrorCode.CAREER_LEAVE_TIME_INVALID);
             }
         }
-
-        LocalDateTime now = DateTimeUtil.now();
-        career.setUpdatedAt(now);
 
         boolean updated = updateById(career);
         if (!updated) {
@@ -124,7 +118,8 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
     private Career requireCareerAndCheckOwnership(Long id, Long userId, String action) {
         Career career = requireCareer(id);
         if (!career.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(), ErrorCode.NO_PERMISSION.getMessage() + action + "他人工作经历");
+            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(),
+                    ErrorCode.NO_PERMISSION.getMessage() + action + "他人工作经历");
         }
         return career;
     }

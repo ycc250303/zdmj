@@ -1,22 +1,17 @@
 package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.util.json.SkillContentValidator;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.resumeService.dto.SkillDTO;
-import com.zdmj.resumeService.dto.SkillItemDTO;
 import com.zdmj.resumeService.entity.Skill;
 import com.zdmj.resumeService.mapper.SkillMapper;
 import com.zdmj.resumeService.service.SkillService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -26,8 +21,6 @@ import java.util.List;
 @Service
 public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements SkillService {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
     @Override
     public Skill create(SkillDTO skillDTO) {
         Long userId = requireUserId();
@@ -36,15 +29,10 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
         skill.setUserId(userId);
         skill.setName(skillDTO.getName());
 
-        // 如果提供了 content，进行转换和验证
+        // content 使用强类型对象数组存储到 JSONB
         if (skillDTO.getContent() != null) {
-            String contentJson = convertContentToJson(skillDTO.getContent());
-            skill.setContent(contentJson);
+            skill.setContent(SkillContentValidator.validate(skillDTO.getContent()));
         }
-
-        LocalDateTime now = DateTimeUtil.now();
-        skill.setCreatedAt(now);
-        skill.setUpdatedAt(now);
 
         boolean saved = save(skill);
         if (!saved) {
@@ -81,14 +69,10 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
             skill.setName(skillDTO.getName());
         }
 
-        // 如果提供了 content，进行转换和验证
+        // content 使用强类型对象数组存储到 JSONB
         if (skillDTO.getContent() != null) {
-            String contentJson = convertContentToJson(skillDTO.getContent());
-            skill.setContent(contentJson);
+            skill.setContent(SkillContentValidator.validate(skillDTO.getContent()));
         }
-
-        LocalDateTime now = DateTimeUtil.now();
-        skill.setUpdatedAt(now);
 
         boolean updated = updateById(skill);
         if (!updated) {
@@ -151,44 +135,10 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
     private Skill requireSkillAndCheckOwnership(Long id, Long userId, String action) {
         Skill skill = requireSkill(id);
         if (!skill.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(), ErrorCode.NO_PERMISSION.getMessage() + action + "他人技能");
+            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(),
+                    ErrorCode.NO_PERMISSION.getMessage() + action + "他人技能");
         }
         return skill;
     }
 
-    /**
-     * 将 List<SkillItemDTO> 转换为 JSON 字符串，并验证结构
-     */
-    private String convertContentToJson(List<SkillItemDTO> contentList) {
-        if (contentList == null || contentList.isEmpty()) {
-            throw new BusinessException(ErrorCode.SKILL_CONTENT_EMPTY);
-        }
-
-        try {
-            // 转换为 JSON 字符串
-            String json = objectMapper.writeValueAsString(contentList);
-
-            // 验证并清理（确保只有 type 和 content 字段）
-            return SkillContentValidator.validate(json);
-        } catch (BusinessException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new BusinessException(ErrorCode.SKILL_CONTENT_FORMAT_ERROR.getCode(), ErrorCode.SKILL_CONTENT_FORMAT_ERROR.getMessage() + ": " + e.getMessage());
-        }
-    }
-
-    /**
-     * 将 JSON 字符串转换为 List<SkillItemDTO>
-     */
-    public List<SkillItemDTO> convertJsonToContent(String json) {
-        try {
-            if (json == null || json.isEmpty()) {
-                return List.of();
-            }
-            return objectMapper.readValue(json, new TypeReference<List<SkillItemDTO>>() {
-            });
-        } catch (Exception e) {
-            throw new BusinessException(ErrorCode.SKILL_CONTENT_PARSE_FAILED.getCode(), ErrorCode.SKILL_CONTENT_PARSE_FAILED.getMessage() + ": " + e.getMessage());
-        }
-    }
 }

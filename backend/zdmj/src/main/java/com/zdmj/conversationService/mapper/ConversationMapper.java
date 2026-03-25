@@ -1,23 +1,20 @@
 package com.zdmj.conversationService.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.zdmj.conversationService.entity.Conversations;
+import com.zdmj.conversationService.entity.Conversation;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
-import org.apache.ibatis.annotations.Mapper;
-
 /**
- * 会话Mapper接口
+ * 会话 Mapper 骨架
  */
-
 @Mapper
-public interface ConversationMapper extends BaseMapper<Conversations> {
+public interface ConversationMapper extends BaseMapper<Conversation> {
+
     /**
-     * 根据用户ID查询会话列表
-     * 
-     * @param userId 用户ID
-     * @return 会话列表
+     * 按用户查询会话列表
      */
-    List<Conversations> selectConversationsByUserId(Long userId);
+    List<Conversation> selectByUserId(@Param("userId") Long userId);
 }

@@ -21,19 +21,17 @@ import com.zdmj.common.validation.UpdateGroup;
 import com.zdmj.resumeService.dto.ResumeDTO;
 import com.zdmj.resumeService.entity.Resume;
 import com.zdmj.resumeService.service.ResumeService;
+import lombok.RequiredArgsConstructor;
 
 /**
  * 简历控制器
  */
 @Slf4j
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/resumes")
 public class ResumeController {
     private final ResumeService resumeService;
-
-    public ResumeController(ResumeService resumeService) {
-        this.resumeService = resumeService;
-    }
 
     /**
      * 创建简历

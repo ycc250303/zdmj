@@ -25,6 +25,6 @@ public class UserUpdateDTO {
      * 主页链接
      */
     @Size(max = 255, message = "主页链接长度不能超过255个字符")
-    private String homepageUrl;
+    private String website;
 }
 

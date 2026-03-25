@@ -18,23 +18,20 @@ import com.zdmj.common.validation.UpdateGroup;
 import com.zdmj.knowledgeService.dto.KnowledgeBasesDTO;
 import com.zdmj.knowledgeService.entity.KnowledgeBases;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
-import com.zdmj.python.dto.knowledge.TaskStatusResponse;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * 知识库控制器
  */
 @Slf4j
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/knowledge")
 public class KnowledgeBasesController {
 
     private final KnowledgeBasesService knowledgeBasesService;
-
-    public KnowledgeBasesController(KnowledgeBasesService knowledgeBasesService) {
-        this.knowledgeBasesService = knowledgeBasesService;
-    }
 
     /**
      * 创建知识库
@@ -101,15 +98,4 @@ public class KnowledgeBasesController {
         return Result.success("删除知识库成功", null);
     }
 
-    /**
-     * 刷新向量化任务状态
-     * 通过 Python 任务查询接口获取状态并回写 vector_ids 与任务状态
-     *
-     * @param id 知识库ID
-     * @return 任务状态响应，包含最新任务状态与向量信息
-     */
-    @GetMapping("/{id}/vector/task/status")
-    public Result<TaskStatusResponse> refreshVectorTaskStatus(@PathVariable Long id) {
-        return Result.success("刷新任务状态成功", knowledgeBasesService.refreshVectorTaskStatus(id));
-    }
 }

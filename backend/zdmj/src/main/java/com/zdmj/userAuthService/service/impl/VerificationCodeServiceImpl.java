@@ -1,8 +1,9 @@
 package com.zdmj.userAuthService.service.impl;
 
-import com.zdmj.common.util.RedisConstants;
+import com.zdmj.common.cache.RedisConstants;
 import com.zdmj.userAuthService.service.EmailService;
 import com.zdmj.userAuthService.service.VerificationCodeService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -15,21 +16,11 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class VerificationCodeServiceImpl implements VerificationCodeService {
 
     private final StringRedisTemplate redisTemplate;
     private final EmailService emailService;
-
-    /**
-     * 构造函数注入（推荐方式）
-     *
-     * @param redisTemplate Redis模板
-     * @param emailService  邮件服务
-     */
-    public VerificationCodeServiceImpl(StringRedisTemplate redisTemplate, EmailService emailService) {
-        this.redisTemplate = redisTemplate;
-        this.emailService = emailService;
-    }
 
     @Override
     public boolean sendVerificationCode(String email) {

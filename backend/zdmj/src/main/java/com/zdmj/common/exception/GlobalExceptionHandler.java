@@ -37,19 +37,6 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 处理Python服务异常
-     * 
-     * @param e Python服务异常
-     * @return Result对象
-     */
-    @ExceptionHandler(PythonServiceException.class)
-    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public Result<?> handlePythonServiceException(PythonServiceException e) {
-        log.error("Python服务异常: [{}] {}", e.getCode(), e.getMessage(), e);
-        return Result.error(e.getCode(), e.getMessage());
-    }
-
-    /**
      * 处理参数校验异常（@RequestBody参数校验）
      * 
      * @param e 参数校验异常

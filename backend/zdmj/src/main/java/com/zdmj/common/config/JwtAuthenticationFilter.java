@@ -1,14 +1,15 @@
 package com.zdmj.common.config;
 
+import com.zdmj.common.cache.RedisUtil;
+import com.zdmj.common.cache.RedisConstants;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.util.RedisCacheUtil;
-import com.zdmj.common.util.RedisConstants;
 import com.zdmj.userAuthService.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -25,19 +26,11 @@ import java.util.Collections;
  * JWT认证过滤器
  */
 @Slf4j
+@RequiredArgsConstructor
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private final RedisCacheUtil redisCacheUtil;
-
-    /**
-     * 构造函数注入
-     *
-     * @param redisCacheUtil Redis缓存工具
-     */
-    public JwtAuthenticationFilter(RedisCacheUtil redisCacheUtil) {
-        this.redisCacheUtil = redisCacheUtil;
-    }
+    private final RedisUtil redisCacheUtil;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)

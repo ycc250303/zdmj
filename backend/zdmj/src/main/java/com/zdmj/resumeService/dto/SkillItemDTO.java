@@ -21,5 +21,5 @@ public class SkillItemDTO {
      * 技能内容数组（如：["React", "Vue.js"]）
      */
     @NotEmpty(message = "技能内容不能为空")
-    private List<String> content;
+    private List<@NotBlank(message = "技能内容项不能为空") String> content;
 }
