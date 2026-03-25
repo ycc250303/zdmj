@@ -21,3 +21,4 @@ docs/backend/Prisma-AI功能分类-Spring-AI-vs-LangChain.md
 /client/node_modules
 /client/packages
 /docs/软管
+backend/zdmj/src/main/resources/application.yml
