@@ -13,24 +13,18 @@ import org.springframework.stereotype.Component;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
-public class RedisCacheUtil {
+@RequiredArgsConstructor
+public class RedisUtil {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final Random random = new Random();
 
     private static final Double RANDOM_OFFSET = 0.05;
-
-    public RedisCacheUtil(StringRedisTemplate redisTemplate, ObjectMapper objectMapper) {
-        this.redisTemplate = redisTemplate;
-        this.objectMapper = objectMapper;
-    }
 
     /**
      * 计算带随机偏移的过期时间（偏移量为原时间的10%）
@@ -219,193 +213,4 @@ public class RedisCacheUtil {
         delete(nullKey);
     }
 
-    /**
-     * 流式消息数据结构
-     */
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class StreamingMessage {
-        /**
-         * 消息ID
-         */
-        private Long messageId;
-
-        /**
-         * 累积的完整内容
-         */
-        private String content;
-
-        /**
-         * 所有chunk的列表
-         */
-        private List<String> chunks;
-
-        /**
-         * 状态：streaming|completed|failed
-         */
-        private String status;
-
-        /**
-         * 创建时间
-         */
-        private String createdAt;
-
-        /**
-         * 更新时间
-         */
-        private String updatedAt;
-    }
-
-    /**
-     * 获取流式消息的Redis键
-     * 
-     * @param messageId 消息ID
-     * @return Redis键
-     */
-    private String getStreamingMessageKey(Long messageId) {
-        return RedisConstants.STREAMING_MESSAGE_KEY + messageId;
-    }
-
-    /**
-     * 初始化流式消息缓存
-     * 
-     * @param messageId 消息ID
-     */
-    public void initStreamingMessage(Long messageId) {
-        String key = getStreamingMessageKey(messageId);
-        StreamingMessage message = new StreamingMessage();
-        message.setMessageId(messageId);
-        message.setContent("");
-        message.setChunks(new ArrayList<>());
-        message.setStatus("streaming");
-        String now = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-        message.setCreatedAt(now);
-        message.setUpdatedAt(now);
-        set(key, message, RedisConstants.STREAMING_MESSAGE_TTL);
-        log.debug("初始化流式消息缓存: messageId={}", messageId);
-    }
-
-    /**
-     * 追加chunk到流式消息缓存
-     * 
-     * @param messageId 消息ID
-     * @param chunk     chunk内容
-     */
-    public void saveStreamingChunk(Long messageId, String chunk) {
-        String key = getStreamingMessageKey(messageId);
-        try {
-            // 使用同步块确保线程安全
-            synchronized (this) {
-                StreamingMessage message = get(key, StreamingMessage.class);
-                if (message == null) {
-                    // 如果不存在，初始化
-                    initStreamingMessage(messageId);
-                    message = get(key, StreamingMessage.class);
-                }
-                if (message != null) {
-                    // 追加chunk
-                    if (message.getChunks() == null) {
-                        message.setChunks(new ArrayList<>());
-                    }
-                    message.getChunks().add(chunk);
-                    // 更新累积内容
-                    String currentContent = message.getContent() != null ? message.getContent() : "";
-                    message.setContent(currentContent + chunk);
-                    // 更新更新时间
-                    message.setUpdatedAt(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-                    // 保存回Redis
-                    set(key, message, RedisConstants.STREAMING_MESSAGE_TTL);
-                    log.debug("追加chunk到流式消息: messageId={}, chunkLength={}", messageId, chunk.length());
-                }
-            }
-        } catch (org.springframework.dao.QueryTimeoutException | io.lettuce.core.RedisCommandTimeoutException e) {
-            log.warn("追加chunk到流式消息超时（不影响主流程）: messageId={}, error={}", messageId, e.getMessage());
-        } catch (Exception e) {
-            log.warn("追加chunk到流式消息失败（不影响主流程）: messageId={}, error={}", messageId, e.getMessage());
-        }
-    }
-
-    /**
-     * 获取流式消息状态
-     * 
-     * @param messageId 消息ID
-     * @return 流式消息对象，如果不存在返回null
-     */
-    public StreamingMessage getStreamingMessage(Long messageId) {
-        String key = getStreamingMessageKey(messageId);
-        try {
-            StreamingMessage message = get(key, StreamingMessage.class);
-            if (message != null) {
-                log.debug("获取流式消息: messageId={}, status={}, contentLength={}",
-                        messageId, message.getStatus(),
-                        message.getContent() != null ? message.getContent().length() : 0);
-            }
-            return message;
-        } catch (org.springframework.dao.QueryTimeoutException | io.lettuce.core.RedisCommandTimeoutException e) {
-            log.warn("获取流式消息超时（不影响主流程）: messageId={}, error={}", messageId, e.getMessage());
-            return null;
-        } catch (Exception e) {
-            log.warn("获取流式消息失败（不影响主流程）: messageId={}, error={}", messageId, e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * 标记流式消息为完成状态
-     * 
-     * @param messageId   消息ID
-     * @param fullContent 完整内容（可选，如果为null则使用当前累积的内容）
-     */
-    public void markStreamingComplete(Long messageId, String fullContent) {
-        String key = getStreamingMessageKey(messageId);
-        try {
-            synchronized (this) {
-                StreamingMessage message = get(key, StreamingMessage.class);
-                if (message != null) {
-                    message.setStatus("completed");
-                    // 如果提供了完整内容，使用提供的；否则使用当前累积的内容
-                    if (fullContent != null) {
-                        message.setContent(fullContent);
-                    }
-                    message.setUpdatedAt(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-                    set(key, message, RedisConstants.STREAMING_MESSAGE_TTL);
-                    log.debug("标记流式消息完成: messageId={}, contentLength={}",
-                            messageId, message.getContent() != null ? message.getContent().length() : 0);
-                } else {
-                    log.warn("标记流式消息完成失败: 消息不存在, messageId={}", messageId);
-                }
-            }
-        } catch (org.springframework.dao.QueryTimeoutException | io.lettuce.core.RedisCommandTimeoutException e) {
-            log.warn("标记流式消息完成超时（不影响主流程）: messageId={}, error={}", messageId, e.getMessage());
-        } catch (Exception e) {
-            log.warn("标记流式消息完成失败（不影响主流程）: messageId={}, error={}", messageId, e.getMessage());
-        }
-    }
-
-    /**
-     * 标记流式消息为失败状态
-     * 
-     * @param messageId 消息ID
-     */
-    public void markStreamingFailed(Long messageId) {
-        String key = getStreamingMessageKey(messageId);
-        try {
-            synchronized (this) {
-                StreamingMessage message = get(key, StreamingMessage.class);
-                if (message != null) {
-                    message.setStatus("failed");
-                    message.setUpdatedAt(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-                    set(key, message, RedisConstants.STREAMING_MESSAGE_TTL);
-                    log.debug("标记流式消息失败: messageId={}", messageId);
-                } else {
-                    log.warn("标记流式消息失败: 消息不存在, messageId={}", messageId);
-                }
-            }
-        } catch (org.springframework.dao.QueryTimeoutException | io.lettuce.core.RedisCommandTimeoutException e) {
-            log.warn("标记流式消息失败状态超时（不影响主流程）: messageId={}, error={}", messageId, e.getMessage());
-        } catch (Exception e) {
-            log.warn("标记流式消息失败状态失败（不影响主流程）: messageId={}, error={}", messageId, e.getMessage());
-        }
-    }
 }

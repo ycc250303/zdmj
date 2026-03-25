@@ -19,21 +19,19 @@ import com.zdmj.knowledgeService.dto.KnowledgeBasesDTO;
 import com.zdmj.knowledgeService.entity.KnowledgeBases;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * 知识库控制器
  */
 @Slf4j
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/knowledge")
 public class KnowledgeBasesController {
 
     private final KnowledgeBasesService knowledgeBasesService;
-
-    public KnowledgeBasesController(KnowledgeBasesService knowledgeBasesService) {
-        this.knowledgeBasesService = knowledgeBasesService;
-    }
 
     /**
      * 创建知识库

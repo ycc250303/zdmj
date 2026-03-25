@@ -20,6 +20,7 @@ import com.zdmj.jobService.dto.JobListItemDTO;
 import com.zdmj.jobService.dto.JobDTO;
 import com.zdmj.jobService.entity.Job;
 import com.zdmj.jobService.service.JobService;
+import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 
@@ -27,14 +28,11 @@ import java.util.List;
  * 岗位信息控制器
  */
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/jobs")
 public class JobController {
 
     private final JobService jobService;
-
-    public JobController(JobService jobService) {
-        this.jobService = jobService;
-    }
 
     /**
      * 查询岗位详情

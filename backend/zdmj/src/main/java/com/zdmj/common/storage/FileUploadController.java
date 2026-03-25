@@ -2,6 +2,7 @@ package com.zdmj.common.storage;
 
 import com.zdmj.common.Result;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,13 +17,10 @@ import org.springframework.web.multipart.MultipartFile;
 @Slf4j
 @RestController
 @RequestMapping("/files")
+@RequiredArgsConstructor
 public class FileUploadController {
 
     private final FileUploadUtil fileUploadService;
-
-    public FileUploadController(FileUploadUtil fileUploadService) {
-        this.fileUploadService = fileUploadService;
-    }
 
     /**
      * 上传文件到COS

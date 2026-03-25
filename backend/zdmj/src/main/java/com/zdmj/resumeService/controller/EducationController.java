@@ -7,6 +7,7 @@ import com.zdmj.resumeService.dto.EducationDTO;
 import com.zdmj.resumeService.entity.Education;
 import com.zdmj.resumeService.service.EducationService;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -17,15 +18,12 @@ import java.util.List;
  * 教育经历控制器
  */
 @Slf4j
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/educations")
 public class EducationController {
 
     private final EducationService educationService;
-
-    public EducationController(EducationService educationService) {
-        this.educationService = educationService;
-    }
 
     /**
      * 添加教育经历

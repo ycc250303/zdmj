@@ -9,6 +9,7 @@ import com.zdmj.resumeService.entity.Education;
 import com.zdmj.resumeService.mapper.EducationStructMapper;
 import com.zdmj.resumeService.mapper.EducationMapper;
 import com.zdmj.resumeService.service.EducationService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -18,14 +19,11 @@ import java.util.List;
  * 教育经历服务实现类
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education> implements EducationService {
 
     private final EducationStructMapper educationPatchMapper;
-
-    public EducationServiceImpl(EducationStructMapper educationPatchMapper) {
-        this.educationPatchMapper = educationPatchMapper;
-    }
 
     /**
      * 添加教育经历

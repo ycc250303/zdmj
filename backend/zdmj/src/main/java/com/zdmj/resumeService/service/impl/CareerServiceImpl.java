@@ -10,20 +10,18 @@ import com.zdmj.resumeService.mapper.CareerStructMapper;
 import com.zdmj.resumeService.mapper.CareerMapper;
 import com.zdmj.resumeService.service.CareerService;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> implements CareerService {
 
     private final CareerStructMapper careerPatchMapper;
-
-    public CareerServiceImpl(CareerStructMapper careerPatchMapper) {
-        this.careerPatchMapper = careerPatchMapper;
-    }
 
     @Override
     public Career create(CareerDTO careerDTO) {

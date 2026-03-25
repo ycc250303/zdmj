@@ -12,6 +12,7 @@ import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
 import com.zdmj.resumeService.mapper.ResumeMapper;
 import com.zdmj.resumeService.mapper.SkillMapper;
 import com.zdmj.resumeService.service.ResumeService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
@@ -24,20 +25,13 @@ import java.util.stream.Collectors;
  * 简历服务实现类
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> implements ResumeService {
     private final EducationMapper educationMapper;
     private final ProjectExperienceMapper projectExperienceMapper;
     private final CareerMapper careerMapper;
     private final SkillMapper skillMapper;
-
-    public ResumeServiceImpl(EducationMapper educationMapper,
-            ProjectExperienceMapper projectExperienceMapper, CareerMapper careerMapper, SkillMapper skillMapper) {
-        this.educationMapper = educationMapper;
-        this.projectExperienceMapper = projectExperienceMapper;
-        this.careerMapper = careerMapper;
-        this.skillMapper = skillMapper;
-    }
 
     @Override
     public Resume create(ResumeDTO resumeDTO) {

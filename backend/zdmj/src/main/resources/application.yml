@@ -46,8 +46,8 @@ spring:
 
   # 模型配置
   ai:
-    openai:
-      base-url: https://dashscope.aliyuncs.com/compatible-mode
+    dashscope:
+      base-url: https://dashscope.aliyuncs.com
       api-key: ${DASHSCOPE_API_KEY}
       chat:
         options:

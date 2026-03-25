@@ -22,19 +22,17 @@ import com.zdmj.common.validation.UpdateGroup;
 import com.zdmj.resumeService.dto.SkillDTO;
 import com.zdmj.resumeService.entity.Skill;
 import com.zdmj.resumeService.service.SkillService;
+import lombok.RequiredArgsConstructor;
 
 /**
  * 技能控制器
  */
 @Slf4j
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/skills")
 public class SkillController {
     private final SkillService skillService;
-
-    public SkillController(SkillService skillService) {
-        this.skillService = skillService;
-    }
 
     /**
      * 添加技能

@@ -6,7 +6,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.DateTimeUtil;
-import com.zdmj.common.cache.RedisCacheUtil;
+import com.zdmj.common.cache.RedisUtil;
 import com.zdmj.common.cache.RedisConstants;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.userAuthService.util.JwtUtil;
@@ -21,6 +21,7 @@ import com.zdmj.userAuthService.entity.User;
 import com.zdmj.userAuthService.mapper.UserMapper;
 import com.zdmj.userAuthService.service.UserService;
 import com.zdmj.userAuthService.service.VerificationCodeService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
@@ -30,22 +31,12 @@ import org.springframework.transaction.annotation.Transactional;
  * 用户服务实现类
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
     private final VerificationCodeService verificationCodeService;
-    private final RedisCacheUtil redisCacheUtil;
-
-    /**
-     * 构造函数注入（推荐方式）
-     *
-     * @param verificationCodeService 验证码服务
-     * @param redisCacheUtil          Redis缓存工具
-     */
-    public UserServiceImpl(VerificationCodeService verificationCodeService, RedisCacheUtil redisCacheUtil) {
-        this.verificationCodeService = verificationCodeService;
-        this.redisCacheUtil = redisCacheUtil;
-    }
+    private final RedisUtil redisCacheUtil;
 
     @Override
     @Transactional(rollbackFor = Exception.class)

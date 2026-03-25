@@ -10,6 +10,7 @@ import com.zdmj.resumeService.enums.ProjectStatusEnum;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
 import com.zdmj.resumeService.mapper.ProjectExperienceStructMapper;
 import com.zdmj.resumeService.service.ProjectExperienceService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import java.util.List;
@@ -18,15 +19,12 @@ import java.util.List;
  * 项目经历服务实现类
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceMapper, ProjectExperience>
         implements ProjectExperienceService {
 
     private final ProjectExperienceStructMapper projectExperiencePatchMapper;
-
-    public ProjectExperienceServiceImpl(ProjectExperienceStructMapper projectExperiencePatchMapper) {
-        this.projectExperiencePatchMapper = projectExperiencePatchMapper;
-    }
 
     @Override
     public ProjectExperience create(ProjectExperienceDTO projectExperienceDTO) {

@@ -18,6 +18,7 @@ import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
@@ -25,18 +26,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper, KnowledgeBases>
         implements KnowledgeBasesService {
 
     private final ProjectExperienceMapper projectExperienceMapper;
     private final KnowledgeBasesStructMapper knowledgeBasesStructMapper;
-
-    public KnowledgeBasesServiceImpl(ProjectExperienceMapper projectExperienceMapper,
-            KnowledgeBasesStructMapper knowledgeBasesStructMapper) {
-        this.projectExperienceMapper = projectExperienceMapper;
-        this.knowledgeBasesStructMapper = knowledgeBasesStructMapper;
-    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)

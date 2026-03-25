@@ -6,6 +6,7 @@ import com.zdmj.common.validation.UpdateGroup;
 import com.zdmj.resumeService.dto.ProjectExperienceDTO;
 import com.zdmj.resumeService.entity.ProjectExperience;
 import com.zdmj.resumeService.service.ProjectExperienceService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -16,14 +17,11 @@ import java.util.List;
  * 项目经历控制器
  */
 @Slf4j
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/projects")
 public class ProjectExperienceController {
     private final ProjectExperienceService projectExperienceService;
-
-    public ProjectExperienceController(ProjectExperienceService projectExperienceService) {
-        this.projectExperienceService = projectExperienceService;
-    }
 
     /**
      * 添加项目经历

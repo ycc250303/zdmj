@@ -1,7 +1,7 @@
 package com.zdmj.jobService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.zdmj.common.cache.RedisCacheUtil;
+import com.zdmj.common.cache.RedisUtil;
 import com.zdmj.common.cache.RedisConstants;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -17,28 +17,22 @@ import com.zdmj.jobService.mapper.JobStructMapper;
 import com.zdmj.jobService.mapper.JobMapper;
 import com.zdmj.jobService.service.JobService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobService {
 
     private static final int MAX_PAGE_SIZE = 100;
 
     private final CompanyMapper companyMapper;
-    private final RedisCacheUtil redisCacheUtil;
+    private final RedisUtil redisCacheUtil;
     private final JobStructMapper jobStructMapper;
     private final CompanyStructMapper companyStructMapper;
-
-    public JobServiceImpl(CompanyMapper companyMapper, RedisCacheUtil redisCacheUtil,
-            JobStructMapper jobStructMapper, CompanyStructMapper companyStructMapper) {
-        this.companyMapper = companyMapper;
-        this.redisCacheUtil = redisCacheUtil;
-        this.jobStructMapper = jobStructMapper;
-        this.companyStructMapper = companyStructMapper;
-    }
 
     @Override
     public JobDetailDTO getDetail(Long id) {
