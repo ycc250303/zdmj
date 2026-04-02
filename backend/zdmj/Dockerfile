@@ -5,10 +5,13 @@ WORKDIR /app
 
 # 复制 pom.xml 和源代码
 COPY pom.xml .
+# 先下载依赖，提升后续构建缓存命中率（pom.xml 不变时可复用）
+RUN mvn -B -ntp dependency:go-offline
+
 COPY src ./src
 
 # 构建应用（跳过测试，因为CI阶段已经运行过）
-RUN mvn clean package -Dmaven.test.skip=true
+RUN mvn -B -ntp clean package -Dmaven.test.skip=true
 
 # 阶段2: 运行应用
 FROM eclipse-temurin:21-jre-alpine
