@@ -75,9 +75,11 @@ jobs:
           timeout: 60s
           command_timeout: 10m
           script: |
-            set -e
+            set -euo pipefail
             cd /opt/zdmj/zdmj
-            git pull --ff-only origin main
+            git fetch --prune origin
+            git checkout main
+            git reset --hard origin/main
 
   # Java服务构建和部署任务
   deploy-java:
@@ -97,9 +99,9 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           timeout: 60s
-          command_timeout: 30m
+          command_timeout: 60m
           script: |
-            set -e
+            set -euo pipefail
             cd /opt/zdmj/zdmj
             docker build -t zdmj-backend:latest ./backend/zdmj
             docker stop zdmj-backend || true
@@ -110,7 +112,6 @@ jobs:
               -p 8080:8080 \
               -e TZ=Asia/Shanghai \
               zdmj-backend:latest
-            docker image prune -f
 
       # 验证部署
       - name: Verify deployment
@@ -145,16 +146,15 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           timeout: 60s
-          command_timeout: 30m
+          command_timeout: 60m
           script: |
-            set -e
+            set -euo pipefail
             cd /opt/zdmj/zdmj
             docker build -t zdmj-python:latest ./backend/zdmj-python
             cd /opt/zdmj/zdmj/deploy
             docker compose up -d --no-deps --force-recreate python
             docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "^zdmj-python:latest " || true
             docker inspect zdmj-python --format 'container_image={{.Image}}'
-            docker image prune -f
 
       # 验证部署
       - name: Verify deployment
