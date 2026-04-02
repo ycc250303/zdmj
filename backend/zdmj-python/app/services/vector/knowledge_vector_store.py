@@ -3,7 +3,6 @@
 
 功能：
 - 保存向量到 knowledge_vectors 表
-- 基于余弦相似度搜索知识库向量
 - 删除知识库向量
 - 支持批量操作和事务处理
 """
@@ -150,91 +149,6 @@ class KnowledgeVectorStore(BaseVectorStore):
             len(vector_ids),
         )
         return vector_ids
-
-    async def search(
-        self,
-        query_embedding: list[float],
-        user_id: int,
-        *,
-        top_k: int = 10,
-        knowledge_id: Optional[int] = None,
-        min_score: Optional[float] = None,
-    ) -> list[dict]:
-        """
-        基于余弦相似度搜索知识库向量
-
-        :param query_embedding: 查询向量（1024 维）
-        :param user_id: 用户ID（数据隔离，只搜索该用户的向量）
-        :param top_k: 返回最相似的 top_k 个结果，默认 10
-        :param knowledge_id: 可选，限制搜索范围到指定知识库
-        :param min_score: 可选，最小相似度阈值（0-1），低于此值的结果会被过滤
-        :return: 搜索结果列表，每个结果包含 id, knowledge_id, content, metadata, score 等字段
-        """
-        if len(query_embedding) != 1024:
-            raise ValueError(f"查询向量维度必须是 1024，实际为 {len(query_embedding)}")
-
-        logger.info(
-            "开始知识库向量搜索: user_id=%d, top_k=%d, knowledge_id=%s",
-            user_id,
-            top_k,
-            knowledge_id,
-        )
-
-        query_vector_str = self._vector_to_str(query_embedding)
-
-        where_clause = "WHERE user_id = $2"
-        params: list = [query_vector_str, user_id]
-        param_idx = 3
-
-        if knowledge_id is not None:
-            where_clause += f" AND knowledge_id = ${param_idx}"
-            params.append(knowledge_id)
-            param_idx += 1
-
-        if min_score is not None:
-            having_clause = f"HAVING (1 - (embedding <=> $1::vector)) >= ${param_idx}"
-            params.append(min_score)
-        else:
-            having_clause = ""
-
-        query = f"""
-            SELECT 
-                id,
-                knowledge_id,
-                content,
-                metadata,
-                chunk_index,
-                1 - (embedding <=> $1::vector) AS score
-            FROM knowledge_vectors
-            {where_clause}
-            {having_clause}
-            ORDER BY embedding <=> $1::vector
-            LIMIT ${param_idx}
-        """
-        params.append(top_k)
-
-        async with db.postgres_pool.acquire() as conn:
-            rows = await conn.fetch(query, *params)
-
-        results = []
-        for row in rows:
-            results.append(
-                {
-                    "id": row["id"],
-                    "knowledge_id": row["knowledge_id"],
-                    "content": row["content"],
-                    "metadata": row["metadata"] or {},
-                    "chunk_index": row["chunk_index"],
-                    "score": float(row["score"]),
-                }
-            )
-
-        logger.info(
-            "知识库向量搜索完成: user_id=%d, 返回结果数=%d",
-            user_id,
-            len(results),
-        )
-        return results
 
     async def delete(
         self,

@@ -20,8 +20,9 @@ class ValidationException(Exception):
     参数验证异常
     用于处理请求参数验证错误
     """
-    def __init__(self, message: str = "参数验证失败"):
-        self.code = 400
+    def __init__(self, message: str = "参数校验失败"):
+        # 与 Java ErrorCode.VALIDATION_ERROR 对齐
+        self.code = 1001
         self.message = message
         super().__init__(self.message)
 
@@ -31,7 +32,7 @@ class ServiceException(Exception):
     服务异常
     用于处理服务内部错误
     """
-    def __init__(self, code: int = 500, message: str = "服务内部错误"):
+    def __init__(self, code: int = 500, message: str = "服务器内部错误"):
         self.code = code
         self.message = message
         super().__init__(self.message)

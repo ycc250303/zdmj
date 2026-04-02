@@ -7,6 +7,9 @@
 - vector/: 向量相关服务（embedding, vector_store）
 - processing/: 文档处理服务（chunking）
 
+核心编排说明：
+- knowledge_task_service.py: 向量任务编排入口（抓取 -> 分块 -> 向量化 -> 落库 -> 状态更新）
+
 为了保持向后兼容，所有服务类都可以从 app.services 直接导入。
 """
 

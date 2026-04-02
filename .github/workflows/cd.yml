@@ -1,5 +1,6 @@
 # CD工作流：统一自动化部署
-# 当代码合并到main分支时自动构建Docker镜像并部署到服务器
+# 当代码推送到main分支时，GitHub Actions仅负责下发命令
+# 实际的 git 拉取、镜像构建与服务重启全部在腾讯云服务器本地执行
 # 同时部署Java和Python服务，使用并行作业减少总运行时间
 #
 # 前置要求：
@@ -32,6 +33,8 @@ concurrency:
 env:
   SERVER_HOST: 111.229.81.45       # 部署服务器IP地址
   SERVER_USER: root                # 服务器SSH登录用户名
+  APP_DIR: /opt/zdmj/zdmj          # 服务器项目目录
+  DEPLOY_BRANCH: main              # 服务器部署分支
 
 jobs:
   detect-changes:
@@ -76,10 +79,11 @@ jobs:
           command_timeout: 10m
           script: |
             set -euo pipefail
-            cd /opt/zdmj/zdmj
+            cd "${{ env.APP_DIR }}"
             git fetch --prune origin
-            git checkout main
-            git reset --hard origin/main
+            git checkout "${{ env.DEPLOY_BRANCH }}"
+            git reset --hard "origin/${{ env.DEPLOY_BRANCH }}"
+            git rev-parse --short HEAD
 
   # Java服务构建和部署任务
   deploy-java:
@@ -99,10 +103,10 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           timeout: 60s
-          command_timeout: 60m
+          command_timeout: 30m
           script: |
             set -euo pipefail
-            cd /opt/zdmj/zdmj
+            cd "${{ env.APP_DIR }}"
             docker build -t zdmj-backend:latest ./backend/zdmj
             docker stop zdmj-backend || true
             docker rm zdmj-backend || true
@@ -146,12 +150,12 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           timeout: 60s
-          command_timeout: 60m
+          command_timeout: 30m
           script: |
             set -euo pipefail
-            cd /opt/zdmj/zdmj
+            cd "${{ env.APP_DIR }}"
             docker build -t zdmj-python:latest ./backend/zdmj-python
-            cd /opt/zdmj/zdmj/deploy
+            cd "${{ env.APP_DIR }}/deploy"
             docker compose up -d --no-deps --force-recreate python
             docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "^zdmj-python:latest " || true
             docker inspect zdmj-python --format 'container_image={{.Image}}'

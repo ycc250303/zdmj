@@ -6,21 +6,20 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 文件上传结果DTO（收敛到 storage 领域）
+ * 文件上传结果DTO
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class FileUploadResult {
-
     /**
-     * 文件在COS中的对象键（key）
+     * COS对象键
      */
     private String key;
 
     /**
-     * 文件访问URL（永久URL）
+     * 文件访问URL
      */
     private String url;
 
@@ -35,7 +34,7 @@ public class FileUploadResult {
     private Long fileSize;
 
     /**
-     * 文件内容类型（MIME类型）
+     * 文件内容类型
      */
     private String contentType;
 }

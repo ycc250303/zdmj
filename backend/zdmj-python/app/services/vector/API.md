@@ -26,12 +26,17 @@
 > 仅当 `content / type` 等会影响分块和向量语义的字段发生变化时，Java 才调用本接口。  
 > 修改名称（`name`）、标签（`tag`）、项目绑定（`project_id`）等元数据时，不调用本向量化接口，由 Java 直接更新数据库。
 
-### 1.2 请求体：`KnowledgeEmbeddingRequest`
+### 1.2 请求体：`KnowledgeEmbeddingRequest`（JSON）
 
-- **knowledgeId: Long**
-  - 说明：知识库在 Java 侧的主键 ID（`knowledge_bases.id`）
-- **userId: Long**
-  - 说明：所属用户 ID，用于数据隔离（可用于简单校验 `knowledge_bases.user_id == userId`）
+```json
+{
+  "knowledgeId": 123,
+  "userId": 10001
+}
+```
+
+- `knowledgeId`: 知识库主键 ID（`knowledge_bases.id`）
+- `userId`: 所属用户 ID
 
 > 说明：Python 通过 `knowledgeId` 从 `knowledge_bases` 表读取向量化所需的全部信息（如 `type / content / project_id / tag` 等），  
 > **Java 无需在请求体中重复传递这些字段**。  
@@ -39,15 +44,21 @@
 > - 1 / 3 / 4（项目文档 / 技术文档 / 其他等）：向量化结果写入表 `knowledge_vectors`
 > - 2（项目代码 / GitHub 仓库）：向量化结果写入表 `project_code_vectors`，外键统一使用 `knowledge_id`
 
-### 1.3 返回体：`KnowledgeEmbeddingResponse`
+### 1.3 返回体：`KnowledgeEmbeddingResponse`（JSON）
 
-- **taskId: String**
-  - 说明：异步任务 ID，Java 需保存
-- **status: String**
-  - 枚举：`PENDING / RUNNING / SUCCESS / FAILED`
-  - 创建时一般返回 `PENDING`
-- **message: String**
-  - 说明：提示信息，如“任务已创建”
+> 实际返回遵循统一结构：`code/msg/data`
+
+```json
+{
+  "code": 200,
+  "msg": "操作成功",
+  "data": {
+    "taskId": "9f8a7c6b5d4e3210a1b2c3d4e5f67890",
+    "status": "PENDING",
+    "message": "知识库向量化任务已创建"
+  }
+}
+```
 
 > 注意：不在本接口中直接返回 `vectorIds`，而是等任务完成后，通过“任务查询接口”获取。
 
@@ -64,23 +75,33 @@
 - **路径**: `/ai/knowledge/vectors/delete`
 - **说明**: 根据 `knowledgeId` 批量删除该知识库下的全部向量（无论在 `knowledge_vectors` 还是 `project_code_vectors`）
 
-### 2.2 请求体：`DeleteVectorsRequest`
+### 2.2 请求体：`DeleteVectorsRequest`（JSON）
 
-- **knowledgeId: Long**
-  - 说明：知识库 ID，确保删除的是该知识库下的向量
-- **userId: Long**
-  - 说明：所属用户 ID，用于数据隔离（可用于简单校验 `knowledge_bases.user_id == userId`）
+```json
+{
+  "knowledgeId": 123,
+  "userId": 10001
+}
+```
+
+- `knowledgeId`: 知识库 ID
+- `userId`: 所属用户 ID
 
 > 说明：本接口按知识库维度全量删除，**不需要也不接收 `vectorIds`**。
 
-### 2.3 返回体：`DeleteVectorsResponse`
+### 2.3 返回体：`DeleteVectorsResponse`（JSON）
 
-- **taskId: String**
-  - 说明：异步任务 ID，Java 需保存
-- **status: String**
-  - 枚举：`PENDING / RUNNING / SUCCESS / FAILED`
-- **message: String**
-  - 说明：提示信息，如“删除任务已创建”
+```json
+{
+  "code": 200,
+  "msg": "操作成功",
+  "data": {
+    "taskId": "a13c2e4f6b8d9012c3e4f5a6b7d8e9f0",
+    "status": "PENDING",
+    "message": "整库向量删除任务已创建"
+  }
+}
+```
 
 > 向量删除成功后，`knowledge_bases.vector_ids` 的更新由 Java 服务根据自身记录（或任务查询结果中的 `vectorIds`）自行更新，  
 > Python 服务不直接修改 `knowledge_bases` 表。
@@ -95,20 +116,71 @@
 - **路径**: `/ai/knowledge/embedding/tasks/{taskId}`
 - **说明**: 查询向量化任务状态以及最终结果
 
-### 3.2 返回体：`KnowledgeEmbeddingTaskStatusResponse`
+### 3.2 返回体：`KnowledgeEmbeddingTaskStatusResponse`（JSON）
 
-- **taskId: String**
-  - 说明：任务 ID
-- **knowledgeId: Long**
-  - 说明：关联的知识库 ID
-- **status: String**
-  - 枚举：`PENDING / RUNNING / SUCCESS / FAILED / CANCELLED`
-- **vectorIds: List<Long>**（当 `status = SUCCESS` 时返回）
-  - 说明：任务成功后生成 / 保留的全部向量 ID 列表，Java 可以据此回写 `knowledge_bases.vector_ids`
-- **errorMessage: String**（当 `status = FAILED` 时返回）
-  - 说明：错误信息，便于排查问题
-- **startTime: String**（ISO8601 时间，选填）
-- **endTime: String**（ISO8601 时间，选填）
+#### 成功示例
+
+```json
+{
+  "code": 200,
+  "msg": "操作成功",
+  "data": {
+    "taskId": "9f8a7c6b5d4e3210a1b2c3d4e5f67890",
+    "knowledgeId": 123,
+    "status": "SUCCESS",
+    "vectorIds": [101, 102, 103],
+    "errorMessage": null,
+    "startTime": "2026-04-02T10:01:02.123456",
+    "endTime": "2026-04-02T10:02:35.987654"
+  }
+}
+```
+
+#### 运行中示例
+
+```json
+{
+  "code": 200,
+  "msg": "操作成功",
+  "data": {
+    "taskId": "9f8a7c6b5d4e3210a1b2c3d4e5f67890",
+    "knowledgeId": 123,
+    "status": "RUNNING",
+    "vectorIds": null,
+    "errorMessage": "向量化中: 8/20 (40.0%)",
+    "startTime": "2026-04-02T10:01:02.123456",
+    "endTime": "2026-04-02T10:01:30.111222"
+  }
+}
+```
+
+#### 失败示例
+
+```json
+{
+  "code": 200,
+  "msg": "操作成功",
+  "data": {
+    "taskId": "9f8a7c6b5d4e3210a1b2c3d4e5f67890",
+    "knowledgeId": 123,
+    "status": "FAILED",
+    "vectorIds": null,
+    "errorMessage": "千问 API 调用失败: timeout",
+    "startTime": "2026-04-02T10:01:02.123456",
+    "endTime": "2026-04-02T10:01:45.666777"
+  }
+}
+```
+
+#### 任务不存在示例
+
+```json
+{
+  "code": 404,
+  "msg": "任务不存在",
+  "data": null
+}
+```
 
 > 说明：由于 Java 不关心分块数量，`chunkCount` 不再作为对外契约字段；如有需要，可在任务表中内部记录。  
 > Java 侧调用流程示例：
@@ -127,10 +199,38 @@
 
 - **方法**: `POST`
 - **路径**: `/ai/knowledge/embedding/tasks/batch`
-- **请求体**：
-  - **taskIds: List<String>**
-- **返回体**：
-  - **tasks: List<KnowledgeEmbeddingTaskStatusResponse>**
+- **请求体（JSON）**：
+
+```json
+{
+  "taskIds": [
+    "9f8a7c6b5d4e3210a1b2c3d4e5f67890",
+    "a13c2e4f6b8d9012c3e4f5a6b7d8e9f0"
+  ]
+}
+```
+
+- **返回体（JSON）**：
+
+```json
+{
+  "code": 200,
+  "msg": "操作成功",
+  "data": {
+    "tasks": [
+      {
+        "taskId": "9f8a7c6b5d4e3210a1b2c3d4e5f67890",
+        "knowledgeId": 123,
+        "status": "SUCCESS",
+        "vectorIds": [101, 102, 103],
+        "errorMessage": null,
+        "startTime": "2026-04-02T10:01:02.123456",
+        "endTime": "2026-04-02T10:02:35.987654"
+      }
+    ]
+  }
+}
+```
 
 适用于 Java 侧批量检查多个知识库当前向量化任务的状态。
 
@@ -139,12 +239,21 @@
 - **方法**: `GET`
 - **路径**: `/ai/knowledge/{knowledgeId}/vectors/summary`
 - **说明**: 便于 Java 快速获知该知识库目前有多少向量，方便对比 / 校验
-- **响应字段（示例）**：
-  - **knowledgeId: Long**
-  - **vectorCount: Integer**
-  - **lastTaskId: String**（最近一次向量化任务 ID）
-  - **lastTaskStatus: String**
-  - **lastUpdateTime: String**
+- **返回体（JSON 示例）**：
+
+```json
+{
+  "code": 200,
+  "msg": "操作成功",
+  "data": {
+    "knowledgeId": 123,
+    "vectorCount": 356,
+    "lastTaskId": "9f8a7c6b5d4e3210a1b2c3d4e5f67890",
+    "lastTaskStatus": "SUCCESS",
+    "lastUpdateTime": "2026-04-02T10:02:35.987654"
+  }
+}
+```
 
 ---
 

@@ -28,7 +28,7 @@ class ApiResponse(BaseModel, Generic[T]):
         super().__init__(**data)
 
     @classmethod
-    def success(cls, data: T = None, msg: str = "成功") -> "ApiResponse[T]":
+    def success(cls, data: T = None, msg: str = "操作成功") -> "ApiResponse[T]":
         """
         创建成功响应
         
