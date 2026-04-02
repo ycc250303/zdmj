@@ -12,6 +12,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# 与 Java ErrorCode 枚举对齐（仅本服务当前会用到的通用码）
+VALIDATION_ERROR_CODE = 1001
+ILLEGAL_ARGUMENT_CODE = 1013
+SYSTEM_EXCEPTION_CODE = 1014
+
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """
@@ -23,11 +28,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     
     logger.warning(f"参数验证失败: {request.url.path} - {message}")
     
-    response = ApiResponse.error(
-        code=400,
-        msg=message,
-        data={"errors": errors}
-    )
+    response = ApiResponse.error(code=VALIDATION_ERROR_CODE, msg=message)
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content=response.model_dump()
@@ -82,6 +83,21 @@ async def validation_exception_handler_custom(request: Request, exc: ValidationE
     )
 
 
+async def value_error_handler(request: Request, exc: ValueError):
+    """
+    处理非法参数异常（对齐 Java IllegalArgumentException）。
+    """
+    logger.warning(f"非法参数: {request.url.path} - {exc}")
+    response = ApiResponse.error(
+        code=ILLEGAL_ARGUMENT_CODE,
+        msg=f"非法参数: {exc}"
+    )
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content=response.model_dump()
+    )
+
+
 async def service_exception_handler(request: Request, exc: ServiceException):
     """
     处理服务异常
@@ -105,8 +121,8 @@ async def general_exception_handler(request: Request, exc: Exception):
     logger.exception(f"未处理的异常: {request.url.path} - {type(exc).__name__} - {str(exc)}")
     
     response = ApiResponse.error(
-        code=500,
-        msg=f"系统异常: {str(exc)}"
+        code=SYSTEM_EXCEPTION_CODE,
+        msg="系统异常，请联系管理员"
     )
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

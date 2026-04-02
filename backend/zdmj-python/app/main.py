@@ -114,6 +114,7 @@ app.add_exception_handler(RequestValidationError, exception_handler.validation_e
 app.add_exception_handler(StarletteHTTPException, exception_handler.http_exception_handler)
 app.add_exception_handler(BusinessException, exception_handler.business_exception_handler)
 app.add_exception_handler(ValidationException, exception_handler.validation_exception_handler_custom)
+app.add_exception_handler(ValueError, exception_handler.value_error_handler)
 app.add_exception_handler(ServiceException, exception_handler.service_exception_handler)
 app.add_exception_handler(Exception, exception_handler.general_exception_handler)
 

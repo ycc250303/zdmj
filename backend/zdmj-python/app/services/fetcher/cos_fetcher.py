@@ -26,7 +26,6 @@ COS_URL_PATTERN = re.compile(
     r"^https?://(?P<bucket>[^.]+)\.(?P<service>cos|cos-internal)\.(?P<region>[^.]+)\.myqcloud\.com/(?P<key>.+)$"
 )
 
-
 @dataclass
 class COSCredentials:
     """COS 鉴权信息."""
@@ -134,50 +133,3 @@ class COSFetcher:
         """
         pdf_bytes = self.fetch_pdf_bytes(url)
         return self.extract_text_from_pdf_bytes(pdf_bytes)
-
-
-def main() -> None:
-    """
-    简单测试入口：
-
-    运行方式（示例）：
-        python -m app.services.fetcher.cos_fetcher
-
-    在代码中维护一个 COS PDF URL 测试列表，依次解析并打印前若干字符的解析结果。
-    """
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
-    )
-
-    # 将下面的示例 URL 替换为你自己的 COS PDF 访问地址
-    test_urls = [
-        "https://zdmj-1381832847.cos.ap-shanghai.myqcloud.com/resume-1/尹诚成-简历-1771922605040-f7c7182e8ded40f89a0a77031ef90d21.pdf"
-    ]
-
-    if not test_urls:
-        print("当前测试 URL 列表为空，请在 content_fetcher.main 中填入实际 COS PDF URL 后再运行。")
-        return
-
-    fetcher = COSFetcher()
-    preview_len = 500
-
-    for idx, url in enumerate(test_urls, start=1):
-        print(f"\n==== 开始解析第 {idx} 个 URL ====")
-        print(f"URL: {url}\n")
-        try:
-            text = fetcher.fetch_pdf_text(url)
-        except Exception as exc:  # 在测试入口中捕获所有异常并打印
-            logger.exception("拉取/解析 COS PDF 失败: %s", exc)
-            print(f"拉取/解析失败: {exc}")
-            continue
-
-        preview = text[:preview_len]
-        print("==== 解析结果预览 ====")
-        print(preview)
-        if len(text) > preview_len:
-            print(f"\n...（总长度 {len(text)} 字符，仅展示前 {preview_len} 字符）")
-
-
-if __name__ == "__main__":
-    main()

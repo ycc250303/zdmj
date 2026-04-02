@@ -4,11 +4,16 @@ import com.zdmj.common.Result;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * 通用文件上传控制器
@@ -23,18 +28,7 @@ public class FileUploadController {
     private final FileUploadUtil fileUploadService;
 
     /**
-     * 上传文件到COS
-     * 
-     * @param file 文件对象（必填）
-     * @param prefix 路径前缀（可选），用于区分不同业务模块
-     *               例如：knowledge（知识库）、resume（简历）、project（项目）等
-     *               如果不提供，默认使用 "files" 作为前缀
-     * @return 上传结果，包含文件key、访问URL等信息
-     * 
-     * 使用示例：
-     * 1. 知识库文档上传：POST /files/upload?prefix=knowledge
-     * 2. 简历文件上传：POST /files/upload?prefix=resume
-     * 3. 通用文件上传：POST /files/upload
+     * 上传文件到COS（后端直传）
      */
     @PostMapping("/upload")
     public Result<FileUploadResult> uploadFile(
@@ -43,4 +37,30 @@ public class FileUploadController {
         FileUploadResult result = fileUploadService.uploadFile(file, prefix);
         return Result.success("文件上传成功", result);
     }
+
+    /**
+     * 按 COS key 删除文件
+     * 
+     * @param key COS对象键
+     * @return 结果
+     */
+    @DeleteMapping
+    public Result<Void> deleteByKey(@RequestParam("key") String key) {
+        fileUploadService.deleteByKey(key);
+        return Result.success("文件删除成功", null);
+    }
+
+    /**
+     * 查询当前用户某业务域下上传的文件列表
+     * 例：GET /files/list?prefix=knowledge
+     * 
+     * @param prefix 业务区域
+     * @return 文件列表
+     */
+    @GetMapping("/list")
+    public Result<List<Map<String, String>>> listByBizArea(
+            @RequestParam(value = "prefix", required = false) String prefix) {
+        return Result.success(fileUploadService.listUploadedFiles(prefix));
+    }
+
 }
