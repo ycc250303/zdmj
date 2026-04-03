@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import re
+from importlib import import_module
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -20,6 +21,112 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 logger = logging.getLogger(__name__)
+
+EXT_TO_LANG = {
+    '.py': 'python',
+    '.java': 'java',
+    '.js': 'javascript',
+    '.jsx': 'javascript',
+    '.ts': 'typescript',
+    '.tsx': 'typescript',
+    '.go': 'go',
+    '.cpp': 'cpp',
+    '.cc': 'cpp',
+    '.cxx': 'cpp',
+    '.c': 'c',
+    '.h': 'c',
+    '.hpp': 'cpp',
+}
+
+QUERY_PATTERNS = {
+    'python': """
+        (function_definition) @function
+        (class_definition) @class
+    """,
+    'java': """
+        (method_declaration) @method
+        (class_declaration) @class
+        (interface_declaration) @interface
+    """,
+    'javascript': """
+        (function_declaration) @function
+        (method_definition) @method
+        (class_declaration) @class
+        (arrow_function) @arrow_function
+    """,
+    'typescript': """
+        (function_declaration) @function
+        (method_definition) @method
+        (class_declaration) @class
+        (interface_declaration) @interface
+        (arrow_function) @arrow_function
+    """,
+    'go': """
+        (function_declaration) @function
+        (method_declaration) @method
+        (type_declaration) @type
+    """,
+    'cpp': """
+        (function_definition) @function
+        (class_specifier) @class
+        (namespace_definition) @namespace
+    """,
+    'c': """
+        (function_definition) @function
+    """,
+}
+
+LANGUAGE_SPLITTER_MAP = {
+    'python': 'python',
+    'java': 'java',
+    'javascript': 'js',
+    'js': 'js',
+    'typescript': 'js',
+    'ts': 'js',
+    'go': 'go',
+    'cpp': 'cpp',
+    'c': 'cpp',
+}
+
+LANGUAGE_GRAMMAR_IMPORTS = {
+    "python": ("tree_sitter_python", ("python",)),
+    "java": ("tree_sitter_java", ("java",)),
+    "javascript": ("tree_sitter_javascript", ("javascript", "js")),
+    "typescript": ("tree_sitter_typescript", ("typescript", "ts")),
+    "go": ("tree_sitter_go", ("go",)),
+    "cpp": ("tree_sitter_cpp", ("cpp", "c")),
+}
+
+METADATA_PATTERNS = {
+    'python': (
+        ("function_name", r'def\s+(\w+)'),
+        ("class_name", r'class\s+(\w+)'),
+    ),
+    'java': (
+        ("method_name", r'(\w+)\s*\([^)]*\)\s*\{'),
+        ("class_name", r'class\s+(\w+)'),
+    ),
+    'javascript': (
+        ("function_name", r'function\s+(\w+)'),
+        ("method_name", r'(\w+)\s*\([^)]*\)\s*\{'),
+        ("class_name", r'class\s+(\w+)'),
+    ),
+    'typescript': (
+        ("function_name", r'function\s+(\w+)'),
+        ("method_name", r'(\w+)\s*\([^)]*\)\s*\{'),
+        ("class_name", r'class\s+(\w+)'),
+    ),
+    'go': (
+        ("function_name", r'func\s+(\w+)'),
+    ),
+    'cpp': (
+        ("function_name", r'(\w+)\s*\([^)]*\)\s*\{'),
+        ("class_name", r'class\s+(\w+)'),
+    ),
+    'c': (
+        ("function_name", r'(\w+)\s*\([^)]*\)\s*\{'),
+    ),
+}
 
 # 尝试导入 tree-sitter 相关模块
 try:
@@ -74,45 +181,8 @@ class ASTCodeChunker:
             return
         
         try:
-            # 尝试导入各语言的语法包
-            try:
-                import tree_sitter_python
-                self.language_grammars['python'] = tree_sitter_python.language()
-            except ImportError:
-                logger.debug("tree-sitter-python 未安装")
-            
-            try:
-                import tree_sitter_java
-                self.language_grammars['java'] = tree_sitter_java.language()
-            except ImportError:
-                logger.debug("tree-sitter-java 未安装")
-            
-            try:
-                import tree_sitter_javascript
-                self.language_grammars['javascript'] = tree_sitter_javascript.language()
-                self.language_grammars['js'] = tree_sitter_javascript.language()
-            except ImportError:
-                logger.debug("tree-sitter-javascript 未安装")
-            
-            try:
-                import tree_sitter_typescript
-                self.language_grammars['typescript'] = tree_sitter_typescript.language()
-                self.language_grammars['ts'] = tree_sitter_typescript.language()
-            except ImportError:
-                logger.debug("tree-sitter-typescript 未安装")
-            
-            try:
-                import tree_sitter_go
-                self.language_grammars['go'] = tree_sitter_go.language()
-            except ImportError:
-                logger.debug("tree-sitter-go 未安装")
-            
-            try:
-                import tree_sitter_cpp
-                self.language_grammars['cpp'] = tree_sitter_cpp.language()
-                self.language_grammars['c'] = tree_sitter_cpp.language()
-            except ImportError:
-                logger.debug("tree-sitter-cpp 未安装")
+            for display_name, (module_name, aliases) in LANGUAGE_GRAMMAR_IMPORTS.items():
+                self._register_language_grammar(display_name, module_name, aliases)
             
             if self.language_grammars:
                 self.parser = Parser()
@@ -125,6 +195,23 @@ class ASTCodeChunker:
                 
         except Exception as e:
             logger.warning(f"加载 tree-sitter 语法时出错: {e}，将使用回退方案")
+
+    def _register_language_grammar(
+        self,
+        display_name: str,
+        module_name: str,
+        aliases: tuple[str, ...],
+    ) -> None:
+        """导入并注册单个语言 grammar（含别名）"""
+        try:
+            grammar_module = import_module(module_name)
+            grammar = grammar_module.language()
+            for alias in aliases:
+                self.language_grammars[alias] = grammar
+        except ImportError:
+            logger.debug("%s 未安装", module_name.replace("_", "-"))
+        except Exception as exc:
+            logger.debug("加载 %s 语法失败: %s", display_name, exc)
     
     def _detect_language(self, file_path: str) -> Optional[str]:
         """
@@ -140,24 +227,7 @@ class ASTCodeChunker:
         path = Path(file_path)
         ext = path.suffix.lower()
         
-        # 扩展名到语言的映射
-        ext_to_lang = {
-            '.py': 'python',
-            '.java': 'java',
-            '.js': 'javascript',
-            '.jsx': 'javascript',
-            '.ts': 'typescript',
-            '.tsx': 'typescript',
-            '.go': 'go',
-            '.cpp': 'cpp',
-            '.cc': 'cpp',
-            '.cxx': 'cpp',
-            '.c': 'c',
-            '.h': 'c',
-            '.hpp': 'cpp',
-        }
-        
-        return ext_to_lang.get(ext)
+        return EXT_TO_LANG.get(ext)
     
     def _get_query_pattern(self, language: str) -> str:
         """
@@ -166,45 +236,7 @@ class ASTCodeChunker:
         :param language: 编程语言名称
         :return: tree-sitter 查询模式字符串
         """
-        patterns = {
-            'python': """
-                (function_definition) @function
-                (class_definition) @class
-            """,
-            'java': """
-                (method_declaration) @method
-                (class_declaration) @class
-                (interface_declaration) @interface
-            """,
-            'javascript': """
-                (function_declaration) @function
-                (method_definition) @method
-                (class_declaration) @class
-                (arrow_function) @arrow_function
-            """,
-            'typescript': """
-                (function_declaration) @function
-                (method_definition) @method
-                (class_declaration) @class
-                (interface_declaration) @interface
-                (arrow_function) @arrow_function
-            """,
-            'go': """
-                (function_declaration) @function
-                (method_declaration) @method
-                (type_declaration) @type
-            """,
-            'cpp': """
-                (function_definition) @function
-                (class_specifier) @class
-                (namespace_definition) @namespace
-            """,
-            'c': """
-                (function_definition) @function
-            """,
-        }
-        
-        return patterns.get(language.lower(), "")
+        return QUERY_PATTERNS.get(language.lower(), "")
     
     def _extract_metadata(
         self,
@@ -233,64 +265,30 @@ class ASTCodeChunker:
         # 提取节点对应的代码文本
         node_text = code[node.start_byte:node.end_byte]
         
-        # 根据语言和节点类型提取特定信息
-        if language == 'python':
-            # 提取函数名
-            func_match = re.search(r'def\s+(\w+)', node_text)
-            if func_match:
-                metadata["function_name"] = func_match.group(1)
-            
-            # 提取类名
-            class_match = re.search(r'class\s+(\w+)', node_text)
-            if class_match:
-                metadata["class_name"] = class_match.group(1)
-        
-        elif language == 'java':
-            # 提取方法名
-            method_match = re.search(r'(\w+)\s*\([^)]*\)\s*\{', node_text)
-            if method_match:
-                metadata["method_name"] = method_match.group(1)
-            
-            # 提取类名
-            class_match = re.search(r'class\s+(\w+)', node_text)
-            if class_match:
-                metadata["class_name"] = class_match.group(1)
-        
-        elif language in ('javascript', 'typescript'):
-            # 提取函数名
-            func_match = re.search(r'function\s+(\w+)', node_text)
-            if func_match:
-                metadata["function_name"] = func_match.group(1)
-            
-            # 提取方法名（类方法）
-            method_match = re.search(r'(\w+)\s*\([^)]*\)\s*\{', node_text)
-            if method_match:
-                metadata["method_name"] = method_match.group(1)
-            
-            # 提取类名
-            class_match = re.search(r'class\s+(\w+)', node_text)
-            if class_match:
-                metadata["class_name"] = class_match.group(1)
-        
-        elif language == 'go':
-            # 提取函数名
-            func_match = re.search(r'func\s+(\w+)', node_text)
-            if func_match:
-                metadata["function_name"] = func_match.group(1)
-        
-        elif language in ('cpp', 'c'):
-            # 提取函数名
-            func_match = re.search(r'(\w+)\s*\([^)]*\)\s*\{', node_text)
-            if func_match:
-                metadata["function_name"] = func_match.group(1)
-            
-            # 提取类名（C++）
-            if language == 'cpp':
-                class_match = re.search(r'class\s+(\w+)', node_text)
-                if class_match:
-                    metadata["class_name"] = class_match.group(1)
+        for field, pattern in METADATA_PATTERNS.get(language, ()):
+            match = re.search(pattern, node_text)
+            if match:
+                metadata[field] = match.group(1)
         
         return metadata
+
+    def _add_chunk_index_metadata(self, chunks: list[Document]) -> None:
+        """统一添加 chunk_index / total_chunks 元数据"""
+        total_chunks = len(chunks)
+        for chunk_idx, chunk in enumerate(chunks):
+            chunk.metadata["chunk_index"] = chunk_idx
+            chunk.metadata["total_chunks"] = total_chunks
+
+    def _merge_with_original_metadata(
+        self,
+        original: dict,
+        chunk_metadata: dict,
+    ) -> dict:
+        """合并 metadata，保留 chunk 侧字段优先级"""
+        base = original.copy()
+        base.pop("path", None)
+        base.pop("file_path", None)
+        return {**base, **chunk_metadata}
     
     def chunk_code(
         self,
@@ -389,9 +387,7 @@ class ASTCodeChunker:
             
             # 添加 chunk_index
             if add_chunk_index:
-                for chunk_idx, chunk in enumerate(chunks):
-                    chunk.metadata["chunk_index"] = chunk_idx
-                    chunk.metadata["total_chunks"] = len(chunks)
+                self._add_chunk_index_metadata(chunks)
             
             logger.debug(
                 "AST 代码分块完成: language=%s, file_path=%s, chunks=%d",
@@ -427,20 +423,7 @@ class ASTCodeChunker:
         :param add_chunk_index: 是否添加 chunk_index
         :return: Document 列表
         """
-        # 语言映射到 LangChain 支持的语言
-        lang_map = {
-            'python': 'python',
-            'java': 'java',
-            'javascript': 'js',
-            'js': 'js',
-            'typescript': 'js',  # TypeScript 使用 JavaScript 分割器
-            'ts': 'js',
-            'go': 'go',
-            'cpp': 'cpp',
-            'c': 'cpp',  # C 使用 C++ 分割器
-        }
-        
-        lc_lang = lang_map.get(language.lower() if language else '')
+        lc_lang = LANGUAGE_SPLITTER_MAP.get(language.lower() if language else '')
         
         if lc_lang:
             try:
@@ -474,9 +457,7 @@ class ASTCodeChunker:
         
         # 添加 chunk_index
         if add_chunk_index:
-            for chunk_idx, chunk in enumerate(chunks):
-                chunk.metadata["chunk_index"] = chunk_idx
-                chunk.metadata["total_chunks"] = len(chunks)
+            self._add_chunk_index_metadata(chunks)
         
         logger.debug(
             "回退方案分块完成: language=%s, file_path=%s, chunks=%d",
@@ -534,13 +515,10 @@ class ASTCodeChunker:
                     if preserve_metadata:
                         for chunk in chunks:
                             # 合并原始 metadata，但代码分块器生成的 metadata 优先级更高
-                            original_metadata = doc.metadata.copy()
-                            chunk_metadata = chunk.metadata.copy()
-                            # 移除原始 metadata 中的 path/file_path，避免重复
-                            original_metadata.pop("path", None)
-                            original_metadata.pop("file_path", None)
-                            # 合并 metadata
-                            chunk.metadata = {**original_metadata, **chunk_metadata}
+                            chunk.metadata = self._merge_with_original_metadata(
+                                doc.metadata,
+                                chunk.metadata,
+                            )
                 else:
                     # 非代码文件：使用回退方案
                     logger.debug(
@@ -558,11 +536,10 @@ class ASTCodeChunker:
                     # 合并原始 metadata
                     if preserve_metadata:
                         for chunk in chunks:
-                            original_metadata = doc.metadata.copy()
-                            chunk_metadata = chunk.metadata.copy()
-                            original_metadata.pop("path", None)
-                            original_metadata.pop("file_path", None)
-                            chunk.metadata = {**original_metadata, **chunk_metadata}
+                            chunk.metadata = self._merge_with_original_metadata(
+                                doc.metadata,
+                                chunk.metadata,
+                            )
                 
                 all_chunks.extend(chunks)
                 
@@ -588,95 +565,3 @@ class ASTCodeChunker:
         
         return all_chunks
 
-
-def main() -> None:
-    """
-    简单测试入口：
-    
-    运行方式（示例）：
-        python -m app.services.processing.ast_code_chunker
-    
-    测试逻辑：
-    - 创建测试代码文档
-    - 使用 ASTCodeChunker 进行分块
-    - 打印分块结果预览
-    """
-    import logging
-    
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
-    )
-    
-    from langchain_core.documents import Document
-    
-    # 创建测试代码文档
-    test_docs = [
-        Document(
-            page_content="""
-def calculate_sum(a: int, b: int) -> int:
-    \"\"\"计算两个整数的和\"\"\"
-    return a + b
-
-def calculate_product(x: float, y: float) -> float:
-    \"\"\"计算两个浮点数的乘积\"\"\"
-    return x * y
-
-class Calculator:
-    \"\"\"简单的计算器类\"\"\"
-    
-    def __init__(self):
-        self.result = 0
-    
-    def add(self, x: int, y: int) -> int:
-        \"\"\"加法运算\"\"\"
-        self.result = x + y
-        return self.result
-    
-    def multiply(self, x: int, y: int) -> int:
-        \"\"\"乘法运算\"\"\"
-        self.result = x * y
-        return self.result
-            """.strip(),
-            metadata={"path": "test_calculator.py", "type": "code"},
-        ),
-        Document(
-            page_content="""
-public class HelloWorld {
-    public static void main(String[] args) {
-        System.out.println("Hello, World!");
-    }
-    
-    public int add(int a, int b) {
-        return a + b;
-    }
-}
-            """.strip(),
-            metadata={"path": "HelloWorld.java", "type": "code"},
-        ),
-    ]
-    
-    # 创建 AST 代码分块器
-    chunker = ASTCodeChunker()
-    
-    # 对文档进行分块
-    chunks = chunker.chunk_documents(test_docs)
-    
-    # 打印结果
-    print(f"\n==== AST 代码分块结果 ====")
-    print(f"输入文档数：{len(test_docs)}")
-    print(f"输出分块数：{len(chunks)}\n")
-    
-    for idx, chunk in enumerate(chunks[:10]):  # 只显示前 10 个分块
-        print(f"--- 分块 {idx + 1} ---")
-        print(f"Metadata: {chunk.metadata}")
-        print(f"内容长度: {len(chunk.page_content)} 字符")
-        print(f"内容预览:\n{chunk.page_content[:300]}")
-        print()
-    
-    if len(chunks) > 10:
-        print(f"...（共 {len(chunks)} 个分块，仅展示前 10 个）")
-
-
-if __name__ == "__main__":
-    main()

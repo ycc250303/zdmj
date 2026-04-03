@@ -17,7 +17,7 @@ from typing import Optional
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from app.models.response import ApiResponse
+from app.common.response import ApiResponse
 from app.repositories.task_repository import (
     TASK_STATUS_TO_STR,
     TaskStatus,

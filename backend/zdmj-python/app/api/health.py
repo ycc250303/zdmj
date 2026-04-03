@@ -4,7 +4,7 @@
 """
 from fastapi import APIRouter
 from app.database import db
-from app.models.response import ApiResponse
+from app.common.response import ApiResponse
 
 router = APIRouter()
 
