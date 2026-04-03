@@ -14,7 +14,7 @@ from app.config import settings
 from app.database import db
 from app.api import health, knowledge
 from app.exceptions import BusinessException, ValidationException, ServiceException
-from app.middleware import exception_handler
+from app.common import exception_handler
 
 # 配置日志系统，确保输出到控制台
 logging.basicConfig(

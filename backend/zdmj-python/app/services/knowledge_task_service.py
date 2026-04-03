@@ -175,7 +175,8 @@ async def process_embedding_task(task_id: str, knowledge_id: int, user_id: int) 
                 doc_documents.append(doc)
 
         loop = asyncio.get_event_loop()
-        all_chunk_docs: list[Document] = []
+        code_chunk_docs: list[Document] = []
+        doc_chunk_docs: list[Document] = []
 
         if code_documents:
             ast_chunker = ASTCodeChunker(chunk_size=1500, chunk_overlap=200)
@@ -187,15 +188,15 @@ async def process_embedding_task(task_id: str, knowledge_id: int, user_id: int) 
                     return enhancer.enhance_code_chunks(code_chunks, skip_non_code=True)
 
                 enhanced_code_chunks = await loop.run_in_executor(None, enhance_chunks)
-                all_chunk_docs.extend(enhanced_code_chunks)
+                code_chunk_docs.extend(enhanced_code_chunks)
 
         if doc_documents:
             doc_chunker = DocumentChunker(chunk_size=1500, chunk_overlap=200)
             doc_chunks = await loop.run_in_executor(None, doc_chunker.chunk_documents, doc_documents)
             if doc_chunks:
-                all_chunk_docs.extend(doc_chunks)
+                doc_chunk_docs.extend(doc_chunks)
 
-        chunk_docs = all_chunk_docs
+        chunk_docs = code_chunk_docs + doc_chunk_docs
         if not chunk_docs:
             await update_task_status(
                 task_id,
@@ -212,47 +213,54 @@ async def process_embedding_task(task_id: str, knowledge_id: int, user_id: int) 
         )
 
         embedding_service = QwenEmbedding()
-        texts = [doc.page_content for doc in chunk_docs]
         batch_size = settings.embedding_batch_size
-        embeddings: list[list[float]] = []
-        total_batches = (len(texts) + batch_size - 1) // batch_size
-        progress_update_interval = max(5, total_batches // 20)
 
-        for i in range(0, len(texts), batch_size):
-            batch_texts = texts[i : i + batch_size]
-            batch_num = i // batch_size + 1
-            progress_pct = (batch_num / total_batches) * 100
-            if batch_num % progress_update_interval == 0 or batch_num == total_batches:
-                await update_task_status(
-                    task_id,
-                    status=TaskStatus.RUNNING,
-                    error_message=f"向量化中: {batch_num}/{total_batches} ({progress_pct:.1f}%)",
-                )
+        async def embed_chunks(
+            docs: list[Document],
+            phase_name: str,
+        ) -> list[list[float]]:
+            if not docs:
+                return []
 
-            max_retries = 3
-            retry_count = 0
-            batch_embeddings = None
-            while retry_count < max_retries:
-                try:
-                    batch_embeddings = embedding_service.embed_documents(batch_texts)
-                    break
-                except Exception:
-                    # 外部向量接口存在瞬时失败时做轻量重试，避免整任务直接失败。
-                    retry_count += 1
-                    if retry_count >= max_retries:
-                        raise
-                    await asyncio.sleep(retry_count * 2)
+            texts = [doc.page_content for doc in docs]
+            embeddings: list[list[float]] = []
+            total_batches = (len(texts) + batch_size - 1) // batch_size
+            progress_update_interval = max(5, total_batches // 20)
 
-            if batch_embeddings is not None:
-                embeddings.extend(batch_embeddings)
+            for i in range(0, len(texts), batch_size):
+                batch_texts = texts[i : i + batch_size]
+                batch_num = i // batch_size + 1
+                progress_pct = (batch_num / total_batches) * 100
+                if batch_num % progress_update_interval == 0 or batch_num == total_batches:
+                    await update_task_status(
+                        task_id,
+                        status=TaskStatus.RUNNING,
+                        error_message=f"{phase_name}向量化中: {batch_num}/{total_batches} ({progress_pct:.1f}%)",
+                    )
 
-        if len(embeddings) != len(chunk_docs):
-            await update_task_status(
-                task_id,
-                status=TaskStatus.FAILED,
-                error_message="向量数量与分块数量不匹配",
-            )
-            return
+                max_retries = 3
+                retry_count = 0
+                batch_embeddings = None
+                while retry_count < max_retries:
+                    try:
+                        batch_embeddings = embedding_service.embed_documents(batch_texts)
+                        break
+                    except Exception:
+                        # 外部向量接口存在瞬时失败时做轻量重试，避免整任务直接失败。
+                        retry_count += 1
+                        if retry_count >= max_retries:
+                            raise
+                        await asyncio.sleep(retry_count * 2)
+
+                if batch_embeddings is not None:
+                    embeddings.extend(batch_embeddings)
+
+            if len(embeddings) != len(docs):
+                raise RuntimeError(f"{phase_name}向量数量与分块数量不匹配")
+            return embeddings
+
+        doc_embeddings = await embed_chunks(doc_chunk_docs, "文档")
+        code_embeddings = await embed_chunks(code_chunk_docs, "代码")
 
         # 4) 幂等重跑策略：先删旧向量，再写入新结果，避免历史脏数据残留。
         kv_store = KnowledgeVectorStore()
@@ -263,20 +271,24 @@ async def process_embedding_task(task_id: str, knowledge_id: int, user_id: int) 
         except Exception as exc:
             logger.warning("删除旧向量时出错（忽略继续）: knowledge_id=%d, error=%s", knowledge_id, exc)
 
-        if knowledge_type == 2:
-            vector_ids = await pc_store.save_vectors(
+        vector_ids: list[int] = []
+        if doc_chunk_docs:
+            doc_vector_ids = await kv_store.save_vectors(
                 knowledge_id=knowledge_id,
                 user_id=user_id,
-                documents=chunk_docs,
-                embeddings=embeddings,
+                documents=doc_chunk_docs,
+                embeddings=doc_embeddings,
             )
-        else:
-            vector_ids = await kv_store.save_vectors(
+            vector_ids.extend(doc_vector_ids)
+
+        if code_chunk_docs:
+            code_vector_ids = await pc_store.save_vectors(
                 knowledge_id=knowledge_id,
                 user_id=user_id,
-                documents=chunk_docs,
-                embeddings=embeddings,
+                documents=code_chunk_docs,
+                embeddings=code_embeddings,
             )
+            vector_ids.extend(code_vector_ids)
 
         await update_task_status(
             task_id,

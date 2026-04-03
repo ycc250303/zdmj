@@ -12,11 +12,22 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Optional
 
 from langchain_core.documents import Document
 
 logger = logging.getLogger(__name__)
+
+LANGUAGE_COMMENT_EXTRACTORS = {
+    "python": "_extract_python_comment",
+    "java": "_extract_java_comment",
+    "javascript": "_extract_javascript_comment",
+    "typescript": "_extract_javascript_comment",
+    "js": "_extract_javascript_comment",
+    "ts": "_extract_javascript_comment",
+    "go": "_extract_go_comment",
+    "cpp": "_extract_cpp_comment",
+    "c": "_extract_cpp_comment",
+}
 
 
 class CodeEnhancer:
@@ -207,272 +218,131 @@ class CodeEnhancer:
         language_lower = language.lower()
         
         try:
-            if language_lower == 'python':
-                return self._extract_python_comment(code)
-            elif language_lower == 'java':
-                return self._extract_java_comment(code)
-            elif language_lower in ('javascript', 'typescript', 'js', 'ts'):
-                return self._extract_javascript_comment(code)
-            elif language_lower == 'go':
-                return self._extract_go_comment(code)
-            elif language_lower in ('cpp', 'c'):
-                return self._extract_cpp_comment(code)
-            else:
-                # 通用注释提取
-                return self._extract_generic_comment(code)
+            extractor_name = LANGUAGE_COMMENT_EXTRACTORS.get(language_lower)
+            if extractor_name:
+                extractor = getattr(self, extractor_name)
+                return extractor(code)
+            return self._extract_generic_comment(code)
         except Exception as e:
             logger.debug(f"提取注释时出错: {e}")
             return ""
+
+    def _extract_multiline_comment(
+        self,
+        code: str,
+        patterns: list[str],
+        *,
+        strip_star_prefix: bool = False,
+    ) -> str:
+        """按给定模式提取首个多行注释，并返回第一行文本"""
+        for pattern in patterns:
+            match = re.search(pattern, code, re.DOTALL)
+            if not match:
+                continue
+
+            comment = match.group(1).strip()
+            if not comment:
+                continue
+
+            lines: list[str] = []
+            for line in comment.split('\n'):
+                cleaned = line.strip()
+                if strip_star_prefix:
+                    cleaned = re.sub(r'^\s*\*\s*', '', cleaned).strip()
+                if cleaned:
+                    lines.append(cleaned)
+
+            if lines:
+                return lines[0][:200]
+
+        return ""
+
+    def _extract_singleline_comment(
+        self,
+        code: str,
+        *,
+        prefixes: tuple[str, ...],
+        max_lines: int = 5,
+        exclude_start: str | None = None,
+    ) -> str:
+        """提取前若干行中的首个单行注释"""
+        for line in code.split('\n')[:max_lines]:
+            stripped = line.strip()
+            prefix = next((p for p in prefixes if stripped.startswith(p)), None)
+            if not prefix:
+                continue
+
+            comment = stripped[len(prefix):].strip()
+            if not comment:
+                continue
+            if exclude_start and comment.startswith(exclude_start):
+                continue
+            return comment[:200]
+
+        return ""
     
     def _extract_python_comment(self, code: str) -> str:
         """提取 Python 代码的注释（docstring 和 # 注释）"""
-        # 优先提取 docstring（三引号字符串）
-        docstring_patterns = [
-            r'"""(.*?)"""',  # 双引号 docstring
-            r"'''(.*?)'''",  # 单引号 docstring
-        ]
-        
-        for pattern in docstring_patterns:
-            match = re.search(pattern, code, re.DOTALL)
-            if match:
-                docstring = match.group(1).strip()
-                if docstring:
-                    # 清理 docstring，只取第一行或前几行
-                    lines = [line.strip() for line in docstring.split('\n') if line.strip()]
-                    if lines:
-                        return lines[0][:200]  # 限制长度
-        
-        # 如果没有 docstring，提取第一个 # 注释
-        lines = code.split('\n')
-        for line in lines[:5]:  # 只检查前5行
-            stripped = line.strip()
-            if stripped.startswith('#'):
-                comment = stripped[1:].strip()
-                if comment and not comment.startswith('!'):  # 排除 shebang
-                    return comment[:200]
-        
-        return ""
+        comment = self._extract_multiline_comment(
+            code,
+            [r'"""(.*?)"""', r"'''(.*?)'''"],
+        )
+        if comment:
+            return comment
+        return self._extract_singleline_comment(
+            code,
+            prefixes=('#',),
+            exclude_start='!',
+        )
     
     def _extract_java_comment(self, code: str) -> str:
         """提取 Java 代码的注释（Javadoc 和 // 注释）"""
-        # 优先提取 Javadoc（/** ... */）
-        javadoc_pattern = r'/\*\*(.*?)\*/'
-        match = re.search(javadoc_pattern, code, re.DOTALL)
-        if match:
-            javadoc = match.group(1).strip()
-            if javadoc:
-                # 清理 Javadoc，移除 * 前缀
-                lines = []
-                for line in javadoc.split('\n'):
-                    cleaned = re.sub(r'^\s*\*\s*', '', line).strip()
-                    if cleaned:
-                        lines.append(cleaned)
-                if lines:
-                    return lines[0][:200]
-        
-        # 如果没有 Javadoc，提取第一个 // 注释
-        lines = code.split('\n')
-        for line in lines[:5]:
-            stripped = line.strip()
-            if stripped.startswith('//'):
-                comment = stripped[2:].strip()
-                if comment:
-                    return comment[:200]
-        
-        return ""
+        comment = self._extract_multiline_comment(
+            code,
+            [r'/\*\*(.*?)\*/'],
+            strip_star_prefix=True,
+        )
+        if comment:
+            return comment
+        return self._extract_singleline_comment(code, prefixes=('//',))
     
     def _extract_javascript_comment(self, code: str) -> str:
         """提取 JavaScript/TypeScript 代码的注释（JSDoc 和 // 注释）"""
-        # 优先提取 JSDoc（/** ... */）
-        jsdoc_pattern = r'/\*\*(.*?)\*/'
-        match = re.search(jsdoc_pattern, code, re.DOTALL)
-        if match:
-            jsdoc = match.group(1).strip()
-            if jsdoc:
-                # 清理 JSDoc，移除 * 前缀
-                lines = []
-                for line in jsdoc.split('\n'):
-                    cleaned = re.sub(r'^\s*\*\s*', '', line).strip()
-                    if cleaned:
-                        lines.append(cleaned)
-                if lines:
-                    return lines[0][:200]
-        
-        # 如果没有 JSDoc，提取第一个 // 注释
-        lines = code.split('\n')
-        for line in lines[:5]:
-            stripped = line.strip()
-            if stripped.startswith('//'):
-                comment = stripped[2:].strip()
-                if comment:
-                    return comment[:200]
-        
-        return ""
+        comment = self._extract_multiline_comment(
+            code,
+            [r'/\*\*(.*?)\*/'],
+            strip_star_prefix=True,
+        )
+        if comment:
+            return comment
+        return self._extract_singleline_comment(code, prefixes=('//',))
     
     def _extract_go_comment(self, code: str) -> str:
         """提取 Go 代码的注释（// 注释）"""
-        lines = code.split('\n')
-        for line in lines[:5]:
-            stripped = line.strip()
-            if stripped.startswith('//'):
-                comment = stripped[2:].strip()
-                if comment:
-                    return comment[:200]
-        
-        return ""
+        return self._extract_singleline_comment(code, prefixes=('//',))
     
     def _extract_cpp_comment(self, code: str) -> str:
         """提取 C/C++ 代码的注释（/** ... */ 和 // 注释）"""
-        # 优先提取多行注释（/** ... */ 或 /* ... */）
-        multiline_pattern = r'/\*\*(.*?)\*/'
-        match = re.search(multiline_pattern, code, re.DOTALL)
-        if match:
-            comment = match.group(1).strip()
-            if comment:
-                # 清理注释，移除 * 前缀
-                lines = []
-                for line in comment.split('\n'):
-                    cleaned = re.sub(r'^\s*\*\s*', '', line).strip()
-                    if cleaned:
-                        lines.append(cleaned)
-                if lines:
-                    return lines[0][:200]
-        
-        # 如果没有多行注释，提取第一个 // 注释
-        lines = code.split('\n')
-        for line in lines[:5]:
-            stripped = line.strip()
-            if stripped.startswith('//'):
-                comment = stripped[2:].strip()
-                if comment:
-                    return comment[:200]
-        
-        return ""
+        comment = self._extract_multiline_comment(
+            code,
+            [r'/\*\*(.*?)\*/'],
+            strip_star_prefix=True,
+        )
+        if comment:
+            return comment
+        return self._extract_singleline_comment(code, prefixes=('//',))
     
     def _extract_generic_comment(self, code: str) -> str:
         """通用注释提取（尝试提取常见的注释格式）"""
-        # 尝试提取多行注释
-        multiline_patterns = [
-            r'/\*\*(.*?)\*/',  # /** ... */
-            r'/\*(.*?)\*/',    # /* ... */
-            r'"""(.*?)"""',    # """ ... """
-            r"'''(.*?)'''",    # ''' ... '''
-        ]
-        
-        for pattern in multiline_patterns:
-            match = re.search(pattern, code, re.DOTALL)
-            if match:
-                comment = match.group(1).strip()
-                if comment:
-                    lines = [line.strip() for line in comment.split('\n') if line.strip()]
-                    if lines:
-                        return lines[0][:200]
-        
-        # 尝试提取单行注释
-        lines = code.split('\n')
-        for line in lines[:5]:
-            stripped = line.strip()
-            # 匹配常见的单行注释格式
-            if stripped.startswith('//') or stripped.startswith('#'):
-                comment = re.sub(r'^(//|#)\s*', '', stripped).strip()
-                if comment:
-                    return comment[:200]
-        
-        return ""
-
-
-def main() -> None:
-    """
-    简单测试入口：
-    
-    运行方式（示例）：
-        python -m app.services.processing.code_enhancer
-    
-    测试逻辑：
-    - 创建测试代码文档
-    - 使用 CodeEnhancer 进行增强
-    - 打印增强结果预览
-    """
-    import logging
-    
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
-    )
-    
-    from langchain_core.documents import Document
-    
-    # 创建测试代码文档
-    test_docs = [
-        Document(
-            page_content="""def calculate_sum(a: int, b: int) -> int:
-    \"\"\"计算两个整数的和\"\"\"
-    return a + b""",
-            metadata={
-                "language": "python",
-                "file_path": "calculator.py",
-                "function_name": "calculate_sum",
-                "start_line": 1,
-                "end_line": 3,
-            },
-        ),
-        Document(
-            page_content="""class Calculator:
-    \"\"\"简单的计算器类\"\"\"
-    
-    def __init__(self):
-        self.result = 0
-    
-    def add(self, x: int, y: int) -> int:
-        \"\"\"加法运算\"\"\"
-        self.result = x + y
-        return self.result""",
-            metadata={
-                "language": "python",
-                "file_path": "calculator.py",
-                "class_name": "Calculator",
-                "start_line": 1,
-                "end_line": 9,
-            },
-        ),
-        Document(
-            page_content="""public class HelloWorld {
-    /**
-     * 主方法，程序入口
-     * @param args 命令行参数
-     */
-    public static void main(String[] args) {
-        System.out.println("Hello, World!");
-    }
-}""",
-            metadata={
-                "language": "java",
-                "file_path": "HelloWorld.java",
-                "class_name": "HelloWorld",
-                "start_line": 1,
-                "end_line": 8,
-            },
-        ),
-    ]
-    
-    # 创建代码增强器
-    enhancer = CodeEnhancer()
-    
-    # 对文档进行增强
-    enhanced_docs = enhancer.enhance_code_chunks(test_docs)
-    
-    # 打印结果
-    print(f"\n==== 代码增强结果 ====")
-    print(f"输入文档数：{len(test_docs)}")
-    print(f"输出文档数：{len(enhanced_docs)}\n")
-    
-    for idx, doc in enumerate(enhanced_docs):
-        print(f"--- 文档 {idx + 1} ---")
-        print(f"Metadata: {doc.metadata}")
-        print(f"内容长度: {len(doc.page_content)} 字符")
-        print(f"增强后的内容:\n{doc.page_content}")
-        print()
-
-
-if __name__ == "__main__":
-    main()
+        comment = self._extract_multiline_comment(
+            code,
+            [
+                r'/\*\*(.*?)\*/',
+                r'/\*(.*?)\*/',
+                r'"""(.*?)"""',
+                r"'''(.*?)'''",
+            ],
+        )
+        if comment:
+            return comment
+        return self._extract_singleline_comment(code, prefixes=('//', '#'))
