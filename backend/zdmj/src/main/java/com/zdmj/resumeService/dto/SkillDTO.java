@@ -2,8 +2,8 @@ package com.zdmj.resumeService.dto;
 
 import java.util.List;
 
-import com.zdmj.common.validation.CreateGroup;
-import com.zdmj.common.validation.UpdateGroup;
+import com.zdmj.common.model.CreateGroup;
+import com.zdmj.common.model.UpdateGroup;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;

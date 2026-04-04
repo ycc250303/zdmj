@@ -1,7 +1,5 @@
 package com.zdmj.common.storage;
 
-import com.zdmj.common.Result;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -11,6 +9,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+
+import com.zdmj.common.model.Result;
 
 import java.util.List;
 import java.util.Map;

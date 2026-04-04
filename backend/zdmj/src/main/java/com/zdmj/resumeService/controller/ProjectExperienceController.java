@@ -1,8 +1,8 @@
 package com.zdmj.resumeService.controller;
 
-import com.zdmj.common.Result;
-import com.zdmj.common.validation.CreateGroup;
-import com.zdmj.common.validation.UpdateGroup;
+import com.zdmj.common.model.CreateGroup;
+import com.zdmj.common.model.Result;
+import com.zdmj.common.model.UpdateGroup;
 import com.zdmj.resumeService.dto.ProjectExperienceDTO;
 import com.zdmj.resumeService.entity.ProjectExperience;
 import com.zdmj.resumeService.service.ProjectExperienceService;

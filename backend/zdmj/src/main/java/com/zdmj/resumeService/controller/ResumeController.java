@@ -15,9 +15,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.zdmj.common.Result;
-import com.zdmj.common.validation.CreateGroup;
-import com.zdmj.common.validation.UpdateGroup;
+import com.zdmj.common.model.CreateGroup;
+import com.zdmj.common.model.Result;
+import com.zdmj.common.model.UpdateGroup;
 import com.zdmj.resumeService.dto.ResumeDTO;
 import com.zdmj.resumeService.entity.Resume;
 import com.zdmj.resumeService.service.ResumeService;

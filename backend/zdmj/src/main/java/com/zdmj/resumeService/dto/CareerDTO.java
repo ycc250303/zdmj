@@ -1,8 +1,8 @@
 package com.zdmj.resumeService.dto;
 
 import com.zdmj.common.model.BaseEntity;
-import com.zdmj.common.validation.CreateGroup;
-import com.zdmj.common.validation.UpdateGroup;
+import com.zdmj.common.model.CreateGroup;
+import com.zdmj.common.model.UpdateGroup;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

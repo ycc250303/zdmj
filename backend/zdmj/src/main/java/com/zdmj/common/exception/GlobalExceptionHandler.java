@@ -1,6 +1,5 @@
 package com.zdmj.common.exception;
 
-import com.zdmj.common.Result;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.BindException;
@@ -15,6 +14,9 @@ import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+
+import com.zdmj.common.model.Result;
+
 import java.util.stream.Collectors;
 
 /**

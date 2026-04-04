@@ -50,4 +50,15 @@
         <if
             test="type != null"> AND type = #{type} </if>
     </select>
+
+    <!-- 查询待轮询的向量任务（仅进行中状态） -->
+    <select id="selectPendingVectorTasks" resultType="com.zdmj.knowledgeService.entity.KnowledgeBases">
+        SELECT id, user_id, name, project_id, tag, type, content, vector_ids, vector_task_id, vector_task_status,
+               created_at, updated_at
+        FROM knowledge_bases
+        WHERE vector_task_id IS NOT NULL
+          AND vector_task_status IN ('PENDING', 'RUNNING')
+        ORDER BY updated_at ASC
+        LIMIT #{limit}
+    </select>
 </mapper>

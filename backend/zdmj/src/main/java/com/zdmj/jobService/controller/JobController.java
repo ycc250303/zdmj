@@ -11,10 +11,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.zdmj.common.Result;
+import com.zdmj.common.model.CreateGroup;
 import com.zdmj.common.model.PageResult;
-import com.zdmj.common.validation.CreateGroup;
-import com.zdmj.common.validation.UpdateGroup;
+import com.zdmj.common.model.Result;
+import com.zdmj.common.model.UpdateGroup;
 import com.zdmj.jobService.dto.JobDetailDTO;
 import com.zdmj.jobService.dto.JobListItemDTO;
 import com.zdmj.jobService.dto.JobDTO;
