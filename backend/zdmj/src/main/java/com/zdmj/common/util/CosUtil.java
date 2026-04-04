@@ -23,7 +23,7 @@ import java.util.UUID;
 /**
  * 腾讯云COS工具类
  * 提供文件上传、删除等静态方法
- * 注意：下载功能由Python端完成，Java端仅负责上传
+ * 注意：该工具类负责文件对象存储相关操作（上传、读取、删除、列举等）
  * 
  * 参考文档：https://cloud.tencent.com/document/product/436/10199
  * 
