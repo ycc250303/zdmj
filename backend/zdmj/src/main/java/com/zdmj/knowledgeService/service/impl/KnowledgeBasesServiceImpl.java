@@ -1,17 +1,20 @@
 package com.zdmj.knowledgeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.zdmj.common.client.KnowledgeVectorApiClient;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.model.PageResult;
 import com.zdmj.common.util.CosUtil;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.knowledgeService.dto.KnowledgeBasesDTO;
+import com.zdmj.knowledgeService.dto.KnowledgeEmbeddingTaskCreateDTO;
 import com.zdmj.knowledgeService.entity.KnowledgeBases;
 import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeBasesMapper;
 import com.zdmj.knowledgeService.mapper.KnowledgeBasesStructMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
+import com.zdmj.knowledgeService.utils.KnowledgeEmbeddingTaskPollerUtil;
 import com.zdmj.resumeService.entity.ProjectExperience;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
 
@@ -33,6 +36,8 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
 
     private final ProjectExperienceMapper projectExperienceMapper;
     private final KnowledgeBasesStructMapper knowledgeBasesStructMapper;
+    private final KnowledgeVectorApiClient knowledgeVectorApiClient;
+    private final KnowledgeEmbeddingTaskPollerUtil knowledgeEmbeddingTaskPollerUtil;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -68,7 +73,28 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         if (!saved) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_SAVE_FAILED);
         }
-        log.info("创建知识库成功（已下线在线向量化流程），ID: {}", knowledgeBases.getId());
+
+        // 6. 创建向量化任务
+        try {
+            KnowledgeEmbeddingTaskCreateDTO task = knowledgeVectorApiClient.createEmbeddingTask(knowledgeBases.getId());
+
+            knowledgeBases.setVectorTaskId(task.getTaskId());
+            knowledgeBases.setVectorTaskStatus(
+                    task.getStatus() == null || task.getStatus().isBlank() ? "PENDING" : task.getStatus());
+
+            boolean taskUpdated = updateById(knowledgeBases);
+            if (!taskUpdated) {
+                log.warn("知识库已创建，但写入向量任务信息失败，knowledgeId={}", knowledgeBases.getId());
+            } else {
+                knowledgeEmbeddingTaskPollerUtil.triggerPolling("create");
+            }
+        } catch (Exception e) {
+            knowledgeBases.setVectorTaskStatus("FAILED");
+            updateById(knowledgeBases);
+            log.error("知识库已创建，但触发向量化任务失败，knowledgeId={}, error={}", knowledgeBases.getId(), e.getMessage());
+        }
+        log.info("创建知识库成功并已提交向量任务，knowledgeId={}, taskId={}, taskStatus={}",
+                knowledgeBases.getId(), knowledgeBases.getVectorTaskId(), knowledgeBases.getVectorTaskStatus());
         return knowledgeBases;
     }
 
@@ -149,31 +175,64 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         // 7. 更新知识库信息（只有非空字段才会覆盖原值）
         knowledgeBasesStructMapper.updateEntityFromDto(knowledgeBasesDTO, knowledgeBases);
 
-        // 在线向量化已下线：内容变化时仅清空历史向量元数据
+        // 8. 判断是否需要向量化
         if (contentChanged) {
             knowledgeBases.setVectorIds(new ArrayList<>());
-            knowledgeBases.setVectorTaskId(null);
-            knowledgeBases.setVectorTaskStatus(null);
+            try {
+                KnowledgeEmbeddingTaskCreateDTO task = knowledgeVectorApiClient
+                        .createEmbeddingTask(knowledgeBases.getId());
+                knowledgeBases.setVectorTaskId(task.getTaskId());
+                knowledgeBases.setVectorTaskStatus(
+                        task.getStatus() == null || task.getStatus().isBlank() ? "PENDING" : task.getStatus());
+                log.info("知识库内容已变更并提交向量化任务，knowledgeId={}, taskId={}, taskStatus={}",
+                        knowledgeBases.getId(), knowledgeBases.getVectorTaskId(), knowledgeBases.getVectorTaskStatus());
+            } catch (Exception e) {
+                // 主更新流程不失败，仅记录失败状态，便于后续重试
+                knowledgeBases.setVectorTaskId(null);
+                knowledgeBases.setVectorTaskStatus("FAILED");
+                log.error("知识库更新成功，但触发向量化任务失败，knowledgeId={}, error={}",
+                        knowledgeBases.getId(), e.getMessage());
+            }
         }
+        
         boolean updated = updateById(knowledgeBases);
         if (!updated) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_UPDATE_FAILED);
         }
-
-        log.info("更新知识库成功（在线向量化已下线），ID: {}", knowledgeBases.getId());
+        if (contentChanged && knowledgeBases.getVectorTaskId() != null) {
+            knowledgeEmbeddingTaskPollerUtil.triggerPolling("update");
+        }
+        if (contentChanged) {
+            log.info("更新知识库成功（已触发向量化任务），ID: {}, taskId: {}, taskStatus: {}",
+                    knowledgeBases.getId(), knowledgeBases.getVectorTaskId(), knowledgeBases.getVectorTaskStatus());
+        } else {
+            log.info("更新知识库成功（内容未变化，未触发向量化），ID: {}", knowledgeBases.getId());
+        }
+    
         return knowledgeBases;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void delete(Long id) {
+        // 1. 检查知识库是否存在且属于当前用户
         Long userId = UserHolder.requireUserId();
         KnowledgeBases knowledgeBases = requireKnowledgeBasesAndCheckOwnership(id, userId, "删除");
+
+        // 2. 删除知识库
         boolean removed = removeById(id);
         if (!removed) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_DELETE_FAILED);
         }
-        log.info("删除知识库任务已创建: {}", knowledgeBases.getName());
+
+        // 3. 创建删除向量任务
+        try {
+            KnowledgeEmbeddingTaskCreateDTO task = knowledgeVectorApiClient.deleteEmbeddingTask(knowledgeBases.getId());
+            log.info("删除知识库任务已创建: taskId={}, taskStatus={}", task.getTaskId(), task.getStatus());
+            knowledgeEmbeddingTaskPollerUtil.triggerPolling("delete");
+        } catch (Exception e) {
+            log.error("知识库已删除，但触发向量化任务失败，knowledgeId={}, error={}", knowledgeBases.getId(), e.getMessage());
+        }
     }
 
     private KnowledgeBases requireKnowledgeBases(Long id) {

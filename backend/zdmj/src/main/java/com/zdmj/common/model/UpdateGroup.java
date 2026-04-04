@@ -1,4 +1,4 @@
-package com.zdmj.common.validation;
+package com.zdmj.common.model;
 
 /**
  * 更新操作的验证组

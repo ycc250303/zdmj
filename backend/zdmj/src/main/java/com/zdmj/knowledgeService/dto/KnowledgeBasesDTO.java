@@ -1,13 +1,13 @@
 package com.zdmj.knowledgeService.dto;
 
-import com.zdmj.common.validation.CreateGroup;
-import com.zdmj.common.validation.UpdateGroup;
-
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.util.List;
+
+import com.zdmj.common.model.CreateGroup;
+import com.zdmj.common.model.UpdateGroup;
 
 @Data
 public class KnowledgeBasesDTO {

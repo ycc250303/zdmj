@@ -105,4 +105,12 @@ public interface KnowledgeBasesMapper extends BaseMapper<KnowledgeBases> {
                         @Param("userId") Long userId,
                         @Param("projectId") Long projectId,
                         @Param("type") Integer type);
+
+        /**
+         * 查询待轮询的向量任务（PENDING/RUNNING）
+         *
+         * @param limit 批次大小
+         * @return 待轮询知识库列表
+         */
+        List<KnowledgeBases> selectPendingVectorTasks(@Param("limit") Integer limit);
 }

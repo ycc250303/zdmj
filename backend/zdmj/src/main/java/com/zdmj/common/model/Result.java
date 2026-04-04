@@ -1,4 +1,4 @@
-package com.zdmj.common;
+package com.zdmj.common.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

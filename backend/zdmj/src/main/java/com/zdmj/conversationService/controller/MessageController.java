@@ -9,8 +9,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestBody;
 
-import com.zdmj.common.Result;
 import com.zdmj.common.model.PageResult;
+import com.zdmj.common.model.Result;
 import com.zdmj.conversationService.dto.MessageDTO;
 import com.zdmj.conversationService.entity.Message;
 import com.zdmj.conversationService.service.MessageService;

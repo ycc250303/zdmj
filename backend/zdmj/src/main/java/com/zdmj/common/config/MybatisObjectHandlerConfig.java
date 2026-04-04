@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
  * MyBatis-Plus 自动填充处理器
  */
 @Component
-public class MybatisMetaObjectHandler implements MetaObjectHandler {
+public class MybatisObjectHandlerConfig implements MetaObjectHandler {
 
     @Override
     public void insertFill(MetaObject metaObject) {
