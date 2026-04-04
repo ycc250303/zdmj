@@ -56,6 +56,9 @@ services:
       - "8080:8080"
     environment:
       <<: *redis-conn-env
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
       TZ: Asia/Shanghai
       # PYTHON_SERVICE_URL: http://python:8000
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}

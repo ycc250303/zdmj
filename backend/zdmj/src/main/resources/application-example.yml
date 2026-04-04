@@ -15,9 +15,9 @@ spring:
   # Redis 配置
   data:
     redis:
-      host: ${app.remote.host}
-      port: 6379
-      password: your-redis-password
+      host: ${SPRING_DATA_REDIS_HOST:${REDIS_HOST:${app.remote.host}}}
+      port: ${SPRING_DATA_REDIS_PORT:${REDIS_PORT:6379}}
+      password: ${SPRING_DATA_REDIS_PASSWORD:${REDIS_PASSWORD:your-redis-password}}
       timeout: 10000ms  # 增加到10秒，避免超时
       lettuce:
         pool:
@@ -139,3 +139,8 @@ app:
   remote:
     host: your-server-ip
 
+
+python:
+  api:
+    poll-interval-ms: 20000 # 20秒
+    poll-initial-delay-ms: 5000 # 5秒
