@@ -30,17 +30,17 @@
 
 ```json
 {
-  "knowledgeId": 123,
-  "userId": 10001
+  "knowledgeId": 123
 }
 ```
 
 - `knowledgeId`: 知识库主键 ID（`knowledge_bases.id`）
-- `userId`: 所属用户 ID
+- `userId`: 无需传递，由 Python 根据 `knowledgeId` 反查 `knowledge_bases.user_id`
 
 > 说明：Python 通过 `knowledgeId` 从 `knowledge_bases` 表读取向量化所需的全部信息（如 `type / content / project_id / tag` 等），  
 > **Java 无需在请求体中重复传递这些字段**。  
 > 当 `type` 表示：
+>
 > - 1 / 3 / 4（项目文档 / 技术文档 / 其他等）：向量化结果写入表 `knowledge_vectors`
 > - 2（项目代码 / GitHub 仓库）：向量化结果写入表 `project_code_vectors`，外键统一使用 `knowledge_id`
 
@@ -72,20 +72,19 @@
 ### 2.1 接口基本信息（异步版，推荐）
 
 - **方法**: `POST`
-- **路径**: `/ai/knowledge/vectors/delete`
+- **路径**: `/ai/knowledge/embedding/delete`
 - **说明**: 根据 `knowledgeId` 批量删除该知识库下的全部向量（无论在 `knowledge_vectors` 还是 `project_code_vectors`）
 
 ### 2.2 请求体：`DeleteVectorsRequest`（JSON）
 
 ```json
 {
-  "knowledgeId": 123,
-  "userId": 10001
+  "knowledgeId": 123
 }
 ```
 
 - `knowledgeId`: 知识库 ID
-- `userId`: 所属用户 ID
+- `userId`: 无需传递，由 Python 根据 `knowledgeId` 反查 `knowledge_bases.user_id`
 
 > 说明：本接口按知识库维度全量删除，**不需要也不接收 `vectorIds`**。
 
@@ -263,18 +262,16 @@
 
 - **创建知识库**
   - Java：创建 `knowledge_bases` 记录（不立即写 `vector_ids`）
-  - Java：在创建成功后调用 `POST /ai/knowledge/embedding`，请求体仅包含 `knowledgeId + userId`
+  - Java：在创建成功后调用 `POST /ai/knowledge/embedding`，请求体仅包含 `knowledgeId`
   - Python：返回 `taskId`，Java 存到 `knowledge_bases.vector_task_id` 或类似字段
   - Java：轮询 `GET /ai/knowledge/embedding/tasks/{taskId}`
   - Python：完成后写入向量表（`knowledge_vectors` 或 `project_code_vectors`），并在任务结果中返回 `vectorIds`
   - Java：任务成功时，更新 `knowledge_bases.vector_ids` 和相关状态（如 `vector_status = SUCCESS`）
-
 - **更新知识库**
   - Java：在 `update()` 中仅当 `content / fileType / type` 等内容字段变化时，认为需要重新向量化
-  - Java：调用同一个 `POST /ai/knowledge/embedding` 接口（重跑语义），请求体为 `knowledgeId + userId`
+  - Java：调用同一个 `POST /ai/knowledge/embedding` 接口（重跑语义），请求体仅为 `knowledgeId`
   - Python：根据 `knowledgeId` 删除旧向量，再按最新内容重新向量化
   - Java：通过任务查询接口获取新的 `vectorIds`，重写 `knowledge_bases.vector_ids`
-
 - **删除知识库**
   - Java：删除 `knowledge_bases` 记录前，从自身记录中取出该知识库对应的 `knowledgeId`
   - Java：调用 `POST /ai/knowledge/vectors/delete` 提交“整库向量删除任务”
@@ -288,6 +285,6 @@
   - 知识库向量化（创建 / 重跑）：`POST /ai/knowledge/embedding`
   - 按知识库全量删除向量：`POST /ai/knowledge/vectors/delete`
   - 查询任务：`GET /ai/knowledge/embedding/tasks/{taskId}`
-- **请求参数**：只围绕 `knowledgeId` 和 `userId` 两个核心字段，其他业务字段全部由 Python 从数据库中读取，职责清晰。
+- **请求参数**：向量化与整库删除接口都只需 `knowledgeId`，`userId` 由 Python 内部反查并用于任务隔离，其他业务字段也全部由 Python 从数据库中读取，职责清晰。
 - **返回数据**：创建 / 重跑 / 删除均返回 `taskId + status`，真正的 `vectorIds` 通过任务查询接口返回，Java 再回写 `knowledge_bases.vector_ids`。
 

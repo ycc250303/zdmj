@@ -616,29 +616,7 @@ CREATE TABLE IF NOT EXISTS knowledge_vectors (
 CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_user_id ON knowledge_vectors(user_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_knowledge_id ON knowledge_vectors(knowledge_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_embedding ON knowledge_vectors USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
--- 6.2 岗位向量表
-CREATE TABLE IF NOT EXISTS job_vectors (
-    id BIGSERIAL PRIMARY KEY,
-    -- 向量ID
-    job_id BIGINT NOT NULL,
-    -- 岗位ID（逻辑外键：jobs.id）
-    user_id BIGINT NOT NULL,
-    -- 所属用户ID（逻辑外键：users.id，数据隔离）
-    embedding VECTOR(1024) NOT NULL,
-    -- 岗位描述向量（1024维，使用text-embedding-v4模型）
-    metadata JSONB,
-    -- 岗位元数据（职位名称、公司等）
-    -- metadata 示例
-    -- {
-    --   "job_name": "后端开发工程师",
-    --   "company_name": "XX公司",
-    --   "location": "北京",
-    --   "salary": "15-25k"
-    -- }
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    -- 创建时间
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
-);
+
 CREATE INDEX IF NOT EXISTS idx_job_vectors_user_id ON job_vectors(user_id);
 CREATE INDEX IF NOT EXISTS idx_job_vectors_job_id ON job_vectors(job_id);
 CREATE INDEX IF NOT EXISTS idx_job_vectors_embedding ON job_vectors USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
