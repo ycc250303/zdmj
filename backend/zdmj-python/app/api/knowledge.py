@@ -18,6 +18,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from app.common.response import ApiResponse
+from app.repositories.knowledge_repository import load_knowledge_row
 from app.repositories.task_repository import (
     TASK_STATUS_TO_STR,
     TaskStatus,
@@ -35,7 +36,6 @@ class KnowledgeEmbeddingRequest(BaseModel):
     """知识库向量化请求体（创建 / 重跑）。"""
 
     knowledgeId: int = Field(..., description="知识库ID（knowledge_bases.id）")
-    userId: int = Field(..., description="用户ID（用于数据隔离）")
 
 
 class KnowledgeEmbeddingTaskResult(BaseModel):
@@ -48,7 +48,6 @@ class DeleteVectorsRequest(BaseModel):
     """整库向量删除请求体。"""
 
     knowledgeId: int = Field(..., description="知识库ID（knowledge_bases.id）")
-    userId: int = Field(..., description="用户ID（用于数据隔离）")
 
 
 class DeleteVectorsResult(BaseModel):
@@ -74,17 +73,27 @@ class TaskStatusResponse(BaseModel):
 )
 async def create_or_rerun_embedding(req: KnowledgeEmbeddingRequest):
     """按 knowledgeId 执行知识库向量化（异步）。"""
-    logger.info("收到向量化请求: knowledgeId=%d, userId=%d", req.knowledgeId, req.userId)
+    logger.info("收到向量化请求: knowledgeId=%d", req.knowledgeId)
+
+    knowledge = await load_knowledge_row(req.knowledgeId)
+    if knowledge is None:
+        return ApiResponse.error(code=404, msg=f"知识库不存在: knowledgeId={req.knowledgeId}")
+
+    user_id = knowledge.get("user_id")
+    if user_id is None:
+        return ApiResponse.error(code=500, msg=f"知识库缺少用户信息: knowledgeId={req.knowledgeId}")
+
+    resolved_user_id = int(user_id)
 
     task_id = await create_task_record(
         task_type=TaskType.EMBEDDING,
         knowledge_id=req.knowledgeId,
-        user_id=req.userId,
+        user_id=resolved_user_id,
         status=TaskStatus.PENDING,
         message="知识库向量化任务已创建",
     )
 
-    asyncio.create_task(process_embedding_task(task_id, req.knowledgeId, req.userId))
+    asyncio.create_task(process_embedding_task(task_id, req.knowledgeId, resolved_user_id))
 
     result = KnowledgeEmbeddingTaskResult(
         taskId=task_id,
@@ -95,21 +104,31 @@ async def create_or_rerun_embedding(req: KnowledgeEmbeddingRequest):
 
 
 @router.post(
-    "/knowledge/vectors/delete",
+    "/knowledge/embedding/delete",
     response_model=ApiResponse[DeleteVectorsResult],
     summary="按知识库全量删除向量（异步）",
 )
 async def delete_vectors(req: DeleteVectorsRequest):
     """按 knowledgeId 删除该知识库下的全部向量（异步）。"""
+    knowledge = await load_knowledge_row(req.knowledgeId)
+    if knowledge is None:
+        return ApiResponse.error(code=404, msg=f"知识库不存在: knowledgeId={req.knowledgeId}")
+
+    user_id = knowledge.get("user_id")
+    if user_id is None:
+        return ApiResponse.error(code=500, msg=f"知识库缺少用户信息: knowledgeId={req.knowledgeId}")
+
+    resolved_user_id = int(user_id)
+
     task_id = await create_task_record(
         task_type=TaskType.DELETE,
         knowledge_id=req.knowledgeId,
-        user_id=req.userId,
+        user_id=resolved_user_id,
         status=TaskStatus.PENDING,
         message="整库向量删除任务已创建",
     )
 
-    asyncio.create_task(process_delete_task(task_id, req.knowledgeId, req.userId))
+    asyncio.create_task(process_delete_task(task_id, req.knowledgeId, resolved_user_id))
 
     result = DeleteVectorsResult(
         taskId=task_id,

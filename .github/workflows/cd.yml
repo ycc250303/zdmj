@@ -94,7 +94,7 @@ jobs:
     if: needs.detect-changes.outputs.java == 'true' || github.event_name == 'workflow_dispatch'
     
     steps:
-      # 在服务器端拉取代码并构建，避免跨境传输大镜像
+      # 统一使用 docker compose 管理服务生命周期，避免与 docker run 混用
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -106,16 +106,10 @@ jobs:
           command_timeout: 30m
           script: |
             set -euo pipefail
-            cd "${{ env.APP_DIR }}"
-            docker build -t zdmj-backend:latest ./backend/zdmj
-            docker stop zdmj-backend || true
-            docker rm zdmj-backend || true
-            docker run -d \
-              --name zdmj-backend \
-              --restart unless-stopped \
-              -p 8080:8080 \
-              -e TZ=Asia/Shanghai \
-              zdmj-backend:latest
+            cd "${{ env.APP_DIR }}/deploy"
+            docker compose build backend
+            docker compose up -d --no-deps --force-recreate backend
+            docker compose ps backend
 
       # 验证部署
       - name: Verify deployment
@@ -129,7 +123,7 @@ jobs:
           command_timeout: 10m
           script: |
             sleep 10
-            docker ps | grep zdmj-backend
+            docker compose -f "${{ env.APP_DIR }}/deploy/docker-compose.yml" ps backend
             docker logs --tail 50 zdmj-backend
 
   # Python服务构建和部署任务（与Java并行执行）
@@ -141,7 +135,7 @@ jobs:
     if: needs.detect-changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch'
     
     steps:
-      # 在服务器端拉取代码并构建，避免跨境传输大镜像
+      # 统一使用 docker compose 管理服务生命周期
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -153,12 +147,10 @@ jobs:
           command_timeout: 30m
           script: |
             set -euo pipefail
-            cd "${{ env.APP_DIR }}"
-            docker build -t zdmj-python:latest ./backend/zdmj-python
             cd "${{ env.APP_DIR }}/deploy"
+            docker compose build python
             docker compose up -d --no-deps --force-recreate python
-            docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "^zdmj-python:latest " || true
-            docker inspect zdmj-python --format 'container_image={{.Image}}'
+            docker compose ps python
 
       # 验证部署
       - name: Verify deployment
