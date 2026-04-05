@@ -60,7 +60,6 @@ services:
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
       TZ: Asia/Shanghai
-      # PYTHON_SERVICE_URL: http://python:8000
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
       SPRING_AI_DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
       SPRING_AI_DASHSCOPE_CHAT_API_KEY: ${DASHSCOPE_API_KEY}
@@ -72,35 +71,6 @@ services:
       COS_SECRET_KEY: ${COS_SECRET_KEY}
       COS_REGION: ${COS_REGION}
       COS_BUCKET: ${COS_BUCKET}
-
-  python:
-    <<: [*app-service, *app-depends]
-    build:
-      context: ../backend/zdmj-python
-      dockerfile: Dockerfile
-    image: zdmj-python:latest
-    container_name: zdmj-python
-    ports:
-      - "8000:8000"
-    environment:
-      <<: *redis-conn-env
-      APP_NAME: zdmj-python
-      APP_VERSION: 1.0.0
-      DEBUG: false
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_USER: ${PG_USER}
-      POSTGRES_PASSWORD: ${PG_PASSWORD}
-      POSTGRES_DB: ${PG_DB}
-      API_PREFIX: /api
-    volumes:
-      - ../../data/python/logs:/app/logs
-    healthcheck:
-      test: [ "CMD-SHELL", "python -c \"import socket; s=socket.socket(); s.connect(('localhost', 8000)); s.close()\"" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
 
 networks:
   backend:

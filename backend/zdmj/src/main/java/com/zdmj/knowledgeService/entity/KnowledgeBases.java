@@ -10,6 +10,7 @@ import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -62,20 +63,39 @@ public class KnowledgeBases extends BaseEntity {
     private String content;
 
     /**
-     * 关联的向量ID数组（JSONB数组）
-     */
-    @TableField(typeHandler = JsonbListTypeHandler.class)
-    private List<Long> vectorIds;
-
-    /**
      * 最近一次向量化任务ID
      */
-    private String vectorTaskId;
+    private Long vectorTaskId;
 
     /**
      * 最近一次任务状态（PENDING/RUNNING/SUCCESS/FAILED/CANCELLED）
      */
     private String vectorTaskStatus;
+
+    /**
+     * 内容哈希（用于避免重复向量化）
+     */
+    private String contentHash;
+
+    /**
+     * 向量化状态（PENDING/EMBEDDING/READY/FAILED）
+     */
+    private String embeddingStatus;
+
+    /**
+     * 当前已写入的文档块数量
+     */
+    private Integer chunkCount;
+
+    /**
+     * 最近一次向量化完成时间
+     */
+    private LocalDateTime lastEmbeddedAt;
+
+    /**
+     * 最近一次向量化错误信息
+     */
+    private String lastError;
 
     /**
      * 获取知识类型枚举（字段仍使用整数存储）

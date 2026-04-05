@@ -60,8 +60,6 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         // 4. 创建知识库实体
         KnowledgeBases knowledgeBases = knowledgeBasesStructMapper.fromDto(knowledgeBasesDTO);
         knowledgeBases.setUserId(userId);
-        // 初始化vectorIds为空数组
-        knowledgeBases.setVectorIds(new ArrayList<>());
 
         // 5. 保存到数据库
         boolean saved = save(knowledgeBases);
@@ -152,7 +150,6 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
 
         // 8. 判断内容变更时重置向量化任务字段
         if (contentChanged) {
-            knowledgeBases.setVectorIds(new ArrayList<>());
             knowledgeBases.setVectorTaskId(null);
             knowledgeBases.setVectorTaskStatus(null);
         }

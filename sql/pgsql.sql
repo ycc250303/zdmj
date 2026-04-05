@@ -383,9 +383,9 @@ CREATE INDEX IF NOT EXISTS idx_resume_matches_job_id ON resume_matches(job_id);
 CREATE INDEX IF NOT EXISTS idx_resume_matches_resume_id ON resume_matches(resume_id);
 CREATE INDEX IF NOT EXISTS idx_resume_matches_status ON resume_matches(status);
 --
--- ==========================4 岗位模块==========================
+-- ==========================3 岗位模块==========================
 --
--- 4.1 岗位表（使用JSONB替代MongoDB）
+-- 3.1 岗位表（使用JSONB替代MongoDB）
 CREATE TABLE IF NOT EXISTS jobs (
     id BIGSERIAL PRIMARY KEY,
     -- 岗位ID
@@ -425,7 +425,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 CREATE INDEX IF NOT EXISTS idx_jobs_location ON jobs(location);
 CREATE INDEX IF NOT EXISTS idx_jobs_company_id ON jobs(company_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_company_name ON jobs(company_name);
--- 4.2 公司表
+-- 3.2 公司表
 CREATE TABLE IF NOT EXISTS companies (
     id BIGSERIAL PRIMARY KEY,
     -- 公司ID
@@ -452,9 +452,9 @@ CREATE INDEX IF NOT EXISTS idx_companies_size ON companies(size);
 CREATE INDEX IF NOT EXISTS idx_companies_type ON companies(type);
 CREATE INDEX IF NOT EXISTS idx_companies_industries ON companies(industries);
 --
--- ==========================5 知识库模块==========================
+-- ==========================4 知识库模块==========================
 --
--- 5.1 知识库表
+-- 4.1 知识库表
 CREATE TABLE IF NOT EXISTS knowledge_bases (
     id BIGSERIAL PRIMARY KEY,
     -- 知识库ID
@@ -472,11 +472,7 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     -- 知识类型（枚举：1=项目文档（包含txt、pdf、md、普通URL等）/2=GitHub链接（GitHub仓库或文件）/3=项目DeepWiki文档（暂不实现，留作扩展））
     content TEXT NOT NULL,
     -- 文档内容或URL
-    vector_ids JSONB DEFAULT '[]'::jsonb,
-    -- 关联的向量ID数组
-    -- vector_ids 示例
-    -- [1, 2, 3, 4, 5]
-    vector_task_id VARCHAR(100),
+    vector_task_id BIGINT,
     -- 最近一次向量化任务ID
     vector_task_status VARCHAR(20),
     -- 最近一次任务状态（PENDING/RUNNING/SUCCESS/FAILED/CANCELLED）
@@ -497,12 +493,13 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
 CREATE INDEX IF NOT EXISTS idx_knowledge_bases_user_id ON knowledge_bases(user_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_bases_user_id_project_id ON knowledge_bases(user_id, project_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_bases_type ON knowledge_bases(type);
+CREATE INDEX IF NOT EXISTS idx_knowledge_bases_vector_task_id ON knowledge_bases(vector_task_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_bases_embedding_status ON knowledge_bases(embedding_status);
 CREATE INDEX IF NOT EXISTS idx_knowledge_bases_user_id_content_hash ON knowledge_bases(user_id, content_hash);
 --
--- ==========================6 向量检索模块==========================
+-- ==========================5 向量检索模块==========================
 --
--- 6.1 知识库向量表
+-- 5.1 知识库向量表
 CREATE TABLE IF NOT EXISTS knowledge_vectors (
     id BIGSERIAL PRIMARY KEY,
     -- 向量ID
@@ -532,15 +529,14 @@ CREATE TABLE IF NOT EXISTS knowledge_vectors (
 CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_user_id ON knowledge_vectors(user_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_knowledge_id ON knowledge_vectors(knowledge_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_user_id_knowledge_id ON knowledge_vectors(user_id, knowledge_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_task_id ON knowledge_vectors(task_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_embedding ON knowledge_vectors USING HNSW (embedding vector_cosine_ops) WITH (M = 16, ef_construction = 100);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_vectors_knowledge_id_chunk_index
     ON knowledge_vectors(knowledge_id, chunk_index);
--- 6.4 向量化任务表（异步任务）
+-- 5.2 向量化任务表（异步任务）
 CREATE TABLE IF NOT EXISTS knowledge_vector_tasks (
     id BIGSERIAL PRIMARY KEY,
     -- 任务自增ID
-    task_id VARCHAR(100) UNIQUE NOT NULL,
-    -- 任务ID
     user_id BIGINT NOT NULL,
     -- 用户ID（逻辑外键：users.id）
     knowledge_id BIGINT,
@@ -565,9 +561,9 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_knowledge_id_created_at ON
 CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_status ON knowledge_vector_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_task_type ON knowledge_vector_tasks(task_type);
 --
--- ==========================7 AI对话模块==========================
+-- ==========================6 AI对话模块==========================
 --
--- 7.1 对话会话表
+-- 6.1 对话会话表
 CREATE TABLE IF NOT EXISTS conversations (
     id BIGSERIAL PRIMARY KEY,
     -- 会话ID
@@ -612,7 +608,7 @@ CREATE INDEX IF NOT EXISTS idx_conversations_user_id_created_at ON conversations
 CREATE INDEX IF NOT EXISTS idx_conversations_project_id ON conversations(project_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_user_id_project_id ON conversations(user_id, project_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_last_message_at ON conversations(last_message_at DESC);
--- 7.2 消息表
+-- 6.2 消息表
 CREATE TABLE IF NOT EXISTS messages (
     id BIGSERIAL PRIMARY KEY,
     -- 消息ID
@@ -633,7 +629,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_conversation_id_sequence ON messages(con
 CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id);
 CREATE INDEX IF NOT EXISTS idx_messages_user_id_conversation_id ON messages(user_id, conversation_id);
 --
--- 7.3 Spring AI Chat Memory（用于 /messages/chat 的对话上下文）
+-- 6.3 Spring AI Chat Memory（用于 /messages/chat 的对话上下文）
 --
 -- Spring AI JDBC ChatMemory 在 PostgreSQL 中使用表：SPRING_AI_CHAT_MEMORY
 -- 其中 "timestamp" 需要使用双引号以匹配 Spring AI 生成的 SQL。
