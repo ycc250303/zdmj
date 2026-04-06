@@ -10,19 +10,13 @@ import lombok.Getter;
 public enum ErrorCode {
 
     // ========== HTTP状态码 ==========
-    SUCCESS(200, "成功"),
     BAD_REQUEST(400, "请求参数错误"),
-    UNAUTHORIZED(401, "未授权"),
-    FORBIDDEN(403, "禁止访问"),
-    NOT_FOUND(404, "资源不存在"),
     INTERNAL_ERROR(500, "服务器内部错误"),
 
     // ========== 通用错误 1xxx ==========
     VALIDATION_ERROR(1001, "参数校验失败"),
     USER_NOT_LOGIN(1002, "用户未登录"),
     NO_PERMISSION(1003, "无权操作"),
-    RESOURCE_NOT_FOUND(1004, "资源不存在"),
-    SERVER_ERROR(1005, "服务器内部错误"),
     REQUEST_BODY_EMPTY(1006, "请求体不能为空，请提供有效的JSON数据"),
     DATE_FORMAT_ERROR(1007, "日期格式错误，请使用 yyyy-MM-dd 格式（例如：2024-09-01）"),
     JSON_FORMAT_ERROR(1008, "JSON格式错误，请检查请求体格式是否正确"),
@@ -59,7 +53,6 @@ public enum ErrorCode {
     PROJECT_EXPERIENCE_UPDATE_FAILED(4004, "更新项目经历失败"),
     PROJECT_EXPERIENCE_DELETE_FAILED(4005, "删除项目经历失败"),
     PROJECT_EXPERIENCE_NOT_FOUND(4006, "项目经历不存在"),
-    PROJECT_EXPERIENCE_NAME_NOT_ALLOW_CHANGE(4007, "项目经历名称一经确定，不能修改"),
 
     // ========== 工作经历相关 (5xxx) ==========
     CAREER_ADD_FAILED(5001, "添加工作经历失败"),
@@ -83,9 +76,6 @@ public enum ErrorCode {
     SKILL_UPDATE_FAILED(7003, "更新技能失败"),
     SKILL_DELETE_FAILED(7004, "删除技能失败"),
     SKILL_NOT_FOUND(7005, "技能不存在"),
-    SKILL_CONTENT_EMPTY(7006, "技能内容不能为空"),
-    SKILL_CONTENT_FORMAT_ERROR(7007, "技能内容格式错误"),
-    SKILL_CONTENT_PARSE_FAILED(7008, "技能内容解析失败"),
 
     // ========== 知识库相关 (8xxx) ==========
     KNOWLEDGE_BASE_SAVE_FAILED(8001, "保存知识库失败"),
@@ -94,10 +84,8 @@ public enum ErrorCode {
     KNOWLEDGE_BASE_DELETE_FAILED(8004, "删除知识库失败"),
     KNOWLEDGE_BASE_NOT_FOUND(8005, "知识库不存在"),
     KNOWLEDGE_BASE_NAME_EXISTS(8006, "知识库名称已存在，请使用其他名称"),
-    PDF_URL_REQUIRED(8007, "PDF文档类型必须提供COS URL"),
-    MARKDOWN_URL_REQUIRED(8008, "Markdown文档类型必须提供COS URL"),
     FILE_TYPE_NOT_EXISTS(8009, "文件类型不存在，请不要修改知识内容中的URL"),
-    KNOWLEDGE_BASE_EMBEDDING_FAILED(8010, "触发向量化任务失败"),
+    KNOWLEDGE_BASE_EMBEDDING_FAILED(8010, "向量化任务失败"),
 
     // ========== 对话相关 (9xxx) ==========
     CONVERSATION_CREATE_FAILED(9001, "创建会话失败"),
@@ -105,13 +93,9 @@ public enum ErrorCode {
     CONVERSATION_NOT_FOUND(9003, "会话不存在"),
     CONVERSATION_UPDATE_FAILED(9004, "更新会话失败"),
     MESSAGE_CREATE_FAILED(9005, "创建消息失败"),
-    MESSAGE_NOT_FOUND(9006, "消息不存在"),
-    MESSAGE_DELETE_FAILED(9007, "删除消息失败"),
-    FEATURE_NOT_IMPLEMENTED(9999, "功能暂未实现"),
 
     // ========== 岗位与公司 (82xx) ==========
-    JOB_NOT_FOUND(8201, "岗位不存在"),
-    COMPANY_NOT_FOUND(8202, "公司不存在");
+    JOB_NOT_FOUND(8201, "岗位不存在");
 
     private final Integer code;
     private final String message;

@@ -211,11 +211,11 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     private Resume requireResumeAndCheckOwnership(Long id, Long userId, String action) {
         Resume resume = requireResume(id);
         if (!resume.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(), ErrorCode.NO_PERMISSION.getMessage() + action + "他人简历");
+            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(),
+                    ErrorCode.NO_PERMISSION.getMessage() + action + "他人简历");
         }
         return resume;
     }
-
 
     /**
      * 将 Skill 实体转换为 SkillDTO

@@ -2,6 +2,7 @@ package com.zdmj.knowledgeService.service;
 
 import com.zdmj.common.model.PageResult;
 import com.zdmj.knowledgeService.dto.KnowledgeBasesDTO;
+import com.zdmj.knowledgeService.dto.KnowledgeEmbeddingProgressDTO;
 import com.zdmj.knowledgeService.entity.KnowledgeBases;
 
 import java.util.List;
@@ -56,5 +57,13 @@ public interface KnowledgeBasesService {
      * @param id 知识库ID
      */
     void delete(Long id);
+
+    /**
+     * 查询知识库向量化进度
+     *
+     * @param id 知识库ID
+     * @return 向量化进度信息
+     */
+    KnowledgeEmbeddingProgressDTO getEmbeddingProgress(Long id);
 
 }

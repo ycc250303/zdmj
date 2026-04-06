@@ -46,8 +46,6 @@ import java.util.UUID;
 @Slf4j
 @Component
 public class CosUtil {
-    private static final String DEFAULT_SECRET_ID = "your-secret-id";
-    private static final String DEFAULT_SECRET_KEY = "your-secret-key";
 
     @Value("${cos.secret-id}")
     private String secretId;
@@ -75,10 +73,10 @@ public class CosUtil {
     public void init() {
         try {
             // 验证配置
-            if (isBlank(secretId) || DEFAULT_SECRET_ID.equals(secretId)) {
+            if (isBlank(secretId)) {
                 log.warn("COS SecretId未配置或使用默认值，请设置环境变量 COS_SECRET_ID");
             }
-            if (isBlank(secretKey) || DEFAULT_SECRET_KEY.equals(secretKey)) {
+            if (isBlank(secretKey)) {
                 log.warn("COS SecretKey未配置或使用默认值，请设置环境变量 COS_SECRET_KEY");
             }
             if (isBlank(bucketName)) {

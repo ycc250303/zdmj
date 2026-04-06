@@ -1,6 +1,7 @@
 package com.zdmj.knowledgeService.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -68,11 +69,6 @@ public class KnowledgeBases extends BaseEntity {
     private Long vectorTaskId;
 
     /**
-     * 最近一次任务状态（PENDING/RUNNING/SUCCESS/FAILED/CANCELLED）
-     */
-    private String vectorTaskStatus;
-
-    /**
      * 内容哈希（用于避免重复向量化）
      */
     private String contentHash;
@@ -80,7 +76,7 @@ public class KnowledgeBases extends BaseEntity {
     /**
      * 向量化状态（PENDING/EMBEDDING/READY/FAILED）
      */
-    private String embeddingStatus;
+    private Integer embeddingStatus;
 
     /**
      * 当前已写入的文档块数量
@@ -95,6 +91,7 @@ public class KnowledgeBases extends BaseEntity {
     /**
      * 最近一次向量化错误信息
      */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String lastError;
 
     /**

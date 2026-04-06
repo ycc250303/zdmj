@@ -11,10 +11,8 @@
 --
 -- 安装 pgvector 扩展
 CREATE EXTENSION IF NOT EXISTS vector;
-
 -- 安装 hnsw 扩展
 CREATE EXTENSION IF NOT EXISTS hnsw;
-
 -- 删除表
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS user_profiles;
@@ -33,7 +31,6 @@ DROP TABLE IF EXISTS knowledge_vector_tasks;
 DROP TABLE IF EXISTS conversations;
 DROP TABLE IF EXISTS messages;
 DROP TABLE IF EXISTS SPRING_AI_CHAT_MEMORY;
-
 --
 -- ==========================1 用户模块==========================
 --
@@ -531,8 +528,7 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_knowledge_id ON knowledge_vecto
 CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_user_id_knowledge_id ON knowledge_vectors(user_id, knowledge_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_task_id ON knowledge_vectors(task_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_embedding ON knowledge_vectors USING HNSW (embedding vector_cosine_ops) WITH (M = 16, ef_construction = 100);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_vectors_knowledge_id_chunk_index
-    ON knowledge_vectors(knowledge_id, chunk_index);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_vectors_knowledge_id_chunk_index ON knowledge_vectors(knowledge_id, chunk_index);
 -- 5.2 向量化任务表（异步任务）
 CREATE TABLE IF NOT EXISTS knowledge_vector_tasks (
     id BIGSERIAL PRIMARY KEY,
