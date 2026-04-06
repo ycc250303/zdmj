@@ -14,9 +14,16 @@ import java.util.List;
 public interface MessageMapper extends BaseMapper<Message> {
 
     /**
-     * 按会话查询消息列表（骨架方法，待补充 SQL）
+     * 按会话查询消息列表
+     * 
+     * @param conversationId 会话ID
+     * @param offset         偏移量
+     * @param limit          每页条数
+     * @return 消息列表
      */
-    List<Message> selectByConversationId(@Param("conversationId") Long conversationId);
+    List<Message> selectPageByConversationId(@Param("conversationId") Long conversationId,
+            @Param("offset") int offset,
+            @Param("limit") int limit);
 
     /**
      * 按会话查询消息数量

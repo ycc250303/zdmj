@@ -1,5 +1,6 @@
 # CD工作流：统一自动化部署
-# 当代码合并到main分支时自动构建Docker镜像并部署到服务器
+# 当代码推送到main分支时，GitHub Actions仅负责下发命令
+# 实际的 git 拉取、镜像构建与服务重启全部在腾讯云服务器本地执行
 # 同时部署Java和Python服务，使用并行作业减少总运行时间
 #
 # 前置要求：
@@ -23,15 +24,23 @@ on:
   # 允许在GitHub Actions页面手动触发此工作流
   workflow_dispatch:
 
+# 防止同一分支的重复部署任务堆积
+concurrency:
+  group: cd-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 # 全局环境变量配置
 env:
   SERVER_HOST: 111.229.81.45       # 部署服务器IP地址
   SERVER_USER: root                # 服务器SSH登录用户名
+  APP_DIR: /opt/zdmj/zdmj          # 服务器项目目录
+  DEPLOY_BRANCH: main              # 服务器部署分支
 
 jobs:
   detect-changes:
     name: Detect Changed Services
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       java: ${{ steps.filter.outputs.java }}
       python: ${{ steps.filter.outputs.python }}
@@ -52,15 +61,40 @@ jobs:
               - 'deploy/docker-compose.yml'
               - '.github/workflows/cd.yml'
 
+  sync-server-code:
+    name: Sync Code on Server
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    timeout-minutes: 10
+    if: needs.detect-changes.outputs.java == 'true' || needs.detect-changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Pull latest code on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.SERVER_HOST }}
+          username: ${{ env.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            cd "${{ env.APP_DIR }}"
+            git fetch --prune origin
+            git checkout "${{ env.DEPLOY_BRANCH }}"
+            git reset --hard "origin/${{ env.DEPLOY_BRANCH }}"
+            git rev-parse --short HEAD
+
   # Java服务构建和部署任务
   deploy-java:
     name: Deploy Java Service on Server
     runs-on: ubuntu-latest
-    needs: detect-changes
+    needs: [detect-changes, sync-server-code]
+    timeout-minutes: 30
     if: needs.detect-changes.outputs.java == 'true' || github.event_name == 'workflow_dispatch'
     
     steps:
-      # 在服务器端拉取代码并构建，避免跨境传输大镜像
+      # 统一使用 docker compose 管理服务生命周期，避免与 docker run 混用
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -69,20 +103,13 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           timeout: 60s
+          command_timeout: 30m
           script: |
-            set -e
-            cd /opt/zdmj/zdmj
-            git pull --ff-only origin main
-            docker build -t zdmj-backend:latest ./backend/zdmj
-            docker stop zdmj-backend || true
-            docker rm zdmj-backend || true
-            docker run -d \
-              --name zdmj-backend \
-              --restart unless-stopped \
-              -p 8080:8080 \
-              -e TZ=Asia/Shanghai \
-              zdmj-backend:latest
-            docker image prune -f
+            set -euo pipefail
+            cd "${{ env.APP_DIR }}/deploy"
+            docker compose build backend
+            docker compose up -d --no-deps --force-recreate backend
+            docker compose ps backend
 
       # 验证部署
       - name: Verify deployment
@@ -93,63 +120,63 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           timeout: 60s
+          command_timeout: 10m
           script: |
             sleep 10
-            docker ps | grep zdmj-backend
+            docker compose -f "${{ env.APP_DIR }}/deploy/docker-compose.yml" ps backend
             docker logs --tail 50 zdmj-backend
 
-  # Python服务构建和部署任务（与Java并行执行）
-  deploy-python:
-    name: Deploy Python Service on Server
-    runs-on: ubuntu-latest
-    needs: detect-changes
-    if: needs.detect-changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch'
+  # # Python服务构建和部署任务（与Java并行执行）
+  # deploy-python:
+  #   name: Deploy Python Service on Server
+  #   runs-on: ubuntu-latest
+  #   needs: [detect-changes, sync-server-code]
+  #   timeout-minutes: 30
+  #   if: needs.detect-changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch'
     
-    steps:
-      # 在服务器端拉取代码并构建，避免跨境传输大镜像
-      - name: Deploy to server
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ env.SERVER_HOST }}
-          username: ${{ env.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          timeout: 60s
-          script: |
-            set -e
-            cd /opt/zdmj/zdmj
-            git pull --ff-only origin main
-            docker build -t zdmj-python:latest ./backend/zdmj-python
-            cd /opt/zdmj/zdmj/deploy
-            docker compose up -d --no-deps --force-recreate python
-            docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "^zdmj-python:latest " || true
-            docker inspect zdmj-python --format 'container_image={{.Image}}'
-            docker image prune -f
+  #   steps:
+  #     # 统一使用 docker compose 管理服务生命周期
+  #     - name: Deploy to server
+  #       uses: appleboy/ssh-action@v1.0.3
+  #       with:
+  #         host: ${{ env.SERVER_HOST }}
+  #         username: ${{ env.SERVER_USER }}
+  #         key: ${{ secrets.SSH_PRIVATE_KEY }}
+  #         port: 22
+  #         timeout: 60s
+  #         command_timeout: 30m
+  #         script: |
+  #           set -euo pipefail
+  #           cd "${{ env.APP_DIR }}/deploy"
+  #           docker compose build python
+  #           docker compose up -d --no-deps --force-recreate python
+  #           docker compose ps python
 
-      # 验证部署
-      - name: Verify deployment
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ env.SERVER_HOST }}
-          username: ${{ env.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          timeout: 60s
-          script: |
-            echo "Waiting for service to start..."
-            sleep 10
+  #     # 验证部署
+  #     - name: Verify deployment
+  #       uses: appleboy/ssh-action@v1.0.3
+  #       with:
+  #         host: ${{ env.SERVER_HOST }}
+  #         username: ${{ env.SERVER_USER }}
+  #         key: ${{ secrets.SSH_PRIVATE_KEY }}
+  #         port: 22
+  #         timeout: 60s
+  #         command_timeout: 10m
+  #         script: |
+  #           echo "Waiting for service to start..."
+  #           sleep 10
             
-            echo "Checking container status..."
-            docker ps | grep zdmj-python || echo "Warning: Container not found in running list"
+  #           echo "Checking container status..."
+  #           docker ps | grep zdmj-python || echo "Warning: Container not found in running list"
             
-            echo "Container status:"
-            docker ps -a | grep zdmj-python
-            echo "Image mapping:"
-            docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "^zdmj-python:latest " || true
-            docker inspect zdmj-python --format 'container_image={{.Image}}'
+  #           echo "Container status:"
+  #           docker ps -a | grep zdmj-python
+  #           echo "Image mapping:"
+  #           docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "^zdmj-python:latest " || true
+  #           docker inspect zdmj-python --format 'container_image={{.Image}}'
             
-            echo "Recent container logs:"
-            docker logs --tail 50 zdmj-python || echo "Warning: Could not retrieve logs"
+  #           echo "Recent container logs:"
+  #           docker logs --tail 50 zdmj-python || echo "Warning: Could not retrieve logs"
             
-            echo "Health check status:"
-            docker inspect --format='{{.State.Health.Status}}' zdmj-python 2>/dev/null || echo "Health check not configured"
+  #           echo "Health check status:"
+  #           docker inspect --format='{{.State.Health.Status}}' zdmj-python 2>/dev/null || echo "Health check not configured"

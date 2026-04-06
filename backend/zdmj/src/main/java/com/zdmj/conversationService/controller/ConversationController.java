@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.PutMapping;
 
-import com.zdmj.common.Result;
+import com.zdmj.common.model.Result;
 import com.zdmj.conversationService.dto.ConversationDTO;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.service.ConversationService;

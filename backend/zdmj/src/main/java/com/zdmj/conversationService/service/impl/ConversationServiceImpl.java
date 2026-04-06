@@ -31,6 +31,17 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
     private final RedisUtil redisUtil;
 
     @Override
+    public boolean updateById(Conversation entity) {
+        boolean updated = super.updateById(entity);
+        if (!updated || entity == null || entity.getId() == null) {
+            return updated;
+        }
+        // 保证 conversation:{id} 缓存与数据库一致，避免 messageCount 等字段读到旧值
+        redisUtil.set(RedisConstants.CONVERSATION_KEY + entity.getId(), entity, RedisConstants.CONVERSATION_TTL);
+        return updated;
+    }
+
+    @Override
     public Conversation create(ConversationDTO conversationDTO) {
         Long userId = UserHolder.requireUserId();
 

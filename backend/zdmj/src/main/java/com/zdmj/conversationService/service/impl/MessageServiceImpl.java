@@ -7,7 +7,9 @@ import com.zdmj.common.cache.RedisUtil;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.common.model.PageResult;
 import com.zdmj.common.util.ChatUtil;
+import com.zdmj.common.util.PromptUtil;
 import com.zdmj.conversationService.dto.MessageDTO;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.entity.Message;
@@ -24,6 +26,7 @@ import reactor.core.publisher.Sinks;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -50,23 +53,23 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     // 流式消息 sink 映射
     private final ConcurrentHashMap<Long, Sinks.Many<String>> streamSinkMap = new ConcurrentHashMap<>();
 
+    // 最大消息页大小
+    private static final int MAX_MESSAGE_PAGE_SIZE = 100;
+
     @Override
     public Flux<ServerSentEvent<String>> createStream(MessageDTO dto) {
+        Conversation conversation = requireConversationAccess(dto.getConversationId());
         Long userId = UserHolder.requireUserId();
-        Conversation conversation = conversationService.getById(dto.getConversationId());
-        if (conversation == null) {
-            throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
-        } else if (!conversation.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION);
-        }
 
         // 1.写入 user 消息
+        int messageCount = conversation.getMessageCount();
+
         Message userMsg = new Message();
         userMsg.setConversationId(dto.getConversationId());
         userMsg.setUserId(userId);
         userMsg.setRole(MessageRoleEnum.USER.getCode()); // user
         userMsg.setContent(dto.getMessage());
-        userMsg.setSequence(messageMapper.selectMessageCountByConversationId(dto.getConversationId()) + 1);
+        userMsg.setSequence(messageCount + 1);
         if (messageMapper.insert(userMsg) != 1) {
             throw new BusinessException(ErrorCode.MESSAGE_CREATE_FAILED);
         }
@@ -77,7 +80,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         assistantMsg.setUserId(userId);
         assistantMsg.setRole(2); // assistant
         assistantMsg.setContent("");
-        assistantMsg.setSequence(messageMapper.selectMessageCountByConversationId(dto.getConversationId()) + 1);
+        assistantMsg.setSequence(messageCount + 2);
         if (messageMapper.insert(assistantMsg) != 1) {
             throw new BusinessException(ErrorCode.MESSAGE_CREATE_FAILED);
         }
@@ -92,6 +95,16 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         Sinks.Many<String> sink = Sinks.many().multicast().onBackpressureBuffer();
         streamSinkMap.put(streamId, sink);
 
+        // 更新会话信息（上下文、消息总数、最后一条消息时间）
+        conversation.setMessageCount(messageCount + 2);
+        conversation.setLastMessageAt(LocalDateTime.now());
+        // 生成会话标题
+        if (messageCount == 0) {
+            String title = chatUtil.chat(dto.getMessage(), PromptUtil.PromptNames.GENERATE_CONVERSATION_TITLE);
+            conversation.setTitle(title);
+        }
+        conversationService.updateById(conversation);
+
         // 初始化状态
         redisUtil.setString(statusKey, "streaming", STREAM_TTL_SECONDS);
         redisUtil.setString(contentKey, "", STREAM_TTL_SECONDS);
@@ -103,7 +116,10 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         AtomicInteger lastFlushedLen = new AtomicInteger(0);
 
         // 4.调用 AI 服务
-        chatUtil.chatStream(dto.getMessage())
+        chatUtil.chatStream(
+                dto.getConversationId(),
+                dto.getMessage(),
+                PromptUtil.PromptNames.SYSTEM)
                 .doOnNext(chunk -> {
                     if (chunk == null || chunk.isEmpty()) {
                         return;
@@ -230,8 +246,35 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     }
 
     @Override
-    public List<Message> getByConversationId(Long conversationId) {
-        throw new UnsupportedOperationException("TODO: implement list messages by conversation");
+    public PageResult<Message> getMessagesByConversationId(Long conversationId, Integer page, Integer limit) {
+        if (conversationId == null) {
+            throw new BusinessException(ErrorCode.ILLEGAL_ARGUMENT.getCode(), "conversationId不能为空");
+        }
+        requireConversationAccess(conversationId);
+        int p = (page == null || page < 1) ? 1 : page;
+        int l = (limit == null || limit < 1) ? 20 : Math.min(limit, MAX_MESSAGE_PAGE_SIZE);
+        int offset = (p - 1) * l;
+        Integer totalInt = messageMapper.selectMessageCountByConversationId(conversationId);
+        long total = totalInt == null ? 0L : totalInt.longValue();
+        List<Message> data = messageMapper.selectPageByConversationId(conversationId, offset, l);
+        return PageResult.of(data, total, p, l);
+    }
+
+    /**
+     * 验证会话访问权限
+     * 
+     * @param conversationId 会话ID
+     */
+    private Conversation requireConversationAccess(Long conversationId) {
+        Long userId = UserHolder.requireUserId();
+        Conversation conversation = conversationService.getById(conversationId);
+        if (conversation == null) {
+            throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
+        }
+        if (!conversation.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.NO_PERMISSION);
+        }
+        return conversation;
     }
 
     @Data
@@ -244,12 +287,6 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     public class ChatResumeRequest {
         private Long streamId; // 流式消息ID 建议=assistantMessageId
         private Integer offset; // 前端已接收字符数
-    }
-
-    private String generateConversationTitle(String message) {
-        String prompt;
-        String title = chatUtil.chat(message);
-        return title;
     }
 
     /**

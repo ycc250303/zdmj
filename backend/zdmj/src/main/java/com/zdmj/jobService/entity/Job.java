@@ -10,7 +10,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 /**
- * 岗位表 jobs（不包含 embedding 列，由 Python 等流程维护向量）
+ * 岗位表 jobs
  */
 @Data
 @EqualsAndHashCode(callSuper = true)

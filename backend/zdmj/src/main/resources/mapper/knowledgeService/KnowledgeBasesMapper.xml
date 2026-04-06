@@ -4,19 +4,19 @@
 
     <!-- 根据用户ID查询所有知识库 -->
     <select id="selectByUserId" resultType="com.zdmj.knowledgeService.entity.KnowledgeBases"> SELECT
-        id, user_id, name, project_id, tag, type, content, vector_ids, created_at, updated_at FROM
+        id, user_id, name, project_id, tag, type, content, created_at, updated_at FROM
         knowledge_bases WHERE user_id = #{userId} ORDER BY created_at DESC </select>
 
     <!-- 根据用户ID和项目ID查询知识库列表 -->
     <select id="selectByUserIdAndProjectId"
         resultType="com.zdmj.knowledgeService.entity.KnowledgeBases"> SELECT id, user_id, name,
-        project_id, tag, type, content, vector_ids, created_at, updated_at FROM knowledge_bases
+        project_id, tag, type, content, created_at, updated_at FROM knowledge_bases
         WHERE user_id = #{userId} <if
             test="projectId != null"> AND project_id = #{projectId} </if> ORDER BY created_at DESC </select>
 
     <!-- 根据用户ID和知识类型查询知识库列表 -->
     <select id="selectByUserIdAndType" resultType="com.zdmj.knowledgeService.entity.KnowledgeBases">
-        SELECT id, user_id, name, project_id, tag, type, content, vector_ids, created_at, updated_at
+        SELECT id, user_id, name, project_id, tag, type, content, created_at, updated_at
         FROM knowledge_bases WHERE user_id = #{userId} <if
             test="type != null"> AND type = #{type} </if> ORDER BY created_at DESC </select>
 
@@ -31,13 +31,13 @@
 
     <!-- 根据项目ID查询知识库列表（用于项目相关的知识库查询） -->
     <select id="selectByProjectId" resultType="com.zdmj.knowledgeService.entity.KnowledgeBases">
-        SELECT id, user_id, name, project_id, tag, type, content, vector_ids, created_at, updated_at
+        SELECT id, user_id, name, project_id, tag, type, content,created_at, updated_at
         FROM knowledge_bases WHERE user_id = #{userId} AND project_id = #{projectId} ORDER BY
         created_at DESC </select>
 
     <!-- 分页查询知识库列表（支持项目ID和类型过滤） -->
     <select id="selectPage" resultType="com.zdmj.knowledgeService.entity.KnowledgeBases"> SELECT id,
-        user_id, name, project_id, tag, type, content, vector_ids, created_at, updated_at FROM
+        user_id, name, project_id, tag, type, content, created_at, updated_at FROM
         knowledge_bases WHERE user_id = #{userId} <if
             test="projectId != null"> AND project_id = #{projectId} </if>
         <if
@@ -49,5 +49,16 @@
         user_id = #{userId} <if test="projectId != null"> AND project_id = #{projectId} </if>
         <if
             test="type != null"> AND type = #{type} </if>
+    </select>
+
+    <!-- 查询待轮询的向量任务（仅进行中状态） -->
+    <select id="selectPendingVectorTasks" resultType="com.zdmj.knowledgeService.entity.KnowledgeBases">
+        SELECT id, user_id, name, project_id, tag, type, content, vector_task_id, vector_task_status,
+               created_at, updated_at
+        FROM knowledge_bases
+        WHERE vector_task_id IS NOT NULL
+          AND vector_task_status IN ('PENDING', 'RUNNING')
+        ORDER BY updated_at ASC
+        LIMIT #{limit}
     </select>
 </mapper>

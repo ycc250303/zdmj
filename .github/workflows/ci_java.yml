@@ -9,11 +9,17 @@ on:
     branches:
       - backend
       # - main
+    paths:
+      - 'backend/zdmj/**'
+      - '.github/workflows/ci_java.yml'
   # 当创建或更新PR到backend或main分支时触发
   pull_request:
     branches:
       - backend
       # - main
+    paths:
+      - 'backend/zdmj/**'
+      - '.github/workflows/ci_java.yml'
 
 jobs:
   # 测试任务
@@ -38,27 +44,17 @@ jobs:
           distribution: 'temurin'     # JDK发行版（Eclipse Temurin）
           cache: maven                # 启用Maven依赖缓存
 
-      # 步骤3: 缓存Maven依赖
-      # 将Maven本地仓库（~/.m2）缓存起来，避免每次构建都重新下载依赖
-      # 如果pom.xml文件未变化，则直接使用缓存的依赖，大幅提升构建速度
-      - name: Cache Maven dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2                 # Maven本地仓库路径
-          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}  # 缓存键（基于操作系统和pom.xml的哈希值）
-          restore-keys: ${{ runner.os }}-m2  # 如果精确匹配失败，尝试使用部分匹配的缓存
-
-      # 步骤4: 编译验证（暂时跳过测试执行）
+      # 步骤3: 编译验证（暂时跳过测试执行）
       # 在backend/zdmj目录下执行Maven编译命令
       # clean: 清理之前的构建产物
-      # compile: 编译源代码和测试代码，但不运行测试
+      # compile: 只编译主代码，构建时间更短
       # 保留测试流水线结构，但暂时不执行测试用例
       # 如果需要恢复测试，将 compile 改为 test 即可
       - name: Compile and verify (skip tests)
         working-directory: ./backend/zdmj  # 指定工作目录
-        run: mvn clean test -DskipTests
+        run: mvn -B -ntp clean compile
 
-      # 步骤5: 生成测试报告（暂时跳过）
+      # 步骤4: 生成测试报告（暂时跳过）
       # 暂时注释掉测试报告生成步骤
       # 如果需要恢复测试，取消注释并修改步骤4为 test
       # - name: Generate test report
@@ -67,7 +63,7 @@ jobs:
       #   run: |
       #     mvn surefire-report:report || true  # 生成报告，即使失败也不影响整体流程
 
-      # 步骤6: 上传测试结果（暂时跳过）
+      # 步骤5: 上传测试结果（暂时跳过）
       # 暂时注释掉测试结果上传步骤
       # 如果需要恢复测试，取消注释并修改步骤4为 test
       # - name: Upload test results

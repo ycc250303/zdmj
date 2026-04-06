@@ -16,9 +16,12 @@ public interface KnowledgeBasesStructMapper {
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "userId", ignore = true)
-    @Mapping(target = "vectorIds", ignore = true)
     @Mapping(target = "vectorTaskId", ignore = true)
-    @Mapping(target = "vectorTaskStatus", ignore = true)
+    @Mapping(target = "contentHash", ignore = true)
+    @Mapping(target = "embeddingStatus", ignore = true)
+    @Mapping(target = "chunkCount", ignore = true)
+    @Mapping(target = "lastEmbeddedAt", ignore = true)
+    @Mapping(target = "lastError", ignore = true)
     @Mapping(target = "typeEnum", ignore = true)
     KnowledgeBases fromDto(KnowledgeBasesDTO dto);
 
@@ -27,11 +30,12 @@ public interface KnowledgeBasesStructMapper {
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "userId", ignore = true)
-    @Mapping(target = "projectId", ignore = true)
-    @Mapping(target = "vectorIds", ignore = true)
     @Mapping(target = "vectorTaskId", ignore = true)
-    @Mapping(target = "vectorTaskStatus", ignore = true)
+    @Mapping(target = "contentHash", ignore = true)
+    @Mapping(target = "embeddingStatus", ignore = true)
+    @Mapping(target = "chunkCount", ignore = true)
+    @Mapping(target = "lastEmbeddedAt", ignore = true)
+    @Mapping(target = "lastError", ignore = true)
     @Mapping(target = "typeEnum", ignore = true)
     void updateEntityFromDto(KnowledgeBasesDTO dto, @MappingTarget KnowledgeBases entity);
 }
-

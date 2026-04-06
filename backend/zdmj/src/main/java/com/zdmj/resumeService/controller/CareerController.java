@@ -7,9 +7,9 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.*;
 
-import com.zdmj.common.Result;
-import com.zdmj.common.validation.CreateGroup;
-import com.zdmj.common.validation.UpdateGroup;
+import com.zdmj.common.model.CreateGroup;
+import com.zdmj.common.model.Result;
+import com.zdmj.common.model.UpdateGroup;
 import com.zdmj.resumeService.dto.CareerDTO;
 import com.zdmj.resumeService.entity.Career;
 import com.zdmj.resumeService.service.CareerService;

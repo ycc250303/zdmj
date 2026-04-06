@@ -11,11 +11,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.zdmj.common.Result;
+import com.zdmj.common.model.CreateGroup;
 import com.zdmj.common.model.PageResult;
-import com.zdmj.common.validation.CreateGroup;
-import com.zdmj.common.validation.UpdateGroup;
+import com.zdmj.common.model.Result;
+import com.zdmj.common.model.UpdateGroup;
 import com.zdmj.knowledgeService.dto.KnowledgeBasesDTO;
+import com.zdmj.knowledgeService.dto.KnowledgeEmbeddingProgressDTO;
 import com.zdmj.knowledgeService.entity.KnowledgeBases;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 
@@ -72,6 +73,17 @@ public class KnowledgeBasesController {
     @GetMapping("/{id}")
     public Result<KnowledgeBases> getKnowledgeBasesById(@PathVariable Long id) {
         return Result.success("查询知识库成功", knowledgeBasesService.getById(id));
+    }
+
+    /**
+     * 查询知识库向量化进度
+     *
+     * @param id 知识库ID
+     * @return 向量化进度
+     */
+    @GetMapping("/{id}/embedding-progress")
+    public Result<KnowledgeEmbeddingProgressDTO> getEmbeddingProgress(@PathVariable Long id) {
+        return Result.success("查询知识库向量化进度成功", knowledgeBasesService.getEmbeddingProgress(id));
     }
 
     /**
