@@ -11,6 +11,26 @@
 --
 -- 安装 pgvector 扩展
 CREATE EXTENSION IF NOT EXISTS vector;
+-- 安装 hnsw 扩展
+CREATE EXTENSION IF NOT EXISTS hnsw;
+-- 删除表
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS user_profiles;
+DROP TABLE IF EXISTS user_behavior_logs;
+DROP TABLE IF EXISTS educations;
+DROP TABLE IF EXISTS skills;
+DROP TABLE IF EXISTS careers;
+DROP TABLE IF EXISTS project_experiences;
+DROP TABLE IF EXISTS resumes;
+DROP TABLE IF EXISTS resume_matches;
+DROP TABLE IF EXISTS jobs;
+DROP TABLE IF EXISTS companies;
+DROP TABLE IF EXISTS knowledge_bases;
+DROP TABLE IF EXISTS knowledge_vectors;
+DROP TABLE IF EXISTS knowledge_vector_tasks;
+DROP TABLE IF EXISTS conversations;
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS SPRING_AI_CHAT_MEMORY;
 --
 -- ==========================1 用户模块==========================
 --
@@ -360,132 +380,9 @@ CREATE INDEX IF NOT EXISTS idx_resume_matches_job_id ON resume_matches(job_id);
 CREATE INDEX IF NOT EXISTS idx_resume_matches_resume_id ON resume_matches(resume_id);
 CREATE INDEX IF NOT EXISTS idx_resume_matches_status ON resume_matches(status);
 --
--- ==========================3 项目模块==========================
+-- ==========================3 岗位模块==========================
 --
--- 说明：原projects表已合并到project_experiences表中，以下表关联到project_experiences
--- 3.1 项目挖掘表
-CREATE TABLE IF NOT EXISTS projects_mined (
-    id BIGSERIAL PRIMARY KEY,
-    -- 挖掘ID
-    user_id BIGINT NOT NULL,
-    -- 用户ID（逻辑外键：users.id）
-    project_id BIGINT,
-    -- 关联项目ID（逻辑外键：project_experiences.id）
-    -- 注意：项目名称可通过 project_id JOIN project_experiences.name 获取，或从 info JSONB 中解析
-    info JSONB NOT NULL,
-    -- 项目信息
-    -- info 示例
-    -- {
-    --   "desc": {
-    --     "role": "在项目中的角色和职责",
-    --     "contribute": "核心贡献和参与程度",
-    --     "bgAndTarget": "项目的背景和目的"
-    --   },
-    --   "techStack": ["Java", "Spring Boot"]
-    -- }
-    lightspot JSONB NOT NULL,
-    -- 原始亮点
-    -- lightspot 示例
-    -- {
-    --   "team": ["团队贡献1", "团队贡献2"],
-    --   "skill": ["技术亮点/难点1", "技术亮点/难点2"],
-    --   "user": ["用户体验/业务价值1", "用户体验/业务价值2"]
-    -- }
-    lightspot_added JSONB,
-    -- 额外挖掘的亮点
-    -- lightspot_added 示例
-    -- {
-    --   "team": [
-    --     {
-    --       "content": "团队贡献描述",
-    --       "reason": "亮点添加原因",
-    --       "tech": ["相关技术1", "相关技术2"]
-    --     }
-    --   ],
-    --   "skill": [
-    --     {
-    --       "content": "技术亮点描述",
-    --       "reason": "亮点添加原因",
-    --       "tech": ["相关技术1", "相关技术2"]
-    --     }
-    --   ],
-    --   "user": [
-    --     {
-    --       "content": "用户体验描述",
-    --       "reason": "亮点添加原因",
-    --       "tech": ["相关技术1", "相关技术2"]
-    --     }
-    --   ]
-    -- }
-    reason_content TEXT,
-    -- 推理内容
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    -- 创建时间
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
-);
-CREATE INDEX IF NOT EXISTS idx_projects_mined_user_id ON projects_mined(user_id);
-CREATE INDEX IF NOT EXISTS idx_projects_mined_project_id ON projects_mined(project_id);
--- 3.2 项目打磨表（使用JSONB替代MongoDB）
-CREATE TABLE IF NOT EXISTS projects_polished (
-    id BIGSERIAL PRIMARY KEY,
-    -- 打磨ID
-    user_id BIGINT NOT NULL,
-    -- 用户ID（逻辑外键：users.id）
-    project_id BIGINT,
-    -- 关联项目ID（逻辑外键：project_experiences.id）
-    -- 注意：项目名称可通过 project_id JOIN project_experiences.name 获取，或从 info JSONB 中解析
-    info JSONB NOT NULL,
-    -- 项目信息
-    -- info 示例
-    -- {
-    --   "desc": {
-    --     "role": "在项目中的角色和职责",
-    --     "contribute": "核心贡献和参与程度",
-    --     "bgAndTarget": "项目的背景和目的"
-    --   },
-    --   "techStack": ["Java", "Spring Boot"]
-    -- }
-    lightspot JSONB NOT NULL,
-    -- 打磨后的亮点
-    -- lightspot 示例
-    -- {
-    --   "team": [
-    --     {
-    --       "content": "团队贡献描述（已修正）",
-    --       "advice": "亮点改进建议（可选）"
-    --     }
-    --   ],
-    --   "skill": [
-    --     {
-    --       "content": "技术亮点描述（已修正）",
-    --       "advice": "亮点改进建议（可选）"
-    --     }
-    --   ],
-    --   "user": [
-    --     {
-    --       "content": "用户体验描述（已修正）",
-    --       "advice": "亮点改进建议（可选）"
-    --     }
-    --   ],
-    --   "deprecated": [
-    --     {
-    --       "content": "已废弃的亮点描述",
-    --       "reason": "亮点删除原因"
-    --     }
-    --   ]
-    -- }
-    reason_content TEXT,
-    -- 推理内容
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    -- 创建时间
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
-);
-CREATE INDEX IF NOT EXISTS idx_projects_polished_user_id ON projects_polished(user_id);
-CREATE INDEX IF NOT EXISTS idx_projects_polished_project_id ON projects_polished(project_id);
---
--- ==========================4 岗位模块==========================
---
--- 4.1 岗位表（使用JSONB替代MongoDB）
+-- 3.1 岗位表（使用JSONB替代MongoDB）
 CREATE TABLE IF NOT EXISTS jobs (
     id BIGSERIAL PRIMARY KEY,
     -- 岗位ID
@@ -525,7 +422,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 CREATE INDEX IF NOT EXISTS idx_jobs_location ON jobs(location);
 CREATE INDEX IF NOT EXISTS idx_jobs_company_id ON jobs(company_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_company_name ON jobs(company_name);
--- 4.2 公司表
+-- 3.2 公司表
 CREATE TABLE IF NOT EXISTS companies (
     id BIGSERIAL PRIMARY KEY,
     -- 公司ID
@@ -552,18 +449,18 @@ CREATE INDEX IF NOT EXISTS idx_companies_size ON companies(size);
 CREATE INDEX IF NOT EXISTS idx_companies_type ON companies(type);
 CREATE INDEX IF NOT EXISTS idx_companies_industries ON companies(industries);
 --
--- ==========================5 知识库模块==========================
+-- ==========================4 知识库模块==========================
 --
--- 5.1 知识库表
+-- 4.1 知识库表
 CREATE TABLE IF NOT EXISTS knowledge_bases (
     id BIGSERIAL PRIMARY KEY,
     -- 知识库ID
     user_id BIGINT NOT NULL,
     -- 用户ID（逻辑外键：users.id）
     name VARCHAR(255) NOT NULL,
-    -- 知识库id
-    project_id BIGINT NOT NULL,
-    -- 关联项目名称
+    -- 知识库名称
+    project_id BIGINT,
+    -- 关联项目id
     tag JSONB DEFAULT '[]'::jsonb,
     -- 知识标签数组
     -- tag 示例
@@ -572,14 +469,20 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     -- 知识类型（枚举：1=项目文档（包含txt、pdf、md、普通URL等）/2=GitHub链接（GitHub仓库或文件）/3=项目DeepWiki文档（暂不实现，留作扩展））
     content TEXT NOT NULL,
     -- 文档内容或URL
-    vector_ids JSONB DEFAULT '[]'::jsonb,
-    -- 关联的向量ID数组
-    -- vector_ids 示例
-    -- [1, 2, 3, 4, 5]
-    vector_task_id VARCHAR(100),
+    vector_task_id BIGINT,
     -- 最近一次向量化任务ID
     vector_task_status VARCHAR(20),
     -- 最近一次任务状态（PENDING/RUNNING/SUCCESS/FAILED/CANCELLED）
+    content_hash VARCHAR(64),
+    -- 内容哈希
+    embedding_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    -- 向量化状态（PENDING/EMBEDDING/READY/FAILED）
+    chunk_count INTEGER NOT NULL DEFAULT 0,
+    -- 当前已写入的文档块数量
+    last_embedded_at TIMESTAMP,
+    -- 最近一次向量化完成时间
+    last_error TEXT,
+    -- 最近一次向量化错误信息
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
@@ -587,10 +490,13 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
 CREATE INDEX IF NOT EXISTS idx_knowledge_bases_user_id ON knowledge_bases(user_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_bases_user_id_project_id ON knowledge_bases(user_id, project_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_bases_type ON knowledge_bases(type);
+CREATE INDEX IF NOT EXISTS idx_knowledge_bases_vector_task_id ON knowledge_bases(vector_task_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_bases_embedding_status ON knowledge_bases(embedding_status);
+CREATE INDEX IF NOT EXISTS idx_knowledge_bases_user_id_content_hash ON knowledge_bases(user_id, content_hash);
 --
--- ==========================6 向量检索模块==========================
+-- ==========================5 向量检索模块==========================
 --
--- 6.1 知识库向量表
+-- 5.1 知识库向量表
 CREATE TABLE IF NOT EXISTS knowledge_vectors (
     id BIGSERIAL PRIMARY KEY,
     -- 向量ID
@@ -611,50 +517,22 @@ CREATE TABLE IF NOT EXISTS knowledge_vectors (
     -- }
     chunk_index INTEGER,
     -- 文档块索引
+    chunk_hash VARCHAR(64),
+    -- 文档块哈希（用于去重）
+    token_count INTEGER,
+    -- 文档块Token数量（用于上下文预算控制）
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 创建时间
 );
 CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_user_id ON knowledge_vectors(user_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_knowledge_id ON knowledge_vectors(knowledge_id);
-CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_embedding ON knowledge_vectors USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
-
-CREATE INDEX IF NOT EXISTS idx_job_vectors_user_id ON job_vectors(user_id);
-CREATE INDEX IF NOT EXISTS idx_job_vectors_job_id ON job_vectors(job_id);
-CREATE INDEX IF NOT EXISTS idx_job_vectors_embedding ON job_vectors USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
--- 6.3 项目代码向量表
-CREATE TABLE IF NOT EXISTS project_code_vectors (
-    id BIGSERIAL PRIMARY KEY,
-    -- 向量ID
-    knowledge_id BIGINT NOT NULL,
-    -- 知识库ID（逻辑外键：knowledge_bases.id）
-    user_id BIGINT NOT NULL,
-    -- 用户ID（逻辑外键：users.id）
-    file_path VARCHAR(500),
-    -- 文件路径
-    embedding VECTOR(1024) NOT NULL,
-    -- 代码片段向量（1024维，使用text-embedding-v4模型）
-    content TEXT,
-    -- 代码片段内容
-    metadata JSONB,
-    -- 元数据（语言、函数名、起止行号等）
-    -- metadata 示例
-    -- {
-    --   "source": "文件相对路径（如 src/utils/helper.ts）",
-    --   "language": "编程语言（如 typescript, python）",
-    --   "functionName": "函数名（如果是从函数中提取）",
-    --   "startLine": 10,
-    --   "endLine": 50
-    -- }
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 创建时间
-);
-CREATE INDEX IF NOT EXISTS idx_project_code_vectors_user_id ON project_code_vectors(user_id);
-CREATE INDEX IF NOT EXISTS idx_project_code_vectors_knowledge_id ON project_code_vectors(knowledge_id);
-CREATE INDEX IF NOT EXISTS idx_project_code_vectors_embedding ON project_code_vectors USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
--- 6.4 向量化任务表（异步任务）
+CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_user_id_knowledge_id ON knowledge_vectors(user_id, knowledge_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_task_id ON knowledge_vectors(task_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_embedding ON knowledge_vectors USING HNSW (embedding vector_cosine_ops) WITH (M = 16, ef_construction = 100);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_vectors_knowledge_id_chunk_index ON knowledge_vectors(knowledge_id, chunk_index);
+-- 5.2 向量化任务表（异步任务）
 CREATE TABLE IF NOT EXISTS knowledge_vector_tasks (
     id BIGSERIAL PRIMARY KEY,
     -- 任务自增ID
-    task_id VARCHAR(100) UNIQUE NOT NULL,
-    -- 任务ID（供Java/Python交互使用）
     user_id BIGINT NOT NULL,
     -- 用户ID（逻辑外键：users.id）
     knowledge_id BIGINT,
@@ -662,24 +540,26 @@ CREATE TABLE IF NOT EXISTS knowledge_vector_tasks (
     task_type SMALLINT NOT NULL,
     -- 任务类型（枚举：1=创建向量/2=更新向量/3=删除向量）
     status SMALLINT NOT NULL,
-    -- 任务状态（枚举：1=pending/2=running/3=success/4=failed/5=cancelled）
-    vector_ids JSONB DEFAULT '[]'::jsonb,
-    -- 任务完成后生成或保留的向量ID快照
-    -- 示例: [1, 2, 3]
+    -- 任务状态（枚举：1=pending/2=running/3=success/4=failed）
     error_message TEXT,
     -- 错误信息（失败时记录）
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- 开始时间
+    completed_at TIMESTAMP,
+    -- 完成时间
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
 );
 CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_user_id ON knowledge_vector_tasks(user_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_knowledge_id ON knowledge_vector_tasks(knowledge_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_knowledge_id_created_at ON knowledge_vector_tasks(knowledge_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_status ON knowledge_vector_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_task_type ON knowledge_vector_tasks(task_type);
 --
--- ==========================7 AI对话模块==========================
+-- ==========================6 AI对话模块==========================
 --
--- 7.1 对话会话表
+-- 6.1 对话会话表
 CREATE TABLE IF NOT EXISTS conversations (
     id BIGSERIAL PRIMARY KEY,
     -- 会话ID
@@ -692,14 +572,13 @@ CREATE TABLE IF NOT EXISTS conversations (
     title VARCHAR(255),
     -- 对话标题（可由AI生成或用户自定义，首次消息时可为空）
     config JSONB DEFAULT '{}'::jsonb,
-    -- 对话配置（temperature、max_tokens、top_p等参数）
+    -- 对话配置（ragEnabled、max_tokens、top_p等参数）
     -- config 示例
     -- {
-    --   "temperature": 0.7,
-    --   "max_tokens": 2000,
-    --   "top_p": 1.0,
-    --   "frequency_penalty": 0,
-    --   "presence_penalty": 0
+    --   "ragEnabled": true,
+    --   "knowledgeIds": [1, 2, 3],
+    --   "topK": 10,
+    --   "minScore": 0.5
     -- }
     context JSONB DEFAULT '[]'::jsonb,
     -- 上下文信息（可关联知识库等，用于RAG检索）
@@ -725,7 +604,7 @@ CREATE INDEX IF NOT EXISTS idx_conversations_user_id_created_at ON conversations
 CREATE INDEX IF NOT EXISTS idx_conversations_project_id ON conversations(project_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_user_id_project_id ON conversations(user_id, project_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_last_message_at ON conversations(last_message_at DESC);
--- 7.2 消息表
+-- 6.2 消息表
 CREATE TABLE IF NOT EXISTS messages (
     id BIGSERIAL PRIMARY KEY,
     -- 消息ID
@@ -745,9 +624,8 @@ CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_id_sequence ON messages(conversation_id, sequence);
 CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id);
 CREATE INDEX IF NOT EXISTS idx_messages_user_id_conversation_id ON messages(user_id, conversation_id);
-
 --
--- 7.3 Spring AI Chat Memory（用于 /messages/chat 的对话上下文）
+-- 6.3 Spring AI Chat Memory（用于 /messages/chat 的对话上下文）
 --
 -- Spring AI JDBC ChatMemory 在 PostgreSQL 中使用表：SPRING_AI_CHAT_MEMORY
 -- 其中 "timestamp" 需要使用双引号以匹配 Spring AI 生成的 SQL。
@@ -757,5 +635,4 @@ CREATE TABLE IF NOT EXISTS SPRING_AI_CHAT_MEMORY (
     type VARCHAR(10) NOT NULL,
     "timestamp" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX IF NOT EXISTS idx_spring_ai_chat_memory_conv_ts
-    ON SPRING_AI_CHAT_MEMORY(conversation_id, "timestamp");
+CREATE INDEX IF NOT EXISTS idx_spring_ai_chat_memory_conv_ts ON SPRING_AI_CHAT_MEMORY(conversation_id, "timestamp");

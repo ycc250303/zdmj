@@ -23,7 +23,7 @@ import java.util.UUID;
 /**
  * 腾讯云COS工具类
  * 提供文件上传、删除等静态方法
- * 注意：下载功能由Python端完成，Java端仅负责上传
+ * 注意：该工具类负责文件对象存储相关操作（上传、读取、删除、列举等）
  * 
  * 参考文档：https://cloud.tencent.com/document/product/436/10199
  * 
@@ -46,8 +46,6 @@ import java.util.UUID;
 @Slf4j
 @Component
 public class CosUtil {
-    private static final String DEFAULT_SECRET_ID = "your-secret-id";
-    private static final String DEFAULT_SECRET_KEY = "your-secret-key";
 
     @Value("${cos.secret-id}")
     private String secretId;
@@ -75,10 +73,10 @@ public class CosUtil {
     public void init() {
         try {
             // 验证配置
-            if (isBlank(secretId) || DEFAULT_SECRET_ID.equals(secretId)) {
+            if (isBlank(secretId)) {
                 log.warn("COS SecretId未配置或使用默认值，请设置环境变量 COS_SECRET_ID");
             }
-            if (isBlank(secretKey) || DEFAULT_SECRET_KEY.equals(secretKey)) {
+            if (isBlank(secretKey)) {
                 log.warn("COS SecretKey未配置或使用默认值，请设置环境变量 COS_SECRET_KEY");
             }
             if (isBlank(bucketName)) {

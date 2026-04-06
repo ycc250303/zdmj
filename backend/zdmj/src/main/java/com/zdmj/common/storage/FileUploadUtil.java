@@ -67,6 +67,7 @@ public class FileUploadUtil {
             row.put("url", CosUtil.getFileUrl(key));
             row.put("fileName", extractFileName(key));
             row.put("bizArea", extractBizArea(key, userId));
+
             result.add(row);
         }
         return result;
@@ -86,7 +87,7 @@ public class FileUploadUtil {
     /**
      * 构建用户业务域key
      * 
-     * @param prefix 业务区域
+     * @param prefix           业务区域
      * @param originalFilename 原始文件名
      * @return 用户业务域key
      */

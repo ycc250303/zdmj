@@ -55,7 +55,7 @@ public class FileUploadController {
      * 例：GET /files/list?prefix=knowledge
      * 
      * @param prefix 业务区域
-     * @return 文件列表
+     * @return 文件列表（包含 cosKey、key、url、fileName、bizArea）
      */
     @GetMapping("/list")
     public Result<List<Map<String, String>>> listByBizArea(

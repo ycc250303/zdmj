@@ -1,31 +1,34 @@
 package com.zdmj.knowledgeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.zdmj.common.client.KnowledgeVectorApiClient;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.model.PageResult;
 import com.zdmj.common.util.CosUtil;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.knowledgeService.dto.KnowledgeBasesDTO;
-import com.zdmj.knowledgeService.dto.KnowledgeEmbeddingTaskCreateDTO;
+import com.zdmj.knowledgeService.dto.KnowledgeEmbeddingProgressDTO;
 import com.zdmj.knowledgeService.entity.KnowledgeBases;
+import com.zdmj.knowledgeService.entity.KnowledgeVectorTask;
 import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
+import com.zdmj.knowledgeService.enums.KnowledgeVectorTaskStatusEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeBasesMapper;
 import com.zdmj.knowledgeService.mapper.KnowledgeBasesStructMapper;
+import com.zdmj.knowledgeService.mapper.KnowledgeVectorTaskMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
-import com.zdmj.knowledgeService.utils.KnowledgeEmbeddingTaskPollerUtil;
+import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
 import com.zdmj.resumeService.entity.ProjectExperience;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -36,8 +39,8 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
 
     private final ProjectExperienceMapper projectExperienceMapper;
     private final KnowledgeBasesStructMapper knowledgeBasesStructMapper;
-    private final KnowledgeVectorApiClient knowledgeVectorApiClient;
-    private final KnowledgeEmbeddingTaskPollerUtil knowledgeEmbeddingTaskPollerUtil;
+    private final KnowledgeVectorTaskMapper knowledgeVectorTaskMapper;
+    private final KnowledgeEmbeddingService knowledgeEmbeddingService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -45,56 +48,48 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         Long userId = UserHolder.requireUserId();
         log.info("用户 {} 创建知识库: {}", userId, knowledgeBasesDTO.getName());
 
-        // 1. 检查是否存在同名知识库
-        if (baseMapper.existsByName(userId, knowledgeBasesDTO.getName(), null)) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NAME_EXISTS);
+        // 1. 项目ID为可选，仅在传入时校验归属
+        if (knowledgeBasesDTO.getProjectId() != null) {
+            ProjectExperience projectExperience = projectExperienceMapper.selectById(knowledgeBasesDTO.getProjectId());
+            if (projectExperience == null || !projectExperience.getUserId().equals(userId)) {
+                throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_NOT_FOUND);
+            }
         }
 
-        // 2. 检查项目ID是否存在且属于当前用户
-        if (knowledgeBasesDTO.getProjectId() == null) {
-            throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_NOT_FOUND);
-        }
-        ProjectExperience projectExperience = projectExperienceMapper.selectById(knowledgeBasesDTO.getProjectId());
-        if (projectExperience == null || !projectExperience.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_NOT_FOUND);
-        }
-
-        // 3. 验证文件类型和内容
+        // 2. 验证文件类型和内容
         validateContent(knowledgeBasesDTO);
 
-        // 4. 创建知识库实体
-        KnowledgeBases knowledgeBases = knowledgeBasesStructMapper.fromDto(knowledgeBasesDTO);
-        knowledgeBases.setUserId(userId);
-        // 初始化vectorIds为空数组
-        knowledgeBases.setVectorIds(new ArrayList<>());
-
-        // 5. 保存到数据库
-        boolean saved = save(knowledgeBases);
-        if (!saved) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_SAVE_FAILED);
-        }
-
-        // 6. 创建向量化任务
-        try {
-            KnowledgeEmbeddingTaskCreateDTO task = knowledgeVectorApiClient.createEmbeddingTask(knowledgeBases.getId());
-
-            knowledgeBases.setVectorTaskId(task.getTaskId());
-            knowledgeBases.setVectorTaskStatus(
-                    task.getStatus() == null || task.getStatus().isBlank() ? "PENDING" : task.getStatus());
-
-            boolean taskUpdated = updateById(knowledgeBases);
-            if (!taskUpdated) {
-                log.warn("知识库已创建，但写入向量任务信息失败，knowledgeId={}", knowledgeBases.getId());
-            } else {
-                knowledgeEmbeddingTaskPollerUtil.triggerPolling("create");
+        // 3. 同名处理：同名则复用原知识库并重新向量化，不同名则新建
+        KnowledgeBases knowledgeBases = lambdaQuery()
+                .eq(KnowledgeBases::getUserId, userId)
+                .eq(KnowledgeBases::getName, knowledgeBasesDTO.getName())
+                .last("LIMIT 1")
+                .one();
+        if (knowledgeBases == null) {
+            knowledgeBases = knowledgeBasesStructMapper.fromDto(knowledgeBasesDTO);
+            knowledgeBases.setUserId(userId);
+            boolean saved = save(knowledgeBases);
+            if (!saved) {
+                throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_SAVE_FAILED);
             }
-        } catch (Exception e) {
-            knowledgeBases.setVectorTaskStatus("FAILED");
-            updateById(knowledgeBases);
-            log.error("知识库已创建，但触发向量化任务失败，knowledgeId={}, error={}", knowledgeBases.getId(), e.getMessage());
+        } else {
+            knowledgeBases.setType(knowledgeBasesDTO.getType());
+            knowledgeBases.setContent(knowledgeBasesDTO.getContent());
+            knowledgeBases.setTag(knowledgeBasesDTO.getTag());
+            knowledgeBases.setProjectId(knowledgeBasesDTO.getProjectId());
         }
-        log.info("创建知识库成功并已提交向量任务，knowledgeId={}, taskId={}, taskStatus={}",
-                knowledgeBases.getId(), knowledgeBases.getVectorTaskId(), knowledgeBases.getVectorTaskStatus());
+
+        // 4. 提交异步向量化任务
+        Long taskId = knowledgeEmbeddingService.submitVectorizeTask(knowledgeBases.getId(), userId);
+        knowledgeBases.setVectorTaskId(taskId);
+        knowledgeBases.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.PENDING.getCode());
+        knowledgeBases.setLastError(null);
+        boolean persisted = updateById(knowledgeBases);
+        if (!persisted) {
+            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_UPDATE_FAILED);
+        }
+        dispatchTaskAfterCommit(taskId);
+        log.info("创建/复用知识库并提交异步向量化任务，knowledgeId={}, taskId={}", knowledgeBases.getId(), taskId);
         return knowledgeBases;
     }
 
@@ -162,10 +157,12 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
                         : knowledgeBases.getContent());
         validateContent(validateDTO);
 
-        // 5. 项目ID一旦确定，不能修改（如果前端传了 projectId 且与原值不同则报错）
-        if (knowledgeBasesDTO.getProjectId() != null
-                && !knowledgeBases.getProjectId().equals(knowledgeBasesDTO.getProjectId())) {
-            throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_NAME_NOT_ALLOW_CHANGE);
+        // 5. 项目ID可选：仅在前端传入时校验归属
+        if (knowledgeBasesDTO.getProjectId() != null) {
+            ProjectExperience projectExperience = projectExperienceMapper.selectById(knowledgeBasesDTO.getProjectId());
+            if (projectExperience == null || !projectExperience.getUserId().equals(userId)) {
+                throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_NOT_FOUND);
+            }
         }
 
         // 6. 判断内容是否变化
@@ -175,40 +172,25 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         // 7. 更新知识库信息（只有非空字段才会覆盖原值）
         knowledgeBasesStructMapper.updateEntityFromDto(knowledgeBasesDTO, knowledgeBases);
 
-        // 8. 判断是否需要向量化
+        // 8. 判断内容变更时重置向量化任务字段
+        Long taskId = null;
         if (contentChanged) {
-            knowledgeBases.setVectorIds(new ArrayList<>());
-            try {
-                KnowledgeEmbeddingTaskCreateDTO task = knowledgeVectorApiClient
-                        .createEmbeddingTask(knowledgeBases.getId());
-                knowledgeBases.setVectorTaskId(task.getTaskId());
-                knowledgeBases.setVectorTaskStatus(
-                        task.getStatus() == null || task.getStatus().isBlank() ? "PENDING" : task.getStatus());
-                log.info("知识库内容已变更并提交向量化任务，knowledgeId={}, taskId={}, taskStatus={}",
-                        knowledgeBases.getId(), knowledgeBases.getVectorTaskId(), knowledgeBases.getVectorTaskStatus());
-            } catch (Exception e) {
-                // 主更新流程不失败，仅记录失败状态，便于后续重试
-                knowledgeBases.setVectorTaskId(null);
-                knowledgeBases.setVectorTaskStatus("FAILED");
-                log.error("知识库更新成功，但触发向量化任务失败，knowledgeId={}, error={}",
-                        knowledgeBases.getId(), e.getMessage());
-            }
+            taskId = knowledgeEmbeddingService.submitVectorizeTask(knowledgeBases.getId(), userId);
+            knowledgeBases.setVectorTaskId(taskId);
+            knowledgeBases.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.PENDING.getCode());
         }
-        
+
         boolean updated = updateById(knowledgeBases);
         if (!updated) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_UPDATE_FAILED);
         }
-        if (contentChanged && knowledgeBases.getVectorTaskId() != null) {
-            knowledgeEmbeddingTaskPollerUtil.triggerPolling("update");
-        }
         if (contentChanged) {
-            log.info("更新知识库成功（已触发向量化任务），ID: {}, taskId: {}, taskStatus: {}",
-                    knowledgeBases.getId(), knowledgeBases.getVectorTaskId(), knowledgeBases.getVectorTaskStatus());
+            dispatchTaskAfterCommit(taskId);
+            log.info("更新知识库成功并提交异步向量化任务，knowledgeId={}, taskId={}", knowledgeBases.getId(), taskId);
         } else {
-            log.info("更新知识库成功（内容未变化，未触发向量化），ID: {}", knowledgeBases.getId());
+            log.info("更新知识库成功（内容未变化），ID: {}", knowledgeBases.getId());
         }
-    
+
         return knowledgeBases;
     }
 
@@ -224,15 +206,37 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         if (!removed) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_DELETE_FAILED);
         }
+        Long taskId = knowledgeEmbeddingService.submitDeleteTask(knowledgeBases.getId(), userId);
+        dispatchTaskAfterCommit(taskId);
+        log.info("删除知识库成功并提交异步删除向量任务，knowledgeId={}, taskId={}", knowledgeBases.getId(), taskId);
+    }
 
-        // 3. 创建删除向量任务
-        try {
-            KnowledgeEmbeddingTaskCreateDTO task = knowledgeVectorApiClient.deleteEmbeddingTask(knowledgeBases.getId());
-            log.info("删除知识库任务已创建: taskId={}, taskStatus={}", task.getTaskId(), task.getStatus());
-            knowledgeEmbeddingTaskPollerUtil.triggerPolling("delete");
-        } catch (Exception e) {
-            log.error("知识库已删除，但触发向量化任务失败，knowledgeId={}, error={}", knowledgeBases.getId(), e.getMessage());
+    @Override
+    public KnowledgeEmbeddingProgressDTO getEmbeddingProgress(Long id) {
+        Long userId = UserHolder.requireUserId();
+        KnowledgeBases knowledgeBases = requireKnowledgeBasesAndCheckOwnership(id, userId, "查看");
+
+        KnowledgeEmbeddingProgressDTO dto = new KnowledgeEmbeddingProgressDTO();
+        dto.setKnowledgeId(knowledgeBases.getId());
+        dto.setVectorTaskId(knowledgeBases.getVectorTaskId());
+        dto.setChunkCount(knowledgeBases.getChunkCount());
+        dto.setLastError(knowledgeBases.getLastError());
+
+        Integer taskStatusCode = null;
+        String taskStatusName = null;
+        if (knowledgeBases.getVectorTaskId() != null) {
+            KnowledgeVectorTask task = knowledgeVectorTaskMapper.selectById(knowledgeBases.getVectorTaskId());
+            if (task != null && userId.equals(task.getUserId())) {
+                taskStatusCode = task.getStatus();
+                KnowledgeVectorTaskStatusEnum statusEnum = KnowledgeVectorTaskStatusEnum.fromCode(taskStatusCode);
+                taskStatusName = statusEnum != null ? statusEnum.getName() : "UNKNOWN";
+                dto.setStartedAt(task.getStartedAt());
+                dto.setCompletedAt(task.getCompletedAt());
+            }
         }
+
+        dto.setTaskStatusName(taskStatusName);
+        return dto;
     }
 
     private KnowledgeBases requireKnowledgeBases(Long id) {
@@ -328,6 +332,18 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
             log.error("解析COS URL失败: {}", url, e);
             return null;
         }
+    }
+
+    private void dispatchTaskAfterCommit(Long taskId) {
+        if (taskId == null) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                knowledgeEmbeddingService.executeTaskAsync(taskId);
+            }
+        });
     }
 
 }

@@ -27,7 +27,6 @@ public class KnowledgeBasesDTO {
     /**
      * 项目ID（关联project_experiences.id）
      */
-    @NotNull(message = "项目ID不能为空", groups = CreateGroup.class)
     private Long projectId;
 
     /**

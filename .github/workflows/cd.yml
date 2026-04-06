@@ -126,57 +126,57 @@ jobs:
             docker compose -f "${{ env.APP_DIR }}/deploy/docker-compose.yml" ps backend
             docker logs --tail 50 zdmj-backend
 
-  # Python服务构建和部署任务（与Java并行执行）
-  deploy-python:
-    name: Deploy Python Service on Server
-    runs-on: ubuntu-latest
-    needs: [detect-changes, sync-server-code]
-    timeout-minutes: 30
-    if: needs.detect-changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch'
+  # # Python服务构建和部署任务（与Java并行执行）
+  # deploy-python:
+  #   name: Deploy Python Service on Server
+  #   runs-on: ubuntu-latest
+  #   needs: [detect-changes, sync-server-code]
+  #   timeout-minutes: 30
+  #   if: needs.detect-changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch'
     
-    steps:
-      # 统一使用 docker compose 管理服务生命周期
-      - name: Deploy to server
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ env.SERVER_HOST }}
-          username: ${{ env.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          timeout: 60s
-          command_timeout: 30m
-          script: |
-            set -euo pipefail
-            cd "${{ env.APP_DIR }}/deploy"
-            docker compose build python
-            docker compose up -d --no-deps --force-recreate python
-            docker compose ps python
+  #   steps:
+  #     # 统一使用 docker compose 管理服务生命周期
+  #     - name: Deploy to server
+  #       uses: appleboy/ssh-action@v1.0.3
+  #       with:
+  #         host: ${{ env.SERVER_HOST }}
+  #         username: ${{ env.SERVER_USER }}
+  #         key: ${{ secrets.SSH_PRIVATE_KEY }}
+  #         port: 22
+  #         timeout: 60s
+  #         command_timeout: 30m
+  #         script: |
+  #           set -euo pipefail
+  #           cd "${{ env.APP_DIR }}/deploy"
+  #           docker compose build python
+  #           docker compose up -d --no-deps --force-recreate python
+  #           docker compose ps python
 
-      # 验证部署
-      - name: Verify deployment
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ env.SERVER_HOST }}
-          username: ${{ env.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          timeout: 60s
-          command_timeout: 10m
-          script: |
-            echo "Waiting for service to start..."
-            sleep 10
+  #     # 验证部署
+  #     - name: Verify deployment
+  #       uses: appleboy/ssh-action@v1.0.3
+  #       with:
+  #         host: ${{ env.SERVER_HOST }}
+  #         username: ${{ env.SERVER_USER }}
+  #         key: ${{ secrets.SSH_PRIVATE_KEY }}
+  #         port: 22
+  #         timeout: 60s
+  #         command_timeout: 10m
+  #         script: |
+  #           echo "Waiting for service to start..."
+  #           sleep 10
             
-            echo "Checking container status..."
-            docker ps | grep zdmj-python || echo "Warning: Container not found in running list"
+  #           echo "Checking container status..."
+  #           docker ps | grep zdmj-python || echo "Warning: Container not found in running list"
             
-            echo "Container status:"
-            docker ps -a | grep zdmj-python
-            echo "Image mapping:"
-            docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "^zdmj-python:latest " || true
-            docker inspect zdmj-python --format 'container_image={{.Image}}'
+  #           echo "Container status:"
+  #           docker ps -a | grep zdmj-python
+  #           echo "Image mapping:"
+  #           docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "^zdmj-python:latest " || true
+  #           docker inspect zdmj-python --format 'container_image={{.Image}}'
             
-            echo "Recent container logs:"
-            docker logs --tail 50 zdmj-python || echo "Warning: Could not retrieve logs"
+  #           echo "Recent container logs:"
+  #           docker logs --tail 50 zdmj-python || echo "Warning: Could not retrieve logs"
             
-            echo "Health check status:"
-            docker inspect --format='{{.State.Health.Status}}' zdmj-python 2>/dev/null || echo "Health check not configured"
+  #           echo "Health check status:"
+  #           docker inspect --format='{{.State.Health.Status}}' zdmj-python 2>/dev/null || echo "Health check not configured"

@@ -1,6 +1,7 @@
 package com.zdmj.common.util;
 
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -12,9 +13,14 @@ public class PdfParserUtil {
     private PdfParserUtil() {
     }
 
-    public static String extractTextFromCosKey(String key) {
-        try (InputStream inputStream = CosUtil.getObjectInputStream(key)) {
-            return normalize(TIKA.parseToString(inputStream));
+    public static String extractTextFromUrl(String url) {
+        if (url == null || url.isBlank()) {
+            throw new RuntimeException("PDF解析失败：文件地址不能为空");
+        }
+        try {
+            try (InputStream inputStream = URI.create(url.trim()).toURL().openStream()) {
+                return normalize(TIKA.parseToString(inputStream));
+            }
         } catch (Exception e) {
             throw new RuntimeException("PDF解析失败：" + e.getMessage(), e);
         }
