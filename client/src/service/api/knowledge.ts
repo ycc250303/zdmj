@@ -11,9 +11,6 @@ export namespace KnowledgeApi {
   export type KnowledgeType = 1 | 2 | 3;
   // 1=项目文档, 2=GitHub仓库代码, 3=项目DeepWiki文档
 
-  /** 任务状态枚举 */
-  export type TaskStatus = 1 | 2 | 3 | 4 | 5;
-  // 1=待执行, 2=执行中, 3=成功, 4=失败, 5=取消
 
   /** 创建知识库 DTO */
   export interface KnowledgeCreate {
@@ -38,9 +35,9 @@ export namespace KnowledgeApi {
     type: KnowledgeType;
     content: string;
     tag: string[];
-    vectorIds: string[];
-    vectorTaskId: string;
-    vectorTaskStatus: TaskStatus;
+    vectorIds: number[];        // 后端返回数字数组
+    vectorTaskId: string | null; // 允许为空
+    vectorTaskStatus: string | null; // 后端返回字符串或null
     createdAt: string;
     updatedAt: string;
   }
@@ -55,21 +52,10 @@ export namespace KnowledgeApi {
 
   /** 分页结果 */
   export interface PageResult<T> {
-    records: T[];
+    data: T[];        // 后端字段名
     total: number;
-    current: number;
-    size: number;
-  }
-
-  /** 向量化任务状态响应 */
-  export interface TaskStatusResponse {
-    taskId: string;
-    knowledgeId?: number;
-    status: string; // 后端返回字符串：PENDING, RUNNING, SUCCESS, FAILED, CANCELLED
-    vectorIds?: number[];
-    errorMessage?: string;
-    startTime?: string;
-    endTime?: string;
+    page: number;     // 后端字段名
+    limit: number;    // 后端字段名
   }
 
   /** 文件上传结果 */
@@ -118,14 +104,6 @@ export function fetchDeleteKnowledge(id: number) {
   return request<string>({ url: `/knowledge/${id}`, method: 'delete' });
 }
 
-/** 查询向量化任务状态 */
-export function fetchVectorTaskStatus(knowledgeId: number) {
-  return request<KnowledgeApi.TaskStatusResponse>({
-    url: `/knowledge/${knowledgeId}/vector/task/status`,
-    method: 'get'
-  });
-}
-
 /** 文件上传 */
 export function fetchUploadFile(file: File, prefix = 'knowledge') {
   const formData = new FormData();
@@ -138,14 +116,5 @@ export function fetchUploadFile(file: File, prefix = 'knowledge') {
     headers: {
       'Content-Type': 'multipart/form-data'
     }
-  });
-}
-
-/** 启动向量化任务（通过更新知识库触发） */
-export function fetchRetryVectorTask(data: KnowledgeApi.KnowledgeUpdate) {
-  return request<KnowledgeApi.KnowledgeDTO>({
-    url: '/knowledge',
-    method: 'put',
-    data
   });
 }

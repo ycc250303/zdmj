@@ -19,6 +19,7 @@ const uploadLoading = ref(false);
 const projectList = ref<ResumeApi.ProjectDTO[]>([]);
 const projectLoading = ref(false);
 const fileList = ref<UploadFileInfo[]>([]);
+const isDragging = ref(false);
 
 const formData = reactive<KnowledgeApi.KnowledgeCreate>({
   name: '',
@@ -170,6 +171,47 @@ function handleFileRemove() {
   fileList.value = [];
 }
 
+// 拖拽事件处理
+function handleDragOver(e: DragEvent) {
+  e.preventDefault();
+  isDragging.value = true;
+}
+
+function handleDragLeave(e: DragEvent) {
+  e.preventDefault();
+  isDragging.value = false;
+}
+
+function handleDrop(e: DragEvent) {
+  e.preventDefault();
+  isDragging.value = false;
+
+  const files = e.dataTransfer?.files;
+  if (!files || files.length === 0) return;
+
+  const file = files[0];
+  const fileName = file.name.toLowerCase();
+
+  // 检查文件类型
+  if (!fileName.endsWith('.pdf') && !fileName.endsWith('.md') && !fileName.endsWith('.markdown')) {
+    window.$message?.error('仅支持 PDF 和 Markdown 文件');
+    return;
+  }
+
+  // 创建 UploadFileInfo 对象
+  const uploadFile: UploadFileInfo = {
+    id: Date.now().toString(),
+    name: file.name,
+    status: 'pending',
+    file: file
+  };
+
+  fileList.value = [uploadFile];
+
+  // 触发上传
+  handleFileChange({ fileList: [uploadFile] });
+}
+
 async function handleSubmit() {
   try {
     await formRef.value?.validate();
@@ -276,12 +318,19 @@ onMounted(() => {
             @change="handleFileChange"
             @remove="handleFileRemove"
           >
-            <NButton :loading="uploadLoading">
-              <template #icon>
-                <div class="i-mdi-upload"></div>
-              </template>
-              上传 PDF 或 Markdown 文件
-            </NButton>
+            <div
+              class="upload-area border-2 border-dashed rounded-lg p-8 text-center transition-all cursor-pointer"
+              :class="isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400'"
+              @dragover="handleDragOver"
+              @dragleave="handleDragLeave"
+              @drop="handleDrop"
+            >
+              <div class="i-mdi-cloud-upload text-4xl mb-2" :class="isDragging ? 'text-blue-500' : 'text-gray-400'"></div>
+              <p class="mb-1" :class="isDragging ? 'text-blue-600 font-medium' : 'text-gray-600'">
+                {{ isDragging ? '释放文件即可上传' : '拖拽文件到此处，或点击上传' }}
+              </p>
+              <p class="text-xs text-gray-400">支持 PDF 和 Markdown 文件</p>
+            </div>
           </NUpload>
           <NDivider class="!my-2">或直接输入链接</NDivider>
           <NInput

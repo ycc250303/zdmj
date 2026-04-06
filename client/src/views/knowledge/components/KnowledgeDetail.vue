@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { fetchGetKnowledgeDetail, fetchVectorTaskStatus } from '@/service/api/knowledge';
+import { fetchGetKnowledgeDetail } from '@/service/api/knowledge';
 import type { KnowledgeApi } from '@/service/api/knowledge';
 import { fetchGetProjectList } from '@/service/api/resume';
 import type { ResumeApi } from '@/service/api/resume';
-import VectorStatusTag from './VectorStatusTag.vue';
 
 interface Props {
   knowledgeId: number;
@@ -15,10 +14,8 @@ const props = defineProps<Props>();
 const emit = defineEmits(['update:show']);
 
 const loading = ref(true);
-const refreshing = ref(false);
 const detail = ref<KnowledgeApi.KnowledgeDTO | null>(null);
 const projectList = ref<ResumeApi.ProjectDTO[]>([]);
-const pollTimer = ref<NodeJS.Timeout | null>(null);
 
 const knowledgeTypeLabels: Record<number, { label: string; type: 'primary' | 'info' | 'warning' }> = {
   1: { label: '项目文档', type: 'primary' },
@@ -69,105 +66,9 @@ async function loadDetail() {
         ...data,
         tag: parseTag(data.tag as unknown as string)
       };
-
-      // 如果有待执行或执行中的任务，开始轮询
-      if (data.vectorTaskId && (data.vectorTaskStatus === 1 || data.vectorTaskStatus === 2)) {
-        startPolling();
-      }
     }
   } finally {
     loading.value = false;
-  }
-}
-
-function startPolling() {
-  // 清除之前的定时器
-  if (pollTimer.value) {
-    clearInterval(pollTimer.value);
-  }
-
-  // 每3秒刷新一次状态
-  pollTimer.value = setInterval(async () => {
-    if (!props.knowledgeId) {
-      stopPolling();
-      return;
-    }
-
-    try {
-      // 使用Java后端的刷新状态接口
-      const { data, error } = await fetchVectorTaskStatus(props.knowledgeId);
-
-      if (!error && data && detail.value) {
-        // 将字符串状态转换为数字类型
-        const statusMap: Record<string, KnowledgeApi.TaskStatus> = {
-          'PENDING': 1,
-          'RUNNING': 2,
-          'SUCCESS': 3,
-          'FAILED': 4,
-          'CANCELLED': 5
-        };
-
-        const newStatus = statusMap[data.status] || 1;
-
-        // 更新状态
-        detail.value.vectorTaskStatus = newStatus;
-        if (data.vectorIds && data.vectorIds.length > 0) {
-          detail.value.vectorIds = data.vectorIds.map(String);
-        }
-
-        // 如果任务完成或失败，停止轮询
-        if (newStatus === 3 || newStatus === 4 || newStatus === 5) {
-          stopPolling();
-          const message = newStatus === 3 ? '向量化任务完成！' : `向量化任务${data.status}`;
-          window.$message?.success(message);
-        }
-      }
-    } catch (err) {
-      console.error('轮询任务状态失败:', err);
-    }
-  }, 3000);
-}
-
-function stopPolling() {
-  if (pollTimer.value) {
-    clearInterval(pollTimer.value);
-    pollTimer.value = null;
-  }
-}
-
-async function handleRefreshStatus() {
-  if (!props.knowledgeId) {
-    window.$message?.warning('没有可刷新的任务');
-    return;
-  }
-
-  refreshing.value = true;
-  try {
-    const { data, error } = await fetchVectorTaskStatus(props.knowledgeId);
-    console.log('查询任务状态返回:', { data, error });
-
-    if (!error && data) {
-      // 将字符串状态转换为数字类型
-      const statusMap: Record<string, KnowledgeApi.TaskStatus> = {
-        'PENDING': 1,
-        'RUNNING': 2,
-        'SUCCESS': 3,
-        'FAILED': 4,
-        'CANCELLED': 5
-      };
-
-      // 更新详情中的任务状态
-      if (detail.value) {
-        detail.value.vectorTaskStatus = statusMap[data.status] || 1;
-        // 如果任务成功，更新向量ID（将number[]转换为string[]）
-        if (data.vectorIds && data.vectorIds.length > 0) {
-          detail.value.vectorIds = data.vectorIds.map(String);
-        }
-      }
-      window.$message?.success(`状态刷新成功: ${data.status}`);
-    }
-  } finally {
-    refreshing.value = false;
   }
 }
 
@@ -202,15 +103,28 @@ const buttonIcon = computed(() => {
   return 'i-mdi-open-in-new';
 });
 
+// 向量化状态信息
+const vectorInfo = computed(() => {
+  if (!detail.value) return null;
+
+  const hasVectors = detail.value.vectorIds && detail.value.vectorIds.length > 0;
+  const hasTask = detail.value.vectorTaskId || detail.value.vectorTaskStatus;
+
+  return {
+    hasVectors,
+    hasTask,
+    vectorCount: hasVectors ? detail.value.vectorIds.length : 0,
+    taskId: detail.value.vectorTaskId,
+    status: detail.value.vectorTaskStatus
+  };
+});
+
 watch(
   () => props.show,
   (newVal) => {
     if (newVal) {
       loadProjects();
       loadDetail();
-    } else {
-      // 模态框关闭时，停止轮询
-      stopPolling();
     }
   },
   { immediate: true }
@@ -262,41 +176,35 @@ watch(
         </div>
 
         <!-- 向量化信息 -->
-        <div>
+        <div v-if="vectorInfo">
           <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
             <div class="i-mdi-vector-square text-purple-500"></div>
             向量化信息
-            <NButton
-              v-if="detail.vectorTaskId"
-              size="tiny"
-              quaternary
-              type="primary"
-              :loading="refreshing"
-              @click="handleRefreshStatus"
-              class="ml-auto"
-            >
-              <template #icon>
-                <div class="i-mdi-refresh"></div>
-              </template>
-              刷新状态
-            </NButton>
           </h3>
           <NDescriptions :column="1" bordered label-placement="left" label-style="width: 120px">
-            <NDescriptionsItem label="任务状态">
-              <VectorStatusTag v-if="detail.vectorTaskStatus" :status="detail.vectorTaskStatus" />
-              <span v-else class="text-gray-400">无任务</span>
-            </NDescriptionsItem>
-            <NDescriptionsItem label="任务ID">
-              <code v-if="detail.vectorTaskId" class="bg-gray-100 px-2 py-1 rounded text-sm">
-                {{ detail.vectorTaskId }}
-              </code>
-              <span v-else class="text-gray-400">无任务</span>
-            </NDescriptionsItem>
-            <NDescriptionsItem label="向量数量">
-              <NTag v-if="detail.vectorIds && detail.vectorIds.length > 0" type="success" size="small">
-                {{ detail.vectorIds.length }} 个向量
+            <NDescriptionsItem label="向量状态">
+              <NTag v-if="vectorInfo.hasVectors" type="success" size="small">
+                <template #icon>
+                  <div class="i-mdi-check-circle"></div>
+                </template>
+                已向量化 ({{ vectorInfo.vectorCount }} 个向量)
               </NTag>
-              <span v-else class="text-gray-400">0</span>
+              <NTag v-else type="default" size="small">
+                <template #icon>
+                  <div class="i-mdi-information-outline"></div>
+                </template>
+                未向量化
+              </NTag>
+            </NDescriptionsItem>
+            <NDescriptionsItem v-if="vectorInfo.taskId" label="任务ID">
+              <code class="bg-gray-100 px-2 py-1 rounded text-sm text-gray-600">
+                {{ vectorInfo.taskId }}
+              </code>
+            </NDescriptionsItem>
+            <NDescriptionsItem v-if="vectorInfo.status" label="任务状态">
+              <NTag :type="vectorInfo.status === 'SUCCESS' ? 'success' : 'default'" size="small">
+                {{ vectorInfo.status }}
+              </NTag>
             </NDescriptionsItem>
           </NDescriptions>
         </div>

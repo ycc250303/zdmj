@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, onBeforeUnmount } from 'vue';
-import { fetchGetKnowledgeList, fetchDeleteKnowledge, fetchVectorTaskStatus, fetchGetKnowledgeDetail } from '@/service/api/knowledge';
+import { ref, reactive, onMounted } from 'vue';
+import { fetchGetKnowledgeList, fetchDeleteKnowledge } from '@/service/api/knowledge';
 import type { KnowledgeApi } from '@/service/api/knowledge';
 import { fetchGetProjectList } from '@/service/api/resume';
 import type { ResumeApi } from '@/service/api/resume';
 import { $t } from '@/locales';
-import VectorStatusTag from './components/VectorStatusTag.vue';
 import KnowledgeForm from './components/KnowledgeForm.vue';
 import KnowledgeDetail from './components/KnowledgeDetail.vue';
 
@@ -15,10 +14,6 @@ const currentEditData = ref<KnowledgeApi.KnowledgeUpdate | undefined>(undefined)
 const loading = ref(true);
 const projectList = ref<ResumeApi.ProjectDTO[]>([]);
 const projectLoading = ref(false);
-
-// 任务轮询管理
-const pollingTasks = ref<Map<number, NodeJS.Timeout>>(new Map());
-const POLLING_INTERVAL = 3000; // 3秒轮询一次
 
 // 详情模态框
 const showDetail = ref(false);
@@ -74,6 +69,23 @@ function parseTag(tag: string[] | string): string[] {
     }
   }
   return tag || [];
+}
+
+// 检查知识库的向量化状态
+function getVectorStatus(item: KnowledgeApi.KnowledgeDTO) {
+  const hasVectors = item.vectorIds && item.vectorIds.length > 0;
+  if (hasVectors) {
+    return {
+      text: `已向量化 (${item.vectorIds.length})`,
+      type: 'success' as const,
+      icon: 'i-mdi-check-circle'
+    };
+  }
+  return {
+    text: '未向量化',
+    type: 'default' as const,
+    icon: 'i-mdi-information-outline'
+  };
 }
 
 async function loadData() {
@@ -141,86 +153,9 @@ function handlePageChange(page: number) {
   loadData();
 }
 
-// 开始轮询任务状态
-function startPollingTaskStatus(knowledgeId: number) {
-  // 如果已经在轮询，先清除
-  stopPollingTaskStatus(knowledgeId);
-
-  const poll = async () => {
-    try {
-      const { data, error } = await fetchVectorTaskStatus(knowledgeId);
-
-      if (!error && data) {
-        // 更新列表中对应知识库的任务状态
-        const index = knowledgeList.value.findIndex(item => item.id === knowledgeId);
-        if (index !== -1) {
-          // 将字符串状态转换为数字
-          const statusMap: Record<string, KnowledgeApi.TaskStatus> = {
-            'PENDING': 1,
-            'RUNNING': 2,
-            'SUCCESS': 3,
-            'FAILED': 4,
-            'CANCELLED': 5
-          };
-          knowledgeList.value[index].vectorTaskStatus = statusMap[data.status] || 1;
-
-          // 如果状态是终态（成功、失败、取消），停止轮询
-          if (data.status === 'SUCCESS' || data.status === 'FAILED' || data.status === 'CANCELLED') {
-            stopPollingTaskStatus(knowledgeId);
-
-            // 显示提示
-            if (data.status === 'SUCCESS') {
-              window.$message?.success('知识库向量化完成');
-            } else if (data.status === 'FAILED') {
-              window.$message?.error(`知识库向量化失败: ${data.errorMessage || '未知错误'}`);
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.error('轮询任务状态失败:', err);
-    }
-  };
-
-  // 立即执行一次
-  poll();
-
-  // 设置定时轮询
-  const timerId = setInterval(poll, POLLING_INTERVAL);
-  pollingTasks.value.set(knowledgeId, timerId);
-}
-
-// 停止轮询任务状态
-function stopPollingTaskStatus(knowledgeId: number) {
-  const timerId = pollingTasks.value.get(knowledgeId);
-  if (timerId) {
-    clearInterval(timerId);
-    pollingTasks.value.delete(knowledgeId);
-  }
-}
-
-// 清除所有轮询任务
-function clearAllPollingTasks() {
-  pollingTasks.value.forEach((timerId) => {
-    clearInterval(timerId);
-  });
-  pollingTasks.value.clear();
-}
-
-function onFormSuccess(data: KnowledgeApi.KnowledgeDTO) {
+function onFormSuccess() {
   isEditing.value = false;
   loadData();
-
-  // 如果创建/更新的是��知识库或有待执行/执行中的任务，开始轮询
-  if (data && data.id) {
-    // 刷新列表后，找到对应的知识库并检查其任务状态
-    setTimeout(() => {
-      const item = knowledgeList.value.find(k => k.id === data.id);
-      if (item && (item.vectorTaskStatus === 1 || item.vectorTaskStatus === 2)) {
-        startPollingTaskStatus(data.id);
-      }
-    }, 500);
-  }
 }
 
 onMounted(() => {
@@ -273,9 +208,25 @@ onMounted(() => {
 
       <!-- 列表区域 -->
       <NSpin :show="loading">
-        <div v-if="knowledgeList.length === 0" class="text-center py-20 text-gray-400 bg-white rounded-xl border border-gray-100 shadow-sm">
-          <div class="i-mdi-book-open-page-variant-outline text-6xl mb-4 mx-auto opacity-50"></div>
-          <p>{{ $t('page.profile.common.empty') }}</p>
+        <!-- 骨架屏加载 -->
+        <template v-if="loading">
+          <div v-for="i in 5" :key="i" class="bg-white p-6 rounded-xl border border-gray-100 shadow-sm mb-4">
+            <NSkeleton height="24px" width="60%" class="mb-4" />
+            <NSkeleton height="16px" width="40%" class="mb-2" />
+            <NSkeleton height="16px" width="80%" />
+          </div>
+        </template>
+
+        <!-- 空状态 -->
+        <div v-else-if="knowledgeList.length === 0" class="text-center py-20 bg-white rounded-xl border border-gray-100 shadow-sm">
+          <div class="i-mdi-book-open-page-variant-outline text-6xl mb-4 mx-auto text-gray-300"></div>
+          <p class="text-gray-500 mb-6">{{ $t('page.profile.common.empty') }}</p>
+          <NButton type="primary" @click="handleAddNew">
+            <template #icon>
+              <div class="i-mdi-plus"></div>
+            </template>
+            创建第一个知识库
+          </NButton>
         </div>
 
         <div v-else class="flex flex-col gap-4">
@@ -288,7 +239,12 @@ onMounted(() => {
                   <NTag :type="knowledgeTypeLabels[item.type]?.type" size="small">
                     {{ knowledgeTypeLabels[item.type]?.label || '未知' }}
                   </NTag>
-                  <VectorStatusTag v-if="item.vectorTaskStatus" :status="item.vectorTaskStatus" />
+                  <NTag :type="getVectorStatus(item).type" size="small">
+                    <template #icon>
+                      <div :class="getVectorStatus(item).icon"></div>
+                    </template>
+                    {{ getVectorStatus(item).text }}
+                  </NTag>
                 </div>
                 <div class="text-gray-500 text-sm mb-2">
                   <span class="i-mdi-folder-outline mr-1"></span>
