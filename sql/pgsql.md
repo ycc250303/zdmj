@@ -3,6 +3,13 @@
 > 数据库：`zdmj`（PostgreSQL）  
 > 说明：以下内容按 `pgsql.sql` 当前建表语句整理；“约束”列包含 `PK/NOT NULL/UNIQUE/DEFAULT/CHECK` 及逻辑外键说明。
 
+### 脚本约定（与 `pgsql.sql` 一致）
+
+- **扩展**：`vector`（pgvector）；`hnsw` 在部分环境不存在独立扩展，若初始化失败可注释 `CREATE EXTENSION hnsw`。
+- **删表顺序**（与脚本 `DROP TABLE` 自上而下一致）：`users` → `user_profiles` → `user_behavior_logs` → `educations` → `skills` → `careers` → `project_experiences` → `resumes` → `resume_matches` → `jobs` → `companies` → `knowledge_documents` → `knowledge_bases` → `knowledge_vectors` → `knowledge_vector_tasks` → `conversations` → `messages` → `SPRING_AI_CHAT_MEMORY`。
+- **知识库模型（当前）**：每用户**一个** `scope=1` 的用户私有库；全系统**一个** `scope=2` 的系统默认库。`knowledge_bases` **仅存标识**（`user_id`、`scope`）；向量化状态、分块数等均在 **`knowledge_documents`**。
+- **系统库占位**：`knowledge_bases` / `knowledge_documents` / `knowledge_vectors` 在系统场景下 `user_id` 约定为 `0`（与真实用户 ID 区分）。
+
 ## 1 用户模块
 
 ### 1.1 表 `users`
@@ -12,7 +19,7 @@
 | `id` | `BIGSERIAL` | 用户ID | `PK` | - |
 | `username` | `VARCHAR(50)` | 用户名 | `UNIQUE, NOT NULL` | - |
 | `password` | `VARCHAR(500)` | 加密密码 | `NOT NULL` | - |
-| `email` | `VARCHAR(100)` | 邮箱 | `NOT NULL` | - |
+| `email` | `VARCHAR(100)` | 邮箱 | `UNIQUE, NOT NULL` | - |
 | `name` | `VARCHAR(50)` | 姓名 | 可空 | - |
 | `phone` | `VARCHAR(20)` | 电话 | 可空 | - |
 | `website` | `VARCHAR(500)` | 个人主页 | 可空 | - |
@@ -162,6 +169,8 @@
 | `created_at` | `TIMESTAMP` | 创建时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
 | `updated_at` | `TIMESTAMP` | 更新时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
 
+**索引**：`idx_jobs_location`、`idx_jobs_company_id`、`idx_jobs_company_name`；`idx_jobs_embedding` — `HNSW (embedding vector_cosine_ops) WITH (M = 16, ef_construction = 100)`。
+
 ### 3.2 表 `companies`
 
 | 字段名称 | 字段类型 | 字段含义 | 约束 | 枚举/JSON字段含义 |
@@ -175,28 +184,55 @@
 | `created_at` | `TIMESTAMP` | 创建时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
 | `updated_at` | `TIMESTAMP` | 更新时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
 
+**索引**：`idx_companies_name`、`idx_companies_size`、`idx_companies_type`、`idx_companies_industries`。
+
 ## 4 知识库模块
 
 ### 4.1 表 `knowledge_bases`
 
+> 仅存知识库**标识**：用户与范围。不向量化汇总在此表维护（见 `knowledge_documents`）。
+
 | 字段名称 | 字段类型 | 字段含义 | 约束 | 枚举/JSON字段含义 |
 | --- | --- | --- | --- | --- |
 | `id` | `BIGSERIAL` | 知识库ID | `PK` | - |
-| `user_id` | `BIGINT` | 用户ID | `NOT NULL`，逻辑外键 `users.id` | - |
-| `name` | `VARCHAR(255)` | 知识库名称 | `NOT NULL` | - |
-| `project_id` | `BIGINT` | 关联项目ID | 可空，逻辑外键 `project_experiences.id` | - |
-| `tag` | `JSONB` | 标签数组 | `DEFAULT '[]'::jsonb` | 示例：`["技术文档","API文档"]` |
-| `type` | `SMALLINT` | 知识类型 | `NOT NULL` | `1=项目文档(含txt/pdf/md/普通URL), 2=GitHub链接, 3=项目DeepWiki文档(预留)` |
-| `content` | `TEXT` | 文档内容或URL | `NOT NULL` | - |
-| `vector_task_id` | `BIGINT` | 最近向量任务ID | 可空 | - |
-| `vector_task_status` | `VARCHAR(20)` | 最近任务状态 | 可空 | 字面值：`PENDING/RUNNING/SUCCESS/FAILED/CANCELLED` |
-| `content_hash` | `VARCHAR(64)` | 内容哈希 | 可空 | - |
-| `embedding_status` | `VARCHAR(20)` | 向量化状态 | `NOT NULL, DEFAULT 'PENDING'` | 字面值：`PENDING/EMBEDDING/READY/FAILED` |
-| `chunk_count` | `INTEGER` | 已写入块数量 | `NOT NULL, DEFAULT 0` | - |
-| `last_embedded_at` | `TIMESTAMP` | 最近向量化完成时间 | 可空 | - |
-| `last_error` | `TEXT` | 最近错误信息 | 可空 | - |
+| `user_id` | `BIGINT` | 归属用户 | `NOT NULL, DEFAULT 0` | `scope=1` 时为真实 `users.id`；`scope=2` 系统库约定 `0` |
+| `scope` | `SMALLINT` | 范围 | `NOT NULL, DEFAULT 1` | `1=USER 用户私有, 2=SYSTEM 系统通用` |
 | `created_at` | `TIMESTAMP` | 创建时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
 | `updated_at` | `TIMESTAMP` | 更新时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
+
+**唯一索引**
+
+- `uk_knowledge_bases_user_single`：`UNIQUE (user_id) WHERE scope = 1` — 每用户最多一条用户知识库。
+- `uk_knowledge_bases_system_default_single`：`UNIQUE (scope) WHERE scope = 2` — 系统默认知识库最多一条。
+
+**其他索引**：`idx_knowledge_bases_user_id`。
+
+> 从旧版（含 `vector_task_id`、`embedding_status` 等列）升级时，可参考 `pgsql.sql` 中注释的 `DROP INDEX` / `ALTER TABLE ... DROP COLUMN` 语句。
+
+### 4.2 表 `knowledge_documents`
+
+> 一个 `knowledge_bases` 下挂多条文档；**来源类型**为 `type`，**来源地址**为 `content`（与 Java 实体字段名一致）。
+
+| 字段名称 | 字段类型 | 字段含义 | 约束 | 枚举/JSON字段含义 |
+| --- | --- | --- | --- | --- |
+| `id` | `BIGSERIAL` | 文档ID | `PK` | - |
+| `knowledge_id` | `BIGINT` | 知识库ID | `NOT NULL`，逻辑外键 `knowledge_bases.id` | - |
+| `user_id` | `BIGINT` | 归属用户 | `NOT NULL, DEFAULT 0` | 用户文档为真实 `users.id`；系统库下约定 `0` |
+| `type` | `SMALLINT` | 来源类型 | `NOT NULL` | `1=上传文件, 2=GitHub仓库, 3=DeepWiki` |
+| `content` | `TEXT` | 来源地址（如 COS URL、仓库地址等） | `NOT NULL` | - |
+| `title` | `VARCHAR(500)` | 文档标题 | 可空 | - |
+| `content_hash` | `VARCHAR(64)` | 文档内容哈希 | 可空 | - |
+| `embedding_status` | `SMALLINT` | 文档向量化状态 | `NOT NULL, DEFAULT 1` | `1=pending, 2=running, 3=success, 4=failed` |
+| `chunk_count` | `INTEGER` | 该文档分块数 | `NOT NULL, DEFAULT 0` | - |
+| `last_embedded_at` | `TIMESTAMP` | 最近向量化完成时间 | 可空 | - |
+| `last_error` | `TEXT` | 最近错误信息 | 可空 | - |
+| `metadata` | `JSONB` | 扩展元数据 | `DEFAULT '{}'::jsonb` | - |
+| `created_at` | `TIMESTAMP` | 创建时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
+| `updated_at` | `TIMESTAMP` | 更新时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
+
+**唯一索引**：`uk_knowledge_documents_kid_content` — `UNIQUE (knowledge_id, content)`，同一库内相同来源地址只保留一条。
+
+**其他索引**：`idx_knowledge_documents_knowledge_id`、`idx_knowledge_documents_user_id`、`idx_knowledge_documents_type`、`idx_knowledge_documents_embedding_status`（`(knowledge_id, embedding_status)`）、`idx_knowledge_documents_content_hash`。
 
 ## 5 向量检索模块
 
@@ -206,14 +242,21 @@
 | --- | --- | --- | --- | --- |
 | `id` | `BIGSERIAL` | 向量ID | `PK` | - |
 | `knowledge_id` | `BIGINT` | 知识库ID | `NOT NULL`，逻辑外键 `knowledge_bases.id` | - |
-| `user_id` | `BIGINT` | 用户ID | `NOT NULL`，逻辑外键 `users.id` | - |
-| `embedding` | `VECTOR(1024)` | 文档块向量 | `NOT NULL` | 向量维度 `1024` |
+| `document_id` | `BIGINT` | 文档ID | 可空，逻辑外键 `knowledge_documents.id` | 新数据建议始终写入，便于按文档删改向量 |
+| `user_id` | `BIGINT` | 用户ID | `NOT NULL, DEFAULT 0` | 与知识库归属一致；系统场景为 `0` |
+| `embedding` | `VECTOR(1024)` | 文档块向量 | `NOT NULL` | 维度 `1024`（与 `text-embedding-v4` 配置一致） |
 | `content` | `TEXT` | 文档块内容 | 可空 | - |
-| `metadata` | `JSONB` | 文档块元数据 | 可空 | 示例：`{"knowledgeId":"1","source":"xxx.md"}` |
-| `chunk_index` | `INTEGER` | 分块序号 | 可空，且 `(knowledge_id, chunk_index)` 唯一索引 | - |
+| `metadata` | `JSONB` | 文档块元数据 | 可空 | 示例：`{"knowledgeDocumentId":"文档ID","source":"文件名或URL"}` |
+| `chunk_index` | `INTEGER` | 分块序号 | 可空 | - |
 | `chunk_hash` | `VARCHAR(64)` | 分块哈希 | 可空 | - |
-| `token_count` | `INTEGER` | Token数量 | 可空 | - |
+| `token_count` | `INTEGER` | Token 数量 | 可空 | - |
 | `created_at` | `TIMESTAMP` | 创建时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
+
+**唯一索引**：`uk_knowledge_vectors_kid_did_chunk` — `UNIQUE (knowledge_id, COALESCE(document_id, 0), chunk_index)`（兼容历史 `document_id` 为空行）。
+
+**向量索引**：`idx_knowledge_vectors_embedding` — `HNSW (embedding vector_cosine_ops) WITH (M = 16, ef_construction = 100)`。
+
+**其他索引**（与 `pgsql.sql` 一致）：`idx_knowledge_vectors_user_id`、`idx_knowledge_vectors_knowledge_id`、`idx_knowledge_vectors_user_id_knowledge_id`、`idx_knowledge_vectors_document_id`。
 
 ### 5.2 表 `knowledge_vector_tasks`
 
@@ -222,6 +265,7 @@
 | `id` | `BIGSERIAL` | 任务ID | `PK` | - |
 | `user_id` | `BIGINT` | 用户ID | `NOT NULL`，逻辑外键 `users.id` | - |
 | `knowledge_id` | `BIGINT` | 知识库ID | 可空，逻辑外键 `knowledge_bases.id` | - |
+| `document_id` | `BIGINT` | 文档ID | 可空，逻辑外键 `knowledge_documents.id` | 空表示整库任务 |
 | `task_type` | `SMALLINT` | 任务类型 | `NOT NULL` | `1=创建向量, 2=更新向量, 3=删除向量` |
 | `status` | `SMALLINT` | 任务状态 | `NOT NULL` | `1=pending, 2=running, 3=success, 4=failed` |
 | `error_message` | `TEXT` | 错误信息 | 可空 | - |
@@ -229,6 +273,8 @@
 | `completed_at` | `TIMESTAMP` | 完成时间 | 可空 | - |
 | `created_at` | `TIMESTAMP` | 创建时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
 | `updated_at` | `TIMESTAMP` | 更新时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
+
+**索引**（与 `pgsql.sql` 一致）：`idx_knowledge_vector_tasks_user_id`、`idx_knowledge_vector_tasks_knowledge_id`、`idx_knowledge_vector_tasks_document_id`、`idx_knowledge_vector_tasks_document_id_user_id`、`idx_knowledge_vector_tasks_knowledge_id_created_at`、`idx_knowledge_vector_tasks_status`、`idx_knowledge_vector_tasks_task_type`。
 
 ## 6 AI对话模块
 
@@ -240,12 +286,14 @@
 | `user_id` | `BIGINT` | 用户ID | `NOT NULL`，逻辑外键 `users.id` | - |
 | `project_id` | `BIGINT` | 关联项目ID | 可空，逻辑外键 `project_experiences.id` | - |
 | `title` | `VARCHAR(255)` | 会话标题 | 可空 | - |
-| `config` | `JSONB` | 对话配置 | `DEFAULT '{}'::jsonb` | 示例：`{"ragEnabled":true,"knowledgeIds":[1,2],"topK":10,"minScore":0.5}` |
+| `config` | `JSONB` | 对话配置 | `DEFAULT '{}'::jsonb` | 示例：`{"ragEnabled":true,"useSystemKnowledge":true,"topK":10,"minScore":0.5}`（字段以应用约定为准） |
 | `context` | `JSONB` | RAG上下文列表 | `DEFAULT '[]'::jsonb` | 示例：`[{"type":"knowledge_base","id":456,"name":"知识库名称"}]` |
 | `message_count` | `INTEGER` | 消息总数 | `DEFAULT 0` | - |
 | `last_message_at` | `TIMESTAMP` | 最后一条消息时间 | 可空 | - |
 | `created_at` | `TIMESTAMP` | 创建时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
 | `updated_at` | `TIMESTAMP` | 更新时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
+
+**索引**：`idx_conversations_user_id`、`idx_conversations_user_id_created_at`、`idx_conversations_project_id`、`idx_conversations_user_id_project_id`、`idx_conversations_last_message_at`。
 
 ### 6.2 表 `messages`
 
@@ -256,8 +304,10 @@
 | `user_id` | `BIGINT` | 用户ID | `NOT NULL`，逻辑外键 `users.id` | - |
 | `role` | `SMALLINT` | 消息角色 | `NOT NULL` | `1=user用户, 2=assistant助手, 3=system系统` |
 | `content` | `TEXT` | 消息内容 | `NOT NULL` | - |
-| `sequence` | `INTEGER` | 会话内顺序号 | `NOT NULL` | - |
+| `sequence` | `INTEGER` | 会话内顺序号 | `NOT NULL` | 从 1 递增 |
 | `created_at` | `TIMESTAMP` | 创建时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
+
+**索引**：`idx_messages_conversation_id`、`idx_messages_conversation_id_sequence`、`idx_messages_user_id`、`idx_messages_user_id_conversation_id`。
 
 ### 6.3 表 `SPRING_AI_CHAT_MEMORY`
 
@@ -266,4 +316,6 @@
 | `conversation_id` | `VARCHAR(36)` | 会话ID（UUID） | `NOT NULL` | - |
 | `content` | `TEXT` | 消息内容 | `NOT NULL` | - |
 | `type` | `VARCHAR(10)` | 消息类型 | `NOT NULL` | 常见值为 `USER/ASSISTANT/SYSTEM`（由 Spring AI 控制） |
-| `timestamp` | `TIMESTAMP` | 时间戳 | `NOT NULL, DEFAULT CURRENT_TIMESTAMP` | - |
+| `"timestamp"` | `TIMESTAMP` | 时间戳 | `NOT NULL, DEFAULT CURRENT_TIMESTAMP` | 列名为保留字，脚本中使用双引号 |
+
+**索引**：`idx_spring_ai_chat_memory_conv_ts` — `(conversation_id, "timestamp")`。

@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.zdmj.common.model.CreateGroup;
-import com.zdmj.common.model.PageResult;
+import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.Result;
 import com.zdmj.common.model.UpdateGroup;
 import com.zdmj.jobService.dto.JobDetailDTO;
@@ -56,7 +56,7 @@ public class JobController {
      * @return 岗位列表
      */
     @GetMapping
-    public Result<PageResult<JobListItemDTO>> getPage(
+    public Result<PageDTO<JobListItemDTO>> getPage(
             @RequestParam(required = false, defaultValue = "1") Integer page,
             @RequestParam(required = false, defaultValue = "20") Integer limit,
             @RequestParam(required = false) List<Integer> companySizes,

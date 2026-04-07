@@ -5,9 +5,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.cache.RedisUtil;
 import com.zdmj.common.context.UserHolder;
+import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.model.PageResult;
 import com.zdmj.common.util.ChatUtil;
 import com.zdmj.common.util.PromptUtil;
 import com.zdmj.conversationService.dto.MessageDTO;
@@ -246,7 +246,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     }
 
     @Override
-    public PageResult<Message> getMessagesByConversationId(Long conversationId, Integer page, Integer limit) {
+    public PageDTO<Message> getMessagesByConversationId(Long conversationId, Integer page, Integer limit) {
         if (conversationId == null) {
             throw new BusinessException(ErrorCode.ILLEGAL_ARGUMENT.getCode(), "conversationId不能为空");
         }
@@ -257,7 +257,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         Integer totalInt = messageMapper.selectMessageCountByConversationId(conversationId);
         long total = totalInt == null ? 0L : totalInt.longValue();
         List<Message> data = messageMapper.selectPageByConversationId(conversationId, offset, l);
-        return PageResult.of(data, total, p, l);
+        return PageDTO.of(data, total, p, l);
     }
 
     /**

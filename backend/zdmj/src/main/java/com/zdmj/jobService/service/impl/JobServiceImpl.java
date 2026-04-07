@@ -5,7 +5,6 @@ import com.zdmj.common.cache.RedisUtil;
 import com.zdmj.common.cache.RedisConstants;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.model.PageResult;
 import com.zdmj.jobService.dto.JobDetailDTO;
 import com.zdmj.jobService.dto.JobListItemDTO;
 import com.zdmj.jobService.dto.JobDTO;
@@ -17,6 +16,7 @@ import com.zdmj.jobService.mapper.JobStructMapper;
 import com.zdmj.jobService.mapper.JobMapper;
 import com.zdmj.jobService.service.JobService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.zdmj.common.model.PageDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,7 +54,7 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
     }
 
     @Override
-    public PageResult<JobListItemDTO> getPage(Integer page, Integer limit,
+    public PageDTO<JobListItemDTO> getPage(Integer page, Integer limit,
             List<Integer> companySizes,
             List<Integer> fundingTypes,
             List<String> industries) {
@@ -68,7 +68,7 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
 
         List<JobListItemDTO> data = baseMapper.selectPage(offset, l, sizes, types, inds);
         Long total = baseMapper.countPage(sizes, types, inds);
-        return PageResult.of(data, total, p, l);
+        return PageDTO.of(data, total == null ? 0L : total, p, l);
     }
 
     private static <T> List<T> emptyToNull(List<T> list) {

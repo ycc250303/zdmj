@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestBody;
 
-import com.zdmj.common.model.PageResult;
+import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.Result;
 import com.zdmj.conversationService.dto.MessageDTO;
 import com.zdmj.conversationService.entity.Message;
@@ -36,7 +36,7 @@ public class MessageController {
      * @param limit          每页条数，默认 20，最大 100
      */
     @GetMapping
-    public Result<PageResult<Message>> getMessagesByConversationId(
+    public Result<PageDTO<Message>> getMessagesByConversationId(
             @RequestParam Long conversationId,
             @RequestParam(required = false, defaultValue = "1") Integer page,
             @RequestParam(required = false, defaultValue = "20") Integer limit) {
