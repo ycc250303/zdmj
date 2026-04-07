@@ -27,8 +27,13 @@ public class KnowledgeVector extends BaseEntity {
 
     /**
      * 知识库ID
-     */ 
+     */
     private Long knowledgeId;
+
+    /**
+     * 文档ID
+     */
+    private Long documentId;
 
     /**
      * 用户ID
