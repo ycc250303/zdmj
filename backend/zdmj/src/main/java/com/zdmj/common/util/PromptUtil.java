@@ -68,5 +68,6 @@ public class PromptUtil {
         public static final String GENERATE_CONVERSATION_TITLE = "generate-conversation-title";
         /** 项目上下文说明 */
         public static final String PROJECT_CONTEXT_INSTRUCTION = "project-context-instruction";
+        public static final String GENERATE_CAPABILITY_PROFILE = "generate-capability-profile";
     }
 }
