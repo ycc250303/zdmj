@@ -80,6 +80,24 @@ docker compose ps
 nano .env
 ```
 
+## DashScope API Key 与 401 InvalidApiKey
+
+- `application.yml` 中 **不再写死** `api-key`，运行时只认环境变量：`DASHSCOPE_API_KEY` 或 `SPRING_AI_DASHSCOPE_API_KEY`（`docker-compose` 已从 `.env` 注入）。
+- 修改 `.env` 或 `application.yml` 后必须 **重新构建并启动后端镜像**，否则容器内仍是旧 JAR 里的配置：
+
+```bash
+cd /opt/zdmj   # 与 docker-compose.yml、.env 同目录
+docker compose build --no-cache backend && docker compose up -d backend
+```
+
+- 在服务器上确认变量已进入容器（不打印密钥内容）：
+
+```bash
+docker exec zdmj-backend sh -c 'if [ -n "$DASHSCOPE_API_KEY" ]; then echo DASHSCOPE_API_KEY=ok; else echo DASHSCOPE_API_KEY=empty; fi; if [ -n "$SPRING_AI_DASHSCOPE_API_KEY" ]; then echo SPRING_AI_DASHSCOPE_API_KEY=ok; else echo SPRING_AI_DASHSCOPE_API_KEY=empty; fi'
+```
+
+若长度为 0，说明 `.env` 未加载或变量名不一致；请在 **`docker-compose.yml` 所在目录** 执行 `docker compose`，并检查该目录下的 `.env`。
+
 # 5.管理
 
 ```

@@ -80,8 +80,9 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         retrivals = expandHitsToFullDocuments(userId, knowledgeId, retrivals);
 
         if (retrivals.isEmpty()) {
-            log.info("RAG 无有效命中: userId={}, knowledgeId={}, rawStringLen={}", userId, knowledgeId, rawString.length());
-            return Flux.just("我在你的知识库中没有检索到与问题足够相关的片段，因此无法基于资料作答。你可以尝试换一种问法，或先上传/向量化相关文档。");
+            log.info("RAG 无有效命中，退回求职导师对话: userId={}, knowledgeId={}, rawStringLen={}",
+                    userId, knowledgeId, rawString.length());
+            return chatUtil.chatStream(conversationId, rawString, PromptUtil.PromptNames.SYSTEM);
         }
 
         // 6.输出检索命中明细   
