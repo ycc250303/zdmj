@@ -13,6 +13,8 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 -- 安装 hnsw 扩展
 CREATE EXTENSION IF NOT EXISTS hnsw;
+-- 安装 pg_trgm 扩展
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 -- 删除表
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS user_profiles;
@@ -476,9 +478,36 @@ CREATE TABLE IF NOT EXISTS companies (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
 );
 CREATE INDEX IF NOT EXISTS idx_companies_name ON companies(name);
+CREATE INDEX IF NOT EXISTS idx_jobs_company_name_trgm ON jobs USING GIN (company_name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_companies_name_trgm ON companies USING GIN (name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_companies_size ON companies(size);
 CREATE INDEX IF NOT EXISTS idx_companies_type ON companies(type);
 CREATE INDEX IF NOT EXISTS idx_companies_industries ON companies(industries);
+-- 3.3 岗位能力画像表
+CREATE TABLE IF NOT EXISTS job_capability_profiles (
+    id BIGSERIAL PRIMARY KEY,
+    -- 岗位能力画像ID
+    job_id BIGINT NOT NULL,
+    -- 岗位ID（逻辑外键：jobs.id）
+    professional_skills TEXT,
+    -- 专业技能
+    certificates TEXT,
+    -- 证书
+    innovation_ability TEXT,
+    -- 创新能力
+    learning_ability TEXT,
+    -- 学习能力
+    pressure_resistance TEXT,
+    -- 抗压能力
+    communication_ability TEXT,
+    -- 沟通能力
+    practical_ability TEXT,
+    -- 实习能力
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- 创建时间
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
+);
+CREATE INDEX IF NOT EXISTS idx_job_capability_profiles_job_id ON job_capability_profiles(job_id);
 --
 -- ==========================4 知识库模块==========================
 --
