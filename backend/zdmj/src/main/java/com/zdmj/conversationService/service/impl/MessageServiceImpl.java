@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.cache.RedisUtil;
+import com.zdmj.common.config.RagConfig;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.exception.BusinessException;
@@ -17,6 +18,7 @@ import com.zdmj.conversationService.enums.MessageRoleEnum;
 import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.service.ConversationService;
 import com.zdmj.conversationService.service.MessageService;
+import com.zdmj.knowledgeService.service.KnowledgeRagService;
 
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +45,8 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     private final ChatUtil chatUtil;
     private final MessageMapper messageMapper;
     private final ConversationService conversationService;
+    private final KnowledgeRagService knowledgeRagService;
+    private final RagConfig ragConfig;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     // Redis 刷新策略：至少间隔 300ms 或新增 >= 1024 字符时写一次
@@ -95,7 +99,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         Sinks.Many<String> sink = Sinks.many().multicast().onBackpressureBuffer();
         streamSinkMap.put(streamId, sink);
 
-        // 更新会话信息（上下文、消息总数、最后一条消息时间）
+        // 4.更新会话信息（上下文、消息总数、最后一条消息时间）
         conversation.setMessageCount(messageCount + 2);
         conversation.setLastMessageAt(LocalDateTime.now());
         // 生成会话标题
@@ -105,7 +109,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         }
         conversationService.updateById(conversation);
 
-        // 初始化状态
+        // 5.初始化状态
         redisUtil.setString(statusKey, "streaming", STREAM_TTL_SECONDS);
         redisUtil.setString(contentKey, "", STREAM_TTL_SECONDS);
         redisUtil.setString(doneKey, "0", STREAM_TTL_SECONDS);
@@ -115,36 +119,38 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         AtomicLong lastFlushAt = new AtomicLong(System.currentTimeMillis());
         AtomicInteger lastFlushedLen = new AtomicInteger(0);
 
-        // 4.调用 AI 服务
-        chatUtil.chatStream(
-                dto.getConversationId(),
-                dto.getMessage(),
-                PromptUtil.PromptNames.SYSTEM)
-                .doOnNext(chunk -> {
-                    if (chunk == null || chunk.isEmpty()) {
-                        return;
-                    }
+        // 6.调用 AI 服务
+        Flux<String> chatFlux = ragConfig.getRewrite().isEnabled()
+                ? knowledgeRagService.streamAnswer(dto.getConversationId(), dto.getMessage())
+                : chatUtil.chatStream(
+                        dto.getConversationId(),
+                        dto.getMessage(),
+                        PromptUtil.PromptNames.SYSTEM);
+        chatFlux.doOnNext(chunk -> {
+            if (chunk == null || chunk.isEmpty()) {
+                return;
+            }
 
-                    // 追加内容
-                    full.append(chunk);
-                    // 尝试发送消息
-                    sink.tryEmitNext(chunk);
+            // 追加内容
+            full.append(chunk);
+            // 尝试发送消息
+            sink.tryEmitNext(chunk);
 
-                    int currLen = full.length();
-                    long now = System.currentTimeMillis();
+            int currLen = full.length();
+            long now = System.currentTimeMillis();
 
-                    boolean flushByTime = now - lastFlushAt.get() > REDIS_FLUSH_INTERVAL_MS;
-                    boolean flushByLength = currLen - lastFlushedLen.get() > REDIS_FLUSH_DELTA_CHARS;
-                    boolean flush = flushByTime || flushByLength;
+            boolean flushByTime = now - lastFlushAt.get() > REDIS_FLUSH_INTERVAL_MS;
+            boolean flushByLength = currLen - lastFlushedLen.get() > REDIS_FLUSH_DELTA_CHARS;
+            boolean flush = flushByTime || flushByLength;
 
-                    if (flush) {
-                        // 节流写 Redis，避免每 chunk 全量覆盖
-                        // TODO：可考虑引入 Redis Stream进一步优化
-                        redisUtil.setString(contentKey, full.toString(), STREAM_TTL_SECONDS);
-                        lastFlushAt.set(now);
-                        lastFlushedLen.set(currLen);
-                    }
-                })
+            if (flush) {
+                // 节流写 Redis，避免每 chunk 全量覆盖
+                // TODO：可考虑引入 Redis Stream 进一步优化
+                redisUtil.setString(contentKey, full.toString(), STREAM_TTL_SECONDS);
+                lastFlushAt.set(now);
+                lastFlushedLen.set(currLen);
+            }
+        })
                 .doOnError(e -> {
                     // 错误态 + 最终内容落缓存，方便前端恢复展示
                     redisUtil.setString(contentKey, full.toString(), STREAM_TTL_SECONDS);

@@ -2,6 +2,7 @@ package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.util.PdfParserUtil;
@@ -21,8 +22,8 @@ import org.springframework.util.StringUtils;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class StudentCapabilityProfileServiceImpl 
-        extends ServiceImpl<StudentCapabilityProfileMapper, StudentCapabilityProfile> 
+public class StudentCapabilityProfileServiceImpl
+        extends ServiceImpl<StudentCapabilityProfileMapper, StudentCapabilityProfile>
         implements StudentCapabilityProfileService {
 
     private final ChatClient chatClient;
@@ -34,8 +35,7 @@ public class StudentCapabilityProfileServiceImpl
         Long userId = UserHolder.requireUserId();
         StudentCapabilityProfile profile = getOne(
                 new LambdaQueryWrapper<StudentCapabilityProfile>()
-                        .eq(StudentCapabilityProfile::getUserId, userId)
-        );
+                        .eq(StudentCapabilityProfile::getUserId, userId));
         if (profile == null) {
             throw new BusinessException(404, "当前用户尚未生成能力画像");
         }
@@ -52,7 +52,7 @@ public class StudentCapabilityProfileServiceImpl
             log.info("从 PDF 解析内容: {}", reqDTO.getPdfUrl());
             try {
                 // 如果传入的是 COS 的 Key，则调用 extractTextFromCosKey 解析
-                sourceText = PdfParserUtil.extractTextFromCosKey(reqDTO.getPdfUrl());
+                sourceText = PdfParserUtil.extractTextFromUrl(reqDTO.getPdfUrl());
             } catch (Exception e) {
                 log.error("PDF 解析失败", e);
                 throw new BusinessException(400, "PDF 解析失败，请检查文件是否合法");
@@ -77,10 +77,10 @@ public class StudentCapabilityProfileServiceImpl
             String response = chatClient.prompt()
                     .system(systemPrompt)
                     .user(u -> u.text("这是学生的原始信息：\n{text}\n\n请严格按照 JSON 格式返回，包含上述要求的所有字段。")
-                                .param("text", text))
+                            .param("text", text))
                     .call()
                     .content();
-            
+
             // 清理可能带有的 ```json 标签
             if (response != null && response.startsWith("```json")) {
                 response = response.substring(7);
@@ -94,8 +94,8 @@ public class StudentCapabilityProfileServiceImpl
                     response = response.substring(0, response.length() - 3);
                 }
             }
-            
-            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+
+            ObjectMapper mapper = new ObjectMapper();
             aiResult = mapper.readValue(response, StudentCapabilityProfileDTO.class);
             if (aiResult == null) {
                 throw new BusinessException(500, "大模型返回数据格式异常");
@@ -108,8 +108,7 @@ public class StudentCapabilityProfileServiceImpl
         // 3. 落库保存或更新
         StudentCapabilityProfile existingProfile = getOne(
                 new LambdaQueryWrapper<StudentCapabilityProfile>()
-                        .eq(StudentCapabilityProfile::getUserId, userId)
-        );
+                        .eq(StudentCapabilityProfile::getUserId, userId));
 
         StudentCapabilityProfile newProfile = structMapper.toEntity(aiResult);
         newProfile.setUserId(userId);

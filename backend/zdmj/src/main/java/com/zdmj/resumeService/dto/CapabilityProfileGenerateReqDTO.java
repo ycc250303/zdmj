@@ -1,7 +1,6 @@
 package com.zdmj.resumeService.dto;
 
 import lombok.Data;
-import jakarta.validation.constraints.NotBlank;
 
 /**
  * 画像生成请求参数 DTO
