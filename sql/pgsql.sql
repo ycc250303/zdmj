@@ -618,10 +618,6 @@ CREATE TABLE IF NOT EXISTS conversations (
     -- 会话ID
     user_id BIGINT NOT NULL,
     -- 用户ID（逻辑外键：users.id）
-    project_id BIGINT,
-    -- 关联项目ID（逻辑外键：project_experiences.id，可选）
-    -- 说明：NULL 表示通用对话（不关联项目），有值表示项目关联对话
-    -- 项目关联对话会自动注入项目数据、文档、代码等上下文信息
     title VARCHAR(255),
     -- 对话标题（可由AI生成或用户自定义，首次消息时可为空）
     config JSONB DEFAULT '{}'::jsonb,
@@ -635,7 +631,6 @@ CREATE TABLE IF NOT EXISTS conversations (
     -- }
     context JSONB DEFAULT '[]'::jsonb,
     -- 上下文信息（可关联知识库等，用于RAG检索）
-    -- 注意：如果 project_id 有值，项目信息会自动注入，无需在此重复
     -- context 示例
     -- [
     --   {
@@ -654,8 +649,6 @@ CREATE TABLE IF NOT EXISTS conversations (
 );
 CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_user_id_created_at ON conversations(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_conversations_project_id ON conversations(project_id);
-CREATE INDEX IF NOT EXISTS idx_conversations_user_id_project_id ON conversations(user_id, project_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_last_message_at ON conversations(last_message_at DESC);
 -- 6.2 消息表
 CREATE TABLE IF NOT EXISTS messages (

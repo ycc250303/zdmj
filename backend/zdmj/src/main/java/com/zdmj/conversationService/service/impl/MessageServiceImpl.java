@@ -253,9 +253,6 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
 
     @Override
     public PageDTO<Message> getMessagesByConversationId(Long conversationId, Integer page, Integer limit) {
-        if (conversationId == null) {
-            throw new BusinessException(ErrorCode.ILLEGAL_ARGUMENT.getCode(), "conversationId不能为空");
-        }
         requireConversationAccess(conversationId);
         int p = (page == null || page < 1) ? 1 : page;
         int l = (limit == null || limit < 1) ? 20 : Math.min(limit, MAX_MESSAGE_PAGE_SIZE);
@@ -267,20 +264,13 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     }
 
     /**
-     * 验证会话访问权限
-     * 
-     * @param conversationId 会话ID
+     * 校验会话 ID 有效且存在，且属于当前用户（发送消息、拉取消息列表前调用）。
      */
     private Conversation requireConversationAccess(Long conversationId) {
-        Long userId = UserHolder.requireUserId();
-        Conversation conversation = conversationService.getById(conversationId);
-        if (conversation == null) {
-            throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
+        if (conversationId == null) {
+            throw new BusinessException(ErrorCode.ILLEGAL_ARGUMENT.getCode(), "会话ID不能为空");
         }
-        if (!conversation.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION);
-        }
-        return conversation;
+        return conversationService.getById(conversationId);
     }
 
     @Data
