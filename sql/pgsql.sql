@@ -380,6 +380,35 @@ CREATE INDEX IF NOT EXISTS idx_resume_matches_user_id_name ON resume_matches(use
 CREATE INDEX IF NOT EXISTS idx_resume_matches_job_id ON resume_matches(job_id);
 CREATE INDEX IF NOT EXISTS idx_resume_matches_resume_id ON resume_matches(resume_id);
 CREATE INDEX IF NOT EXISTS idx_resume_matches_status ON resume_matches(status);
+-- 2.7 学生就业能力画像表
+CREATE TABLE IF NOT EXISTS student_capability_profiles (
+    id BIGSERIAL PRIMARY KEY,
+    -- 画像ID
+    user_id BIGINT UNIQUE NOT NULL,
+    -- 关联用户ID（逻辑外键：users.id）
+    professional_skills TEXT,
+    -- 专业技能
+    certificates TEXT,
+    -- 证书
+    innovation_ability TEXT,
+    -- 创新能力
+    learning_ability TEXT,
+    -- 学习能力
+    pressure_resistance TEXT,
+    -- 抗压能力
+    communication_ability TEXT,
+    -- 沟通能力
+    practical_ability TEXT,
+    -- 实习能力
+    completeness_score INTEGER NOT NULL DEFAULT 0,
+    -- 完整度评分 (0-100)
+    competitiveness_score INTEGER NOT NULL DEFAULT 0,
+    -- 竞争力评分 (0-100)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- 创建时间
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
+);
+CREATE INDEX IF NOT EXISTS idx_student_capability_profiles_user_id ON student_capability_profiles(user_id);
 --
 -- ==========================3 岗位模块==========================
 --
@@ -472,7 +501,6 @@ WHERE scope = 1;
 -- 约束：系统默认知识库最多一个
 CREATE UNIQUE INDEX IF NOT EXISTS uk_knowledge_bases_system_default_single ON knowledge_bases (scope)
 WHERE scope = 2;
-
 -- 4.2 知识文档表（一个知识库可关联多个文件/链接）
 CREATE TABLE IF NOT EXISTS knowledge_documents (
     id BIGSERIAL PRIMARY KEY,
@@ -590,10 +618,6 @@ CREATE TABLE IF NOT EXISTS conversations (
     -- 会话ID
     user_id BIGINT NOT NULL,
     -- 用户ID（逻辑外键：users.id）
-    project_id BIGINT,
-    -- 关联项目ID（逻辑外键：project_experiences.id，可选）
-    -- 说明：NULL 表示通用对话（不关联项目），有值表示项目关联对话
-    -- 项目关联对话会自动注入项目数据、文档、代码等上下文信息
     title VARCHAR(255),
     -- 对话标题（可由AI生成或用户自定义，首次消息时可为空）
     config JSONB DEFAULT '{}'::jsonb,
@@ -607,7 +631,6 @@ CREATE TABLE IF NOT EXISTS conversations (
     -- }
     context JSONB DEFAULT '[]'::jsonb,
     -- 上下文信息（可关联知识库等，用于RAG检索）
-    -- 注意：如果 project_id 有值，项目信息会自动注入，无需在此重复
     -- context 示例
     -- [
     --   {
@@ -626,8 +649,6 @@ CREATE TABLE IF NOT EXISTS conversations (
 );
 CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_user_id_created_at ON conversations(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_conversations_project_id ON conversations(project_id);
-CREATE INDEX IF NOT EXISTS idx_conversations_user_id_project_id ON conversations(user_id, project_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_last_message_at ON conversations(last_message_at DESC);
 -- 6.2 消息表
 CREATE TABLE IF NOT EXISTS messages (

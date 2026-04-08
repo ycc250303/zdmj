@@ -228,6 +228,22 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
         }
     }
 
+    @Override
+    public String toPgVector(float[] vector) {
+        if (vector == null || vector.length == 0) {
+            return null;
+        }
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < vector.length; i++) {
+            if (i > 0)
+                sb.append(",");
+            sb.append(vector[i]);
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+
     private void runDeleteTask(KnowledgeVectorTask task) {
         runDeleteTaskByUser(task.getDocumentId(), task.getUserId());
     }
@@ -255,16 +271,6 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
         throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED.getCode(), "当前知识类型暂不支持向量化");
     }
 
-    private static String toPgVector(float[] vector) {
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < vector.length; i++) {
-            if (i > 0)
-                sb.append(",");
-            sb.append(vector[i]);
-        }
-        sb.append("]");
-        return sb.toString();
-    }
 
     private static String sha256(String input) {
         try {
@@ -281,6 +287,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
 
     /**
      * 估计文本的token数量
+     * 
      * @param text 输入文本
      * @return token数量
      */
