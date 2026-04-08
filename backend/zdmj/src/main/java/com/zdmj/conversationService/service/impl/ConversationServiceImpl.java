@@ -48,6 +48,7 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         Conversation conversation = new Conversation();
         conversationStructMapper.updateEntityFromDto(conversationDTO, conversation);
         conversation.setUserId(userId);
+        conversation.setMessageCount(0);
 
         boolean saved = save(conversation);
         if (!saved) {
