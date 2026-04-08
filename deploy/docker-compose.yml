@@ -54,6 +54,9 @@ services:
     container_name: zdmj-backend
     ports:
       - "8080:8080"
+    # 与 compose 文件同目录的 .env 显式注入，避免工作目录不对时变量未加载
+    env_file:
+      - .env
     environment:
       <<: *redis-conn-env
       SPRING_DATA_REDIS_HOST: redis
@@ -61,8 +64,10 @@ services:
       SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
       TZ: Asia/Shanghai
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+      AI_DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
       SPRING_AI_DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
       SPRING_AI_DASHSCOPE_CHAT_API_KEY: ${DASHSCOPE_API_KEY}
+      AL_MODEL: ${AL_MODEL:-qwen-plus}
       DATASOURCE_URL: ${DATASOURCE_URL}
       PG_USER: ${PG_USER}
       PG_PASSWORD: ${PG_PASSWORD}
