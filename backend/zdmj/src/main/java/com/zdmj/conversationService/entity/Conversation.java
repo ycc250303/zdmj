@@ -27,11 +27,6 @@ public class Conversation extends BaseEntity {
     private Long userId;
 
     /**
-     * 关联项目ID（可空）
-     */
-    private Long projectId;
-
-    /**
      * 对话标题
      */
     private String title;

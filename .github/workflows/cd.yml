@@ -1,8 +1,6 @@
 # CD工作流：统一自动化部署
 # 当代码推送到main分支时，GitHub Actions仅负责下发命令
 # 实际的 git 拉取、镜像构建与服务重启全部在腾讯云服务器本地执行
-# 同时部署Java和Python服务，使用并行作业减少总运行时间
-#
 # 前置要求：
 # 1. 在GitHub仓库的Settings > Secrets and variables > Actions中配置SSH_PRIVATE_KEY
 # 2. SSH密钥格式要求：
@@ -43,7 +41,6 @@ jobs:
     timeout-minutes: 5
     outputs:
       java: ${{ steps.filter.outputs.java }}
-      python: ${{ steps.filter.outputs.python }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -56,17 +53,13 @@ jobs:
             java:
               - 'backend/zdmj/**'
               - '.github/workflows/cd.yml'
-            python:
-              - 'backend/zdmj-python/**'
-              - 'deploy/docker-compose.yml'
-              - '.github/workflows/cd.yml'
 
   sync-server-code:
     name: Sync Code on Server
     runs-on: ubuntu-latest
     needs: detect-changes
     timeout-minutes: 10
-    if: needs.detect-changes.outputs.java == 'true' || needs.detect-changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch'
+    if: needs.detect-changes.outputs.java == 'true' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Pull latest code on server
         uses: appleboy/ssh-action@v1.0.3
@@ -125,58 +118,3 @@ jobs:
             sleep 10
             docker compose -f "${{ env.APP_DIR }}/deploy/docker-compose.yml" ps backend
             docker logs --tail 50 zdmj-backend
-
-  # # Python服务构建和部署任务（与Java并行执行）
-  # deploy-python:
-  #   name: Deploy Python Service on Server
-  #   runs-on: ubuntu-latest
-  #   needs: [detect-changes, sync-server-code]
-  #   timeout-minutes: 30
-  #   if: needs.detect-changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch'
-    
-  #   steps:
-  #     # 统一使用 docker compose 管理服务生命周期
-  #     - name: Deploy to server
-  #       uses: appleboy/ssh-action@v1.0.3
-  #       with:
-  #         host: ${{ env.SERVER_HOST }}
-  #         username: ${{ env.SERVER_USER }}
-  #         key: ${{ secrets.SSH_PRIVATE_KEY }}
-  #         port: 22
-  #         timeout: 60s
-  #         command_timeout: 30m
-  #         script: |
-  #           set -euo pipefail
-  #           cd "${{ env.APP_DIR }}/deploy"
-  #           docker compose build python
-  #           docker compose up -d --no-deps --force-recreate python
-  #           docker compose ps python
-
-  #     # 验证部署
-  #     - name: Verify deployment
-  #       uses: appleboy/ssh-action@v1.0.3
-  #       with:
-  #         host: ${{ env.SERVER_HOST }}
-  #         username: ${{ env.SERVER_USER }}
-  #         key: ${{ secrets.SSH_PRIVATE_KEY }}
-  #         port: 22
-  #         timeout: 60s
-  #         command_timeout: 10m
-  #         script: |
-  #           echo "Waiting for service to start..."
-  #           sleep 10
-            
-  #           echo "Checking container status..."
-  #           docker ps | grep zdmj-python || echo "Warning: Container not found in running list"
-            
-  #           echo "Container status:"
-  #           docker ps -a | grep zdmj-python
-  #           echo "Image mapping:"
-  #           docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" | grep "^zdmj-python:latest " || true
-  #           docker inspect zdmj-python --format 'container_image={{.Image}}'
-            
-  #           echo "Recent container logs:"
-  #           docker logs --tail 50 zdmj-python || echo "Warning: Could not retrieve logs"
-            
-  #           echo "Health check status:"
-  #           docker inspect --format='{{.State.Health.Status}}' zdmj-python 2>/dev/null || echo "Health check not configured"

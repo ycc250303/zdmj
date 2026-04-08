@@ -14,11 +14,6 @@ public class ConversationDTO {
     private Long id;
 
     /**
-     * 关联项目ID（可空）
-     */
-    private Long projectId;
-
-    /**
      * 对话配置（JSONB对象）
      */
     @TableField(typeHandler = JacksonTypeHandler.class)

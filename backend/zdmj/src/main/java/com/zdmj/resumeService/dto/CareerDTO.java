@@ -14,7 +14,7 @@ import java.time.LocalDate;
  * 工作/实习经历DTO
  */
 @Data
-public class CareerDTO extends BaseEntity {
+public class CareerDTO  {
     /**
      * 工作/实习经历ID（主键，自增）
      */

@@ -1,13 +1,11 @@
 package com.zdmj.conversationService.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.zdmj.common.model.PageResult;
+import com.zdmj.common.model.PageDTO;
 import com.zdmj.conversationService.dto.MessageDTO;
 import com.zdmj.conversationService.entity.Message;
 
 import reactor.core.publisher.Flux;
-
-import java.util.List;
 
 import org.springframework.http.codec.ServerSentEvent;
 
@@ -23,7 +21,7 @@ public interface MessageService extends IService<Message> {
      * @param page           页码，从 1 开始
      * @param limit          每页条数
      */
-    PageResult<Message> getMessagesByConversationId(Long conversationId, Integer page, Integer limit);
+    PageDTO<Message> getMessagesByConversationId(Long conversationId, Integer page, Integer limit);
 
     /**
      * 创建流式消息

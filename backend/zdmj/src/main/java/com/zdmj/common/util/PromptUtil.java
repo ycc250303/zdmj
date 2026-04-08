@@ -9,7 +9,6 @@ import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StreamUtils;
 
-
 @Component
 public class PromptUtil {
 
@@ -66,7 +65,11 @@ public class PromptUtil {
         public static final String SYSTEM = "system";
         /** 生成会话标题 */
         public static final String GENERATE_CONVERSATION_TITLE = "generate-conversation-title";
-        /** 项目上下文说明 */
-        public static final String PROJECT_CONTEXT_INSTRUCTION = "project-context-instruction";
+        /** 生成能力画像 */
+        public static final String GENERATE_CAPABILITY_PROFILE = "generate-capability-profile";
+        /** 知识库 RAG 问答 */
+        public static final String KNOWLEDGEBASE_RAG_SYSTEM = "knowledgebase-rag-system";
+        /** 知识库查询改写 */
+        public static final String KNOWLEDGEBASE_RAG_QUERY_REWRITE = "knowledgebase-query-rewrite";
     }
 }

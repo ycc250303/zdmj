@@ -17,18 +17,20 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.PdfParserUtil;
-import com.zdmj.knowledgeService.entity.KnowledgeBases;
+import com.zdmj.knowledgeService.entity.KnowledgeDocument;
 import com.zdmj.knowledgeService.entity.KnowledgeVector;
 import com.zdmj.knowledgeService.entity.KnowledgeVectorTask;
 import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
 import com.zdmj.knowledgeService.enums.KnowledgeVectorTaskStatusEnum;
 import com.zdmj.knowledgeService.enums.KnowledgeVectorTaskTypeEnum;
-import com.zdmj.knowledgeService.mapper.KnowledgeBasesMapper;
+import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorTaskMapper;
+import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
 
 import lombok.AllArgsConstructor;
@@ -39,14 +41,12 @@ import lombok.extern.slf4j.Slf4j;
 @AllArgsConstructor
 public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService {
 
-    /**
-     * 最大批量大小（千问embedding模型限制）
-     */
     private static final int MAX_BATCH_SIZE = 10;
 
     private final TextSplitter textSplitter;
     private final EmbeddingModel embeddingModel;
-    private final KnowledgeBasesMapper knowledgeBasesMapper;
+    private final KnowledgeBasesService knowledgeBasesService;
+    private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeVectorMapper knowledgeVectorMapper;
     private final KnowledgeVectorTaskMapper knowledgeVectorTaskMapper;
 
@@ -61,10 +61,13 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
     }
 
     @Override
-    public Long submitVectorizeTask(Long knowledgeId, Long userId) {
+    public Long submitVectorizeTask(Long DocumentId) {
+        Long userId = UserHolder.requireUserId();
+        Long knowledgeId = knowledgeBasesService.getOrCreateKnowledgeBaseId();
         KnowledgeVectorTask task = new KnowledgeVectorTask();
-        task.setKnowledgeId(knowledgeId);
+        task.setDocumentId(DocumentId);
         task.setUserId(userId);
+        task.setKnowledgeId(knowledgeId);
         task.setTaskType(KnowledgeVectorTaskTypeEnum.EMBEDDING.getCode());
         task.setStatus(KnowledgeVectorTaskStatusEnum.PENDING.getCode());
         knowledgeVectorTaskMapper.insert(task);
@@ -72,10 +75,13 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
     }
 
     @Override
-    public Long submitDeleteTask(Long knowledgeId, Long userId) {
+    public Long submitDeleteTask(Long DocumentId) {
+        Long userId = UserHolder.requireUserId();
+        Long knowledgeId = knowledgeBasesService.getOrCreateKnowledgeBaseId();
         KnowledgeVectorTask task = new KnowledgeVectorTask();
-        task.setKnowledgeId(knowledgeId);
+        task.setDocumentId(DocumentId);
         task.setUserId(userId);
+        task.setKnowledgeId(knowledgeId);
         task.setTaskType(KnowledgeVectorTaskTypeEnum.DELETE.getCode());
         task.setStatus(KnowledgeVectorTaskStatusEnum.PENDING.getCode());
         knowledgeVectorTaskMapper.insert(task);
@@ -115,59 +121,54 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
             task.setCompletedAt(LocalDateTime.now());
             task.setErrorMessage(e.getMessage());
             knowledgeVectorTaskMapper.updateById(task);
-            log.error("异步向量任务执行失败: taskId={}, knowledgeId={}, error={}",
-                    taskId, task.getKnowledgeId(), e.getMessage(), e);
+            log.error("异步向量任务执行失败: taskId={}, DocumentId={}, error={}",
+                    taskId, task.getDocumentId(), e.getMessage(), e);
         }
     }
 
-    /**
-     * 向量化并存储知识库(先删除旧向量后向量化)
-     * 
-     * @param knowledgeId 知识库ID
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void vectorizeAndStore(Long knowledgeId) {
-        KnowledgeBases kb = knowledgeBasesMapper.selectById(knowledgeId);
-        if (kb == null) {
+    public void vectorizeAndStore(Long DocumentId) {
+        KnowledgeDocument kd = knowledgeDocumentMapper.selectById(DocumentId);
+        if (kd == null) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
         }
-        runEmbeddingTaskByUser(knowledgeId, kb.getUserId());
-
+        runEmbeddingTaskByUser(DocumentId, kd.getUserId());
     }
 
-    /**
-     * 删除知识库向量
-     * 
-     * @param knowledgeId 知识库ID
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void deleteVectors(Long knowledgeId) {
-        KnowledgeBases kb = knowledgeBasesMapper.selectById(knowledgeId);
-        if (kb == null) {
+    public void deleteVectors(Long DocumentId) {
+        KnowledgeDocument kd = knowledgeDocumentMapper.selectById(DocumentId);
+        if (kd == null) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
         }
-        runDeleteTaskByUser(knowledgeId, kb.getUserId());
+        runDeleteTaskByUser(DocumentId, kd.getUserId());
     }
 
     private void runEmbeddingTask(KnowledgeVectorTask task) {
-        runEmbeddingTaskByUser(task.getKnowledgeId(), task.getUserId());
+        runEmbeddingTaskByUser(task.getDocumentId(), task.getUserId());
     }
 
-    private void runEmbeddingTaskByUser(Long knowledgeId, Long userId) {
-        log.info("开始向量化并存储知识库: knowledgeId={}, userId={}", knowledgeId, userId);
-        KnowledgeBases kb = knowledgeBasesMapper.selectById(knowledgeId);
-        if (kb == null || !userId.equals(kb.getUserId())) {
+    private void runEmbeddingTaskByUser(Long DocumentId, Long userId) {
+        log.info("开始向量化并存储知识库: DocumentId={}, userId={}", DocumentId, userId);
+        KnowledgeDocument kd = knowledgeDocumentMapper.selectById(DocumentId);
+        if (kd == null || !userId.equals(kd.getUserId())) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
         }
-        kb.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.RUNNING.getCode());
-        kb.setLastError(null);
-        knowledgeBasesMapper.updateById(kb);
+        kd.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.RUNNING.getCode());
+        kd.setLastError(null);
+        knowledgeDocumentMapper.updateById(kd);
+
+        Long knowledgeId = kd.getKnowledgeId();
+        if (knowledgeId == null) {
+            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
+        }
 
         try {
-            knowledgeVectorMapper.deleteByKnowledgeIdAndUserId(knowledgeId, userId);
-            String rawText = extractText(kb);
+            knowledgeVectorMapper.deleteByDocumentIdAndUserId(DocumentId, userId);
+            String rawText = extractText(kd);
+
             List<Document> chunks = textSplitter.apply(List.of(new Document(rawText)));
             if (chunks.isEmpty()) {
                 throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED.getCode(), "分块结果为空");
@@ -193,6 +194,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
                     String chunkText = batchTexts.get(j);
                     float[] vec = batchVectors.get(j);
                     KnowledgeVector kv = new KnowledgeVector();
+                    kv.setDocumentId(DocumentId);
                     kv.setKnowledgeId(knowledgeId);
                     kv.setUserId(userId);
                     kv.setEmbedding(toPgVector(vec));
@@ -201,8 +203,9 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
                     kv.setChunkHash(sha256(chunkText));
                     kv.setTokenCount(estimateToken(chunkText));
                     Map<String, Object> meta = new HashMap<>();
-                    meta.put("knowledgeId", String.valueOf(knowledgeId));
-                    meta.put("source", kb.getContent());
+                    meta.put("DocumentId", String.valueOf(DocumentId));
+                    meta.put("KnowledgeId", String.valueOf(knowledgeId));
+                    meta.put("content", kd.getContent());
                     kv.setMetadata(meta);
                     rows.add(kv);
                 }
@@ -210,50 +213,26 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
                 persistedCount += rows.size();
             }
 
-            kb.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.SUCCESS.getCode());
-            kb.setChunkCount(persistedCount);
-            kb.setLastEmbeddedAt(LocalDateTime.now());
-            kb.setLastError(null);
-            kb.setContentHash(sha256(kb.getContent()));
-            knowledgeBasesMapper.updateById(kb);
-            log.info("向量化完成: knowledgeId={}, chunks={}, batches={}", knowledgeId, persistedCount, batchCount);
+            kd.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.SUCCESS.getCode());
+            kd.setChunkCount(persistedCount);
+            kd.setLastEmbeddedAt(LocalDateTime.now());
+            kd.setLastError(null);
+            kd.setContentHash(sha256(kd.getContent()));
+            knowledgeDocumentMapper.updateById(kd);
+            log.info("向量化完成: DocumentId={}, chunks={}, batches={}", DocumentId, persistedCount, batchCount);
         } catch (Exception e) {
-            kb.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.FAILED.getCode());
-            kb.setLastError(e.getMessage());
-            knowledgeBasesMapper.updateById(kb);
+            kd.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.FAILED.getCode());
+            kd.setLastError(e.getMessage());
+            knowledgeDocumentMapper.updateById(kd);
             throw e;
         }
     }
 
-    private void runDeleteTask(KnowledgeVectorTask task) {
-        runDeleteTaskByUser(task.getKnowledgeId(), task.getUserId());
-    }
-
-    private void runDeleteTaskByUser(Long knowledgeId, Long userId) {
-        try {
-            knowledgeVectorMapper.deleteByKnowledgeIdAndUserId(knowledgeId, userId);
-            KnowledgeBases kb = knowledgeBasesMapper.selectById(knowledgeId);
-            if (kb != null && userId.equals(kb.getUserId())) {
-                kb.setChunkCount(0);
-                kb.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.PENDING.getCode());
-                kb.setVectorTaskId(null);
-                kb.setLastEmbeddedAt(null);
-                kb.setLastError(null);
-                knowledgeBasesMapper.updateById(kb);
-            }
-        } catch (Exception e) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_DELETE_FAILED);
+    @Override
+    public String toPgVector(float[] vector) {
+        if (vector == null || vector.length == 0) {
+            return null;
         }
-    }
-
-    private String extractText(KnowledgeBases kb) {
-        if (kb.getType() != null && kb.getType().equals(KnowledgeTypeEnum.PROJECT_DOCUMENT.getCode())) {
-            return PdfParserUtil.extractTextFromUrl(kb.getContent());
-        }
-        throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED.getCode(), "当前知识类型暂不支持向量化");
-    }
-
-    private static String toPgVector(float[] vector) {
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < vector.length; i++) {
             if (i > 0)
@@ -263,6 +242,35 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
         sb.append("]");
         return sb.toString();
     }
+
+
+    private void runDeleteTask(KnowledgeVectorTask task) {
+        runDeleteTaskByUser(task.getDocumentId(), task.getUserId());
+    }
+
+    private void runDeleteTaskByUser(Long DocumentId, Long userId) {
+        try {
+            knowledgeVectorMapper.deleteByDocumentIdAndUserId(DocumentId, userId);
+            KnowledgeDocument kd = knowledgeDocumentMapper.selectById(DocumentId);
+            if (kd != null && userId.equals(kd.getUserId())) {
+                kd.setChunkCount(0);
+                kd.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.PENDING.getCode());
+                kd.setLastEmbeddedAt(null);
+                kd.setLastError(null);
+                knowledgeDocumentMapper.updateById(kd);
+            }
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_DELETE_FAILED);
+        }
+    }
+
+    private String extractText(KnowledgeDocument kd) {
+        if (kd.getType() != null && kd.getType().equals(KnowledgeTypeEnum.PROJECT_DOCUMENT.getCode())) {
+            return PdfParserUtil.extractTextFromUrl(kd.getContent());
+        }
+        throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED.getCode(), "当前知识类型暂不支持向量化");
+    }
+
 
     private static String sha256(String input) {
         try {
@@ -277,6 +285,12 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
         }
     }
 
+    /**
+     * 估计文本的token数量
+     * 
+     * @param text 输入文本
+     * @return token数量
+     */
     private static int estimateToken(String text) {
         if (text == null || text.isBlank())
             return 0;
