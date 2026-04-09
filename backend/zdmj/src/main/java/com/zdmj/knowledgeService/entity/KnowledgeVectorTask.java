@@ -31,6 +31,11 @@ public class KnowledgeVectorTask extends BaseEntity {
     private Long knowledgeId;
 
     /**
+     * 文档ID
+     */
+    private Long documentId;
+
+    /**
      * 任务类型
      */
     private Integer taskType;

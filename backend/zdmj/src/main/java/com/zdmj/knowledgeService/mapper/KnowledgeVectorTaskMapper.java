@@ -11,6 +11,10 @@ import com.zdmj.knowledgeService.entity.KnowledgeVectorTask;
  */
 @Mapper
 public interface KnowledgeVectorTaskMapper extends BaseMapper<KnowledgeVectorTask> {
-    // 预留：后续可按需要补充自定义查询方法
+    /**
+     * 根据知识库ID删除向量化任务
+     * @param knowledgeId 知识库ID
+     */
+    void deleteByKnowledgeId(Long knowledgeId);
 }
 

@@ -48,6 +48,7 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         Conversation conversation = new Conversation();
         conversationStructMapper.updateEntityFromDto(conversationDTO, conversation);
         conversation.setUserId(userId);
+        conversation.setMessageCount(0);
 
         boolean saved = save(conversation);
         if (!saved) {
@@ -58,6 +59,9 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
 
     @Override
     public Conversation getById(Long id) {
+        if (id == null) {
+            throw new BusinessException(ErrorCode.ILLEGAL_ARGUMENT.getCode(), "会话ID不能为空");
+        }
         String key = RedisConstants.CONVERSATION_KEY + id;
         Conversation conversation = redisUtil.get(key, Conversation.class);
         if (conversation != null) {

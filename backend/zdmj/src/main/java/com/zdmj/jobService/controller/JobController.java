@@ -12,13 +12,15 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.zdmj.common.model.CreateGroup;
-import com.zdmj.common.model.PageResult;
+import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.Result;
 import com.zdmj.common.model.UpdateGroup;
 import com.zdmj.jobService.dto.JobDetailDTO;
 import com.zdmj.jobService.dto.JobListItemDTO;
+import com.zdmj.jobService.dto.JobCapabilityProfileDTO;
 import com.zdmj.jobService.dto.JobDTO;
 import com.zdmj.jobService.entity.Job;
+import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobService;
 import lombok.RequiredArgsConstructor;
 
@@ -33,6 +35,7 @@ import java.util.List;
 public class JobController {
 
     private final JobService jobService;
+    private final JobCapabilityProfileService jobCapabilityProfileService;
 
     /**
      * 查询岗位详情
@@ -53,17 +56,19 @@ public class JobController {
      * @param companySizes 公司规模
      * @param fundingTypes 融资类型
      * @param industries   行业
+     * @param companyName  公司名称关键词（包含匹配，如「字节」匹配「字节跳动」）
      * @return 岗位列表
      */
     @GetMapping
-    public Result<PageResult<JobListItemDTO>> getPage(
+    public Result<PageDTO<JobListItemDTO>> getPage(
             @RequestParam(required = false, defaultValue = "1") Integer page,
             @RequestParam(required = false, defaultValue = "20") Integer limit,
             @RequestParam(required = false) List<Integer> companySizes,
             @RequestParam(required = false) List<Integer> fundingTypes,
-            @RequestParam(required = false) List<String> industries) {
+            @RequestParam(required = false) List<String> industries,
+            @RequestParam(required = false) String companyName) {
         return Result.success("查询岗位列表成功",
-                jobService.getPage(page, limit, companySizes, fundingTypes, industries));
+                jobService.getPage(page, limit, companySizes, fundingTypes, industries, companyName));
     }
 
     /**
@@ -98,5 +103,17 @@ public class JobController {
     public Result<Void> delete(@PathVariable Long id) {
         jobService.delete(id);
         return Result.success("删除岗位成功", null);
+    }
+
+
+    /**
+     * 获取岗位能力画像
+     * 
+     * @param id 岗位ID
+     * @return 岗位能力画像
+     */
+    @GetMapping("/{id}/capability-profile")
+    public Result<JobCapabilityProfileDTO> getJobCapabilityProfile(@PathVariable Long id) {
+        return Result.success("获取岗位能力画像成功", jobCapabilityProfileService.getJobCapabilityProfile(id));
     }
 }

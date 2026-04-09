@@ -16,9 +16,13 @@ import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * 腾讯云COS工具类
@@ -46,6 +50,8 @@ import java.util.UUID;
 @Slf4j
 @Component
 public class CosUtil {
+    private static final Pattern UUID_SUFFIX_PATTERN = Pattern
+            .compile("-(?:[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$");
 
     @Value("${cos.secret-id}")
     private String secretId;
@@ -292,6 +298,71 @@ public class CosUtil {
 
     private static boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
+    }
+
+    /**
+     * 从 URL 或 key 中提取文件原始名称（去除扩展名与 -UUID 后缀）。
+     * 示例：xxx/简历-6fd395f28e78462f9075c73af4def4b4.pdf -> 简历
+     *
+     * @param sourceUri COS完整URL、网页链接或对象key
+     * @return 原始文件名称，无法解析时返回空字符串
+     */
+    public static String extractOriginalFileNameFromUrl(String sourceUri) {
+        String objectName = extractObjectNameFromUrl(sourceUri);
+        if (isBlank(objectName)) {
+            return "";
+        }
+        int dot = objectName.lastIndexOf('.');
+        String nameWithoutExt = dot > 0 ? objectName.substring(0, dot) : objectName;
+        return UUID_SUFFIX_PATTERN.matcher(nameWithoutExt).replaceFirst("");
+    }
+
+    /**
+     * 从 URL 或 key 中提取文件扩展名（不包含"."，小写）。
+     * 示例：xxx/简历-uuid.PDF -> pdf
+     *
+     * @param sourceUri COS完整URL、网页链接或对象key
+     * @return 扩展名，无法解析时返回空字符串
+     */
+    public static String extractFileExtensionFromUrl(String sourceUri) {
+        String objectName = extractObjectNameFromUrl(sourceUri);
+        if (isBlank(objectName)) {
+            return "";
+        }
+        int dot = objectName.lastIndexOf('.');
+        if (dot < 0 || dot == objectName.length() - 1) {
+            return "";
+        }
+        return objectName.substring(dot + 1).toLowerCase();
+    }
+
+    /**
+     * 提取 URL path 最后一段文件名；若不是完整 URL，则按 key 处理。
+     */
+    private static String extractObjectNameFromUrl(String sourceUri) {
+        if (isBlank(sourceUri)) {
+            return "";
+        }
+        String rawPath = sourceUri;
+        try {
+            URI uri = URI.create(sourceUri.trim());
+            if (!isBlank(uri.getPath())) {
+                rawPath = uri.getPath();
+            }
+        } catch (Exception ignore) {
+            // 非标准 URI 时按原字符串兜底处理
+        }
+        rawPath = rawPath.replace('\\', '/');
+        int slash = rawPath.lastIndexOf('/');
+        String fileName = slash >= 0 ? rawPath.substring(slash + 1) : rawPath;
+        if (isBlank(fileName)) {
+            return "";
+        }
+        try {
+            return URLDecoder.decode(fileName, StandardCharsets.UTF_8);
+        } catch (Exception ignore) {
+            return fileName;
+        }
     }
 
     /**

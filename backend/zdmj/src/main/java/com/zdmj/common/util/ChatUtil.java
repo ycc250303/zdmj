@@ -1,8 +1,12 @@
 package com.zdmj.common.util;
 
+import java.util.Collections;
+import java.util.Map;
+
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
@@ -24,7 +28,7 @@ public class ChatUtil {
      * @return 回复
      */
     public String chat(String message) {
-        return chat(null, message, null);
+        return chat((Long) null, message, null);
     }
 
     /**
@@ -35,7 +39,19 @@ public class ChatUtil {
      * @return 回复
      */
     public String chat(String message, String promptName) {
-        return chat(null, message, promptName);
+        return chat((Long) null, message, promptName, Collections.emptyMap());
+    }
+
+    /**
+     * 聊天
+     *
+     * @param message         消息
+     * @param promptName      提示词名称
+     * @param promptVariables 提示词模板变量
+     * @return 回复
+     */
+    public String chat(String message, String promptName, Map<String, Object> promptVariables) {
+        return chat((Long) null, message, promptName, promptVariables);
     }
 
     /**
@@ -47,10 +63,24 @@ public class ChatUtil {
      * @return 回复流
      */
     public String chat(Long conversationId, String message, String promptName) {
+        return chat(conversationId, message, promptName, Collections.emptyMap());
+    }
+
+    /**
+     * 聊天
+     *
+     * @param conversationId  会话ID
+     * @param message         消息
+     * @param promptName      提示词名称
+     * @param promptVariables 提示词模板变量
+     * @return 回复
+     */
+    public String chat(Long conversationId, String message, String promptName,
+            Map<String, Object> promptVariables) {
         ChatClientRequestSpec spec = chatClient.prompt();
         spec = applyMemory(spec, conversationId);
         if (promptName != null && !promptName.isBlank()) {
-            spec = spec.system(promptUtil.load(promptName));
+            spec = spec.system(renderSystemPrompt(promptName, promptVariables));
         }
         return spec.user(message).call().content();
     }
@@ -76,7 +106,19 @@ public class ChatUtil {
      * @return 回复流
      */
     public Flux<String> chatStream(String message, String promptName) {
-        return chatStream(null, message, promptName);
+        return chatStream((Long) null, message, promptName, Collections.emptyMap());
+    }
+
+    /**
+     * 聊天流
+     *
+     * @param message         消息
+     * @param promptName      提示词名称
+     * @param promptVariables 提示词模板变量
+     * @return 回复流
+     */
+    public Flux<String> chatStream(String message, String promptName, Map<String, Object> promptVariables) {
+        return chatStream((Long) null, message, promptName, promptVariables);
     }
 
     /**
@@ -99,10 +141,24 @@ public class ChatUtil {
      * @return 回复流
      */
     public Flux<String> chatStream(Long conversationId, String message, String promptName) {
+        return chatStream(conversationId, message, promptName, Collections.emptyMap());
+    }
+
+    /**
+     * 聊天流
+     *
+     * @param conversationId  会话ID
+     * @param message         消息
+     * @param promptName      提示词名称
+     * @param promptVariables 提示词模板变量
+     * @return 回复流
+     */
+    public Flux<String> chatStream(Long conversationId, String message, String promptName,
+            Map<String, Object> promptVariables) {
         ChatClientRequestSpec spec = chatClient.prompt();
         spec = applyMemory(spec, conversationId);
         if (promptName != null && !promptName.isBlank()) {
-            spec = spec.system(promptUtil.load(promptName));
+            spec = spec.system(renderSystemPrompt(promptName, promptVariables));
         }
         return spec.user(message).stream().content();
     }
@@ -121,5 +177,23 @@ public class ChatUtil {
         }
         String threadId = String.valueOf(conversationId);
         return spec.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, threadId));
+    }
+
+    /**
+     * 渲染系统提示词模板
+     *
+     * @param promptName      提示词名称
+     * @param promptVariables 提示词模板变量
+     * @return 渲染后的提示词
+     */
+    private String renderSystemPrompt(String promptName, Map<String, Object> promptVariables) {
+        String template = promptUtil.load(promptName);
+        Map<String, Object> variables = promptVariables == null ? Collections.emptyMap() : promptVariables;
+        // 无变量时不再走 StringTemplate：prompt 正文中若含 JSON 等「{ }」会与 ST 语法冲突
+        if (variables.isEmpty()) {
+            return template;
+        }
+        PromptTemplate promptTemplate = new PromptTemplate(template);
+        return promptTemplate.render(variables);
     }
 }

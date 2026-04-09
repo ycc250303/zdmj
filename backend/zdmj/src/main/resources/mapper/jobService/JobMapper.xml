@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zdmj.jobService.mapper.JobMapper">
+
+    <resultMap id="JobDetailDTOMap" type="com.zdmj.jobService.dto.JobDetailDTO">
+        <id property="id" column="id" />
+        <result property="jobName" column="job_name" />
+        <result property="companyId" column="company_id" />
+        <result property="companyName" column="company_name" />
+        <result property="description" column="description" />
+        <result property="location" column="location" />
+        <result property="salary" column="salary" />
+        <result property="link" column="link" />
+        <result property="content" column="content" />
+        <result property="requirements" column="requirements" />
+        <result property="recall" column="recall" />
+        <result property="companyIndustries" column="company_industries"
+            typeHandler="com.zdmj.common.typehandler.JsonbListTypeHandler" />
+        <result property="companySize" column="company_size" />
+        <result property="companyFundingType" column="company_funding_type" />
+    </resultMap>
+
+    <resultMap id="JobListItemDTOMap" type="com.zdmj.jobService.dto.JobListItemDTO">
+        <id property="id" column="id" />
+        <result property="jobName" column="job_name" />
+        <result property="companyId" column="company_id" />
+        <result property="companyName" column="company_name" />
+        <result property="description" column="description" />
+        <result property="location" column="location" />
+        <result property="salary" column="salary" />
+        <result property="link" column="link" />
+        <result property="companyIndustries" column="company_industries"
+            typeHandler="com.zdmj.common.typehandler.JsonbListTypeHandler" />
+        <result property="companySize" column="company_size" />
+        <result property="companyFundingType" column="company_funding_type" />
+    </resultMap>
+
+    <sql id="Job_Company_From_Where"> FROM jobs j INNER JOIN companies c ON j.company_id = c.id
+        WHERE 1 = 1 <if test="companySizes != null and companySizes.size() &gt; 0"> AND c.size IN <foreach
+                collection="companySizes" item="s" open="(" separator="," close=")">#{s}</foreach>
+        </if>   
+        <if
+            test="fundingTypes != null and fundingTypes.size() &gt; 0"> AND c.type IN <foreach
+                collection="fundingTypes" item="t" open="(" separator="," close=")">#{t}</foreach>
+        </if>
+        <if
+            test="industries != null and industries.size() &gt; 0"> AND ( <foreach
+                collection="industries" item="ind" separator=" OR "> (c.industries IS NOT NULL AND
+        c.industries::jsonb @> jsonb_build_array(#{ind})) </foreach> ) </if>
+        <if test="companyNameKeyword != null and companyNameKeyword != ''"> AND (j.company_name LIKE '%' || CAST(#{companyNameKeyword} AS TEXT) || '%' OR c.name LIKE '%' || CAST(#{companyNameKeyword} AS TEXT) || '%') </if>
+    </sql>
+
+    <select id="selectDetailById" resultMap="JobDetailDTOMap"> SELECT j.id, j.job_name,
+        j.company_id, j.company_name, j.description, j.location, j.salary, j.link, j.content,
+        j.requirements, j.recall, c.industries AS company_industries,
+        c.size AS company_size, c.type AS company_funding_type FROM jobs j INNER JOIN companies c ON
+        j.company_id = c.id WHERE j.id = #{id} </select>
+
+    <select id="selectPage" resultMap="JobListItemDTOMap"> SELECT j.id, j.job_name, j.company_id,
+        j.company_name, j.description, j.location, j.salary, j.link,
+        c.industries AS company_industries, c.size AS company_size, c.type AS company_funding_type <include
+            refid="Job_Company_From_Where" /> ORDER BY j.updated_at DESC LIMIT #{limit} OFFSET
+        #{offset} </select>
+
+    <select id="countPage" resultType="java.lang.Long"> SELECT COUNT(*) <include
+            refid="Job_Company_From_Where" />
+    </select>
+</mapper>

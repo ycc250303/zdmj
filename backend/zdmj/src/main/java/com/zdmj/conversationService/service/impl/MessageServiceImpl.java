@@ -4,10 +4,11 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.cache.RedisUtil;
+import com.zdmj.common.config.RagConfig;
 import com.zdmj.common.context.UserHolder;
+import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.model.PageResult;
 import com.zdmj.common.util.ChatUtil;
 import com.zdmj.common.util.PromptUtil;
 import com.zdmj.conversationService.dto.MessageDTO;
@@ -17,6 +18,7 @@ import com.zdmj.conversationService.enums.MessageRoleEnum;
 import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.service.ConversationService;
 import com.zdmj.conversationService.service.MessageService;
+import com.zdmj.knowledgeService.service.KnowledgeRagService;
 
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ import reactor.core.publisher.Sinks;
 
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -43,6 +46,8 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     private final ChatUtil chatUtil;
     private final MessageMapper messageMapper;
     private final ConversationService conversationService;
+    private final KnowledgeRagService knowledgeRagService;
+    private final RagConfig ragConfig;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     // Redis 刷新策略：至少间隔 300ms 或新增 >= 1024 字符时写一次
@@ -57,6 +62,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     private static final int MAX_MESSAGE_PAGE_SIZE = 100;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Flux<ServerSentEvent<String>> createStream(MessageDTO dto) {
         Conversation conversation = requireConversationAccess(dto.getConversationId());
         Long userId = UserHolder.requireUserId();
@@ -95,7 +101,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         Sinks.Many<String> sink = Sinks.many().multicast().onBackpressureBuffer();
         streamSinkMap.put(streamId, sink);
 
-        // 更新会话信息（上下文、消息总数、最后一条消息时间）
+        // 4.更新会话信息（上下文、消息总数、最后一条消息时间）
         conversation.setMessageCount(messageCount + 2);
         conversation.setLastMessageAt(LocalDateTime.now());
         // 生成会话标题
@@ -105,7 +111,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         }
         conversationService.updateById(conversation);
 
-        // 初始化状态
+        // 5.初始化状态
         redisUtil.setString(statusKey, "streaming", STREAM_TTL_SECONDS);
         redisUtil.setString(contentKey, "", STREAM_TTL_SECONDS);
         redisUtil.setString(doneKey, "0", STREAM_TTL_SECONDS);
@@ -115,36 +121,38 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         AtomicLong lastFlushAt = new AtomicLong(System.currentTimeMillis());
         AtomicInteger lastFlushedLen = new AtomicInteger(0);
 
-        // 4.调用 AI 服务
-        chatUtil.chatStream(
-                dto.getConversationId(),
-                dto.getMessage(),
-                PromptUtil.PromptNames.SYSTEM)
-                .doOnNext(chunk -> {
-                    if (chunk == null || chunk.isEmpty()) {
-                        return;
-                    }
+        // 6.调用 AI 服务
+        Flux<String> chatFlux = ragConfig.getRewrite().isEnabled()
+                ? knowledgeRagService.streamAnswer(dto.getConversationId(), dto.getMessage())
+                : chatUtil.chatStream(
+                        dto.getConversationId(),
+                        dto.getMessage(),
+                        PromptUtil.PromptNames.SYSTEM);
+        chatFlux.doOnNext(chunk -> {
+            if (chunk == null || chunk.isEmpty()) {
+                return;
+            }
 
-                    // 追加内容
-                    full.append(chunk);
-                    // 尝试发送消息
-                    sink.tryEmitNext(chunk);
+            // 追加内容
+            full.append(chunk);
+            // 尝试发送消息
+            sink.tryEmitNext(chunk);
 
-                    int currLen = full.length();
-                    long now = System.currentTimeMillis();
+            int currLen = full.length();
+            long now = System.currentTimeMillis();
 
-                    boolean flushByTime = now - lastFlushAt.get() > REDIS_FLUSH_INTERVAL_MS;
-                    boolean flushByLength = currLen - lastFlushedLen.get() > REDIS_FLUSH_DELTA_CHARS;
-                    boolean flush = flushByTime || flushByLength;
+            boolean flushByTime = now - lastFlushAt.get() > REDIS_FLUSH_INTERVAL_MS;
+            boolean flushByLength = currLen - lastFlushedLen.get() > REDIS_FLUSH_DELTA_CHARS;
+            boolean flush = flushByTime || flushByLength;
 
-                    if (flush) {
-                        // 节流写 Redis，避免每 chunk 全量覆盖
-                        // TODO：可考虑引入 Redis Stream进一步优化
-                        redisUtil.setString(contentKey, full.toString(), STREAM_TTL_SECONDS);
-                        lastFlushAt.set(now);
-                        lastFlushedLen.set(currLen);
-                    }
-                })
+            if (flush) {
+                // 节流写 Redis，避免每 chunk 全量覆盖
+                // TODO：可考虑引入 Redis Stream 进一步优化
+                redisUtil.setString(contentKey, full.toString(), STREAM_TTL_SECONDS);
+                lastFlushAt.set(now);
+                lastFlushedLen.set(currLen);
+            }
+        })
                 .doOnError(e -> {
                     // 错误态 + 最终内容落缓存，方便前端恢复展示
                     redisUtil.setString(contentKey, full.toString(), STREAM_TTL_SECONDS);
@@ -196,6 +204,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Flux<ServerSentEvent<String>> resumeStream(Long streamId, int offset) {
         if (streamId == null) {
             throw new BusinessException(ErrorCode.ILLEGAL_ARGUMENT.getCode(), "streamId不能为空");
@@ -246,10 +255,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     }
 
     @Override
-    public PageResult<Message> getMessagesByConversationId(Long conversationId, Integer page, Integer limit) {
-        if (conversationId == null) {
-            throw new BusinessException(ErrorCode.ILLEGAL_ARGUMENT.getCode(), "conversationId不能为空");
-        }
+    public PageDTO<Message> getMessagesByConversationId(Long conversationId, Integer page, Integer limit) {
         requireConversationAccess(conversationId);
         int p = (page == null || page < 1) ? 1 : page;
         int l = (limit == null || limit < 1) ? 20 : Math.min(limit, MAX_MESSAGE_PAGE_SIZE);
@@ -257,22 +263,19 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         Integer totalInt = messageMapper.selectMessageCountByConversationId(conversationId);
         long total = totalInt == null ? 0L : totalInt.longValue();
         List<Message> data = messageMapper.selectPageByConversationId(conversationId, offset, l);
-        return PageResult.of(data, total, p, l);
+        return PageDTO.of(data, total, p, l);
     }
 
     /**
-     * 验证会话访问权限
-     * 
-     * @param conversationId 会话ID
+     * 校验会话 ID 有效且存在，且属于当前用户（发送消息、拉取消息列表前调用）。
      */
     private Conversation requireConversationAccess(Long conversationId) {
-        Long userId = UserHolder.requireUserId();
+        if (conversationId == null) {
+            throw new BusinessException(ErrorCode.ILLEGAL_ARGUMENT.getCode(), "会话ID不能为空");
+        }
         Conversation conversation = conversationService.getById(conversationId);
         if (conversation == null) {
             throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
-        }
-        if (!conversation.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION);
         }
         return conversation;
     }

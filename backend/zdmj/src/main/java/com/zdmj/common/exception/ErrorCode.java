@@ -80,12 +80,14 @@ public enum ErrorCode {
     // ========== 知识库相关 (8xxx) ==========
     KNOWLEDGE_BASE_SAVE_FAILED(8001, "保存知识库失败"),
     KNOWLEDGE_BASE_ID_EMPTY(8002, "知识库ID不能为空"),
-    KNOWLEDGE_BASE_UPDATE_FAILED(8003, "更新知识库失败"),
     KNOWLEDGE_BASE_DELETE_FAILED(8004, "删除知识库失败"),
     KNOWLEDGE_BASE_NOT_FOUND(8005, "知识库不存在"),
     KNOWLEDGE_BASE_NAME_EXISTS(8006, "知识库名称已存在，请使用其他名称"),
     FILE_TYPE_NOT_EXISTS(8009, "文件类型不存在，请不要修改知识内容中的URL"),
     KNOWLEDGE_BASE_EMBEDDING_FAILED(8010, "向量化任务失败"),
+    KNOWLEDGE_DOCUMENT_CREATE_FAILED(8011, "创建知识文档失败"),
+    KNOWLEDGE_DOCUMENT_NOT_FOUND(8012, "知识文档不存在"),
+    KNOWLEDGE_DOCUMENT_UPDATE_FAILED(8013, "更新知识文档失败"),
 
     // ========== 对话相关 (9xxx) ==========
     CONVERSATION_CREATE_FAILED(9001, "创建会话失败"),
@@ -95,7 +97,8 @@ public enum ErrorCode {
     MESSAGE_CREATE_FAILED(9005, "创建消息失败"),
 
     // ========== 岗位与公司 (82xx) ==========
-    JOB_NOT_FOUND(8201, "岗位不存在");
+    JOB_NOT_FOUND(8201, "岗位不存在"),
+    JOB_CAPABILITY_PROFILE_GENERATION_FAILED(8202, "生成岗位能力画像失败");
 
     private final Integer code;
     private final String message;

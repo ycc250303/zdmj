@@ -1,69 +1,41 @@
 package com.zdmj.knowledgeService.service;
 
-import com.zdmj.common.model.PageResult;
-import com.zdmj.knowledgeService.dto.KnowledgeBasesDTO;
-import com.zdmj.knowledgeService.dto.KnowledgeEmbeddingProgressDTO;
 import com.zdmj.knowledgeService.entity.KnowledgeBases;
 
-import java.util.List;
 
 public interface KnowledgeBasesService {
 
     /**
      * 创建知识库的方法
      *
-     * @param knowledgeBasesDTO 包含知识库信息的数据传输对象
      * @return KnowledgeBases 返回创建后的知识库实体
      */
-    KnowledgeBases create(KnowledgeBasesDTO knowledgeBasesDTO);
+    KnowledgeBases create();
 
     /**
      * 根据用户ID获取知识库列表
      *
      * @return 返回用户关联的知识库列表，KnowledgeBases类型的集合
      */
-    List<KnowledgeBases> getByUserId();
+    KnowledgeBases getByUserId();
 
     /**
-     * 分页查询知识库列表（支持项目ID和类型过滤）
+     * 获取当前用户（scope=1）知识库主键；不存在则创建后返回。
      *
-     * @param page      页码（从1开始），默认为1
-     * @param limit     每页数量，默认为10
-     * @param projectId 项目ID（可选）
-     * @param type      知识类型（可选）
-     * @return 分页结果
+     * @return 知识库 id
      */
-    PageResult<KnowledgeBases> getPage(Integer page, Integer limit, Long projectId, Integer type);
-
-    /**
-     * 根据ID获取知识库
-     *
-     * @param id 知识库ID
-     * @return 返回知识库实体
-     */
-    KnowledgeBases getById(Long id);
+    Long getOrCreateKnowledgeBaseId();
 
     /**
      * 更新知识库
      *
-     * @param knowledgeBasesDTO 包含知识库信息的数据传输对象
      * @return 返回更新后的知识库实体
      */
-    KnowledgeBases update(KnowledgeBasesDTO knowledgeBasesDTO);
+    // void update();
 
     /**
-     * 删除知识库
+     * 清空知识库
      *
-     * @param id 知识库ID
      */
-    void delete(Long id);
-
-    /**
-     * 查询知识库向量化进度
-     *
-     * @param id 知识库ID
-     * @return 向量化进度信息
-     */
-    KnowledgeEmbeddingProgressDTO getEmbeddingProgress(Long id);
-
+    void clear();
 }

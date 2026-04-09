@@ -13,6 +13,8 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 -- 安装 hnsw 扩展
 CREATE EXTENSION IF NOT EXISTS hnsw;
+-- 安装 pg_trgm 扩展
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 -- 删除表
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS user_profiles;
@@ -25,6 +27,7 @@ DROP TABLE IF EXISTS resumes;
 DROP TABLE IF EXISTS resume_matches;
 DROP TABLE IF EXISTS jobs;
 DROP TABLE IF EXISTS companies;
+DROP TABLE IF EXISTS knowledge_documents;
 DROP TABLE IF EXISTS knowledge_bases;
 DROP TABLE IF EXISTS knowledge_vectors;
 DROP TABLE IF EXISTS knowledge_vector_tasks;
@@ -42,7 +45,7 @@ CREATE TABLE IF NOT EXISTS users (
     -- 用户名
     password VARCHAR(500) NOT NULL,
     -- 密码（加密）
-    email VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
     -- 邮箱
     name VARCHAR(50),
     -- 姓名
@@ -379,6 +382,35 @@ CREATE INDEX IF NOT EXISTS idx_resume_matches_user_id_name ON resume_matches(use
 CREATE INDEX IF NOT EXISTS idx_resume_matches_job_id ON resume_matches(job_id);
 CREATE INDEX IF NOT EXISTS idx_resume_matches_resume_id ON resume_matches(resume_id);
 CREATE INDEX IF NOT EXISTS idx_resume_matches_status ON resume_matches(status);
+-- 2.7 学生就业能力画像表
+CREATE TABLE IF NOT EXISTS student_capability_profiles (
+    id BIGSERIAL PRIMARY KEY,
+    -- 画像ID
+    user_id BIGINT UNIQUE NOT NULL,
+    -- 关联用户ID（逻辑外键：users.id）
+    professional_skills TEXT,
+    -- 专业技能
+    certificates TEXT,
+    -- 证书
+    innovation_ability TEXT,
+    -- 创新能力
+    learning_ability TEXT,
+    -- 学习能力
+    pressure_resistance TEXT,
+    -- 抗压能力
+    communication_ability TEXT,
+    -- 沟通能力
+    practical_ability TEXT,
+    -- 实习能力
+    completeness_score INTEGER NOT NULL DEFAULT 0,
+    -- 完整度评分 (0-100)
+    competitiveness_score INTEGER NOT NULL DEFAULT 0,
+    -- 竞争力评分 (0-100)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- 创建时间
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
+);
+CREATE INDEX IF NOT EXISTS idx_student_capability_profiles_user_id ON student_capability_profiles(user_id);
 --
 -- ==========================3 岗位模块==========================
 --
@@ -422,6 +454,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 CREATE INDEX IF NOT EXISTS idx_jobs_location ON jobs(location);
 CREATE INDEX IF NOT EXISTS idx_jobs_company_id ON jobs(company_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_company_name ON jobs(company_name);
+CREATE INDEX IF NOT EXISTS idx_jobs_embedding ON jobs USING HNSW (embedding vector_cosine_ops) WITH (M = 16, ef_construction = 100);
 -- 3.2 公司表
 CREATE TABLE IF NOT EXISTS companies (
     id BIGSERIAL PRIMARY KEY,
@@ -445,54 +478,93 @@ CREATE TABLE IF NOT EXISTS companies (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
 );
 CREATE INDEX IF NOT EXISTS idx_companies_name ON companies(name);
+CREATE INDEX IF NOT EXISTS idx_jobs_company_name_trgm ON jobs USING GIN (company_name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_companies_name_trgm ON companies USING GIN (name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_companies_size ON companies(size);
 CREATE INDEX IF NOT EXISTS idx_companies_type ON companies(type);
 CREATE INDEX IF NOT EXISTS idx_companies_industries ON companies(industries);
---
--- ==========================4 知识库模块==========================
---
--- 4.1 知识库表
-CREATE TABLE IF NOT EXISTS knowledge_bases (
+-- 3.3 岗位能力画像表
+CREATE TABLE IF NOT EXISTS job_capability_profiles (
     id BIGSERIAL PRIMARY KEY,
-    -- 知识库ID
-    user_id BIGINT NOT NULL,
-    -- 用户ID（逻辑外键：users.id）
-    name VARCHAR(255) NOT NULL,
-    -- 知识库名称
-    project_id BIGINT,
-    -- 关联项目id
-    tag JSONB DEFAULT '[]'::jsonb,
-    -- 知识标签数组
-    -- tag 示例
-    -- ["技术文档", "API文档"]
-    type SMALLINT NOT NULL,
-    -- 知识类型（枚举：1=项目文档（包含txt、pdf、md、普通URL等）/2=GitHub链接（GitHub仓库或文件）/3=项目DeepWiki文档（暂不实现，留作扩展））
-    content TEXT NOT NULL,
-    -- 文档内容或URL
-    vector_task_id BIGINT,
-    -- 最近一次向量化任务ID
-    vector_task_status VARCHAR(20),
-    -- 最近一次任务状态（PENDING/RUNNING/SUCCESS/FAILED/CANCELLED）
-    content_hash VARCHAR(64),
-    -- 内容哈希
-    embedding_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
-    -- 向量化状态（PENDING/EMBEDDING/READY/FAILED）
-    chunk_count INTEGER NOT NULL DEFAULT 0,
-    -- 当前已写入的文档块数量
-    last_embedded_at TIMESTAMP,
-    -- 最近一次向量化完成时间
-    last_error TEXT,
-    -- 最近一次向量化错误信息
+    -- 岗位能力画像ID
+    job_id BIGINT NOT NULL,
+    -- 岗位ID（逻辑外键：jobs.id）
+    professional_skills TEXT,
+    -- 专业技能
+    certificates TEXT,
+    -- 证书
+    innovation_ability TEXT,
+    -- 创新能力
+    learning_ability TEXT,
+    -- 学习能力
+    pressure_resistance TEXT,
+    -- 抗压能力
+    communication_ability TEXT,
+    -- 沟通能力
+    practical_ability TEXT,
+    -- 实习能力
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
 );
-CREATE INDEX IF NOT EXISTS idx_knowledge_bases_user_id ON knowledge_bases(user_id);
-CREATE INDEX IF NOT EXISTS idx_knowledge_bases_user_id_project_id ON knowledge_bases(user_id, project_id);
-CREATE INDEX IF NOT EXISTS idx_knowledge_bases_type ON knowledge_bases(type);
-CREATE INDEX IF NOT EXISTS idx_knowledge_bases_vector_task_id ON knowledge_bases(vector_task_id);
-CREATE INDEX IF NOT EXISTS idx_knowledge_bases_embedding_status ON knowledge_bases(embedding_status);
-CREATE INDEX IF NOT EXISTS idx_knowledge_bases_user_id_content_hash ON knowledge_bases(user_id, content_hash);
+CREATE INDEX IF NOT EXISTS idx_job_capability_profiles_job_id ON job_capability_profiles(job_id);
+--
+-- ==========================4 知识库模块==========================
+--
+-- 4.1 知识库表（每个用户仅一个用户私有库 + 一个系统默认库；向量化汇总见 knowledge_documents）
+CREATE TABLE IF NOT EXISTS knowledge_bases (
+    id BIGSERIAL PRIMARY KEY,
+    -- 知识库ID
+    user_id BIGINT NOT NULL DEFAULT 0,
+    -- 用户ID（逻辑外键：users.id）
+    scope SMALLINT NOT NULL DEFAULT 1,
+    -- 知识库范围（枚举：1=USER用户私有/2=SYSTEM系统通用）
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- 创建时间
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_bases_user_id ON knowledge_bases (user_id);
+-- 约束：每个用户最多一个 USER 知识库
+CREATE UNIQUE INDEX IF NOT EXISTS uk_knowledge_bases_user_single ON knowledge_bases (user_id)
+WHERE scope = 1;
+-- 约束：系统默认知识库最多一个
+CREATE UNIQUE INDEX IF NOT EXISTS uk_knowledge_bases_system_default_single ON knowledge_bases (scope)
+WHERE scope = 2;
+-- 4.2 知识文档表（一个知识库可关联多个文件/链接）
+CREATE TABLE IF NOT EXISTS knowledge_documents (
+    id BIGSERIAL PRIMARY KEY,
+    -- 文档ID
+    knowledge_id BIGINT NOT NULL,
+    -- 知识库ID（逻辑外键：knowledge_bases.id）
+    user_id BIGINT NOT NULL DEFAULT 0,
+    -- 用户ID（逻辑外键：users.id）
+    type SMALLINT NOT NULL,
+    -- 来源类型（枚举：1=上传文件/2=GitHub仓库/3=DeepWiki）
+    content TEXT NOT NULL,
+    -- 来源地址
+    title VARCHAR(500),
+    -- 文档标题
+    content_hash VARCHAR(64),
+    -- 文档内容哈希（去重/增量）
+    embedding_status SMALLINT NOT NULL DEFAULT 1,
+    -- 向量化状态（1=pending/2=running/3=success/4=failed）
+    chunk_count INTEGER NOT NULL DEFAULT 0,
+    -- 文档分块数量
+    last_embedded_at TIMESTAMP,
+    -- 最近一次向量化完成时间
+    last_error TEXT,
+    -- 最近错误信息
+    metadata JSONB DEFAULT '{}'::jsonb,
+    -- 文档元数据
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_documents_knowledge_id ON knowledge_documents (knowledge_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_documents_user_id ON knowledge_documents (user_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_documents_type ON knowledge_documents (type);
+CREATE INDEX IF NOT EXISTS idx_knowledge_documents_embedding_status ON knowledge_documents (knowledge_id, embedding_status);
+CREATE INDEX IF NOT EXISTS idx_knowledge_documents_content_hash ON knowledge_documents (content_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_knowledge_documents_kid_content ON knowledge_documents (knowledge_id, content);
 --
 -- ==========================5 向量检索模块==========================
 --
@@ -501,8 +573,10 @@ CREATE TABLE IF NOT EXISTS knowledge_vectors (
     id BIGSERIAL PRIMARY KEY,
     -- 向量ID
     knowledge_id BIGINT NOT NULL,
-    -- 知识库文档ID（逻辑外键：knowledge_bases.id）
-    user_id BIGINT NOT NULL,
+    -- 知识库ID（逻辑外键：knowledge_bases.id）
+    document_id BIGINT,
+    -- 文档ID（逻辑外键：knowledge_documents.id）
+    user_id BIGINT NOT NULL DEFAULT 0,
     -- 用户ID（逻辑外键：users.id）
     embedding VECTOR(1024) NOT NULL,
     -- 文档块向量（1024维，使用text-embedding-v4模型）
@@ -512,7 +586,7 @@ CREATE TABLE IF NOT EXISTS knowledge_vectors (
     -- 元数据（文件名、标签、项目名等）
     -- metadata 示例
     -- {
-    --   "knowledgeId": "知识库ID",
+    --   "knowledgeDocumentId": "知识文档ID",
     --   "source": "文档来源（文件名、URL等）"
     -- }
     chunk_index INTEGER,
@@ -523,12 +597,16 @@ CREATE TABLE IF NOT EXISTS knowledge_vectors (
     -- 文档块Token数量（用于上下文预算控制）
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 创建时间
 );
-CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_user_id ON knowledge_vectors(user_id);
-CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_knowledge_id ON knowledge_vectors(knowledge_id);
-CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_user_id_knowledge_id ON knowledge_vectors(user_id, knowledge_id);
-CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_task_id ON knowledge_vectors(task_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_user_id ON knowledge_vectors (user_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_knowledge_id ON knowledge_vectors (knowledge_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_user_id_knowledge_id ON knowledge_vectors (user_id, knowledge_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_document_id ON knowledge_vectors (document_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_embedding ON knowledge_vectors USING HNSW (embedding vector_cosine_ops) WITH (M = 16, ef_construction = 100);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_vectors_knowledge_id_chunk_index ON knowledge_vectors(knowledge_id, chunk_index);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_knowledge_vectors_kid_did_chunk ON knowledge_vectors (
+    knowledge_id,
+    COALESCE(document_id, 0),
+    chunk_index
+);
 -- 5.2 向量化任务表（异步任务）
 CREATE TABLE IF NOT EXISTS knowledge_vector_tasks (
     id BIGSERIAL PRIMARY KEY,
@@ -537,6 +615,8 @@ CREATE TABLE IF NOT EXISTS knowledge_vector_tasks (
     -- 用户ID（逻辑外键：users.id）
     knowledge_id BIGINT,
     -- 知识库ID（逻辑外键：knowledge_bases.id）
+    document_id BIGINT,
+    -- 文档ID（逻辑外键：knowledge_documents.id，可空表示整库任务）
     task_type SMALLINT NOT NULL,
     -- 任务类型（枚举：1=创建向量/2=更新向量/3=删除向量）
     status SMALLINT NOT NULL,
@@ -553,6 +633,8 @@ CREATE TABLE IF NOT EXISTS knowledge_vector_tasks (
 );
 CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_user_id ON knowledge_vector_tasks(user_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_knowledge_id ON knowledge_vector_tasks(knowledge_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_document_id ON knowledge_vector_tasks(document_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_document_id_user_id ON knowledge_vector_tasks(document_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_knowledge_id_created_at ON knowledge_vector_tasks(knowledge_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_status ON knowledge_vector_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_task_type ON knowledge_vector_tasks(task_type);
@@ -565,24 +647,19 @@ CREATE TABLE IF NOT EXISTS conversations (
     -- 会话ID
     user_id BIGINT NOT NULL,
     -- 用户ID（逻辑外键：users.id）
-    project_id BIGINT,
-    -- 关联项目ID（逻辑外键：project_experiences.id，可选）
-    -- 说明：NULL 表示通用对话（不关联项目），有值表示项目关联对话
-    -- 项目关联对话会自动注入项目数据、文档、代码等上下文信息
     title VARCHAR(255),
     -- 对话标题（可由AI生成或用户自定义，首次消息时可为空）
     config JSONB DEFAULT '{}'::jsonb,
     -- 对话配置（ragEnabled、max_tokens、top_p等参数）
-    -- config 示例
+    -- config 示例（JSON 仅为说明，实际由应用解析）
     -- {
     --   "ragEnabled": true,
-    --   "knowledgeIds": [1, 2, 3],
+    --   "useSystemKnowledge": true,
     --   "topK": 10,
     --   "minScore": 0.5
     -- }
     context JSONB DEFAULT '[]'::jsonb,
     -- 上下文信息（可关联知识库等，用于RAG检索）
-    -- 注意：如果 project_id 有值，项目信息会自动注入，无需在此重复
     -- context 示例
     -- [
     --   {
@@ -601,8 +678,6 @@ CREATE TABLE IF NOT EXISTS conversations (
 );
 CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_user_id_created_at ON conversations(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_conversations_project_id ON conversations(project_id);
-CREATE INDEX IF NOT EXISTS idx_conversations_user_id_project_id ON conversations(user_id, project_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_last_message_at ON conversations(last_message_at DESC);
 -- 6.2 消息表
 CREATE TABLE IF NOT EXISTS messages (
