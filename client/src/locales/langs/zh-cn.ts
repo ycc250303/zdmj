@@ -232,7 +232,8 @@ const local: App.I18n.Schema = {
     "profile_career":'工作经历管理',
     "profile_skill":'技能管理',
     "profile_basic-info":'基本信息',
-    "knowledge": '知识库'
+    "knowledge": '知识库',
+    "chat": 'AI 对话'
   },
   page: {
     login: {

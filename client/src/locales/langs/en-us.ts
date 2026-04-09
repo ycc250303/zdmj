@@ -235,7 +235,8 @@ const local: App.I18n.Schema = {
     "profile_career":'Career',
     "profile_skill":'Skills',
     "profile_basic-info":'basic-info',
-    "knowledge": 'Knowledge Base'
+    "knowledge": 'Knowledge Base',
+    "chat": 'AI Chat'
   },
   page: {
     login: {
