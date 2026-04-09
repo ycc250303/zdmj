@@ -329,6 +329,20 @@ const local: App.I18n.Schema = {
       actionEnter: 'Enter Console',
       actionLogin: 'Experience Now'
     },
+    chat: {
+      newChat: 'New Chat',
+      startNewConversation: 'Start a new conversation~~',
+      aiAssistant: 'AI Assistant',
+      inputPlaceholder: 'Send a message to AI assistant',
+      collapseChatList: 'Collapse chat list',
+      expandChatList: 'Expand chat list',
+      deleteConfirm: 'Are you sure you want to delete this conversation?',
+      deleteSuccess: 'Delete successful',
+      deleteFailed: 'Delete failed',
+      createSuccess: 'Create successful',
+      createFailed: 'Create failed',
+      sendFailed: 'Send message failed'
+    },
     "profile": {
       "common": {
         "add": "Add",

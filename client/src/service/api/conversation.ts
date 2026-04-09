@@ -116,7 +116,7 @@ export async function fetchChatStream(
   // 假定你的 BASE_URL 是 /api 或从环境变量获取
   const baseUrl = import.meta.env.VITE_SERVICE_BASE_URL || '/api';
   const isHttpProxy = import.meta.env.DEV && import.meta.env.VITE_HTTP_PROXY === 'Y';
-  // 这里简化处理，直接使用 fetch
+  // ��里简化处理，直接使用 fetch
   const url = isHttpProxy ? `/proxy-default/messages/chat` : `${baseUrl}/messages/chat`;
 
   // 构建headers，只有token存在时才添加Authorization
@@ -162,8 +162,20 @@ export async function fetchChatStream(
         for (const line of lines) {
           if (line.startsWith('data:')) {
             const dataStr = line.replace('data:', '').trim();
-            if (dataStr) {
-              onMessage(dataStr);
+            if (dataStr && dataStr !== '[DONE]') {
+              try {
+                // 解析OpenAI格式的SSE数据
+                const jsonData = JSON.parse(dataStr);
+                // 提取choices[0].delta.content
+                const content = jsonData.choices?.[0]?.delta?.content;
+                if (content) {
+                  onMessage(content);
+                }
+              } catch (e) {
+                // 如果解析失败，直接使用原始数据
+                console.error('解析SSE数据失败:', e, dataStr);
+                onMessage(dataStr);
+              }
             }
           }
         }

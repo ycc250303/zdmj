@@ -317,16 +317,30 @@ const local: App.I18n.Schema = {
       creativity: '创意'
     },
     portal: {
-      title: '“职”点迷津',
+      title: '”职”点迷津',
       hello: '你好，',
       enterConsole: '进入控制台',
       loginSystem: '登录系统',
       heroTitle: '欢迎来到 SmartHire\n智能求职导航',
-      heroDesc: '面向软件工程大学生的智能、高效、一站式求职解决方案',
+      heroDesc: '面向软件工程大学生的智能、高效、一站��求职解决方案',
       actionEnter: '进入控制台',
       actionLogin: '立即登录体验'
     },
-    "profile": {
+    chat: {
+      newChat: '新对话',
+      startNewConversation: '开始一段新的对话吧~~',
+      aiAssistant: 'AI 助手',
+      inputPlaceholder: '给 AI 助手发送消息',
+      collapseChatList: '折叠对话列表',
+      expandChatList: '��开对话列表',
+      deleteConfirm: '确定要删除该对话吗？',
+      deleteSuccess: '删除成功',
+      deleteFailed: '删除失败',
+      createSuccess: '创建成功',
+      createFailed: '创建失败',
+      sendFailed: '发送消息失败'
+    },
+    profile: {
       "common": {
         "add": "添加",
         "edit": "编辑",

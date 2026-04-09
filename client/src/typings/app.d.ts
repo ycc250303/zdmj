@@ -552,7 +552,7 @@ declare namespace App {
           };
           creativity: string;
         };
-        portal: { 
+        portal: {
           title: string;
           hello: string;
           enterConsole: string;
@@ -561,6 +561,20 @@ declare namespace App {
           heroDesc: string;
           actionEnter: string;
           actionLogin: string;
+        };
+        chat: {
+          newChat: string;
+          startNewConversation: string;
+          aiAssistant: string;
+          inputPlaceholder: string;
+          collapseChatList: string;
+          expandChatList: string;
+          deleteConfirm: string;
+          deleteSuccess: string;
+          deleteFailed: string;
+          createSuccess: string;
+          createFailed: string;
+          sendFailed: string;
         };
         profile: {
           common: {
