@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper">
+
+    <!-- 根据用户ID查询知识库 -->
+    <select id="selectKnowledgIdByDocumentId"
+        resultType="Long"> SELECT knowledge_id FROM
+        knowledge_documents WHERE id = #{documentId} </select>
+
+    <!-- 根据知识库ID删除知识文档 -->
+    <delete id="deleteByKnowledgeId"> DELETE FROM knowledge_documents WHERE knowledge_id = #{knowledgeId} </delete>
+</mapper>

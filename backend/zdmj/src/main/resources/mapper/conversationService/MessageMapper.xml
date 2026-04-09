@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zdmj.conversationService.mapper.MessageMapper">
+    <select id="selectPageByConversationId" resultType="com.zdmj.conversationService.entity.Message">
+        SELECT id, conversation_id, user_id, role, content, sequence, created_at
+        FROM messages
+        WHERE conversation_id = #{conversationId}
+        ORDER BY sequence ASC NULLS LAST, id ASC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="selectMessageCountByConversationId" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM messages WHERE conversation_id = #{conversationId}
+    </select>
+</mapper>
