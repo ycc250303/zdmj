@@ -9,6 +9,9 @@ import lombok.Data;
 @ConfigurationProperties(prefix = "spring.ai.rag")
 public class RagConfig {
 
+    /** 是否启用RAG */
+    private boolean enabled = true;
+
     private final Rewrite rewrite = new Rewrite();
     private final Search search = new Search();
 
