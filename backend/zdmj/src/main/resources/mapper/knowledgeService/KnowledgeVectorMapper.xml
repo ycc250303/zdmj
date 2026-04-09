@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper">
+  <!--
+      骨架文件：当前不定义自定义 SQL。
+      后续如需复杂查询，可在此补充 select/insert/update/delete 语句。
+    -->
+  <!-- 根据知识库ID删除向量 -->
+  <delete id="deleteByDocumentIdAndUserId" parameterType="long">
+    DELETE FROM knowledge_vectors WHERE document_id = #{DocumentId} AND user_id = #{userId}
+    RETURNING id
+  </delete>
+
+  <insert id="batchInsert">
+    INSERT INTO knowledge_vectors (
+      knowledge_id,
+      document_id,
+      user_id,
+      embedding,
+      content,
+      metadata,
+      chunk_index,
+      chunk_hash,
+      token_count
+    )
+    VALUES
+    <foreach collection="rows" item="r" separator=",">
+      (
+        #{r.knowledgeId},
+        #{r.documentId},
+        #{r.userId},
+        CAST(#{r.embedding} AS vector),
+        #{r.content},
+        #{r.metadata, typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
+        #{r.chunkIndex},
+        #{r.chunkHash},
+        #{r.tokenCount}
+      )
+    </foreach>
+  </insert>
+
+  <!-- 根据知识库ID删除向量 -->
+  <delete id="deleteByKnowledgeId"> DELETE FROM knowledge_vectors WHERE knowledge_id = #{knowledgeId} </delete>
+
+   <!--
+      pgvector 运算符 <=> 表示余弦距离（与索引 vector_cosine_ops 一致）。
+      相似度常用写法：score = 1 - distance，便于设阈值（如 0.28）。
+    -->
+    <select id="searchBySimilarity" resultType="com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO">
+      SELECT
+          kv.id,
+          kv.document_id AS documentId,
+          kv.chunk_index AS chunkIndex,
+          kv.content,
+          kv.metadata,
+          (1 - (kv.embedding <![CDATA[ <=> ]]> CAST(#{queryEmbedding} AS vector))) AS score
+      FROM knowledge_vectors kv
+      WHERE kv.user_id = #{userId}
+        AND kv.knowledge_id = #{knowledgeId}
+      ORDER BY kv.embedding <![CDATA[ <=> ]]> CAST(#{queryEmbedding} AS vector)
+      LIMIT #{limit}
+  </select>
+
+  <select id="selectChunksByDocuments" resultType="com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO">
+    SELECT
+        kv.id,
+        kv.document_id AS documentId,
+        kv.chunk_index AS chunkIndex,
+        kv.content,
+        kv.metadata,
+        CAST(NULL AS double precision) AS score
+    FROM knowledge_vectors kv
+    WHERE kv.user_id = #{userId}
+      AND kv.knowledge_id = #{knowledgeId}
+      AND kv.document_id IN
+    <foreach collection="documentIds" item="did" open="(" separator="," close=")">
+      #{did}
+    </foreach>
+    ORDER BY kv.document_id, kv.chunk_index NULLS LAST
+  </select>
+</mapper>
