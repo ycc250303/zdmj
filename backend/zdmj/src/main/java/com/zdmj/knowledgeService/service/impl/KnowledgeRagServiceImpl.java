@@ -9,6 +9,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.apache.ibatis.session.SqlSessionFactory;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingRequest;
 import org.springframework.ai.embedding.EmbeddingResponse;
@@ -49,10 +50,11 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
     private final KnowledgeBasesService knowledgeBasesService;
     private final KnowledgeEmbeddingService knowledgeEmbeddingService;
     private final KnowledgeVectorMapper knowledgeVectorMapper;
+    private final SqlSessionFactory sqlSessionFactory;
     private final ChatUtil chatUtil;
 
     public Flux<String> streamAnswer(Long conversationId, String userMessage) {
-        if (!ragConfig.getRewrite().isEnabled()) {
+        if (!ragConfig.isEnabled()) {
             // 总开关关闭时退回普通对话
             return chatUtil.chatStream(conversationId, userMessage, PromptUtil.PromptNames.SYSTEM);
         }
@@ -80,11 +82,12 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         retrivals = expandHitsToFullDocuments(userId, knowledgeId, retrivals);
 
         if (retrivals.isEmpty()) {
-            log.info("RAG 无有效命中: userId={}, knowledgeId={}, rawStringLen={}", userId, knowledgeId, rawString.length());
-            return Flux.just("我在你的知识库中没有检索到与问题足够相关的片段，因此无法基于资料作答。你可以尝试换一种问法，或先上传/向量化相关文档。");
+            log.info("RAG 无有效命中，退回求职导师对话: userId={}, knowledgeId={}, rawStringLen={}",
+                    userId, knowledgeId, rawString.length());
+            return chatUtil.chatStream(conversationId, rawString, PromptUtil.PromptNames.SYSTEM);
         }
 
-        // 6.输出检索命中明细   
+        // 6.输出检索命中明细
         logRagRetrievalHits(retrivals, userId, knowledgeId, conversationId);
 
         // 7.构建上下文
@@ -190,7 +193,8 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
             return hits;
         }
         List<Long> idList = new ArrayList<>(docIds);
-        List<KnowledgeRetrivalDTO> expanded = knowledgeVectorMapper.selectChunksByDocuments(userId, knowledgeId, idList);
+        List<KnowledgeRetrivalDTO> expanded = knowledgeVectorMapper.selectChunksByDocuments(userId, knowledgeId,
+                idList);
         if (expanded == null || expanded.isEmpty()) {
             return hits;
         }
@@ -217,6 +221,22 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
             return List.of();
         }
         String vecString = knowledgeEmbeddingService.toPgVector(vector);
+        // #region agent log
+        try {
+            ClassLoader cl = Thread.currentThread().getContextClassLoader();
+            java.net.URL xmlUrl = cl != null ? cl.getResource("mapper/knowledgeService/KnowledgeVectorMapper.xml") : null;
+            String stmtId = "com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper.searchBySimilarity";
+            boolean hasStmt = sqlSessionFactory.getConfiguration().hasStatement(stmtId, false);
+            String urlPart = xmlUrl == null ? "" : String.valueOf(xmlUrl).replace("\\", "\\\\").replace("\"", "\\\"");
+            String line = "{\"sessionId\":\"623ff7\",\"hypothesisId\":\"H1\",\"location\":\"KnowledgeRagServiceImpl.searchAndFilter\",\"message\":\"classpath xml + mappedStatement\",\"data\":{\"mapperXmlOnClasspath\":"
+                    + (xmlUrl != null) + ",\"mapperXmlUrl\":\"" + urlPart + "\",\"hasSearchBySimilarityStatement\":" + hasStmt
+                    + "},\"timestamp\":" + System.currentTimeMillis() + "}\n";
+            java.nio.file.Files.writeString(java.nio.file.Paths.get(System.getProperty("user.dir", "."), "debug-623ff7.log"),
+                    line, java.nio.charset.StandardCharsets.UTF_8,
+                    java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+        } catch (Throwable ignored) {
+        }
+        // #endregion
         List<KnowledgeRetrivalDTO> raw = knowledgeVectorMapper.searchBySimilarity(userId, knowledgeId, vecString, topK);
         if (raw == null || raw.isEmpty()) {
             return List.of();
@@ -282,7 +302,8 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
             String preview = full.trim();
             int fullLen = preview.length();
             if (preview.length() > RAG_LOG_CONTENT_PREVIEW_MAX) {
-                preview = preview.substring(0, RAG_LOG_CONTENT_PREVIEW_MAX) + "...(truncated, totalChars=" + fullLen + ")";
+                preview = preview.substring(0, RAG_LOG_CONTENT_PREVIEW_MAX) + "...(truncated, totalChars=" + fullLen
+                        + ")";
             }
             log.info(
                     "RAG 命中 [{}/{}] vectorId={} documentId={} chunkIndex={} score={} metadata={} contentPreview={}",

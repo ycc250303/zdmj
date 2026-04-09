@@ -45,8 +45,8 @@ public class ChatUtil {
     /**
      * 聊天
      *
-     * @param message        消息
-     * @param promptName     提示词名称
+     * @param message         消息
+     * @param promptName      提示词名称
      * @param promptVariables 提示词模板变量
      * @return 回复
      */
@@ -69,9 +69,9 @@ public class ChatUtil {
     /**
      * 聊天
      *
-     * @param conversationId 会话ID
-     * @param message        消息
-     * @param promptName     提示词名称
+     * @param conversationId  会话ID
+     * @param message         消息
+     * @param promptName      提示词名称
      * @param promptVariables 提示词模板变量
      * @return 回复
      */
@@ -188,8 +188,12 @@ public class ChatUtil {
      */
     private String renderSystemPrompt(String promptName, Map<String, Object> promptVariables) {
         String template = promptUtil.load(promptName);
-        PromptTemplate promptTemplate = new PromptTemplate(template);
         Map<String, Object> variables = promptVariables == null ? Collections.emptyMap() : promptVariables;
+        // 无变量时不再走 StringTemplate：prompt 正文中若含 JSON 等「{ }」会与 ST 语法冲突
+        if (variables.isEmpty()) {
+            return template;
+        }
+        PromptTemplate promptTemplate = new PromptTemplate(template);
         return promptTemplate.render(variables);
     }
 }

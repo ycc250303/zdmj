@@ -20,6 +20,7 @@ import com.zdmj.common.model.PageDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 
@@ -57,7 +58,8 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
     public PageDTO<JobListItemDTO> getPage(Integer page, Integer limit,
             List<Integer> companySizes,
             List<Integer> fundingTypes,
-            List<String> industries) {
+            List<String> industries,
+            String companyName) {
         int p = (page == null || page < 1) ? 1 : page;
         int l = (limit == null || limit < 1) ? 10 : Math.min(limit, MAX_PAGE_SIZE);
         int offset = (p - 1) * l;
@@ -65,9 +67,10 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
         List<Integer> sizes = emptyToNull(companySizes);
         List<Integer> types = emptyToNull(fundingTypes);
         List<String> inds = emptyToNull(industries);
+        String companyNameKeyword = StringUtils.hasText(companyName) ? companyName.trim() : null;
 
-        List<JobListItemDTO> data = baseMapper.selectPage(offset, l, sizes, types, inds);
-        Long total = baseMapper.countPage(sizes, types, inds);
+        List<JobListItemDTO> data = baseMapper.selectPage(offset, l, sizes, types, inds, companyNameKeyword);
+        Long total = baseMapper.countPage(sizes, types, inds, companyNameKeyword);
         return PageDTO.of(data, total == null ? 0L : total, p, l);
     }
 

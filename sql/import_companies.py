@@ -106,6 +106,7 @@ def main():
     col_location = "地址"
     col_salary = "薪资范围"
     col_job_detail = "岗位详情"
+    col_job_link = "岗位来源地址"
 
     df = pd.read_excel(
         excel_path,
@@ -119,6 +120,7 @@ def main():
             col_location,
             col_salary,
             col_job_detail,
+            col_job_link,
         ],
     )
 
@@ -199,6 +201,7 @@ def main():
             location_raw = row.get(col_location)
             salary_raw = row.get(col_salary)
             job_detail_raw = row.get(col_job_detail)
+            job_link_raw = row.get(col_job_link)
 
             # 岗位必填字段检查
             if (
@@ -220,6 +223,14 @@ def main():
             salary = str(salary_raw).strip()
             # 去除岗位详情中的 "<br>"
             job_detail = str(job_detail_raw).replace("<br>", "").strip()
+
+            # 岗位来源地址 -> jobs.link（VARCHAR(500) NOT NULL，空则写空串，超长截断）
+            if pd.isna(job_link_raw):
+                job_link = ""
+            else:
+                job_link = str(job_link_raw).strip()
+            if len(job_link) > 500:
+                job_link = job_link[:500]
 
             # 薪资不包含任何数字，则不插入
             if not any(ch.isdigit() for ch in salary):
@@ -245,7 +256,7 @@ def main():
                         job_detail,  # description
                         location,
                         salary,
-                        "",  # link 暂无来源链接信息，先写空字符串
+                        job_link,
                     ),
                 )
                 inserted_job_count += 1

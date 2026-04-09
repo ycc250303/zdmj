@@ -51,7 +51,7 @@ public class StudentCapabilityProfileServiceImpl
         if (StringUtils.hasText(reqDTO.getPdfUrl())) {
             log.info("从 PDF 解析内容: {}", reqDTO.getPdfUrl());
             try {
-                // 如果传入的是 COS 的 Key，则调用 extractTextFromCosKey 解析
+                // 如果传入的是 COS 的 Key，则调用 extractTextFromUrl 解析
                 sourceText = PdfParserUtil.extractTextFromUrl(reqDTO.getPdfUrl());
             } catch (Exception e) {
                 log.error("PDF 解析失败", e);

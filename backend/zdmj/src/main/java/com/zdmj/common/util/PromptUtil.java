@@ -67,6 +67,8 @@ public class PromptUtil {
         public static final String GENERATE_CONVERSATION_TITLE = "generate-conversation-title";
         /** 生成能力画像 */
         public static final String GENERATE_CAPABILITY_PROFILE = "generate-capability-profile";
+        /** 生成岗位能力画像 */
+        public static final String GENERATE_JOB_CAPABILITY_PROFILE = "generate-job-capability-profile";
         /** 知识库 RAG 问答 */
         public static final String KNOWLEDGEBASE_RAG_SYSTEM = "knowledgebase-rag-system";
         /** 知识库查询改写 */

@@ -27,6 +27,7 @@ import reactor.core.publisher.Sinks;
 
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -61,6 +62,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     private static final int MAX_MESSAGE_PAGE_SIZE = 100;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Flux<ServerSentEvent<String>> createStream(MessageDTO dto) {
         Conversation conversation = requireConversationAccess(dto.getConversationId());
         Long userId = UserHolder.requireUserId();
@@ -202,6 +204,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Flux<ServerSentEvent<String>> resumeStream(Long streamId, int offset) {
         if (streamId == null) {
             throw new BusinessException(ErrorCode.ILLEGAL_ARGUMENT.getCode(), "streamId不能为空");
@@ -270,7 +273,11 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         if (conversationId == null) {
             throw new BusinessException(ErrorCode.ILLEGAL_ARGUMENT.getCode(), "会话ID不能为空");
         }
-        return conversationService.getById(conversationId);
+        Conversation conversation = conversationService.getById(conversationId);
+        if (conversation == null) {
+            throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
+        }
+        return conversation;
     }
 
     @Data

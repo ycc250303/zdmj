@@ -97,7 +97,8 @@ public enum ErrorCode {
     MESSAGE_CREATE_FAILED(9005, "创建消息失败"),
 
     // ========== 岗位与公司 (82xx) ==========
-    JOB_NOT_FOUND(8201, "岗位不存在");
+    JOB_NOT_FOUND(8201, "岗位不存在"),
+    JOB_CAPABILITY_PROFILE_GENERATION_FAILED(8202, "生成岗位能力画像失败");
 
     private final Integer code;
     private final String message;
