@@ -273,7 +273,11 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         if (conversationId == null) {
             throw new BusinessException(ErrorCode.ILLEGAL_ARGUMENT.getCode(), "会话ID不能为空");
         }
-        return conversationService.getById(conversationId);
+        Conversation conversation = conversationService.getById(conversationId);
+        if (conversation == null) {
+            throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
+        }
+        return conversation;
     }
 
     @Data
