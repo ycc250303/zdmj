@@ -426,27 +426,31 @@ CREATE TABLE IF NOT EXISTS jobs (
     -- 公司名称（冗余字段，用于查询）
     description TEXT NOT NULL,
     -- 岗位描述
-    embedding VECTOR(1024),
-    -- 岗位描述向量（1024维，使用text-embedding-v4模型）
     location VARCHAR(255) NOT NULL,
     -- 工作地点
-    salary VARCHAR(100) NOT NULL,
+    salary_min INTEGER NOT NULL,
     -- 薪资范围
+    salary_max INTEGER NOT NULL,
+    -- 薪资范围
+    salary_type SMALLINT NOT NULL,
+    -- 薪资类型
+    -- 1=日薪/2=月薪/3=年薪
+   keywords JSONB DEFAULT '[]'::jsonb,
+    -- 岗位关键词（字符串数组，用于检索/向量化等）
+    -- ["Java","MySQL"]
+    content  JSONB DEFAULT '[]'::jsonb,
+    -- 工作内容
+    requirements  JSONB DEFAULT '[]'::jsonb,
+    -- 岗位要求
+    content_embedding VECTOR(1024),
+    -- 工作内容向量（1024维，使用text-embedding-v4模型）
+    critical_skills_embedding VECTOR(1024),
+    -- 关键技能向量（1024维，使用text-embedding-v4模型）
+    requirements_embedding VECTOR(1024),
+    -- 岗位要求向量（1024维，使用text-embedding-v4模型）
+ 
     link VARCHAR(500) NOT NULL,
     -- 岗位链接
-    content TEXT,
-    -- 工作内容
-    requirements TEXT,
-    -- 岗位要求
-    recall JSONB,
-    -- 简历匹配记录数组
-    -- recall 示例
-    -- [
-    --   {
-    --     "resumeId": 1,
-    --     "reason": "匹配原因"
-    --   }
-    -- ]
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
@@ -454,7 +458,9 @@ CREATE TABLE IF NOT EXISTS jobs (
 CREATE INDEX IF NOT EXISTS idx_jobs_location ON jobs(location);
 CREATE INDEX IF NOT EXISTS idx_jobs_company_id ON jobs(company_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_company_name ON jobs(company_name);
-CREATE INDEX IF NOT EXISTS idx_jobs_embedding ON jobs USING HNSW (embedding vector_cosine_ops) WITH (M = 16, ef_construction = 100);
+CREATE INDEX IF NOT EXISTS idx_jobs_content_embedding ON jobs USING HNSW (content_embedding vector_cosine_ops) WITH (M = 16, ef_construction = 100);
+CREATE INDEX IF NOT EXISTS idx_jobs_critical_skills_embedding ON jobs USING HNSW (critical_skills_embedding vector_cosine_ops) WITH (M = 16, ef_construction = 100);
+CREATE INDEX IF NOT EXISTS idx_jobs_requirements_embedding ON jobs USING HNSW (requirements_embedding vector_cosine_ops) WITH (M = 16, ef_construction = 100);
 -- 3.2 公司表
 CREATE TABLE IF NOT EXISTS companies (
     id BIGSERIAL PRIMARY KEY,

@@ -3,6 +3,7 @@ package com.zdmj.jobService.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
+
 import java.util.List;
 
 import com.zdmj.common.model.CreateGroup;
@@ -49,13 +50,33 @@ public class JobDTO {
     @NotBlank(message = "工作地点不能为空", groups = { CreateGroup.class, UpdateGroup.class })
     private String location;
 
-    @NotBlank(message = "薪资范围不能为空", groups = { CreateGroup.class, UpdateGroup.class })
-    private String salary;
+    @NotNull(message = "最低薪资不能为空", groups = { CreateGroup.class, UpdateGroup.class })
+    private Integer salaryMin;
+
+    @NotNull(message = "最高薪资不能为空", groups = { CreateGroup.class, UpdateGroup.class })
+    private Integer salaryMax;
+
+    /**
+     * 薪资类型：1=日薪 / 2=月薪 / 3=年薪
+     */
+    @NotNull(message = "薪资类型不能为空", groups = { CreateGroup.class, UpdateGroup.class })
+    private Integer salaryType;
 
     @NotBlank(message = "岗位链接不能为空", groups = { CreateGroup.class, UpdateGroup.class })
     private String link;
 
-    private String content;
+    /**
+     * 岗位职责（字符串列表，写入 jobs.content）
+     */
+    private List<String> jobDuties;
 
-    private String requirements;
+    /**
+     * 岗位要求（字符串列表，写入 jobs.requirements）
+     */
+    private List<String> jobRequirements;
+
+    /**
+     * 岗位关键词（字符串列表，写入 jobs.keywords）
+     */
+    private List<String> keywords;
 }

@@ -18,7 +18,8 @@ public interface JobStructMapper {
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "companyId", ignore = true)
     @Mapping(target = "companyName", ignore = true)
-    @Mapping(target = "recall", ignore = true)
+    @Mapping(target = "content", source = "jobDuties")
+    @Mapping(target = "requirements", source = "jobRequirements")
+    @Mapping(target = "keywords", source = "keywords")
     void patchFromDto(JobDTO dto, @MappingTarget Job job);
 }
-

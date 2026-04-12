@@ -2,6 +2,14 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.zdmj.jobService.mapper.JobMapper">
 
+    <sql id="Job_Salary_Label_Expr">
+        (CASE j.salary_type
+            WHEN 1 THEN (j.salary_min::text || '-' || j.salary_max::text || '元/日')
+            WHEN 3 THEN (j.salary_min::text || '-' || j.salary_max::text || '元/年')
+            ELSE (j.salary_min::text || '-' || j.salary_max::text || '元/月')
+        END)
+    </sql>
+
     <resultMap id="JobDetailDTOMap" type="com.zdmj.jobService.dto.JobDetailDTO">
         <id property="id" column="id" />
         <result property="jobName" column="job_name" />
@@ -9,11 +17,17 @@
         <result property="companyName" column="company_name" />
         <result property="description" column="description" />
         <result property="location" column="location" />
+        <result property="salaryMin" column="salary_min" />
+        <result property="salaryMax" column="salary_max" />
+        <result property="salaryType" column="salary_type" />
         <result property="salary" column="salary" />
         <result property="link" column="link" />
-        <result property="content" column="content" />
-        <result property="requirements" column="requirements" />
-        <result property="recall" column="recall" />
+        <result property="jobDuties" column="job_duties"
+            typeHandler="com.zdmj.common.typehandler.JsonbListTypeHandler" />
+        <result property="jobRequirements" column="job_requirements"
+            typeHandler="com.zdmj.common.typehandler.JsonbListTypeHandler" />
+        <result property="keywords" column="job_keywords"
+            typeHandler="com.zdmj.common.typehandler.JsonbListTypeHandler" />
         <result property="companyIndustries" column="company_industries"
             typeHandler="com.zdmj.common.typehandler.JsonbListTypeHandler" />
         <result property="companySize" column="company_size" />
@@ -27,8 +41,17 @@
         <result property="companyName" column="company_name" />
         <result property="description" column="description" />
         <result property="location" column="location" />
+        <result property="salaryMin" column="salary_min" />
+        <result property="salaryMax" column="salary_max" />
+        <result property="salaryType" column="salary_type" />
         <result property="salary" column="salary" />
         <result property="link" column="link" />
+        <result property="jobDuties" column="job_duties"
+            typeHandler="com.zdmj.common.typehandler.JsonbListTypeHandler" />
+        <result property="jobRequirements" column="job_requirements"
+            typeHandler="com.zdmj.common.typehandler.JsonbListTypeHandler" />
+        <result property="keywords" column="job_keywords"
+            typeHandler="com.zdmj.common.typehandler.JsonbListTypeHandler" />
         <result property="companyIndustries" column="company_industries"
             typeHandler="com.zdmj.common.typehandler.JsonbListTypeHandler" />
         <result property="companySize" column="company_size" />
@@ -38,7 +61,7 @@
     <sql id="Job_Company_From_Where"> FROM jobs j INNER JOIN companies c ON j.company_id = c.id
         WHERE 1 = 1 <if test="companySizes != null and companySizes.size() &gt; 0"> AND c.size IN <foreach
                 collection="companySizes" item="s" open="(" separator="," close=")">#{s}</foreach>
-        </if>   
+        </if>
         <if
             test="fundingTypes != null and fundingTypes.size() &gt; 0"> AND c.type IN <foreach
                 collection="fundingTypes" item="t" open="(" separator="," close=")">#{t}</foreach>
@@ -50,19 +73,35 @@
         <if test="companyNameKeyword != null and companyNameKeyword != ''"> AND (j.company_name LIKE '%' || CAST(#{companyNameKeyword} AS TEXT) || '%' OR c.name LIKE '%' || CAST(#{companyNameKeyword} AS TEXT) || '%') </if>
     </sql>
 
-    <select id="selectDetailById" resultMap="JobDetailDTOMap"> SELECT j.id, j.job_name,
-        j.company_id, j.company_name, j.description, j.location, j.salary, j.link, j.content,
-        j.requirements, j.recall, c.industries AS company_industries,
-        c.size AS company_size, c.type AS company_funding_type FROM jobs j INNER JOIN companies c ON
-        j.company_id = c.id WHERE j.id = #{id} </select>
+    <select id="selectDetailById" resultMap="JobDetailDTOMap">
+        SELECT j.id, j.job_name, j.company_id, j.company_name, j.description, j.location,
+            j.salary_min, j.salary_max, j.salary_type,
+            <include refid="Job_Salary_Label_Expr" /> AS salary,
+            j.link,
+            j.content AS job_duties,
+            j.requirements AS job_requirements,
+            j.keywords AS job_keywords,
+            c.industries AS company_industries,
+            c.size AS company_size, c.type AS company_funding_type
+        FROM jobs j INNER JOIN companies c ON j.company_id = c.id
+        WHERE j.id = #{id}
+    </select>
 
-    <select id="selectPage" resultMap="JobListItemDTOMap"> SELECT j.id, j.job_name, j.company_id,
-        j.company_name, j.description, j.location, j.salary, j.link,
-        c.industries AS company_industries, c.size AS company_size, c.type AS company_funding_type <include
-            refid="Job_Company_From_Where" /> ORDER BY j.updated_at DESC LIMIT #{limit} OFFSET
-        #{offset} </select>
+    <select id="selectPage" resultMap="JobListItemDTOMap">
+        SELECT j.id, j.job_name, j.company_id, j.company_name, j.description, j.location,
+            j.salary_min, j.salary_max, j.salary_type,
+            <include refid="Job_Salary_Label_Expr" /> AS salary,
+            j.link,
+            j.content AS job_duties,
+            j.requirements AS job_requirements,
+            j.keywords AS job_keywords,
+            c.industries AS company_industries, c.size AS company_size, c.type AS company_funding_type
+        <include refid="Job_Company_From_Where" />
+        ORDER BY j.updated_at DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
 
-    <select id="countPage" resultType="java.lang.Long"> SELECT COUNT(*) <include
-            refid="Job_Company_From_Where" />
+    <select id="countPage" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        <include refid="Job_Company_From_Where" />
     </select>
 </mapper>

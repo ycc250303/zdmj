@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -118,6 +119,15 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
         jobStructMapper.patchFromDto(dto, job);
         job.setCompanyId(company.getId());
         job.setCompanyName(company.getName());
+        if (job.getContent() == null) {
+            job.setContent(new ArrayList<>());
+        }
+        if (job.getRequirements() == null) {
+            job.setRequirements(new ArrayList<>());
+        }
+        if (job.getKeywords() == null) {
+            job.setKeywords(new ArrayList<>());
+        }
     }
 
     /**
