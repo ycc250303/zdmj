@@ -30,7 +30,7 @@ public class JobDetailDTO {
      */
     private String companyName;
     /**
-     * 岗位描述
+     * 岗位描述（综合文案）
      */
     private String description;
     /**
@@ -38,7 +38,19 @@ public class JobDetailDTO {
      */
     private String location;
     /**
-     * 薪资范围
+     * 最低薪资（元）
+     */
+    private Integer salaryMin;
+    /**
+     * 最高薪资（元）
+     */
+    private Integer salaryMax;
+    /**
+     * 薪资类型：1=日薪 / 2=月薪 / 3=年薪
+     */
+    private Integer salaryType;
+    /**
+     * 薪资展示文案（由服务端根据 min/max/type 拼接）
      */
     private String salary;
     /**
@@ -46,17 +58,17 @@ public class JobDetailDTO {
      */
     private String link;
     /**
-     * 工作内容
+     * 岗位职责（对应 jobs.content）
      */
-    private String content;
+    private List<String> jobDuties;
     /**
-     * 岗位要求
+     * 岗位要求（对应 jobs.requirements）
      */
-    private String requirements;
+    private List<String> jobRequirements;
     /**
-     * 简历匹配记录数组
+     * 岗位关键词（对应 jobs.keywords）
      */
-    private String recall;
+    private List<String> keywords;
 
     /**
      * 公司所属行业
