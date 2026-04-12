@@ -1,5 +1,4 @@
 deploy/.env
-/docs/competition
 /.idea
 /backend/.idea
 backend/zdmj/src/main/resources/application.yml
