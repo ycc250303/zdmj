@@ -10,6 +10,7 @@ import com.zdmj.userAuthService.dto.UserResetPasswordDTO;
 import com.zdmj.userAuthService.dto.UserUpdateDTO;
 import com.zdmj.userAuthService.service.UserService;
 import com.zdmj.userAuthService.service.VerificationCodeService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/users")
 @RequiredArgsConstructor
+@Tag(name = "用户认证", description = "注册、登录、验证码等")
 public class UserController {
 
     private final UserService userService;
@@ -58,8 +60,8 @@ public class UserController {
     /**
      * 用户登录
      * 
-     * @param loginDTO 登录信息
-     * @return 登录结果（包含Token和用户信息）
+     * @param loginDTO 登录凭证（用户名或邮箱、密码）
+     * @return 登录结果
      */
     @PostMapping("/login")
     public Result<UserLoginResponseDTO> login(@Valid @RequestBody UserLoginDTO loginDTO) {
@@ -75,7 +77,7 @@ public class UserController {
      * @return 发送结果
      */
     @PostMapping("/verification-codes")
-    public Result<String> sendVerificationCode(
+    public Result<Void> sendVerificationCode(
             @RequestParam @NotBlank(message = "邮箱不能为空") @Email(message = "邮箱格式不正确") String email) {
         log.info("发送验证码请求: {}", email);
         boolean success = verificationCodeService.sendVerificationCode(email);
@@ -93,7 +95,7 @@ public class UserController {
      * @return 重置结果
      */
     @PutMapping("/password")
-    public Result<String> resetPassword(@Valid @RequestBody UserResetPasswordDTO resetPasswordDTO) {
+    public Result<Void> resetPassword(@Valid @RequestBody UserResetPasswordDTO resetPasswordDTO) {
         log.info("重置密码请求: email={}", resetPasswordDTO.getEmail());
         userService.resetPassword(resetPasswordDTO);
         return Result.success("密码修改成功", null);

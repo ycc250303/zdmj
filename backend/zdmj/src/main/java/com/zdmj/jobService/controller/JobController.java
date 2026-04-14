@@ -8,23 +8,21 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.zdmj.common.model.CreateGroup;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.Result;
 import com.zdmj.common.model.UpdateGroup;
-import com.zdmj.jobService.dto.JobDetailDTO;
 import com.zdmj.jobService.dto.JobListItemDTO;
 import com.zdmj.jobService.dto.JobCapabilityProfileDTO;
 import com.zdmj.jobService.dto.JobDTO;
+import com.zdmj.jobService.dto.JobPageQueryDTO;
 import com.zdmj.jobService.entity.Job;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobService;
 import lombok.RequiredArgsConstructor;
-
-import java.util.List;
 
 /**
  * 岗位信息控制器
@@ -44,31 +42,17 @@ public class JobController {
      * @return 岗位详情
      */
     @GetMapping("/{id}")
-    public Result<JobDetailDTO> getById(@PathVariable Long id) {
+    public Result<JobListItemDTO> getById(@PathVariable Long id) {
         return Result.success("查询岗位成功", jobService.getDetail(id));
     }
 
     /**
-     * 查询岗位列表
-     * 
-     * @param page         页码
-     * @param limit        每页条数
-     * @param companySizes 公司规模
-     * @param fundingTypes 融资类型
-     * @param industries   行业
-     * @param companyName  公司名称关键词（包含匹配，如「字节」匹配「字节跳动」）
-     * @return 岗位列表
+     * 查询岗位列表（查询参数绑定 {@link JobPageQueryDTO}）
+     * <p>示例：{@code GET /jobs?page=1&limit=20&employment=INTERN&filterSalaryMin=200&jobName=后端}</p>
      */
     @GetMapping
-    public Result<PageDTO<JobListItemDTO>> getPage(
-            @RequestParam(required = false, defaultValue = "1") Integer page,
-            @RequestParam(required = false, defaultValue = "20") Integer limit,
-            @RequestParam(required = false) List<Integer> companySizes,
-            @RequestParam(required = false) List<Integer> fundingTypes,
-            @RequestParam(required = false) List<String> industries,
-            @RequestParam(required = false) String companyName) {
-        return Result.success("查询岗位列表成功",
-                jobService.getPage(page, limit, companySizes, fundingTypes, industries, companyName));
+    public Result<PageDTO<JobListItemDTO>> getPage(@ModelAttribute JobPageQueryDTO query) {
+        return Result.success("查询岗位列表成功", jobService.getPage(query));
     }
 
     /**
@@ -95,9 +79,8 @@ public class JobController {
 
     /**
      * 删除岗位
-     * 
+     *
      * @param id 岗位ID
-     * @return 删除的岗位
      */
     @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id) {

@@ -12,7 +12,7 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.ChatUtil;
 import com.zdmj.common.util.PromptUtil;
 import com.zdmj.jobService.dto.JobCapabilityProfileDTO;
-import com.zdmj.jobService.dto.JobDetailDTO;
+import com.zdmj.jobService.dto.JobListItemDTO;
 import com.zdmj.jobService.entity.JobCapabilityProfile;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobService;
@@ -34,7 +34,7 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
     @Override
     public JobCapabilityProfileDTO getJobCapabilityProfile(Long jobId) {
         // 1. 获取岗位详情
-        JobDetailDTO jobDetail = jobService.getDetail(jobId);
+        JobListItemDTO jobDetail = jobService.getDetail(jobId);
         if (jobDetail == null) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
@@ -84,7 +84,7 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         return jobCapabilityProfileStructMapper.toDTO(newProfile);
     }
 
-    private String buildJobContext(JobDetailDTO jobDetail) {
+    private String buildJobContext(JobListItemDTO jobDetail) {
         // TODO：后续通过工作内容、岗位要求等进一步细化
         return """
                 岗位名称：%s

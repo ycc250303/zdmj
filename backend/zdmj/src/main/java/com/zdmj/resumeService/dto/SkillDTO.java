@@ -19,20 +19,20 @@ import lombok.Data;
 @Data
 public class SkillDTO {
     /**
-     * 技能ID（主键，自增）
+     * 技能ID（主键，自增，更新时不能为空）
      */
     @NotNull(message = "技能ID不能为空", groups = UpdateGroup.class)
     private Long id;
 
     /**
-     * 技能清单名称
+     * 技能清单名称（创建时不能为空）
      */
     @NotBlank(message = "技能清单名称不能为空", groups = CreateGroup.class)
     private String name;
 
     /**
      * 职业技能描述（结构化对象数组）
-     * 对应数据库 JSONB 数组字段 content
+     * 对应数据库 JSONB 数组字段 content，创建时不能为空且至少包含 1 项
      */
     @Valid
     @NotEmpty(message = "技能内容不能为空", groups = CreateGroup.class)

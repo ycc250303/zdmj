@@ -51,10 +51,9 @@ public class ProjectExperienceController {
      * 删除项目经历
      * 
      * @param id 项目经历ID
-     * @return 删除结果
      */
     @DeleteMapping("/{id}")
-    public Result<String> deleteProjectExperience(@PathVariable Long id) {
+    public Result<Void> deleteProjectExperience(@PathVariable Long id) {
         projectExperienceService.delete(id);
         return Result.success("删除项目经历成功", null);
     }

@@ -10,13 +10,13 @@ import lombok.Data;
 public class UserLoginDTO {
 
     /**
-     * 用户名或邮箱
+     * 用户名或邮箱（不能为空）
      */
     @NotBlank(message = "用户名或邮箱不能为空")
     private String usernameOrEmail;
 
     /**
-     * 密码
+     * 密码（不能为空）
      */
     @NotBlank(message = "密码不能为空")
     private String password;

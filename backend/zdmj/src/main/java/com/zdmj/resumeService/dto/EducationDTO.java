@@ -41,7 +41,7 @@ public class EducationDTO {
 
     /**
      * 学历层次（1: 博士, 2: 硕士, 3: 本科, 4: 大专, 5: 高中, 6: 其他）
-     * 创建时必填，更新时可选（但如果提供，必须在有效范围内）
+     * 创建时必填，更新时可选（若提供，取值范围必须为 1-6）
      */
     @NotNull(message = "学历层次不能为空", groups = CreateGroup.class)
     @Min(value = 1, message = "学历层次不能小于1", groups = { CreateGroup.class, UpdateGroup.class })

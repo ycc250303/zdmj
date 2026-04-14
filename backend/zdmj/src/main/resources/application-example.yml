@@ -105,6 +105,16 @@ server:
 api:
   prefix: /api/zdmj
 
+# SpringDoc OpenAPI（Swagger UI：/swagger-ui/index.html ，文档 JSON：/v3/api-docs）
+# Apifox：项目设置 → 导入 → URL 导入，填 http://localhost:8080/v3/api-docs
+springdoc:
+  # 为 false 时：若接口上已声明 @ApiResponse/@Operation(responses)，则不再用 @ControllerAdvice 推导结果去覆盖/合并，
+  # 避免文档里只剩最后一条响应（如仅 500）的问题。
+  override-with-generic-response: false
+  swagger-ui:
+    tags-sorter: alpha
+    operations-sorter: alpha
+
 # Actuator 配置
 management:
   endpoints:
