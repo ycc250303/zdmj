@@ -61,10 +61,6 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
     public Education update(EducationDTO educationDTO) {
         Long userId = UserHolder.requireUserId();
         Long id = educationDTO.getId();
-        if (id == null) {
-            throw new BusinessException(ErrorCode.EDUCATION_ID_EMPTY);
-        }
-
         Education existingEducation = requireEducationAndCheckOwnership(id, userId, "修改");
 
         // 只更新提供的字段（非空字段才更新）

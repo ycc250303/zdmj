@@ -67,9 +67,6 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
     public ProjectExperience update(ProjectExperienceDTO projectExperienceDTO) {
         Long userId = UserHolder.requireUserId();
         Long id = projectExperienceDTO.getId();
-        if (id == null) {
-            throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_ID_EMPTY);
-        }
         ProjectExperience projectExperience = requireProjectExperienceAndCheckOwnership(id, userId, "修改");
 
         projectExperiencePatchMapper.updateEntityFromDto(projectExperienceDTO, projectExperience);

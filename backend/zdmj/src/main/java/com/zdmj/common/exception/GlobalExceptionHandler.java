@@ -1,6 +1,7 @@
 package com.zdmj.common.exception;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
@@ -33,9 +34,10 @@ public class GlobalExceptionHandler {
      * @return Result对象
      */
     @ExceptionHandler(BusinessException.class)
-    public Result<?> handleBusinessException(BusinessException e) {
+    public ResponseEntity<Result<?>> handleBusinessException(BusinessException e) {
         log.warn("业务异常: {}", e.getMessage());
-        return Result.error(e.getCode(), e.getMessage());
+        HttpStatus status = resolveHttpStatus(e.getCode(), e.getMessage());
+        return ResponseEntity.status(status).body(Result.error(e.getCode(), e.getMessage()));
     }
 
     /**
@@ -201,5 +203,31 @@ public class GlobalExceptionHandler {
     public Result<?> handleException(Exception e) {
         log.error("系统异常: ", e);
         return Result.error(ErrorCode.SYSTEM_EXCEPTION.getCode(), ErrorCode.SYSTEM_EXCEPTION.getMessage());
+    }
+
+    /**
+     * 根据业务错误码和错误信息推导 HTTP 状态码
+     */
+    private HttpStatus resolveHttpStatus(Integer code, String message) {
+        if (code == null) {
+            return HttpStatus.INTERNAL_SERVER_ERROR;
+        }
+
+        if (code.equals(ErrorCode.USER_NOT_LOGIN.getCode())) {
+            return HttpStatus.UNAUTHORIZED;
+        }
+        if (code.equals(ErrorCode.NO_PERMISSION.getCode())) {
+            return HttpStatus.FORBIDDEN;
+        }
+        // 1) “xxx不存在”类型业务错误 -> 404
+        if (message != null && message.contains("不存在")) {
+            return HttpStatus.NOT_FOUND;
+        }
+        // 2) “xxx操作失败”类型业务错误 -> 400
+        if (message != null && message.contains("失败")) {
+            return HttpStatus.BAD_REQUEST;
+        }
+        // 3) 其他业务错误 -> 400
+        return HttpStatus.BAD_REQUEST;
     }
 }
