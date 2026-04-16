@@ -1,6 +1,8 @@
 package com.zdmj.jobService.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -81,6 +83,8 @@ public class JobDTO {
      * 薪资类型（创建、更新时不能为空）：1=日薪 / 2=月薪 / 3=年薪
      */
     @NotNull(message = "薪资类型不能为空", groups = { CreateGroup.class, UpdateGroup.class })
+    @Min(value = 1, message = "薪资类型最小值为1", groups = { CreateGroup.class, UpdateGroup.class })
+    @Max(value = 3, message = "薪资类型最大值为3", groups = { CreateGroup.class, UpdateGroup.class })
     private Integer salaryType;
 
     /**

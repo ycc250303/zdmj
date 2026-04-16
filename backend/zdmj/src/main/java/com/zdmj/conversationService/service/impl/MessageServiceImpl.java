@@ -106,7 +106,8 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         conversation.setLastMessageAt(LocalDateTime.now());
         // 生成会话标题
         if (messageCount == 0) {
-            String title = chatUtil.chat(dto.getMessage(), PromptUtil.PromptNames.GENERATE_CONVERSATION_TITLE);
+            String title = chatUtil.chatOnce(dto.getMessage(), PromptUtil.PromptNames.GENERATE_CONVERSATION_TITLE,null);
+
             conversation.setTitle(title);
         }
         conversationService.updateById(conversation);
@@ -124,10 +125,11 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         // 6.调用 AI 服务
         Flux<String> chatFlux = ragConfig.getRewrite().isEnabled()
                 ? knowledgeRagService.streamAnswer(dto.getConversationId(), dto.getMessage())
-                : chatUtil.chatStream(
+                : chatUtil.chatStreamInConversation(
                         dto.getConversationId(),
                         dto.getMessage(),
-                        PromptUtil.PromptNames.SYSTEM);
+                        PromptUtil.PromptNames.SYSTEM,
+                        null);
         chatFlux.doOnNext(chunk -> {
             if (chunk == null || chunk.isEmpty()) {
                 return;
@@ -147,7 +149,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
 
             if (flush) {
                 // 节流写 Redis，避免每 chunk 全量覆盖
-                // TODO：可考虑引入 Redis Stream 进一步优化
+                // TODO：可考虑引入 Redis Stream/消息队列 进一步优化
                 redisUtil.setString(contentKey, full.toString(), STREAM_TTL_SECONDS);
                 lastFlushAt.set(now);
                 lastFlushedLen.set(currLen);

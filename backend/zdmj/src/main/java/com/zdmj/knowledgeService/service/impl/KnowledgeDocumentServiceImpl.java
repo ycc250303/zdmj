@@ -104,6 +104,7 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
 
     private KnowledgeDocumentPublicDTO toPublicDto(KnowledgeDocument kd) {
         KnowledgeDocumentPublicDTO dto = new KnowledgeDocumentPublicDTO();
+        dto.setId(kd.getId());
         dto.setType(kd.getType());
         dto.setContent(kd.getContent());
         dto.setTitle(kd.getTitle());

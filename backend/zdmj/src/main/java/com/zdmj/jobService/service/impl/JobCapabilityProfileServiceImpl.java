@@ -42,7 +42,8 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
 
         JobCapabilityProfileDTO aiResult;
         try {
-            String response = chatUtil.chat(jobContext, PromptUtil.PromptNames.GENERATE_JOB_CAPABILITY_PROFILE);
+            String response = chatUtil.chatOnce(jobContext, PromptUtil.PromptNames.GENERATE_JOB_CAPABILITY_PROFILE,
+                    null);
 
             // 清理可能带有的 ```json 标签
             if (response != null && response.startsWith("```json")) {

@@ -56,7 +56,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
     public Flux<String> streamAnswer(Long conversationId, String userMessage) {
         if (!ragConfig.isEnabled()) {
             // 总开关关闭时退回普通对话
-            return chatUtil.chatStream(conversationId, userMessage, PromptUtil.PromptNames.SYSTEM);
+            return chatUtil.chatStreamInConversation(conversationId, userMessage, PromptUtil.PromptNames.SYSTEM, null);
         }
 
         // 1.获取用户ID和知识库ID
@@ -84,7 +84,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         if (retrivals.isEmpty()) {
             log.info("RAG 无有效命中，退回求职导师对话: userId={}, knowledgeId={}, rawStringLen={}",
                     userId, knowledgeId, rawString.length());
-            return chatUtil.chatStream(conversationId, rawString, PromptUtil.PromptNames.SYSTEM);
+            return chatUtil.chatStreamInConversation(conversationId, rawString, PromptUtil.PromptNames.SYSTEM, null);
         }
 
         // 6.输出检索命中明细
@@ -95,7 +95,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
 
         // 8.生成答案
         log.info("RAG 检索命中 {} 条片段，进入生成阶段 conversationId={}", retrivals.size(), conversationId);
-        return chatUtil.chatStream(
+        return chatUtil.chatStreamInConversation(
                 conversationId,
                 rawString,
                 PromptUtil.PromptNames.KNOWLEDGEBASE_RAG_SYSTEM,
@@ -110,7 +110,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
      */
     private String rewriteQuery(String rawText) {
         try {
-            String queryText = chatUtil.chat(null,
+            String queryText = chatUtil.chatOnce(
                     rawText,
                     PromptUtil.PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE,
                     Map.of("question", rawText));
@@ -224,14 +224,17 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         // #region agent log
         try {
             ClassLoader cl = Thread.currentThread().getContextClassLoader();
-            java.net.URL xmlUrl = cl != null ? cl.getResource("mapper/knowledgeService/KnowledgeVectorMapper.xml") : null;
+            java.net.URL xmlUrl = cl != null ? cl.getResource("mapper/knowledgeService/KnowledgeVectorMapper.xml")
+                    : null;
             String stmtId = "com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper.searchBySimilarity";
             boolean hasStmt = sqlSessionFactory.getConfiguration().hasStatement(stmtId, false);
             String urlPart = xmlUrl == null ? "" : String.valueOf(xmlUrl).replace("\\", "\\\\").replace("\"", "\\\"");
             String line = "{\"sessionId\":\"623ff7\",\"hypothesisId\":\"H1\",\"location\":\"KnowledgeRagServiceImpl.searchAndFilter\",\"message\":\"classpath xml + mappedStatement\",\"data\":{\"mapperXmlOnClasspath\":"
-                    + (xmlUrl != null) + ",\"mapperXmlUrl\":\"" + urlPart + "\",\"hasSearchBySimilarityStatement\":" + hasStmt
+                    + (xmlUrl != null) + ",\"mapperXmlUrl\":\"" + urlPart + "\",\"hasSearchBySimilarityStatement\":"
+                    + hasStmt
                     + "},\"timestamp\":" + System.currentTimeMillis() + "}\n";
-            java.nio.file.Files.writeString(java.nio.file.Paths.get(System.getProperty("user.dir", "."), "debug-623ff7.log"),
+            java.nio.file.Files.writeString(
+                    java.nio.file.Paths.get(System.getProperty("user.dir", "."), "debug-623ff7.log"),
                     line, java.nio.charset.StandardCharsets.UTF_8,
                     java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
         } catch (Throwable ignored) {
