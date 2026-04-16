@@ -49,7 +49,7 @@ public class EducationController {
      * 删除教育经历
      */
     @DeleteMapping("/{id}")
-    public Result<String> deleteEducation(@PathVariable Long id) {
+    public Result<Void> deleteEducation(@PathVariable Long id) {
         educationService.delete(id);
         return Result.success("删除教育经历成功", null);
     }

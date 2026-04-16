@@ -1,6 +1,8 @@
 import os
+import re
 import json
-from typing import Dict, List, Set
+import math
+from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 import psycopg2
@@ -18,7 +20,7 @@ PG_CONFIG = {
 def parse_industries(value) -> List[str]:
     """将『所属行业』列解析成字符串列表，用于写入 JSONB 数组。
 
-    支持常见分隔符：逗号/顿号/斜杠/分号等。
+    支持常见分隔符：逗号/顿号/斜杠/分号等；解析后对条目去重，保留首次出现顺序。
     """
     if pd.isna(value):
         return []
@@ -32,7 +34,110 @@ def parse_industries(value) -> List[str]:
         text = text.replace(sep, ",")
 
     parts = [p.strip() for p in text.split(",") if p.strip()]
-    return parts
+    # 去重且保持原有顺序（完全相同的字符串视为重复）
+    return list(dict.fromkeys(parts))
+
+
+def parse_string_list(value) -> List[str]:
+    """解析 JSON 数组字符串、Excel 中的 list 类型，或按行拆成字符串列表。"""
+    if pd.isna(value):
+        return []
+    if isinstance(value, (list, tuple)):
+        return [str(x).strip() for x in value if str(x).strip()]
+    text = str(value).strip()
+    if not text:
+        return []
+    if text.startswith("["):
+        try:
+            data = json.loads(text)
+            if isinstance(data, list):
+                return [str(x).strip() for x in data if str(x).strip()]
+        except json.JSONDecodeError:
+            pass
+    lines = [ln.strip() for ln in text.replace("<br>", "\n").split("\n") if ln.strip()]
+    if lines:
+        return lines
+    return [text]
+
+
+def to_int_salary(value) -> Optional[int]:
+    """将薪资列转为非负整数；无法解析返回 None。"""
+    if pd.isna(value):
+        return None
+    if isinstance(value, (int, float)):
+        if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+            return None
+        return int(round(float(value)))
+    s = str(value).strip().replace(",", "")
+    if not s:
+        return None
+    try:
+        return int(round(float(s)))
+    except ValueError:
+        return None
+
+
+def parse_salary_range_fallback(text: str) -> Tuple[Optional[int], Optional[int]]:
+    """从『薪资范围』文本中提取数字作为最低/最高薪资兜底。"""
+    if not text or not str(text).strip():
+        return None, None
+    nums = re.findall(r"\d+(?:\.\d+)?", str(text).replace(",", ""))
+    if not nums:
+        return None, None
+    ints = [int(round(float(n))) for n in nums]
+    if len(ints) == 1:
+        return ints[0], ints[0]
+    a, b = ints[0], ints[1]
+    return (min(a, b), max(a, b))
+
+
+def map_salary_type(value) -> int:
+    """薪资单位 -> jobs.salary_type：1=日薪/2=月薪/3=年薪。"""
+    if pd.isna(value):
+        return 2
+    s = str(value).strip().lower()
+    if "日" in s:
+        return 1
+    if "年" in s:
+        return 3
+    return 2
+
+
+def is_job_web_info_lost(raw) -> bool:
+    """『网页职位信息走失』为真时整行岗位不入库。"""
+    if pd.isna(raw):
+        return False
+    if raw is True:
+        return True
+    if isinstance(raw, (int, float)) and not pd.isna(raw):
+        try:
+            if int(raw) == 1:
+                return True
+        except (TypeError, ValueError):
+            pass
+        return False
+    s = str(raw).strip().lower()
+    if s in ("", "0", "否", "false", "no", "n", "无"):
+        return False
+    if "走失" in s:
+        return True
+    if s in ("1", "true", "是", "yes", "y", "对"):
+        return True
+    return False
+
+
+def build_description(duties: List[str], reqs: List[str], fallback: str) -> str:
+    """岗位职责 + 岗位要求拼接为 description；无结构化内容时用岗位详情兜底。"""
+    parts = []
+    if duties:
+        parts.append("岗位职责：\n" + "\n".join(duties))
+    if reqs:
+        parts.append("岗位要求：\n" + "\n".join(reqs))
+    text = "\n\n".join(parts).strip()
+    if text:
+        return text
+    fb = (fallback or "").replace("<br>", "\n").strip()
+    return fb
 
 
 SIZE_MAP = {
@@ -92,11 +197,9 @@ def load_existing_company_names(conn) -> Dict[str, int]:
 
 
 def main():
-    # 1. 定位 Excel 文件
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    excel_path = os.path.join(base_dir, "jobs_data.xls")
+    excel_path = os.path.join(base_dir, os.environ.get("JOB_EXCEL", "new_job_data.xlsx"))
 
-    # 2. 读取 Excel（只读需要的列：公司 + 岗位）
     col_company_name = "公司名称"
     col_industry = "所属行业"
     col_size = "公司规模"
@@ -107,29 +210,40 @@ def main():
     col_salary = "薪资范围"
     col_job_detail = "岗位详情"
     col_job_link = "岗位来源地址"
+    col_salary_min = "最低薪资(元)"
+    col_salary_max = "最高薪资(元)"
+    col_salary_unit = "薪资单位(月/日)"
+    col_duties = "岗位职责"
+    col_req = "岗位要求"
+    col_keywords = "关键词"
+    col_web_lost = "网页职位信息走失"
 
-    df = pd.read_excel(
-        excel_path,
-        usecols=[
-            col_company_name,
-            col_industry,
-            col_size,
-            col_type,
-            col_intro,
-            col_job_name,
-            col_location,
-            col_salary,
-            col_job_detail,
-            col_job_link,
-        ],
-    )
+    usecols = [
+        col_company_name,
+        col_industry,
+        col_size,
+        col_type,
+        col_intro,
+        col_job_name,
+        col_location,
+        col_salary,
+        col_job_detail,
+        col_job_link,
+        col_salary_min,
+        col_salary_max,
+        col_salary_unit,
+        col_duties,
+        col_req,
+        col_keywords,
+        col_web_lost,
+    ]
 
-    # 3. 连接 PostgreSQL
+    df = pd.read_excel(excel_path, usecols=usecols)
+
     conn = psycopg2.connect(**PG_CONFIG)
     try:
         conn.autocommit = False
 
-        # 3.1 读出已存在的公司名称及主键 id，用于去重和哈希表
         name_to_id: Dict[str, int] = load_existing_company_names(conn)
 
         insert_sql_returning_company = """
@@ -139,14 +253,21 @@ def main():
         """
 
         insert_sql_job = """
-            INSERT INTO jobs (job_name, company_id, company_name, description, location, salary, link)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO jobs (
+                job_name, company_id, company_name, description, location,
+                salary_min, salary_max, salary_type,
+                content, requirements, keywords, link
+            )
+            VALUES (
+                %s, %s, %s, %s, %s,
+                %s, %s, %s,
+                %s::jsonb, %s::jsonb, %s::jsonb, %s
+            )
         """
 
         inserted_company_count = 0
         inserted_job_count = 0
 
-        # 4. 先逐行处理，插入 / 去重公司
         for _, row in df.iterrows():
             name_raw = row.get(col_company_name)
             industries_raw = row.get(col_industry)
@@ -154,7 +275,6 @@ def main():
             type_raw = row.get(col_type)
             intro_raw = row.get(col_intro)
 
-            # 公司必填字段检查：「公司名称」「所属行业」「公司规模」任一为空则跳过
             if pd.isna(name_raw) or str(name_raw).strip() == "":
                 continue
 
@@ -168,7 +288,6 @@ def main():
 
             name = str(name_raw).strip()
 
-            # 若该公司名称已经插入过（或 DB 已有），则跳过
             if name in name_to_id:
                 continue
 
@@ -180,7 +299,6 @@ def main():
 
             industries_json = json.dumps(industries_list, ensure_ascii=False)
 
-            # 插入公司，并拿回主键 id，更新哈希表
             with conn.cursor() as cur:
                 cur.execute(
                     insert_sql_returning_company,
@@ -190,12 +308,13 @@ def main():
                 name_to_id[name] = new_id
                 inserted_company_count += 1
 
-                # 每插入 100 条公司数据，打印一次日志
                 if inserted_company_count % 100 == 0:
                     print(f"已插入公司记录 {inserted_company_count} 条...")
 
-        # 4.2 再逐行处理，插入岗位（此时 name_to_id 已包含所有公司）
         for _, row in df.iterrows():
+            if is_job_web_info_lost(row.get(col_web_lost)):
+                continue
+
             name_raw = row.get(col_company_name)
             job_name_raw = row.get(col_job_name)
             location_raw = row.get(col_location)
@@ -203,7 +322,6 @@ def main():
             job_detail_raw = row.get(col_job_detail)
             job_link_raw = row.get(col_job_link)
 
-            # 岗位必填字段检查
             if (
                 pd.isna(name_raw)
                 or str(name_raw).strip() == ""
@@ -211,20 +329,51 @@ def main():
                 or str(job_name_raw).strip() == ""
                 or pd.isna(location_raw)
                 or str(location_raw).strip() == ""
-                or pd.isna(salary_raw)
-                or str(salary_raw).strip() == ""
-                or pd.isna(job_detail_raw)
             ):
                 continue
 
             name = str(name_raw).strip()
             job_name = str(job_name_raw).strip()
             location = str(location_raw).strip()
-            salary = str(salary_raw).strip()
-            # 去除岗位详情中的 "<br>"
-            job_detail = str(job_detail_raw).replace("<br>", "").strip()
 
-            # 岗位来源地址 -> jobs.link（VARCHAR(500) NOT NULL，空则写空串，超长截断）
+            duties = parse_string_list(row.get(col_duties))
+            reqs = parse_string_list(row.get(col_req))
+            job_detail = ""
+            if not pd.isna(job_detail_raw):
+                job_detail = str(job_detail_raw).replace("<br>", "").strip()
+
+            description = build_description(duties, reqs, job_detail)
+            if len(description) < 20:
+                continue
+
+            salary_min = to_int_salary(row.get(col_salary_min))
+            salary_max = to_int_salary(row.get(col_salary_max))
+            if salary_min is None or salary_max is None:
+                fb_min, fb_max = parse_salary_range_fallback(
+                    "" if pd.isna(salary_raw) else str(salary_raw)
+                )
+                if salary_min is None:
+                    salary_min = fb_min
+                if salary_max is None:
+                    salary_max = fb_max
+
+            if salary_min is None or salary_max is None:
+                continue
+            if salary_min > salary_max:
+                salary_min, salary_max = salary_max, salary_min
+
+            salary_type = map_salary_type(row.get(col_salary_unit))
+
+            salary_text = "" if pd.isna(salary_raw) else str(salary_raw).strip()
+            # 与旧逻辑一致：薪资范围或数值字段中至少应出现可解析的薪资依据
+            has_salary_signal = (
+                any(ch.isdigit() for ch in salary_text)
+                or salary_min > 0
+                or salary_max > 0
+            )
+            if not has_salary_signal:
+                continue
+
             if pd.isna(job_link_raw):
                 job_link = ""
             else:
@@ -232,20 +381,15 @@ def main():
             if len(job_link) > 500:
                 job_link = job_link[:500]
 
-            # 薪资不包含任何数字，则不插入
-            if not any(ch.isdigit() for ch in salary):
-                continue
+            keywords_list = parse_string_list(row.get(col_keywords))
+            content_json = json.dumps(duties, ensure_ascii=False)
+            requirements_json = json.dumps(reqs, ensure_ascii=False)
+            keywords_json = json.dumps(keywords_list, ensure_ascii=False)
 
-            # 岗位详情少于 20 个字符，则不插入
-            if len(job_detail) < 20:
-                continue
-
-            # 根据哈希表获取 company_id，若不存在则不插入该岗位
             company_id = name_to_id.get(name)
             if company_id is None:
                 continue
 
-            # 插入 jobs 表
             with conn.cursor() as cur:
                 cur.execute(
                     insert_sql_job,
@@ -253,19 +397,22 @@ def main():
                         job_name,
                         company_id,
                         name,
-                        job_detail,  # description
+                        description,
                         location,
-                        salary,
+                        salary_min,
+                        salary_max,
+                        salary_type,
+                        content_json,
+                        requirements_json,
+                        keywords_json,
                         job_link,
                     ),
                 )
                 inserted_job_count += 1
 
-                # 每插入 100 条岗位数据，打印一次日志
                 if inserted_job_count % 100 == 0:
                     print(f"已插入岗位记录 {inserted_job_count} 条...")
 
-        # 5. 提交事务
         conn.commit()
         print(f"成功插入公司记录 {inserted_company_count} 条，岗位记录 {inserted_job_count} 条。")
 
@@ -279,4 +426,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

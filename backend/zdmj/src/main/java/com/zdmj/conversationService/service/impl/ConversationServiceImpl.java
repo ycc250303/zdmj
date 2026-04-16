@@ -60,7 +60,7 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
     @Override
     public Conversation getById(Long id) {
         if (id == null) {
-            throw new BusinessException(ErrorCode.ILLEGAL_ARGUMENT.getCode(), "会话ID不能为空");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "会话ID不能为空");
         }
         String key = RedisConstants.CONVERSATION_KEY + id;
         Conversation conversation = redisUtil.get(key, Conversation.class);
@@ -90,7 +90,7 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
     @Override
     public Conversation updateTitle(Long id, String title) {
         if (title == null || title.trim().isEmpty()) {
-            throw new BusinessException(ErrorCode.ILLEGAL_ARGUMENT.getCode(), "会话标题不能为空");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "会话标题不能为空");
         }
         Long userId = UserHolder.requireUserId();
         Conversation conversation = getById(id);

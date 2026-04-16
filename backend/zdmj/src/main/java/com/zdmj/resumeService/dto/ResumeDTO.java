@@ -14,19 +14,19 @@ import lombok.Data;
 @Data
 public class ResumeDTO {
     /**
-     * 简历ID（主键，自增）
+     * 简历ID（主键，自增，更新时不能为空）
      */
     @NotNull(message = "简历ID不能为空", groups = UpdateGroup.class)
     private Long id;
 
     /**
-     * 简历名称
+     * 简历名称（创建时不能为空）
      */
     @NotBlank(message = "简历名称不能为空", groups = CreateGroup.class)
     private String name;
 
     /**
-     * 技能清单ID
+     * 技能清单ID（创建时不能为空）
      */
     @NotNull(message = "技能清单ID不能为空", groups = CreateGroup.class)
     private Long skillId;

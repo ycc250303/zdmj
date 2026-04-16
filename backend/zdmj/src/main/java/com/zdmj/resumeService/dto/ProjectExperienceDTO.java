@@ -46,19 +46,19 @@ public class ProjectExperienceDTO {
     private LocalDate endDate;
 
     /**
-     * 在项目中的角色和职责
+     * 在项目中的角色和职责（创建时不能为空）
      */
     @NotBlank(message = "项目角色不能为空", groups = CreateGroup.class)
     private String role;
 
     /**
-     * 项目描述
+     * 项目描述（创建时不能为空）
      */
     @NotBlank(message = "项目描述不能为空", groups = CreateGroup.class)
     private String description;
 
     /**
-     * 项目贡献
+     * 项目贡献（创建时不能为空）
      */
     @NotBlank(message = "项目贡献不能为空", groups = CreateGroup.class)
     private String contribution;
