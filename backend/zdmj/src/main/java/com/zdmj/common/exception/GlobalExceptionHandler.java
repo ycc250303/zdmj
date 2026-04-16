@@ -101,8 +101,8 @@ public class GlobalExceptionHandler {
         String parameterName = e.getParameterName();
         String parameterType = e.getParameterType();
         log.warn("缺少必需的请求参数: {} (类型: {})", parameterName, parameterType);
-        return Result.error(ErrorCode.MISSING_PARAMETER.getCode(),
-                ErrorCode.MISSING_PARAMETER.getMessage() + ": " + parameterName);
+        return Result.error(ErrorCode.VALIDATION_ERROR.getCode(),
+                ErrorCode.VALIDATION_ERROR.getMessage() + ": 缺少参数 " + parameterName);
     }
 
     /**
@@ -118,8 +118,8 @@ public class GlobalExceptionHandler {
         String requiredType = e.getRequiredType() != null ? e.getRequiredType().getSimpleName() : "未知类型";
         Object value = e.getValue();
         log.warn("请求参数类型不匹配: {} = {} (期望类型: {})", parameterName, value, requiredType);
-        return Result.error(ErrorCode.PARAM_TYPE_ERROR.getCode(),
-                String.format("%s: %s 应为 %s 类型", ErrorCode.PARAM_TYPE_ERROR.getMessage(), parameterName, requiredType));
+        return Result.error(ErrorCode.VALIDATION_ERROR.getCode(),
+                String.format("%s: %s 应为 %s 类型", ErrorCode.VALIDATION_ERROR.getMessage(), parameterName, requiredType));
     }
 
     /**
@@ -139,7 +139,7 @@ public class GlobalExceptionHandler {
                     || message.contains("I/O error while reading input message")
                     || message.contains("Required request body")) {
                 log.warn("请求体为空");
-                return Result.error(ErrorCode.REQUEST_BODY_EMPTY.getCode(), ErrorCode.REQUEST_BODY_EMPTY.getMessage());
+                return Result.error(ErrorCode.REQUEST_BODY_ERROR.getCode(), ErrorCode.REQUEST_BODY_ERROR.getMessage());
             }
             // 处理日期格式错误
             if (message.contains("LocalDate") || message.contains("LocalDateTime")) {
@@ -149,12 +149,12 @@ public class GlobalExceptionHandler {
             // 处理JSON反序列化失败
             if (message.contains("Cannot deserialize")) {
                 log.warn("JSON反序列化失败: {}", message);
-                return Result.error(ErrorCode.PARAM_TYPE_ERROR.getCode(), ErrorCode.PARAM_TYPE_ERROR.getMessage());
+                return Result.error(ErrorCode.VALIDATION_ERROR.getCode(), ErrorCode.VALIDATION_ERROR.getMessage());
             }
             // 处理JSON格式错误
             if (message.contains("JSON parse error") || message.contains("Unexpected character")) {
                 log.warn("JSON格式错误: {}", message);
-                return Result.error(ErrorCode.JSON_FORMAT_ERROR.getCode(), ErrorCode.JSON_FORMAT_ERROR.getMessage());
+                return Result.error(ErrorCode.REQUEST_BODY_ERROR.getCode(), ErrorCode.REQUEST_BODY_ERROR.getMessage());
             }
         }
         log.warn("JSON解析失败: {}", message);
@@ -172,8 +172,8 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Result<?> handleIllegalArgumentException(IllegalArgumentException e) {
         log.warn("非法参数: {}", e.getMessage());
-        return Result.error(ErrorCode.ILLEGAL_ARGUMENT.getCode(),
-                ErrorCode.ILLEGAL_ARGUMENT.getMessage() + ": " + e.getMessage());
+        return Result.error(ErrorCode.VALIDATION_ERROR.getCode(),
+                ErrorCode.VALIDATION_ERROR.getMessage() + ": " + e.getMessage());
     }
 
     /**

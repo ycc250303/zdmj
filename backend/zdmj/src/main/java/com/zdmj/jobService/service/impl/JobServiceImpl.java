@@ -2,12 +2,12 @@ package com.zdmj.jobService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.cache.RedisUtil;
-import com.zdmj.common.cache.RedisConstants;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.jobService.dto.JobDetailDTO;
+import com.zdmj.common.cache.RedisConstants;
 import com.zdmj.jobService.dto.JobListItemDTO;
 import com.zdmj.jobService.dto.JobDTO;
+import com.zdmj.jobService.dto.JobPageQueryDTO;
 import com.zdmj.jobService.entity.Company;
 import com.zdmj.jobService.entity.Job;
 import com.zdmj.jobService.mapper.CompanyStructMapper;
@@ -37,16 +37,16 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
     private final CompanyStructMapper companyStructMapper;
 
     @Override
-    public JobDetailDTO getDetail(Long id) {
+    public JobListItemDTO getDetail(Long id) {
         String key = RedisConstants.JOB_DETAIL_KEY + id;
         if (redisCacheUtil.isNullValue(key)) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
-        JobDetailDTO cached = redisCacheUtil.get(key, JobDetailDTO.class);
+        JobListItemDTO cached = redisCacheUtil.get(key, JobListItemDTO.class);
         if (cached != null) {
             return cached;
         }
-        JobDetailDTO dto = baseMapper.selectDetailById(id);
+        JobListItemDTO dto = baseMapper.selectDetailById(id);
         if (dto == null) {
             redisCacheUtil.setNullValue(key, RedisConstants.JOB_DETAIL_NULL_TTL);
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
@@ -56,22 +56,20 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
     }
 
     @Override
-    public PageDTO<JobListItemDTO> getPage(Integer page, Integer limit,
-            List<Integer> companySizes,
-            List<Integer> fundingTypes,
-            List<String> industries,
-            String companyName) {
-        int p = (page == null || page < 1) ? 1 : page;
-        int l = (limit == null || limit < 1) ? 10 : Math.min(limit, MAX_PAGE_SIZE);
+    public PageDTO<JobListItemDTO> getPage(JobPageQueryDTO query) {
+        JobPageQueryDTO q = query != null ? query : new JobPageQueryDTO();
+        int p = (q.getPage() == null || q.getPage() < 1) ? 1 : q.getPage();
+        int l = (q.getLimit() == null || q.getLimit() < 1) ? 20 : Math.min(q.getLimit(), MAX_PAGE_SIZE);
         int offset = (p - 1) * l;
 
-        List<Integer> sizes = emptyToNull(companySizes);
-        List<Integer> types = emptyToNull(fundingTypes);
-        List<String> inds = emptyToNull(industries);
-        String companyNameKeyword = StringUtils.hasText(companyName) ? companyName.trim() : null;
+        q.setCompanySizes(emptyToNull(q.getCompanySizes()));
+        q.setFundingTypes(emptyToNull(q.getFundingTypes()));
+        q.setIndustries(emptyToNull(q.getIndustries()));
+        q.setCompanyName(StringUtils.hasText(q.getCompanyName()) ? q.getCompanyName().trim() : null);
+        q.setJobName(StringUtils.hasText(q.getJobName()) ? q.getJobName().trim() : null);
 
-        List<JobListItemDTO> data = baseMapper.selectPage(offset, l, sizes, types, inds, companyNameKeyword);
-        Long total = baseMapper.countPage(sizes, types, inds, companyNameKeyword);
+        List<JobListItemDTO> data = baseMapper.selectPage(q, offset, l);
+        Long total = baseMapper.countPage(q);
         return PageDTO.of(data, total == null ? 0L : total, p, l);
     }
 

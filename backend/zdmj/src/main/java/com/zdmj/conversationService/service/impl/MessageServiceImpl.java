@@ -207,7 +207,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     @Transactional(rollbackFor = Exception.class)
     public Flux<ServerSentEvent<String>> resumeStream(Long streamId, int offset) {
         if (streamId == null) {
-            throw new BusinessException(ErrorCode.ILLEGAL_ARGUMENT.getCode(), "streamId不能为空");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "streamId不能为空");
         }
         if (offset < 0) {
             offset = 0;
@@ -271,7 +271,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
      */
     private Conversation requireConversationAccess(Long conversationId) {
         if (conversationId == null) {
-            throw new BusinessException(ErrorCode.ILLEGAL_ARGUMENT.getCode(), "会话ID不能为空");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "会话ID不能为空");
         }
         Conversation conversation = conversationService.getById(conversationId);
         if (conversation == null) {

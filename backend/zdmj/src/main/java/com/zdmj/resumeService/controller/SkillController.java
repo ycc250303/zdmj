@@ -60,10 +60,9 @@ public class SkillController {
      * 删除技能
      * 
      * @param id 技能ID
-     * @return 删除结果
      */
     @DeleteMapping("/{id}")
-    public Result<String> deleteSkill(@PathVariable Long id) {
+    public Result<Void> deleteSkill(@PathVariable Long id) {
         skillService.delete(id);
         return Result.success("删除技能成功", null);
     }

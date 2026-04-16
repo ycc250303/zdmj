@@ -35,10 +35,19 @@ public class Job extends BaseEntity {
      */
     private Long companyId;
 
+    /**
+     * 公司名称
+     */
     private String companyName;
 
+    /**
+     * 岗位描述
+     */
     private String description;
 
+    /**
+     * 工作地点
+     */
     private String location;
 
     /**
@@ -74,5 +83,8 @@ public class Job extends BaseEntity {
     @TableField(typeHandler = JsonbListTypeHandler.class)
     private List<String> keywords;
 
+    /**
+     * 岗位链接
+     */
     private String link;
 }

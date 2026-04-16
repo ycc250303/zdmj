@@ -10,7 +10,7 @@
         END)
     </sql>
 
-    <resultMap id="JobDetailDTOMap" type="com.zdmj.jobService.dto.JobDetailDTO">
+    <resultMap id="JobDetailDTOMap" type="com.zdmj.jobService.dto.JobListItemDTO">
         <id property="id" column="id" />
         <result property="jobName" column="job_name" />
         <result property="companyId" column="company_id" />
@@ -59,18 +59,22 @@
     </resultMap>
 
     <sql id="Job_Company_From_Where"> FROM jobs j INNER JOIN companies c ON j.company_id = c.id
-        WHERE 1 = 1 <if test="companySizes != null and companySizes.size() &gt; 0"> AND c.size IN <foreach
-                collection="companySizes" item="s" open="(" separator="," close=")">#{s}</foreach>
+        WHERE 1 = 1
+        <if test="q.companySizes != null and q.companySizes.size() &gt; 0"> AND c.size IN <foreach
+                collection="q.companySizes" item="s" open="(" separator="," close=")">#{s}</foreach>
         </if>
-        <if
-            test="fundingTypes != null and fundingTypes.size() &gt; 0"> AND c.type IN <foreach
-                collection="fundingTypes" item="t" open="(" separator="," close=")">#{t}</foreach>
+        <if test="q.fundingTypes != null and q.fundingTypes.size() &gt; 0"> AND c.type IN <foreach
+                collection="q.fundingTypes" item="t" open="(" separator="," close=")">#{t}</foreach>
         </if>
-        <if
-            test="industries != null and industries.size() &gt; 0"> AND ( <foreach
-                collection="industries" item="ind" separator=" OR "> (c.industries IS NOT NULL AND
+        <if test="q.industries != null and q.industries.size() &gt; 0"> AND ( <foreach
+                collection="q.industries" item="ind" separator=" OR "> (c.industries IS NOT NULL AND
         c.industries::jsonb @> jsonb_build_array(#{ind})) </foreach> ) </if>
-        <if test="companyNameKeyword != null and companyNameKeyword != ''"> AND (j.company_name LIKE '%' || CAST(#{companyNameKeyword} AS TEXT) || '%' OR c.name LIKE '%' || CAST(#{companyNameKeyword} AS TEXT) || '%') </if>
+        <if test="q.companyName != null and q.companyName != ''"> AND (j.company_name LIKE '%' || CAST(#{q.companyName} AS TEXT) || '%' OR c.name LIKE '%' || CAST(#{q.companyName} AS TEXT) || '%') </if>
+        <if test="q.employment == @com.zdmj.jobService.enums.JobEmploymentFilter@INTERN"> AND j.salary_type = 1 </if>
+        <if test="q.employment == @com.zdmj.jobService.enums.JobEmploymentFilter@FULL_TIME"> AND j.salary_type = 2 </if>
+        <if test="q.filterSalaryMin != null"> AND j.salary_max &gt;= #{q.filterSalaryMin} </if>
+        <if test="q.filterSalaryMax != null"> AND j.salary_min &lt;= #{q.filterSalaryMax} </if>
+        <if test="q.jobName != null and q.jobName != ''"> AND j.job_name LIKE '%' || CAST(#{q.jobName} AS TEXT) || '%' </if>
     </sql>
 
     <select id="selectDetailById" resultMap="JobDetailDTOMap">

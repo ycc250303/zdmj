@@ -1,6 +1,5 @@
 package com.zdmj.resumeService.dto;
 
-import com.zdmj.common.model.BaseEntity;
 import com.zdmj.common.model.CreateGroup;
 import com.zdmj.common.model.UpdateGroup;
 
@@ -16,25 +15,25 @@ import java.time.LocalDate;
 @Data
 public class CareerDTO  {
     /**
-     * 工作/实习经历ID（主键，自增）
+     * 工作/实习经历ID（主键，自增，更新时不能为空）
      */
     @NotNull(message = "工作/实习经历ID不能为空", groups = UpdateGroup.class)
     private Long id;
 
     /**
-     * 公司名称
+     * 公司名称（创建时不能为空）
      */
     @NotBlank(message = "公司名称不能为空", groups = CreateGroup.class)
     private String company;
 
     /**
-     * 职位名称
+     * 职位名称（创建时不能为空）
      */
     @NotBlank(message = "职位名称不能为空", groups = CreateGroup.class)
     private String position;
 
     /**
-     * 入职时间
+     * 入职时间（创建时不能为空）
      */
     @NotNull(message = "入职时间不能为空", groups = CreateGroup.class)
     private LocalDate startDate;

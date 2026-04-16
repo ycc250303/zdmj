@@ -101,10 +101,9 @@ public class ResumeController {
      * 删除简历
      * 
      * @param id 简历ID
-     * @return 删除的简历
      */
     @DeleteMapping("/{id}")
-    public Result<String> deleteResume(@PathVariable Long id) {
+    public Result<Void> deleteResume(@PathVariable Long id) {
         resumeService.delete(id);
         return Result.success("删除简历成功", null);
     }

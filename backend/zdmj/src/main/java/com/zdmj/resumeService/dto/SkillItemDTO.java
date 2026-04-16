@@ -12,13 +12,13 @@ import java.util.List;
 @Data
 public class SkillItemDTO {
     /**
-     * 技能类型（如：前端框架、开发语言等）
+     * 技能类型（如：前端框架、开发语言等，不能为空）
      */
     @NotBlank(message = "技能类型不能为空")
     private String type;
 
     /**
-     * 技能内容数组（如：["React", "Vue.js"]）
+     * 技能内容数组（如：["React", "Vue.js"]，不能为空且每一项不能为空）
      */
     @NotEmpty(message = "技能内容不能为空")
     private List<@NotBlank(message = "技能内容项不能为空") String> content;

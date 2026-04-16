@@ -53,10 +53,9 @@ public class CareerController {
      * 删除工作经历
      * 
      * @param id 工作经历ID
-     * @return 删除结果
      */
     @DeleteMapping("/{id}")
-    public Result<String> deleteCareer(@PathVariable Long id) {
+    public Result<Void> deleteCareer(@PathVariable Long id) {
         careerService.delete(id);
         return Result.success("删除工作经历成功", null);
     }
