@@ -22,6 +22,7 @@ public enum ErrorCode {
     FILE_TYPE_ERROR(1006, "文件类型错误"),
     URL_FORMAT_ERROR(1007, "URL格式不正确"),
     SYSTEM_EXCEPTION(1008, "系统异常，请联系管理员"),
+    FILE_EMPTY(1009, "上传文件不能为空"),
 
     // ========== 用户相关 (2xxx) ==========
     USER_ALREADY_EXISTS(2001, "用户名已存在"),
