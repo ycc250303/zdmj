@@ -22,178 +22,113 @@ public class ChatUtil {
     private final PromptUtil promptUtil;
 
     /**
-     * 聊天
+     * 单次对话
      * 
-     * @param message 消息
-     * @return 回复
+     * @param userMessage 用户消息
+     * @param promptName  提示词名称
+     * @param promptVars  提示词模板变量
+     * @return 对话内容
      */
-    public String chat(String message) {
-        return chat((Long) null, message, null);
+    public String chatOnce(String userMessage, String promptName, Map<String, Object> promptVars) {
+        ChatClientRequestSpec spec = buildSpecWithoutMemory(promptName, promptVars);
+        return spec.user(userMessage).call().content();
     }
 
     /**
-     * 聊天
+     * 单次流式对话
      * 
-     * @param message    消息
-     * @param promptName 提示词名称
-     * @return 回复
+     * @param userMessage 用户消息
+     * @param promptName  提示词名称
+     * @param promptVars  提示词模板变量
+     * @return 对话内容
      */
-    public String chat(String message, String promptName) {
-        return chat((Long) null, message, promptName, Collections.emptyMap());
+    public Flux<String> chatStreamOnce(String userMessage, String promptName, Map<String, Object> promptVars) {
+        ChatClientRequestSpec spec = buildSpecWithoutMemory(promptName, promptVars);
+        return spec.user(userMessage).stream().content();
     }
 
     /**
-     * 聊天
-     *
-     * @param message         消息
-     * @param promptName      提示词名称
-     * @param promptVariables 提示词模板变量
-     * @return 回复
-     */
-    public String chat(String message, String promptName, Map<String, Object> promptVariables) {
-        return chat((Long) null, message, promptName, promptVariables);
-    }
-
-    /**
-     * 聊天流
+     * 在会话中对话
      * 
      * @param conversationId 会话ID
-     * @param message        消息
+     * @param userMessage    用户消息
      * @param promptName     提示词名称
-     * @return 回复流
+     * @param promptVars     提示词模板变量
+     * @return 对话内容
      */
-    public String chat(Long conversationId, String message, String promptName) {
-        return chat(conversationId, message, promptName, Collections.emptyMap());
+    public String chatInConversation(Long conversationId, String userMessage, String promptName,
+            Map<String, Object> promptVars) {
+        ChatClientRequestSpec spec = buildSpecWithMemory(conversationId, promptName, promptVars);
+        return spec.user(userMessage).call().content();
     }
 
     /**
-     * 聊天
-     *
-     * @param conversationId  会话ID
-     * @param message         消息
+     * 在会话中流式对话
+     * 
+     * @param conversationId 会话ID
+     * @param userMessage 用户消息
+     * @param promptName  提示词名称
+     * @param promptVars  提示词模板变量
+     * @return 对话内容
+     */
+    public Flux<String> chatStreamInConversation(Long conversationId, String userMessage, String promptName,
+            Map<String, Object> promptVars) {
+        ChatClientRequestSpec spec = buildSpecWithMemory(conversationId, promptName, promptVars);
+        return spec.user(userMessage).stream().content();
+    }
+
+    /**
+     * 构建不带记忆的请求
+     * 
      * @param promptName      提示词名称
      * @param promptVariables 提示词模板变量
-     * @return 回复
+     * @return 请求
      */
-    public String chat(Long conversationId, String message, String promptName,
-            Map<String, Object> promptVariables) {
+    private ChatClientRequestSpec buildSpecWithoutMemory(String promptName, Map<String, Object> promptVars) {
         ChatClientRequestSpec spec = chatClient.prompt();
-        spec = applyMemory(spec, conversationId);
-        if (promptName != null && !promptName.isBlank()) {
-            spec = spec.system(renderSystemPrompt(promptName, promptVariables));
-        }
-        return spec.user(message).call().content();
+        return applySystemPrompt(spec, promptName, promptVars);
     }
 
     /**
-     * 聊天流
+     * 构建带记忆的请求
      * 
-     * @param message 消息
-     * @return 回复流
-     */
-    public Flux<String> chatStream(String message) {
-        return chatClient.prompt()
-                .user(message)
-                .stream()
-                .content();
-    }
-
-    /**
-     * 聊天流
-     * 
-     * @param message    消息
-     * @param promptName 提示词名称
-     * @return 回复流
-     */
-    public Flux<String> chatStream(String message, String promptName) {
-        return chatStream((Long) null, message, promptName, Collections.emptyMap());
-    }
-
-    /**
-     * 聊天流
-     *
-     * @param message         消息
-     * @param promptName      提示词名称
-     * @param promptVariables 提示词模板变量
-     * @return 回复流
-     */
-    public Flux<String> chatStream(String message, String promptName, Map<String, Object> promptVariables) {
-        return chatStream((Long) null, message, promptName, promptVariables);
-    }
-
-    /**
-     * 聊天流
-     * 
-     * @param conversationId 会话ID
-     * @param message        消息
-     * @return 回复流
-     */
-    public Flux<String> chatStream(Long conversationId, String message) {
-        return chatStream(conversationId, message, PromptUtil.PromptNames.SYSTEM);
-    }
-
-    /**
-     * 聊天流
-     * 
-     * @param conversationId 会话ID
-     * @param message        消息
-     * @param promptName     提示词名称
-     * @return 回复流
-     */
-    public Flux<String> chatStream(Long conversationId, String message, String promptName) {
-        return chatStream(conversationId, message, promptName, Collections.emptyMap());
-    }
-
-    /**
-     * 聊天流
-     *
      * @param conversationId  会话ID
-     * @param message         消息
      * @param promptName      提示词名称
      * @param promptVariables 提示词模板变量
-     * @return 回复流
+     * @return 请求
      */
-    public Flux<String> chatStream(Long conversationId, String message, String promptName,
-            Map<String, Object> promptVariables) {
-        ChatClientRequestSpec spec = chatClient.prompt();
-        spec = applyMemory(spec, conversationId);
-        if (promptName != null && !promptName.isBlank()) {
-            spec = spec.system(renderSystemPrompt(promptName, promptVariables));
-        }
-        return spec.user(message).stream().content();
-    }
-
-    /**
-     * 应用记忆
-     * 
-     * @param spec           请求规格
-     * @param conversationId 会话ID
-     * @return 请求规格
-     */
-    private ChatClientRequestSpec applyMemory(ChatClientRequestSpec spec,
-            Long conversationId) {
+    private ChatClientRequestSpec buildSpecWithMemory(Long conversationId, String promptName,
+            Map<String, Object> promptVars) {
         if (conversationId == null) {
+            throw new IllegalArgumentException("Conversation ID cannot be null");
+        }
+        ChatClientRequestSpec spec = chatClient.prompt()
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, String.valueOf(conversationId)));
+        return applySystemPrompt(spec, promptName, promptVars);
+    }
+
+    /*
+     * 应用系统提示词
+     * 
+     * @param spec 请求
+     * 
+     * @param promptName 提示词名称
+     * 
+     * @param promptVariables 提示词模板变量
+     * 
+     * @return 请求
+     */
+    private ChatClientRequestSpec applySystemPrompt(ChatClientRequestSpec spec, String promptName,
+            Map<String, Object> promptVars) {
+        if (promptName == null && promptName.isBlank()) {
             return spec;
         }
-        String threadId = String.valueOf(conversationId);
-        return spec.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, threadId));
-    }
-
-    /**
-     * 渲染系统提示词模板
-     *
-     * @param promptName      提示词名称
-     * @param promptVariables 提示词模板变量
-     * @return 渲染后的提示词
-     */
-    private String renderSystemPrompt(String promptName, Map<String, Object> promptVariables) {
         String template = promptUtil.load(promptName);
-        Map<String, Object> variables = promptVariables == null ? Collections.emptyMap() : promptVariables;
-        // 无变量时不再走 StringTemplate：prompt 正文中若含 JSON 等「{ }」会与 ST 语法冲突
+        Map<String, Object> variables = promptVars == null ? Collections.emptyMap() : promptVars;
         if (variables.isEmpty()) {
-            return template;
+            return spec.system(template);
         }
         PromptTemplate promptTemplate = new PromptTemplate(template);
-        return promptTemplate.render(variables);
+        return spec.system(promptTemplate.render(variables));
     }
 }

@@ -43,10 +43,10 @@ public enum ErrorCode {
 
     // ========== 项目经历相关 (4xxx) ==========
     PROJECT_EXPERIENCE_ADD_FAILED(4001, "添加项目经历失败"),
-    PROJECT_END_TIME_INVALID(4003, "项目结束时间不能早于开始时间"),
-    PROJECT_EXPERIENCE_UPDATE_FAILED(4004, "更新项目经历失败"),
-    PROJECT_EXPERIENCE_DELETE_FAILED(4005, "删除项目经历失败"),
-    PROJECT_EXPERIENCE_NOT_FOUND(4006, "项目经历不存在"),
+    PROJECT_END_TIME_INVALID(4002, "项目结束时间不能早于开始时间"),
+    PROJECT_EXPERIENCE_UPDATE_FAILED(4003, "更新项目经历失败"),
+    PROJECT_EXPERIENCE_DELETE_FAILED(4004, "删除项目经历失败"),
+    PROJECT_EXPERIENCE_NOT_FOUND(4005, "项目经历不存在"),
 
     // ========== 工作经历相关 (5xxx) ==========
     CAREER_ADD_FAILED(5001, "添加工作经历失败"),
@@ -57,10 +57,10 @@ public enum ErrorCode {
 
     // ========== 教育经历相关 (6xxx) ==========
     EDUCATION_ADD_FAILED(6001, "添加教育经历失败"),
+    EDUCATION_UPDATE_FAILED(6002, "更新教育经历失败"),
     EDUCATION_GRADUATE_TIME_INVALID(6003, "毕业时间不能早于入学时间"),
-    EDUCATION_UPDATE_FAILED(6004, "更新教育经历失败"),
-    EDUCATION_DELETE_FAILED(6005, "删除教育经历失败"),
-    EDUCATION_NOT_FOUND(6006, "教育经历不存在"),
+    EDUCATION_DELETE_FAILED(6004, "删除教育经历失败"),
+    EDUCATION_NOT_FOUND(6005, "教育经历不存在"),
 
     // ========== 技能相关 (7xxx) ==========
     SKILL_ADD_FAILED(7001, "添加技能失败"),
