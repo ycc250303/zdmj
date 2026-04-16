@@ -57,9 +57,6 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
     public Career update(CareerDTO careerDTO) {
         Long userId = UserHolder.requireUserId();
         Long id = careerDTO.getId();
-        if (id == null) {
-            throw new BusinessException(ErrorCode.CAREER_ID_EMPTY);
-        }
         Career career = requireCareerAndCheckOwnership(id, userId, "修改");
 
         careerPatchMapper.updateEntityFromDto(careerDTO, career);

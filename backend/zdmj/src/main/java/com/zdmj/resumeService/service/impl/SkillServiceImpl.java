@@ -58,10 +58,6 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
         Long userId = requireUserId();
 
         Long id = skillDTO.getId();
-        if (id == null) {
-            throw new BusinessException(ErrorCode.SKILL_ID_EMPTY);
-        }
-
         Skill skill = requireSkillAndCheckOwnership(id, userId, "修改");
 
         // 更新字段

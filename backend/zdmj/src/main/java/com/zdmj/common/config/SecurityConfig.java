@@ -2,6 +2,7 @@ package com.zdmj.common.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -77,7 +78,7 @@ public class SecurityConfig {
                                 return;
                             }
                             try {
-                                response.setStatus(org.springframework.http.HttpStatus.UNAUTHORIZED.value());
+                                response.setStatus(HttpStatus.UNAUTHORIZED.value());
                                 response.setContentType("application/json;charset=UTF-8");
                                 response.getWriter().write("{\"code\":401,\"message\":\"Unauthorized\"}");
                             } catch (Exception e) {
@@ -92,7 +93,7 @@ public class SecurityConfig {
                                 return;
                             }
                             try {
-                                response.setStatus(org.springframework.http.HttpStatus.FORBIDDEN.value());
+                                response.setStatus(HttpStatus.FORBIDDEN.value());
                                 response.setContentType("application/json;charset=UTF-8");
                                 response.getWriter().write("{\"code\":403,\"message\":\"Access Denied\"}");
                             } catch (Exception e) {

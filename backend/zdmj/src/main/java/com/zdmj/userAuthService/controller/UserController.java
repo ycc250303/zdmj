@@ -1,6 +1,7 @@
 package com.zdmj.userAuthService.controller;
 
 import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.model.Result;
 import com.zdmj.userAuthService.dto.UserDTO;
 import com.zdmj.userAuthService.dto.UserLoginDTO;
@@ -84,7 +85,7 @@ public class UserController {
         if (success) {
             return Result.success("验证码已发送到邮箱", null);
         } else {
-            return Result.error(ErrorCode.CAPTCHA_SEND_FAILED.getCode(), ErrorCode.CAPTCHA_SEND_FAILED.getMessage());
+            throw new BusinessException(ErrorCode.CAPTCHA_SEND_FAILED);
         }
     }
 

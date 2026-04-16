@@ -44,32 +44,47 @@ jobs:
           distribution: 'temurin'     # JDK发行版（Eclipse Temurin）
           cache: maven                # 启用Maven依赖缓存
 
-      # 步骤3: 编译验证（暂时跳过测试执行）
-      # 在backend/zdmj目录下执行Maven编译命令
+      # 步骤3: 编译验证
       # clean: 清理之前的构建产物
-      # compile: 只编译主代码，构建时间更短
-      # 保留测试流水线结构，但暂时不执行测试用例
-      # 如果需要恢复测试，将 compile 改为 test 即可
-      - name: Compile and verify (skip tests)
+      # compile: 编译主代码，不执行测试
+      - name: Compile backend
+        id: compile
+        continue-on-error: true
         working-directory: ./backend/zdmj  # 指定工作目录
         run: mvn -B -ntp clean compile
 
-      # 步骤4: 生成测试报告（暂时跳过）
-      # 暂时注释掉测试报告生成步骤
-      # 如果需要恢复测试，取消注释并修改步骤4为 test
-      # - name: Generate test report
-      #   if: always()  # 即使前面的步骤失败也执行
-      #   working-directory: ./backend/zdmj  # 指定工作目录
-      #   run: |
-      #     mvn surefire-report:report || true  # 生成报告，即使失败也不影响整体流程
+      # 步骤4: 单元测试
+      # 仅在编译通过后执行
+      - name: Run unit tests
+        id: unit_test
+        if: steps.compile.outcome == 'success'
+        continue-on-error: true
+        working-directory: ./backend/zdmj
+        run: mvn -B -ntp test
 
-      # 步骤5: 上传测试结果（暂时跳过）
-      # 暂时注释掉测试结果上传步骤
-      # 如果需要恢复测试，取消注释并修改步骤4为 test
-      # - name: Upload test results
-      #   if: always()  # 无论测试结果如何都上传报告
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: test-results                    # 产物名称
-      #     path: backend/zdmj/target/surefire-reports  # 测试报告文件路径
-      #     retention-days: 7                     # 保留7天后自动删除
+      # 步骤5: 失败提醒与统一退出
+      # 在日志和 Summary 明确提示失败原因，并让 CI 最终失败
+      - name: Notify when compile or tests fail
+        if: always()
+        run: |
+          failed=0
+
+          if [ "${{ steps.compile.outcome }}" != "success" ]; then
+            echo "::error title=CI检查失败::后端编译未通过，请先修复编译错误后再提交。"
+            echo "- ❌ 编译未通过（Compile backend）" >> "$GITHUB_STEP_SUMMARY"
+            failed=1
+          fi
+
+          if [ "${{ steps.compile.outcome }}" = "success" ] && [ "${{ steps.unit_test.outcome }}" != "success" ]; then
+            echo "::error title=CI检查失败::单元测试未通过，请修复失败用例后再提交。"
+            echo "- ❌ 单元测试未通过（Run unit tests）" >> "$GITHUB_STEP_SUMMARY"
+            failed=1
+          fi
+
+          if [ "$failed" -eq 0 ]; then
+            echo "- ✅ 编译通过，单元测试通过" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "请查看失败步骤日志并修复后重新触发 CI。" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi

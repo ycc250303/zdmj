@@ -79,9 +79,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     public Resume update(ResumeDTO resumeDTO) {
         Long userId = UserHolder.requireUserId();
         Long id = resumeDTO.getId();
-        if (id == null) {
-            throw new BusinessException(ErrorCode.RESUME_ID_EMPTY);
-        }
 
         Resume resume = requireResumeAndCheckOwnership(id, userId, "修改");
 
