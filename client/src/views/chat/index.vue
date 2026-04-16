@@ -118,7 +118,6 @@ const handleSelectConversation = async (id: number) => {
   }
 
   currentConversationId.value = id;
-  messageList.value = [];
   loading.value = true;
 
   try {
@@ -130,11 +129,13 @@ const handleSelectConversation = async (id: number) => {
       messageList.value = (data.list || []).map(msg => ({ ...msg, thinking: false }));
       scrollToBottom();
     } else {
-      // 如果加载消息失败，显示空列表，允许用户发送新消息
+      // 如果加载消息失败，显示空列表，允许用��发送新消息
+      messageList.value = [];
       console.error('加载消息失败，但允许发送新消息:', error);
     }
   } catch (err) {
     loading.value = false;
+    messageList.value = [];
     console.error('加载消息异常:', err);
   }
 };
@@ -279,6 +280,9 @@ const formatMessageContent = (content: string) => {
   }
 };
 
+// 判断是否显示居中布局（空状态）
+const isCenteredLayout = computed(() => messageList.value.length === 0 && !loading.value);
+
 onMounted(() => {
   loadConversations();
 });
@@ -329,13 +333,13 @@ onMounted(() => {
           >
             <div class="flex justify-between items-center gap-2 w-full">
               <div
-                class="flex flex-col gap-0.5 flex-1 min-w-0 pr-2"
+                class="flex flex-col gap-0.5 flex-1 min-w-0 pr-2 max-w-[180px]"
                 @click="handleSelectConversation(item.id)"
               >
-                <span class="text-sm font-medium truncate" :class="currentConversationId === item.id ? 'text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'">
+                <span class="text-sm font-medium truncate block" :class="currentConversationId === item.id ? 'text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'" :title="item.title || $t('page.chat.newChat')">
                   {{ item.title || $t('page.chat.newChat') }}
                 </span>
-                <span class="text-xs text-gray-400 dark:text-gray-500">{{ formatTime(item.updatedAt) }}</span>
+                <span class="text-xs text-gray-400 dark:text-gray-500 truncate">{{ formatTime(item.updatedAt) }}</span>
               </div>
               <div
                 class="flex-shrink-0 w-8 h-8 flex items-center justify-center text-gray-500 cursor-pointer hover:text-blue-700 dark:hover:text-blue-300 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded transition-colors"
@@ -372,113 +376,165 @@ onMounted(() => {
         </n-tooltip>
       </div>
 
-      <!-- 聊天头部 -->
-      <div class="h-14 border-b border-gray-200 dark:border-gray-700 flex items-center px-6 bg-white dark:bg-dark-200 flex-shrink-0">
-        <h2 :class="[
-          'text-base font-medium m-0 text-gray-800 dark:text-gray-200 transition-all duration-300',
-          sidebarCollapsed ? 'ml-10' : ''
-        ]">
-          {{ conversations.find(c => c.id === currentConversationId)?.title || $t('page.chat.aiAssistant') }}
-        </h2>
-      </div>
-
-      <!-- 消息列表区 -->
-      <div class="flex-1 overflow-hidden bg-white dark:bg-dark-200">
-        <n-scrollbar ref="scrollRef" class="h-full">
-          <div v-if="loading" class="flex justify-center py-10">
-            <n-spin size="large" />
+      <!-- 居中布局（空状态） -->
+      <transition name="layout-slide">
+        <div v-if="isCenteredLayout" key="centered" class="h-full flex flex-col items-center justify-center bg-white dark:bg-dark-200" style="transform: translateY(-60px);">
+          <!-- 提示语 -->
+          <div class="mb-12">
+            <p class="text-2xl font-semibold text-gray-400 dark:text-gray-500">{{ $t('page.chat.startNewConversation') }}</p>
           </div>
 
-          <div v-else-if="messageList.length === 0" class="flex flex-col items-center justify-start h-full text-gray-400 pt-32">
-            <p class="text-2xl font-semibold">{{ $t('page.chat.startNewConversation') }}</p>
-          </div>
-
-          <div v-else class="flex flex-col gap-6 px-6 py-4 max-w-full">
-            <div
-              v-for="msg in messageList"
-              :key="msg.id"
-              class="flex gap-3"
-              :class="msg.role === 1 ? 'flex-row-reverse' : ''"
-            >
-              <!-- 头像 -->
-              <n-avatar
-                round
-                :size="32"
-                :class="msg.role === 2 ? 'bg-blue-100 text-blue-600' : 'bg-gray-200'"
-              >
-                <template v-if="msg.role === 2">
-                  <div class="i-icon-park-outline:robot text-base" />
-                </template>
-                <template v-else>
-                  <div class="i-icon-park-outline:user text-base" />
-                </template>
-              </n-avatar>
-
-              <!-- 消息气泡 -->
-              <div
-                class="max-w-[calc(100%-120px)] rounded-2xl px-4 py-2.5 overflow-hidden"
-                :class="msg.role === 1
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-100 dark:bg-dark-400'"
-              >
-                <!-- AI正在思考 -->
-                <div v-if="msg.role === 2 && msg.thinking" class="flex items-center gap-1 text-gray-500 dark:text-gray-400">
-                  <span class="thinking-dot"></span>
-                  <span class="thinking-dot"></span>
-                  <span class="thinking-dot"></span>
-                </div>
-                <!-- 显示消息内容 -->
-                <div v-else-if="msg.content" class="ai-message-content leading-relaxed text-sm" v-html="formatMessageContent(msg.content)"></div>
+          <!-- 居中输入区 -->
+          <div class="w-full max-w-4xl px-8">
+            <div class="flex gap-3 items-end">
+              <div class="flex-1 relative">
+                <n-input
+                  v-model:value="inputText"
+                  type="textarea"
+                  :placeholder="$t('page.chat.inputPlaceholder')"
+                  :autosize="{ minRows: 2, maxRows: 6 }"
+                  class="!rounded-2xl !text-base"
+                  @keydown="handleKeyDown"
+                />
+              </div>
+              <div class="flex gap-2">
+                <n-button
+                  circle
+                  quaternary
+                  class="!text-gray-400 hover:!text-gray-600"
+                >
+                  <template #icon>
+                    <div class="i-icon-park-outline:refresh text-lg" />
+                  </template>
+                </n-button>
+                <n-button
+                  circle
+                  type="primary"
+                  size="medium"
+                  :disabled="!inputText.trim() || sending"
+                  :loading="sending"
+                  @click="handleSend"
+                  class="!bg-blue-500 hover:!bg-blue-600"
+                >
+                  <template #icon>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="m22 2-7 20-4-9-9-4Z"/>
+                      <path d="M22 2 11 13"/>
+                    </svg>
+                  </template>
+                </n-button>
               </div>
             </div>
           </div>
-        </n-scrollbar>
-      </div>
+        </div>
 
-      <!-- 输入区 -->
-      <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-200 flex-shrink-0">
-        <div class="max-w-full mx-auto">
-          <div class="flex gap-3 items-end">
-            <div class="flex-1 relative">
-              <n-input
-                v-model:value="inputText"
-                type="textarea"
-                :placeholder="$t('page.chat.inputPlaceholder')"
-                :autosize="{ minRows: 1, maxRows: 5 }"
-                class="!rounded-2xl"
-                @keydown="handleKeyDown"
-              />
-            </div>
-            <div class="flex gap-2">
-              <n-button
-                circle
-                quaternary
-                class="!text-gray-400 hover:!text-gray-600"
-              >
-                <template #icon>
-                  <div class="i-icon-park-outline:refresh text-lg" />
-                </template>
-              </n-button>
-              <n-button
-                circle
-                type="primary"
-                size="medium"
-                :disabled="!inputText.trim() || sending"
-                :loading="sending"
-                @click="handleSend"
-                class="!bg-blue-500 hover:!bg-blue-600"
-              >
-                <template #icon>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="m22 2-7 20-4-9-9-4Z"/>
-                    <path d="M22 2 11 13"/>
-                  </svg>
-                </template>
-              </n-button>
+        <!-- 正常布局（有消息时） -->
+        <div v-else key="normal" class="h-full flex flex-col bg-white dark:bg-dark-200">
+          <!-- 聊天头部 -->
+          <div class="h-14 border-b border-gray-200 dark:border-gray-700 flex items-center px-6 bg-white dark:bg-dark-200 flex-shrink-0">
+            <h2 :class="[
+              'text-base font-medium m-0 text-gray-800 dark:text-gray-200 transition-all duration-300',
+              sidebarCollapsed ? 'ml-10' : ''
+            ]">
+              {{ conversations.find(c => c.id === currentConversationId)?.title || $t('page.chat.aiAssistant') }}
+            </h2>
+          </div>
+
+          <!-- 消息列表区 -->
+          <div class="flex-1 overflow-hidden bg-white dark:bg-dark-200">
+            <n-scrollbar ref="scrollRef" class="h-full">
+              <div v-if="loading" class="flex justify-center py-10">
+                <n-spin size="large" />
+              </div>
+
+              <div v-else class="flex flex-col gap-6 px-6 py-4 max-w-full">
+                <div
+                  v-for="msg in messageList"
+                  :key="msg.id"
+                  class="flex gap-3"
+                  :class="msg.role === 1 ? 'flex-row-reverse' : ''"
+                >
+                  <!-- 头像 -->
+                  <n-avatar
+                    round
+                    :size="32"
+                    :class="msg.role === 2 ? 'bg-blue-100 text-blue-600' : 'bg-gray-200'"
+                  >
+                    <template v-if="msg.role === 2">
+                      <div class="i-icon-park-outline:robot text-base" />
+                    </template>
+                    <template v-else>
+                      <div class="i-icon-park-outline:user text-base" />
+                    </template>
+                  </n-avatar>
+
+                  <!-- 消息气泡 -->
+                  <div
+                    class="max-w-[calc(100%-120px)] rounded-2xl px-4 py-2.5 overflow-hidden"
+                    :class="msg.role === 1
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100 dark:bg-dark-400'"
+                  >
+                    <!-- AI正在思考 -->
+                    <div v-if="msg.role === 2 && msg.thinking" class="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+                      <span class="thinking-dot"></span>
+                      <span class="thinking-dot"></span>
+                      <span class="thinking-dot"></span>
+                    </div>
+                    <!-- 显示消息内容 -->
+                    <div v-else-if="msg.content" class="ai-message-content leading-relaxed text-sm" v-html="formatMessageContent(msg.content)"></div>
+                  </div>
+                </div>
+              </div>
+            </n-scrollbar>
+          </div>
+
+          <!-- 输入区 -->
+          <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-200 flex-shrink-0">
+            <div class="max-w-full mx-auto">
+              <div class="flex gap-3 items-end">
+                <div class="flex-1 relative">
+                  <n-input
+                    v-model:value="inputText"
+                    type="textarea"
+                    :placeholder="$t('page.chat.inputPlaceholder')"
+                    :autosize="{ minRows: 1, maxRows: 5 }"
+                    class="!rounded-2xl"
+                    @keydown="handleKeyDown"
+                  />
+                </div>
+                <div class="flex gap-2">
+                  <n-button
+                    circle
+                    quaternary
+                    class="!text-gray-400 hover:!text-gray-600"
+                  >
+                    <template #icon>
+                      <div class="i-icon-park-outline:refresh text-lg" />
+                    </template>
+                  </n-button>
+                  <n-button
+                    circle
+                    type="primary"
+                    size="medium"
+                    :disabled="!inputText.trim() || sending"
+                    :loading="sending"
+                    @click="handleSend"
+                    class="!bg-blue-500 hover:!bg-blue-600"
+                  >
+                    <template #icon>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="m22 2-7 20-4-9-9-4Z"/>
+                        <path d="M22 2 11 13"/>
+                      </svg>
+                    </template>
+                  </n-button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </transition>
     </div>
   </div>
 </template>
@@ -487,6 +543,31 @@ onMounted(() => {
 /* 新对话按钮内容居中 */
 :deep(.n-button__content) {
   justify-content: center !important;
+}
+
+/* 布局切换滑动动画 */
+.layout-slide-enter-active {
+  transition: all 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.layout-slide-leave-active {
+  transition: all 0.3s ease-in;
+}
+
+.layout-slide-enter-from {
+  opacity: 0;
+  transform: translateY(30px);
+}
+
+.layout-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-40px);
+}
+
+.layout-slide-enter-to,
+.layout-slide-leave-from {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* 思考动效 */
