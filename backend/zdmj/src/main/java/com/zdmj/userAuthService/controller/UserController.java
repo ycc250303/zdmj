@@ -14,6 +14,7 @@ import com.zdmj.userAuthService.service.VerificationCodeService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -52,7 +53,7 @@ public class UserController {
      * @return 用户信息
      */
     @GetMapping("/{id}")
-    public Result<UserDTO> getUserById(@PathVariable Long id) {
+    public Result<UserDTO> getUserById(@PathVariable @Min(value = 1, message = "用户ID不能小于1") Long id) {
         log.info("查询用户信息: {}", id);
         UserDTO userDTO = userService.getUserById(id);
         return Result.success("查询成功", userDTO);
