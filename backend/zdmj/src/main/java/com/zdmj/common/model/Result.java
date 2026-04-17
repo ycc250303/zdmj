@@ -35,7 +35,7 @@ public class Result<T> {
      * @return Result对象
      */
     public static <T> Result<T> success() {
-        return new Result<>(200, "操作成功", null);
+        return new Result<>(0, "操作成功", null);
     }
 
     /**
@@ -45,7 +45,7 @@ public class Result<T> {
      * @return Result对象
      */
     public static <T> Result<T> success(T data) {
-        return new Result<>(200, "操作成功", data);
+        return new Result<>(0, "操作成功", data);
     }
 
     /**
@@ -56,7 +56,7 @@ public class Result<T> {
      * @return Result对象
      */
     public static <T> Result<T> success(String msg, T data) {
-        return new Result<>(200, msg, data);
+        return new Result<>(0, msg, data);
     }
 
     /**
