@@ -9,7 +9,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.apache.ibatis.session.SqlSessionFactory;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingRequest;
 import org.springframework.ai.embedding.EmbeddingResponse;
@@ -50,7 +49,6 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
     private final KnowledgeBasesService knowledgeBasesService;
     private final KnowledgeEmbeddingService knowledgeEmbeddingService;
     private final KnowledgeVectorMapper knowledgeVectorMapper;
-    private final SqlSessionFactory sqlSessionFactory;
     private final ChatUtil chatUtil;
 
     public Flux<String> streamAnswer(Long conversationId, String userMessage) {
@@ -221,25 +219,6 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
             return List.of();
         }
         String vecString = knowledgeEmbeddingService.toPgVector(vector);
-        // #region agent log
-        try {
-            ClassLoader cl = Thread.currentThread().getContextClassLoader();
-            java.net.URL xmlUrl = cl != null ? cl.getResource("mapper/knowledgeService/KnowledgeVectorMapper.xml")
-                    : null;
-            String stmtId = "com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper.searchBySimilarity";
-            boolean hasStmt = sqlSessionFactory.getConfiguration().hasStatement(stmtId, false);
-            String urlPart = xmlUrl == null ? "" : String.valueOf(xmlUrl).replace("\\", "\\\\").replace("\"", "\\\"");
-            String line = "{\"sessionId\":\"623ff7\",\"hypothesisId\":\"H1\",\"location\":\"KnowledgeRagServiceImpl.searchAndFilter\",\"message\":\"classpath xml + mappedStatement\",\"data\":{\"mapperXmlOnClasspath\":"
-                    + (xmlUrl != null) + ",\"mapperXmlUrl\":\"" + urlPart + "\",\"hasSearchBySimilarityStatement\":"
-                    + hasStmt
-                    + "},\"timestamp\":" + System.currentTimeMillis() + "}\n";
-            java.nio.file.Files.writeString(
-                    java.nio.file.Paths.get(System.getProperty("user.dir", "."), "debug-623ff7.log"),
-                    line, java.nio.charset.StandardCharsets.UTF_8,
-                    java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
-        } catch (Throwable ignored) {
-        }
-        // #endregion
         List<KnowledgeRetrivalDTO> raw = knowledgeVectorMapper.searchBySimilarity(userId, knowledgeId, vecString, topK);
         if (raw == null || raw.isEmpty()) {
             return List.of();

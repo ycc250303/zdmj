@@ -27,7 +27,6 @@ import java.util.stream.Collectors;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
     /**
      * 处理业务异常
      * 
@@ -249,4 +248,5 @@ public class GlobalExceptionHandler {
         // 3) 其他业务错误 -> 400
         return HttpStatus.BAD_REQUEST;
     }
+
 }

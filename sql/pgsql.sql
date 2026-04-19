@@ -382,7 +382,7 @@ CREATE INDEX IF NOT EXISTS idx_resume_matches_user_id_name ON resume_matches(use
 CREATE INDEX IF NOT EXISTS idx_resume_matches_job_id ON resume_matches(job_id);
 CREATE INDEX IF NOT EXISTS idx_resume_matches_resume_id ON resume_matches(resume_id);
 CREATE INDEX IF NOT EXISTS idx_resume_matches_status ON resume_matches(status);
--- 2.7 学生就业能力画像表
+-- 2.7 学生就业能力画像表（最小结构，支持岗位路由+结构化输出）
 CREATE TABLE IF NOT EXISTS student_capability_profiles (
     id BIGSERIAL PRIMARY KEY,
     -- 画像ID
@@ -406,11 +406,31 @@ CREATE TABLE IF NOT EXISTS student_capability_profiles (
     -- 完整度评分 (0-100)
     competitiveness_score INTEGER NOT NULL DEFAULT 0,
     -- 竞争力评分 (0-100)
+    overall_score INTEGER,
+    -- 岗位专项评估总分（可选）
+    target_role_code VARCHAR(64) NOT NULL DEFAULT 'default',
+    -- 本次分析识别到的岗位类型：java_backend/frontend/cpp/software_test/default
+    role_confidence NUMERIC(5,4) NOT NULL DEFAULT 0.0,
+    -- 岗位识别置信度（0~1）
+    prompt_name VARCHAR(128) NOT NULL DEFAULT 'generate-capability-profile',
+    -- 实际使用的提示词名称
+    score_detail JSONB DEFAULT '{}'::jsonb,
+    -- 分项评分明细（结构化输出）
+    missing_skills JSONB DEFAULT '[]'::jsonb,
+    -- 缺失技能项
+    weak_evidence_items JSONB DEFAULT '[]'::jsonb,
+    -- 证据不足项
+    suggestions JSONB DEFAULT '[]'::jsonb,
+    -- 改进建议（结构化）
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     -- 创建时间
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    -- 更新时间
 );
-CREATE INDEX IF NOT EXISTS idx_student_capability_profiles_user_id ON student_capability_profiles(user_id);
+CREATE INDEX IF NOT EXISTS idx_student_capability_profiles_user_id
+    ON student_capability_profiles(user_id);
+CREATE INDEX IF NOT EXISTS idx_student_capability_profiles_target_role
+    ON student_capability_profiles(target_role_code);
 --
 -- ==========================3 岗位模块==========================
 --
