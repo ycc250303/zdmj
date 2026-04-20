@@ -2,8 +2,6 @@ package com.zdmj.resumeService.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonProperty.Access;
-import java.math.BigDecimal;
 import java.util.List;
 import lombok.Data;
 
@@ -13,16 +11,6 @@ import lombok.Data;
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class StudentCapabilityProfileDTO {
-    /**
-     * 学生就业能力画像ID
-     */
-    private Long id;
-    
-    /**
-     * 用户ID
-     */
-    private Long userId;
-
     /**
      * 专业技能：2～4 句中文，须结合简历中的课程/项目/技术栈写具体证据，避免只堆砌关键词。
      */
@@ -69,36 +57,9 @@ public class StudentCapabilityProfileDTO {
     private Integer competitivenessScore;
 
     /**
-     * 与 competitivenessScore 同义占位，仅供解析/落库兼容；不参与 API 序列化。
-     */
-    @JsonProperty(access = Access.WRITE_ONLY)
-    private Integer overallScore;
-
-    /**
-     * 本次分析识别到的岗位类型
-     */
-    private String targetRoleCode;
-
-    /**
-     * 岗位识别置信度（0~1）
-     */
-    private BigDecimal roleConfidence;
-
-    /**
-     * 实际使用的提示词名称
-     */
-    private String promptName;
-
-    /**
      * 岗位专项评估分项（兼容 resume-analysis-* 提示词输出）
      */
     private ScoreDetail scoreDetail;
-
-    /**
-     * 仅用于解析模型返回的嵌套对象并回填顶层七维；不参与 API 序列化，避免与顶层字段重复输出。
-     */
-    @JsonProperty(access = Access.WRITE_ONLY)
-    private CapabilityProfile capabilityProfile;
 
     /**
      * 简历优势点
@@ -130,7 +91,6 @@ public class StudentCapabilityProfileDTO {
      */
     @JsonProperty("capabilityProfile")
     public void setCapabilityProfile(CapabilityProfile capabilityProfile) {
-        this.capabilityProfile = capabilityProfile;
         if (capabilityProfile == null) {
             return;
         }
@@ -141,17 +101,6 @@ public class StudentCapabilityProfileDTO {
         this.pressureResistance = capabilityProfile.getPressureResistance();
         this.communicationAbility = capabilityProfile.getCommunicationAbility();
         this.practicalAbility = capabilityProfile.getPracticalAbility();
-    }
-
-    /**
-     * 兼容模型返回的 overallScore 字段，回填到 competitivenessScore（兜底）
-     */
-    @JsonProperty("overallScore")
-    public void setOverallScore(Integer overallScore) {
-        this.overallScore = overallScore;
-        if (overallScore != null && this.competitivenessScore == null) {
-            this.competitivenessScore = overallScore;
-        }
     }
 
     @Data

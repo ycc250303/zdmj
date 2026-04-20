@@ -149,8 +149,6 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
             return null;
         }
         JobCapabilityProfileDTO dto = new JobCapabilityProfileDTO();
-        dto.setId(entity.getId());
-        dto.setJobId(entity.getJobId());
         dto.setProfessionalSkills(entity.getProfessionalSkills());
         dto.setCertificates(entity.getCertificates());
         dto.setInnovationAbility(entity.getInnovationAbility());
@@ -158,9 +156,6 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         dto.setPressureResistance(entity.getPressureResistance());
         dto.setCommunicationAbility(entity.getCommunicationAbility());
         dto.setPracticalAbility(entity.getPracticalAbility());
-        dto.setTargetRoleCode(entity.getTargetRoleCode());
-        dto.setRoleConfidence(entity.getRoleConfidence());
-        dto.setPromptName(entity.getPromptName());
         dto.setSummary(entity.getSummary());
         return dto;
     }
@@ -170,8 +165,6 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
             return null;
         }
         JobCapabilityProfile entity = new JobCapabilityProfile();
-        entity.setId(dto.getId());
-        entity.setJobId(dto.getJobId());
         entity.setProfessionalSkills(dto.getProfessionalSkills());
         entity.setCertificates(dto.getCertificates());
         entity.setInnovationAbility(dto.getInnovationAbility());
@@ -179,9 +172,6 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         entity.setPressureResistance(dto.getPressureResistance());
         entity.setCommunicationAbility(dto.getCommunicationAbility());
         entity.setPracticalAbility(dto.getPracticalAbility());
-        entity.setTargetRoleCode(dto.getTargetRoleCode());
-        entity.setRoleConfidence(dto.getRoleConfidence());
-        entity.setPromptName(dto.getPromptName());
         entity.setSummary(dto.getSummary());
         return entity;
     }

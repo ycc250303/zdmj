@@ -117,9 +117,6 @@ public class StudentCapabilityProfileServiceImpl
             return null;
         }
         StudentCapabilityProfileDTO dto = new StudentCapabilityProfileDTO();
-        dto.setOverallScore(entity.getOverallScore());
-        dto.setId(entity.getId());
-        dto.setUserId(entity.getUserId());
         dto.setProfessionalSkills(entity.getProfessionalSkills());
         dto.setCertificates(entity.getCertificates());
         dto.setInnovationAbility(entity.getInnovationAbility());
@@ -129,9 +126,6 @@ public class StudentCapabilityProfileServiceImpl
         dto.setPracticalAbility(entity.getPracticalAbility());
         dto.setCompletenessScore(entity.getCompletenessScore());
         dto.setCompetitivenessScore(entity.getCompetitivenessScore());
-        dto.setTargetRoleCode(entity.getTargetRoleCode());
-        dto.setRoleConfidence(entity.getRoleConfidence());
-        dto.setPromptName(entity.getPromptName());
         return dto;
     }
 
@@ -140,8 +134,6 @@ public class StudentCapabilityProfileServiceImpl
             return null;
         }
         StudentCapabilityProfile entity = new StudentCapabilityProfile();
-        entity.setId(dto.getId());
-        entity.setUserId(dto.getUserId());
         entity.setProfessionalSkills(dto.getProfessionalSkills());
         entity.setCertificates(dto.getCertificates());
         entity.setInnovationAbility(dto.getInnovationAbility());
@@ -151,10 +143,6 @@ public class StudentCapabilityProfileServiceImpl
         entity.setPracticalAbility(dto.getPracticalAbility());
         entity.setCompletenessScore(dto.getCompletenessScore());
         entity.setCompetitivenessScore(dto.getCompetitivenessScore());
-        entity.setOverallScore(dto.getOverallScore());
-        entity.setTargetRoleCode(dto.getTargetRoleCode());
-        entity.setRoleConfidence(dto.getRoleConfidence());
-        entity.setPromptName(dto.getPromptName());
         return entity;
     }
 
@@ -217,17 +205,11 @@ public class StudentCapabilityProfileServiceImpl
     }
 
     /**
-     * 补全分数：overallScore 与 competitivenessScore 对齐；完整度优先用模型输出，缺失时用分项粗算兜底。
+     * 补全分数：完整度优先用模型输出，缺失时用分项粗算兜底。
      */
     private void normalizeProfileScores(StudentCapabilityProfileDTO dto) {
         if (dto == null) {
             return;
-        }
-        if (dto.getCompetitivenessScore() == null && dto.getOverallScore() != null) {
-            dto.setCompetitivenessScore(dto.getOverallScore());
-        }
-        if (dto.getOverallScore() == null && dto.getCompetitivenessScore() != null) {
-            dto.setOverallScore(dto.getCompetitivenessScore());
         }
         if (dto.getCompletenessScore() == null && dto.getScoreDetail() != null
                 && dto.getScoreDetail().getContentCompletenessScore() != null) {
