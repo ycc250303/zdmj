@@ -68,7 +68,7 @@
         </if>
         <if test="q.industries != null and q.industries.size() &gt; 0"> AND ( <foreach
                 collection="q.industries" item="ind" separator=" OR "> (c.industries IS NOT NULL AND
-        c.industries::jsonb @> jsonb_build_array(#{ind})) </foreach> ) </if>
+        c.industries::jsonb @> jsonb_build_array(CAST(#{ind} AS TEXT))) </foreach> ) </if>
         <if test="q.companyName != null and q.companyName != ''"> AND (j.company_name LIKE '%' || CAST(#{q.companyName} AS TEXT) || '%' OR c.name LIKE '%' || CAST(#{q.companyName} AS TEXT) || '%') </if>
         <if test="q.employment == @com.zdmj.jobService.enums.JobEmploymentFilter@INTERN"> AND j.salary_type = 1 </if>
         <if test="q.employment == @com.zdmj.jobService.enums.JobEmploymentFilter@FULL_TIME"> AND j.salary_type = 2 </if>
