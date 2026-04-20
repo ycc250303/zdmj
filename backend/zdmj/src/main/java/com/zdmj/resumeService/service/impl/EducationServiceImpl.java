@@ -34,6 +34,13 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
     @Override
     public Education create(EducationDTO educationDTO) {
         Long userId = UserHolder.requireUserId();
+
+        // 验证日期逻辑：如果两个日期都提供了，需要验证毕业时间不早于入学时间
+        if (educationDTO.getStartDate() != null && educationDTO.getEndDate() != null
+                && educationDTO.getEndDate().isBefore(educationDTO.getStartDate())) {
+            throw new BusinessException(ErrorCode.EDUCATION_GRADUATE_TIME_INVALID);
+        }
+
         Education education = new Education();
         education.setUserId(userId);
         education.setSchool(educationDTO.getSchool());
@@ -61,10 +68,6 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
     public Education update(EducationDTO educationDTO) {
         Long userId = UserHolder.requireUserId();
         Long id = educationDTO.getId();
-        if (id == null) {
-            throw new BusinessException(ErrorCode.EDUCATION_ID_EMPTY);
-        }
-
         Education existingEducation = requireEducationAndCheckOwnership(id, userId, "修改");
 
         // 只更新提供的字段（非空字段才更新）

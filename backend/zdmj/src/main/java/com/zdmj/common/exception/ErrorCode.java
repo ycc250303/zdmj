@@ -19,7 +19,6 @@ public enum ErrorCode {
     NO_PERMISSION(1003, "无权操作"),
     REQUEST_BODY_ERROR(1004, "请求体错误，请提供有效的JSON数据"),
     DATE_FORMAT_ERROR(1005, "日期格式错误，请使用 yyyy-MM-dd 格式（例如：2024-09-01）"),
-    FILE_TYPE_ERROR(1006, "文件类型错误"),
     URL_FORMAT_ERROR(1007, "URL格式不正确"),
     SYSTEM_EXCEPTION(1008, "系统异常，请联系管理员"),
     FILE_EMPTY(1009, "上传文件不能为空"),
@@ -38,22 +37,19 @@ public enum ErrorCode {
     // ========== 简历相关 (3xxx) ==========
     RESUME_NAME_EXISTS(3001, "简历名称已存在，请使用其他名称"),
     RESUME_CREATE_FAILED(3002, "创建简历失败"),
-    RESUME_ID_EMPTY(3003, "简历ID不能为空"),
     RESUME_UPDATE_FAILED(3004, "更新简历失败"),
     RESUME_DELETE_FAILED(3005, "删除简历失败"),
     RESUME_NOT_FOUND(3006, "简历不存在"),
 
     // ========== 项目经历相关 (4xxx) ==========
     PROJECT_EXPERIENCE_ADD_FAILED(4001, "添加项目经历失败"),
-    PROJECT_EXPERIENCE_ID_EMPTY(4002, "项目经历ID不能为空"),
-    PROJECT_END_TIME_INVALID(4003, "项目结束时间不能早于开始时间"),
-    PROJECT_EXPERIENCE_UPDATE_FAILED(4004, "更新项目经历失败"),
-    PROJECT_EXPERIENCE_DELETE_FAILED(4005, "删除项目经历失败"),
-    PROJECT_EXPERIENCE_NOT_FOUND(4006, "项目经历不存在"),
+    PROJECT_END_TIME_INVALID(4002, "项目结束时间不能早于开始时间"),
+    PROJECT_EXPERIENCE_UPDATE_FAILED(4003, "更新项目经历失败"),
+    PROJECT_EXPERIENCE_DELETE_FAILED(4004, "删除项目经历失败"),
+    PROJECT_EXPERIENCE_NOT_FOUND(4005, "项目经历不存在"),
 
     // ========== 工作经历相关 (5xxx) ==========
     CAREER_ADD_FAILED(5001, "添加工作经历失败"),
-    CAREER_ID_EMPTY(5002, "工作经历ID不能为空"),
     CAREER_LEAVE_TIME_INVALID(5003, "离职时间不能早于入职时间"),
     CAREER_UPDATE_FAILED(5004, "更新工作经历失败"),
     CAREER_DELETE_FAILED(5005, "删除工作经历失败"),
@@ -61,25 +57,21 @@ public enum ErrorCode {
 
     // ========== 教育经历相关 (6xxx) ==========
     EDUCATION_ADD_FAILED(6001, "添加教育经历失败"),
-    EDUCATION_ID_EMPTY(6002, "教育经历ID不能为空"),
+    EDUCATION_UPDATE_FAILED(6002, "更新教育经历失败"),
     EDUCATION_GRADUATE_TIME_INVALID(6003, "毕业时间不能早于入学时间"),
-    EDUCATION_UPDATE_FAILED(6004, "更新教育经历失败"),
-    EDUCATION_DELETE_FAILED(6005, "删除教育经历失败"),
-    EDUCATION_NOT_FOUND(6006, "教育经历不存在"),
+    EDUCATION_DELETE_FAILED(6004, "删除教育经历失败"),
+    EDUCATION_NOT_FOUND(6005, "教育经历不存在"),
 
     // ========== 技能相关 (7xxx) ==========
     SKILL_ADD_FAILED(7001, "添加技能失败"),
-    SKILL_ID_EMPTY(7002, "技能ID不能为空"),
     SKILL_UPDATE_FAILED(7003, "更新技能失败"),
     SKILL_DELETE_FAILED(7004, "删除技能失败"),
     SKILL_NOT_FOUND(7005, "技能不存在"),
 
     // ========== 知识库相关 (8xxx) ==========
     KNOWLEDGE_BASE_SAVE_FAILED(8001, "保存知识库失败"),
-    KNOWLEDGE_BASE_ID_EMPTY(8002, "知识库ID不能为空"),
     KNOWLEDGE_BASE_DELETE_FAILED(8004, "删除知识库失败"),
     KNOWLEDGE_BASE_NOT_FOUND(8005, "知识库不存在"),
-    KNOWLEDGE_BASE_NAME_EXISTS(8006, "知识库名称已存在，请使用其他名称"),
     FILE_TYPE_NOT_EXISTS(8009, "文件类型不存在，请不要修改知识内容中的URL"),
     KNOWLEDGE_BASE_EMBEDDING_FAILED(8010, "向量化任务失败"),
     KNOWLEDGE_DOCUMENT_CREATE_FAILED(8011, "创建知识文档失败"),
