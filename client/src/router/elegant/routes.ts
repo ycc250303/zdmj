@@ -40,21 +40,22 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
+    name: 'chat',
+    path: '/chat',
+    component: 'layout.base$view.chat',
+    meta: {
+      title: 'chat',
+      i18nKey: 'route.chat',
+      order: 99
+    }
+  },
+  {
     name: 'home',
     path: '/home',
     component: 'layout.base$view.home',
     meta: {
       title: 'home',
       i18nKey: 'route.home'
-    }
-  },
-  {
-    name: 'chat',
-    path: '/chat',
-    component: 'layout.base$view.chat',
-    meta: {
-      title: 'chat',
-      i18nKey: 'route.chat'
     }
   },
   {
@@ -74,7 +75,8 @@ export const generatedRoutes: GeneratedRoute[] = [
     component: 'layout.base$view.knowledge',
     meta: {
       title: 'knowledge',
-      i18nKey: 'route.knowledge'
+      i18nKey: 'route.knowledge',
+      order: 98
     }
   },
   {

@@ -291,33 +291,55 @@ const local: App.I18n.Schema = {
       }
     },
     home: {
-      branchDesc:
-        'For the convenience of everyone in developing and updating the merge, we have streamlined the code of the main branch, only retaining the homepage menu, and the rest of the content has been moved to the example branch for maintenance. The preview address displays the content of the example branch.',
-      greeting: 'Good morning, {userName}, today is another day full of vitality!',
-      weatherDesc: 'Today is cloudy to clear, 20℃ - 25℃!',
-      projectCount: 'Project Count',
-      todo: 'Todo',
-      message: 'Message',
-      downloadCount: 'Download Count',
-      registerCount: 'Register Count',
-      schedule: 'Work and rest Schedule',
-      study: 'Study',
-      work: 'Work',
-      rest: 'Rest',
-      entertainment: 'Entertainment',
-      visitCount: 'Visit Count',
-      turnover: 'Turnover',
-      dealCount: 'Deal Count',
-      projectNews: {
-        title: 'Project News',
-        moreNews: 'More News',
-        desc1: 'Soybean created the open source project soybean-admin on May 28, 2021!',
-        desc2: 'Yanbowe submitted a bug to soybean-admin, the multi-tab bar will not adapt.',
-        desc3: 'Soybean is ready to do sufficient preparation for the release of soybean-admin!',
-        desc4: 'Soybean is busy writing project documentation for soybean-admin!',
-        desc5: 'Soybean just wrote some of the workbench pages casually, and it was enough to see!'
+      hero: {
+        badge: '✨ AI Career Assistant',
+        title: 'Find Your Dream Job with AI',
+        subtitle: 'Smart chat, knowledge base, resume generation - all-in-one job hunting solution',
+        startChat: 'Start Chat',
+        exploreKnowledge: 'Explore Knowledge'
       },
-      creativity: 'Creativity'
+      quickActions: {
+        title: 'Quick Start',
+        subtitle: 'Choose a feature and begin your intelligent career journey'
+      },
+      aiChat: {
+        title: 'AI Chat',
+        description: 'Real-time conversations with AI assistant for career guidance'
+      },
+      knowledge: {
+        title: 'Knowledge Base',
+        description: 'Upload study materials and let AI help you retrieve and understand'
+      },
+      resume: {
+        title: 'Resume Generation',
+        description: 'Quickly create professional resumes highlighting your skills'
+      },
+      features: {
+        title: 'Core Features',
+        subtitle: 'Powerful features to support your job hunting journey',
+        smartQA: {
+          title: 'Smart Q&A',
+          description: 'AI-powered answers for all your career questions'
+        },
+        knowledgeBase: {
+          title: 'Knowledge Management',
+          description: 'Upload and manage materials in PDF, Markdown and more'
+        },
+        resumeGen: {
+          title: 'Resume Generation',
+          description: 'AI-assisted professional resume creation'
+        },
+        fastCreate: {
+          title: 'Quick Creation',
+          description: 'Generate complete resumes in just a few steps'
+        }
+      },
+      tips: {
+        title: 'Pro Tips',
+        tip1: 'Upload your study materials and project docs to knowledge base first',
+        tip2: 'Get personalized career advice through AI chat',
+        tip3: 'Use resume generation to quickly create professional resumes'
+      }
     },
     portal: {
       title: 'Career Guidance',
@@ -520,6 +542,27 @@ const local: App.I18n.Schema = {
       status: 'Vectorization Status',
       addSuccess: 'Knowledge created successfully',
       updateSuccess: 'Knowledge updated successfully',
+      viewDetail: 'View Details',
+      unknown: 'Unknown',
+      createFirst: 'Create First Knowledge Document',
+      docTitle: 'Document Title',
+      docTitlePlaceholder: 'Please enter document title',
+      uploadFile: 'Document File',
+      uploadTip: 'Support PDF and Markdown files',
+      dragUpload: 'Drag file here or click to upload',
+      dragUploadActive: 'Release to upload',
+      orInputUrl: 'Or enter URL directly',
+      inputUrlPlaceholder: 'Enter COS file URL (support .pdf or .md)',
+      githubRepoLink: 'GitHub Repository Link',
+      githubRepoPlaceholder: 'Enter GitHub repo link, e.g. https://github.com/username/repo',
+      githubRepoExample: 'Example: https://github.com/username/repository',
+      basicInfo: 'Basic Information',
+      vectorInfo: 'Vectorization Info',
+      lastVectorTime: 'Last Vectorization Time',
+      errorMsg: 'Error Message',
+      openFile: 'Open File',
+      viewRepo: 'View Repo',
+      downloadFile: 'Download File',
       typeOptions: {
         projectDoc: 'Project Doc',
         projectCode: 'Project Code',

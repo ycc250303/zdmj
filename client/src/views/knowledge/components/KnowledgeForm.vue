@@ -1,14 +1,19 @@
 <script setup lang="ts">
 import { ref, reactive, watch, computed, onMounted } from 'vue';
 import type { FormInst, FormRules, UploadFileInfo } from 'naive-ui';
-import { fetchCreateKnowledge, fetchUpdateKnowledge, fetchUploadFile } from '@/service/api/knowledge';
+import {
+  fetchCreateKnowledgeDocument,
+  fetchUpdateKnowledgeDocument,
+  fetchUploadFile
+} from '@/service/api/knowledge';
 import type { KnowledgeApi } from '@/service/api/knowledge';
-import { fetchGetProjectList } from '@/service/api/resume';
-import type { ResumeApi } from '@/service/api/resume';
 import { $t } from '@/locales';
 
+// 获取$t函数的引用
+const t = $t;
+
 interface Props {
-  initialData?: KnowledgeApi.KnowledgeUpdate;
+  initialData?: KnowledgeApi.KnowledgeDocumentUpdate;
 }
 const props = defineProps<Props>();
 const emit = defineEmits(['success', 'cancel']);
@@ -16,36 +21,29 @@ const emit = defineEmits(['success', 'cancel']);
 const formRef = ref<FormInst | null>(null);
 const loading = ref(false);
 const uploadLoading = ref(false);
-const projectList = ref<ResumeApi.ProjectDTO[]>([]);
-const projectLoading = ref(false);
 const fileList = ref<UploadFileInfo[]>([]);
 const isDragging = ref(false);
 
-const formData = reactive<KnowledgeApi.KnowledgeCreate>({
-  name: '',
-  projectId: undefined as unknown as number,
+const formData = reactive<KnowledgeApi.KnowledgeDocumentCreate>({
+  title: '',
   type: 2,
-  content: '',
-  tag: []
+  content: ''
 });
 
 watch(
   () => props.initialData,
   newVal => {
     if (newVal) {
-      formData.name = newVal.name;
-      formData.projectId = newVal.projectId;
+      formData.title = newVal.title;
       formData.type = newVal.type;
       formData.content = newVal.content;
-      formData.tag = newVal.tag ? [...newVal.tag] : [];
     }
   },
   { immediate: true }
 );
 
 const rules = computed<FormRules>(() => ({
-  name: [{ required: true, message: '请输入知识库名称', trigger: 'blur' }],
-  projectId: [{ required: true, type: 'number', message: '请选择关联项目', trigger: 'change' }],
+  title: [{ required: true, message: '请输入文档标题', trigger: 'blur' }],
   type: [{ required: true, type: 'number', message: '请选择知识类型', trigger: 'change' }],
   content: [
     { required: true, message: '请输入内容链接', trigger: 'blur' },
@@ -69,59 +67,10 @@ const knowledgeTypeOptions = [
 
 const contentPlaceholder = computed(() => {
   if (formData.type === 1) {
-    return '请先上传文件，或输入 COS 文件链接（支持 .pdf 或 .md）';
+    return t('page.knowledge.inputUrlPlaceholder');
   }
-  return '请输入 GitHub 仓库链接，如 https://github.com/username/repo';
+  return t('page.knowledge.githubRepoPlaceholder');
 });
-
-async function loadProjects() {
-  projectLoading.value = true;
-  try {
-    const { data, error } = await fetchGetProjectList();
-    if (!error && data) {
-      projectList.value = data;
-    }
-  } finally {
-    projectLoading.value = false;
-  }
-}
-
-async function handleUpload(options: { file: UploadFileInfo }) {
-  const file = options.file.file;
-  if (!file) return;
-
-  // 检查文件类型
-  const fileName = file.name.toLowerCase();
-  if (!fileName.endsWith('.pdf') && !fileName.endsWith('.md') && !fileName.endsWith('.markdown')) {
-    window.$message?.error('仅支持 PDF 和 Markdown 文件');
-    return;
-  }
-
-  uploadLoading.value = true;
-  try {
-    const { data, error } = await fetchUploadFile(file);
-
-    if (!error && data) {
-      formData.content = data.url;
-      // 更新文件列表，让用户看到上传的文件
-      fileList.value = [
-        {
-          id: Date.now().toString(),
-          name: file.name,
-          status: 'finished',
-          url: data.url
-        }
-      ];
-      window.$message?.success('文件上传成功');
-    } else if (error) {
-      window.$message?.error(`文件上传失败: ${error.message || '未知错误'}`);
-    }
-  } catch (err) {
-    window.$message?.error(`文件上传失败: ${(err as Error).message}`);
-  } finally {
-    uploadLoading.value = false;
-  }
-}
 
 async function handleFileChange(options: { fileList: UploadFileInfo[] }) {
   const file = options.fileList[0];
@@ -238,15 +187,18 @@ async function handleSubmit() {
     loading.value = true;
 
     if (props.initialData?.id) {
-      const { data, error } = await fetchUpdateKnowledge({ ...formData, id: props.initialData.id });
+      const { data, error } = await fetchUpdateKnowledgeDocument({
+        ...formData,
+        id: props.initialData.id
+      });
       if (!error && data) {
-        window.$message?.success('知识库更新成功');
+        window.$message?.success('知识文档更新成功');
         emit('success', data);
       }
     } else {
-      const { data, error } = await fetchCreateKnowledge(formData);
+      const { data, error } = await fetchCreateKnowledgeDocument(formData);
       if (!error && data) {
-        window.$message?.success('知识库创建成功，向量化任务已启动');
+        window.$message?.success('知识文档创建成功，向量化任务已启动');
         emit('success', data);
       }
     }
@@ -258,7 +210,7 @@ async function handleSubmit() {
 }
 
 onMounted(() => {
-  loadProjects();
+  // 不再需要加载项目列表
 });
 </script>
 
@@ -285,20 +237,11 @@ onMounted(() => {
       label-placement="top"
       require-mark-placement="right-hanging"
     >
-      <NFormItem label="知识库名称" path="name">
-        <NInput v-model:value="formData.name" placeholder="请输入知识库名称" size="large" />
+      <NFormItem :label="$t('page.knowledge.docTitle')" path="title">
+        <NInput v-model:value="formData.title" :placeholder="$t('page.knowledge.docTitlePlaceholder')" size="large" />
       </NFormItem>
 
-      <NFormItem label="关联项目" path="projectId">
-        <NSelect
-          v-model:value="formData.projectId"
-          :options="projectList.map(p => ({ label: p.name, value: p.id }))"
-          placeholder="请选择关联项目"
-          :loading="projectLoading"
-        />
-      </NFormItem>
-
-      <NFormItem label="知识类型" path="type">
+      <NFormItem :label="$t('page.knowledge.type')" path="type">
         <NRadioGroup v-model:value="formData.type">
           <NSpace>
             <NRadio v-for="option in knowledgeTypeOptions" :key="option.value" :value="option.value">
@@ -309,7 +252,7 @@ onMounted(() => {
       </NFormItem>
 
       <!-- type=1 项目文档：显示上传组件 -->
-      <NFormItem v-if="formData.type === 1" label="文档文件" path="content">
+      <NFormItem v-if="formData.type === 1" :label="$t('page.knowledge.uploadFile')" path="content">
         <div class="w-full space-y-4">
           <NUpload
             :file-list="fileList"
@@ -327,15 +270,15 @@ onMounted(() => {
             >
               <div class="i-mdi-cloud-upload text-4xl mb-2" :class="isDragging ? 'text-blue-500' : 'text-gray-400'"></div>
               <p class="mb-1" :class="isDragging ? 'text-blue-600 font-medium' : 'text-gray-600'">
-                {{ isDragging ? '释放文件即可上传' : '拖拽文件到此处，或点击上传' }}
+                {{ isDragging ? $t('page.knowledge.dragUploadActive') : $t('page.knowledge.dragUpload') }}
               </p>
-              <p class="text-xs text-gray-400">支持 PDF 和 Markdown 文件</p>
+              <p class="text-xs text-gray-400">{{ $t('page.knowledge.uploadTip') }}</p>
             </div>
           </NUpload>
-          <NDivider class="!my-2">或直接输入链接</NDivider>
+          <NDivider class="!my-2">{{ $t('page.knowledge.orInputUrl') }}</NDivider>
           <NInput
             v-model:value="formData.content"
-            placeholder="输入 COS 文件链接（支持 .pdf 或 .md）"
+            :placeholder="$t('page.knowledge.inputUrlPlaceholder')"
           >
             <template #prefix>
               <div class="i-mdi-link text-gray-400"></div>
@@ -345,19 +288,15 @@ onMounted(() => {
       </NFormItem>
 
       <!-- type=2 GitHub 代码：只显示 URL 输入框 -->
-      <NFormItem v-else-if="formData.type === 2" label="GitHub 仓库链接" path="content">
+      <NFormItem v-else-if="formData.type === 2" :label="$t('page.knowledge.githubRepoLink')" path="content">
         <NInput v-model:value="formData.content" :placeholder="contentPlaceholder">
           <template #prefix>
             <div class="i-mdi-github text-gray-400"></div>
           </template>
         </NInput>
         <template #feedback>
-          <p class="text-gray-400 text-xs mt-1">示例：https://github.com/username/repository</p>
+          <p class="text-gray-400 text-xs mt-1">{{ $t('page.knowledge.githubRepoExample') }}</p>
         </template>
-      </NFormItem>
-
-      <NFormItem label="知识标签">
-        <NDynamicTags v-model:value="formData.tag" />
       </NFormItem>
 
       <div class="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-100">

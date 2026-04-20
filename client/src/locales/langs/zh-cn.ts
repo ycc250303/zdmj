@@ -288,33 +288,55 @@ const local: App.I18n.Schema = {
       }
     },
     home: {
-      branchDesc:
-        '为了方便大家开发和更新合并，我们对main分支的代码进行了精简，只保留了首页菜单，其余内容已移至example分支进行维护。预览地址显示的内容即为example分支的内容。',
-      greeting: '早安，{userName}, 今天又是充满活力的一天!',
-      weatherDesc: '今日多云转晴，20℃ - 25℃!',
-      projectCount: '项目数',
-      todo: '待办',
-      message: '消息',
-      downloadCount: '下载量',
-      registerCount: '注册量',
-      schedule: '作息安排',
-      study: '学习',
-      work: '工作',
-      rest: '休息',
-      entertainment: '娱乐',
-      visitCount: '访问量',
-      turnover: '成交额',
-      dealCount: '成交量',
-      projectNews: {
-        title: '项目动态',
-        moreNews: '更多动态',
-        desc1: 'Soybean 在2021年5月28日创建了开源项目 soybean-admin!',
-        desc2: 'Yanbowe 向 soybean-admin 提交了一个bug，多标签栏不会自适应。',
-        desc3: 'Soybean 准备为 soybean-admin 的发布做充分的准备工作!',
-        desc4: 'Soybean 正在忙于为soybean-admin写项目说明文档！',
-        desc5: 'Soybean 刚才把工作台页面随便写了一些，凑合能看了！'
+      hero: {
+        badge: '✨ 智能求职助手',
+        title: '让 AI 助你找到理想工作',
+        subtitle: '智能对话、知识库管理、简历生成，一站式求职解决方案',
+        startChat: '开始对话',
+        exploreKnowledge: '探索知识库'
       },
-      creativity: '创意'
+      quickActions: {
+        title: '快速开始',
+        subtitle: '选择一个功能，开始你的智能求职之旅'
+      },
+      aiChat: {
+        title: 'AI 对话',
+        description: '与智能助手实时对话，获取求职建议和职业指导'
+      },
+      knowledge: {
+        title: '知识库',
+        description: '上传学习资料，AI 助你快速检索和理解知识'
+      },
+      resume: {
+        title: '简历生成',
+        description: '快速创建专业简历，突出你的技能和经验'
+      },
+      features: {
+        title: '核心功能',
+        subtitle: '强大的功能，为你的求职之路保驾护航',
+        smartQA: {
+          title: '智能问答',
+          description: '基于先进 AI 技术，提供精准的求职建议和解答'
+        },
+        knowledgeBase: {
+          title: '知识库管理',
+          description: '上传和管理学习资料，支持 PDF、Markdown 等多种格式'
+        },
+        resumeGen: {
+          title: '简历生成',
+          description: 'AI 辅助创建专业简历，自动优化内容格式'
+        },
+        fastCreate: {
+          title: '快速创建',
+          description: '简单几步，即可生成完整的专业简历'
+        }
+      },
+      tips: {
+        title: '使用小贴士',
+        tip1: '先在知识库中上传你的学习资料和项目文档',
+        tip2: '通过 AI 对话获取个性化的求职建议',
+        tip3: '使用简历生成功能快速创建专业简历'
+      }
     },
     portal: {
       title: '”职”点迷津',
@@ -517,6 +539,27 @@ const local: App.I18n.Schema = {
       status: '向量化状态',
       addSuccess: '知识库创建成功',
       updateSuccess: '知识库更新成功',
+      viewDetail: '查看详情',
+      unknown: '未知',
+      createFirst: '创建第一个知识文档',
+      docTitle: '文档标题',
+      docTitlePlaceholder: '请输入文档标题',
+      uploadFile: '文档文件',
+      uploadTip: '支持 PDF 和 Markdown 文件',
+      dragUpload: '拖拽文件到此处，或点击上传',
+      dragUploadActive: '释放文件即可上传',
+      orInputUrl: '或直接输入链接',
+      inputUrlPlaceholder: '输入 COS 文件链接（支持 .pdf 或 .md）',
+      githubRepoLink: 'GitHub 仓库链接',
+      githubRepoPlaceholder: '请输入 GitHub 仓库链接，如 https://github.com/username/repo',
+      githubRepoExample: '示例：https://github.com/username/repository',
+      basicInfo: '基本信息',
+      vectorInfo: '向量化信息',
+      lastVectorTime: '最后向量化时间',
+      errorMsg: '错误信息',
+      openFile: '打开文件',
+      viewRepo: '查看仓库',
+      downloadFile: '下载文件',
       typeOptions: {
         projectDoc: '项目文档',
         projectCode: '项目代码',

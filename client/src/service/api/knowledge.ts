@@ -3,7 +3,7 @@ import { request } from '../request';
 /**
  * =====================================================================
  * TypeScript 类型定义区域 (DTOs)
- * 规范：与后端 OpenAPI Schema 严格对齐，保障数据结构在前端的强类型约束
+ * 规范：与后端 API 严格对齐，保障数据结构在前端的强类型约束
  * =====================================================================
  */
 export namespace KnowledgeApi {
@@ -11,51 +11,57 @@ export namespace KnowledgeApi {
   export type KnowledgeType = 1 | 2 | 3;
   // 1=项目文档, 2=GitHub仓库代码, 3=项目DeepWiki文档
 
+  /** 向量化状态枚举 */
+  export type EmbeddingStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED';
 
-  /** 创建知识库 DTO */
-  export interface KnowledgeCreate {
-    name: string;
-    projectId: number;
+  /** 创建知识文档 DTO */
+  export interface KnowledgeDocumentCreate {
+    title: string;
     type: KnowledgeType;
     content: string;
-    tag?: string[];
   }
 
-  /** 更新知识库 DTO */
-  export interface KnowledgeUpdate extends KnowledgeCreate {
+  /** 更新知识文档 DTO */
+  export interface KnowledgeDocumentUpdate extends KnowledgeDocumentCreate {
     id: number;
+  }
+
+  /** 知识文档响应 DTO (公开视图) */
+  export interface KnowledgeDocumentDTO {
+    id?: number;
+    type: KnowledgeType;
+    content: string;
+    title: string;
+    embeddingStatus: EmbeddingStatus | null;
+    lastEmbeddedAt: string | null;
+    lastError: string | null;
+    metadata: Record<string, any> | null;
+    createdAt?: string;
+    updatedAt?: string;
   }
 
   /** 知识库响应 DTO */
-  export interface KnowledgeDTO {
+  export interface KnowledgeBasesDTO {
     id: number;
     userId: number;
-    name: string;
-    projectId: number;
-    type: KnowledgeType;
-    content: string;
-    tag: string[];
-    vectorIds: number[];        // 后端返回数字数组
-    vectorTaskId: string | null; // 允许为空
-    vectorTaskStatus: string | null; // 后端返回字符串或null
+    scope: number;
     createdAt: string;
     updatedAt: string;
   }
 
   /** 分页查询参数 */
   export interface KnowledgeQueryParams {
-    page: number;
-    limit: number;
-    projectId?: number;
-    type?: KnowledgeType;
+    page?: number;
+    limit?: number;
   }
 
-  /** 分页结果 */
+  /** 分页结果 (后端 PageDTO 结构) */
   export interface PageResult<T> {
-    data: T[];        // 后端字段名
+    list: T[];       // 后端字段名：list
     total: number;
-    page: number;     // 后端字段名
-    limit: number;    // 后端字段名
+    page: number;
+    limit: number;
+    totalPages: number;
   }
 
   /** 文件上传结果 */
@@ -72,39 +78,61 @@ export namespace KnowledgeApi {
  * =====================================================================
  * API 请求封装区域
  * 规范：统一使用 request() 进行调用，返回 Promise 响应
+ * API路径：/api/zdmj 前缀由后端统一处理
  * =====================================================================
  */
 
+// ========== 知识库管理 ==========
+
 /** 创建知识库 */
-export function fetchCreateKnowledge(data: KnowledgeApi.KnowledgeCreate) {
-  return request<KnowledgeApi.KnowledgeDTO>({ url: '/knowledge', method: 'post', data });
+export function fetchCreateKnowledgeBases() {
+  return request<KnowledgeApi.KnowledgeBasesDTO>({ url: '/knowledge', method: 'post' });
 }
 
-/** 分页查询知识库列表 */
-export function fetchGetKnowledgeList(params: KnowledgeApi.KnowledgeQueryParams) {
-  return request<KnowledgeApi.PageResult<KnowledgeApi.KnowledgeDTO>>({
-    url: '/knowledge',
+/** 查询当前用户的知识库 */
+export function fetchGetKnowledgeBases() {
+  return request<KnowledgeApi.KnowledgeBasesDTO>({ url: '/knowledge', method: 'get' });
+}
+
+/** 清空知识库 */
+export function fetchClearKnowledgeBases() {
+  return request<void>({ url: '/knowledge', method: 'delete' });
+}
+
+// ========== 知识文档管理 ==========
+
+/** 分页查询知识文档列表 */
+export function fetchGetKnowledgeDocumentList(params?: KnowledgeApi.KnowledgeQueryParams) {
+  return request<KnowledgeApi.PageResult<KnowledgeApi.KnowledgeDocumentDTO>>({
+    url: '/knowledge-document',
     method: 'get',
     params
   });
 }
 
-/** 根据ID查询知识库详情 */
-export function fetchGetKnowledgeDetail(id: number) {
-  return request<KnowledgeApi.KnowledgeDTO>({ url: `/knowledge/${id}`, method: 'get' });
+/** 根据ID查询知识文档详情 */
+export function fetchGetKnowledgeDocumentDetail(id: number) {
+  return request<KnowledgeApi.KnowledgeDocumentDTO>({ url: `/knowledge-document/${id}`, method: 'get' });
 }
 
-/** 更新知识库 */
-export function fetchUpdateKnowledge(data: KnowledgeApi.KnowledgeUpdate) {
-  return request<KnowledgeApi.KnowledgeDTO>({ url: '/knowledge', method: 'put', data });
+/** 创建知识文档 */
+export function fetchCreateKnowledgeDocument(data: KnowledgeApi.KnowledgeDocumentCreate) {
+  return request<KnowledgeApi.KnowledgeDocumentDTO>({ url: '/knowledge-document', method: 'post', data });
 }
 
-/** 删除知识库 */
-export function fetchDeleteKnowledge(id: number) {
-  return request<string>({ url: `/knowledge/${id}`, method: 'delete' });
+/** 更新知识文档 */
+export function fetchUpdateKnowledgeDocument(data: KnowledgeApi.KnowledgeDocumentUpdate) {
+  return request<KnowledgeApi.KnowledgeDocumentDTO>({ url: '/knowledge-document', method: 'put', data });
 }
 
-/** 文件上传 */
+/** 删除知识文档 */
+export function fetchDeleteKnowledgeDocument(id: number) {
+  return request<void>({ url: `/knowledge-document/${id}`, method: 'delete' });
+}
+
+// ========== 文件上传 ==========
+
+/** 上传文件到腾讯云COS */
 export function fetchUploadFile(file: File, prefix = 'knowledge') {
   const formData = new FormData();
   formData.append('file', file);
@@ -112,9 +140,33 @@ export function fetchUploadFile(file: File, prefix = 'knowledge') {
     url: '/files/upload',
     method: 'post',
     data: formData,
-    params: { prefix },
-    headers: {
-      'Content-Type': 'multipart/form-data'
-    }
+    params: { prefix }
   });
+}
+
+// ========== 兼容性函数 (保持向后兼容) ==========
+
+/** @deprecated 使用 fetchCreateKnowledgeDocument 代替 */
+export function fetchCreateKnowledge(data: KnowledgeApi.KnowledgeDocumentCreate) {
+  return fetchCreateKnowledgeDocument(data);
+}
+
+/** @deprecated 使用 fetchGetKnowledgeDocumentList 代替 */
+export function fetchGetKnowledgeList(params?: KnowledgeApi.KnowledgeQueryParams) {
+  return fetchGetKnowledgeDocumentList(params);
+}
+
+/** @deprecated 使用 fetchGetKnowledgeDocumentDetail 代替 */
+export function fetchGetKnowledgeDetail(id: number) {
+  return fetchGetKnowledgeDocumentDetail(id);
+}
+
+/** @deprecated 使用 fetchUpdateKnowledgeDocument 代替 */
+export function fetchUpdateKnowledge(data: KnowledgeApi.KnowledgeDocumentUpdate) {
+  return fetchUpdateKnowledgeDocument(data);
+}
+
+/** @deprecated 使用 fetchDeleteKnowledgeDocument 代替 */
+export function fetchDeleteKnowledge(id: number) {
+  return fetchDeleteKnowledgeDocument(id);
 }

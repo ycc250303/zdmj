@@ -1,19 +1,15 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
-import { fetchGetKnowledgeList, fetchDeleteKnowledge } from '@/service/api/knowledge';
+import { fetchGetKnowledgeDocumentList, fetchDeleteKnowledgeDocument } from '@/service/api/knowledge';
 import type { KnowledgeApi } from '@/service/api/knowledge';
-import { fetchGetProjectList } from '@/service/api/resume';
-import type { ResumeApi } from '@/service/api/resume';
 import { $t } from '@/locales';
 import KnowledgeForm from './components/KnowledgeForm.vue';
 import KnowledgeDetail from './components/KnowledgeDetail.vue';
 
 const isEditing = ref(false);
-const knowledgeList = ref<KnowledgeApi.KnowledgeDTO[]>([]);
-const currentEditData = ref<KnowledgeApi.KnowledgeUpdate | undefined>(undefined);
+const knowledgeList = ref<KnowledgeApi.KnowledgeDocumentDTO[]>([]);
+const currentEditData = ref<KnowledgeApi.KnowledgeDocumentUpdate | undefined>(undefined);
 const loading = ref(true);
-const projectList = ref<ResumeApi.ProjectDTO[]>([]);
-const projectLoading = ref(false);
 
 // 详情模态框
 const showDetail = ref(false);
@@ -21,20 +17,19 @@ const currentDetailId = ref<number>(0);
 
 const pagination = reactive({
   page: 1,
-  limit: 10,
+  limit: 20,
   total: 0
 });
 
 const searchParams = reactive({
-  projectId: undefined as number | undefined,
   type: undefined as KnowledgeApi.KnowledgeType | undefined
 });
 
 const knowledgeTypeOptions = [
   { label: '全部', value: undefined },
   { label: '项目文档', value: 1 },
-  { label: 'GitHub 代码', value: 2 },
-  { label: 'DeepWiki', value: 3 }
+  { label: 'GitHub 代码', value: 2 }
+  // type=3 DeepWiki 暂不支持
 ];
 
 const knowledgeTypeLabels: Record<number, { label: string; type: 'primary' | 'info' | 'success' | 'default' | 'warning' }> = {
@@ -43,69 +38,42 @@ const knowledgeTypeLabels: Record<number, { label: string; type: 'primary' | 'in
   3: { label: 'DeepWiki', type: 'warning' }
 };
 
-async function loadProjects() {
-  projectLoading.value = true;
-  try {
-    const { data, error } = await fetchGetProjectList();
-    if (!error && data) {
-      projectList.value = data;
-    }
-  } finally {
-    projectLoading.value = false;
-  }
-}
+// 向量化状态映射
+const embeddingStatusLabels: Record<string, { text: string; type: 'success' | 'warning' | 'error' | 'default'; icon: string }> = {
+  PENDING: { text: '等待中', type: 'default', icon: 'i-mdi-clock-outline' },
+  RUNNING: { text: '向量化中...', type: 'warning', icon: 'i-mdi-loading' },
+  SUCCESS: { text: '已向量化', type: 'success', icon: 'i-mdi-check-circle' },
+  FAILED: { text: '向量化失败', type: 'error', icon: 'i-mdi-alert-circle' }
+};
 
-function getProjectName(projectId: number): string {
-  const project = projectList.value.find(p => p.id === projectId);
-  return project?.name || `项目 ${projectId}`;
-}
-
-function parseTag(tag: string[] | string): string[] {
-  if (typeof tag === 'string') {
-    try {
-      return JSON.parse(tag);
-    } catch {
-      return [];
-    }
-  }
-  return tag || [];
-}
-
-// 检查知识库的向量化状态
-function getVectorStatus(item: KnowledgeApi.KnowledgeDTO) {
-  const hasVectors = item.vectorIds && item.vectorIds.length > 0;
-  if (hasVectors) {
-    return {
-      text: `已向量化 (${item.vectorIds.length})`,
-      type: 'success' as const,
-      icon: 'i-mdi-check-circle'
-    };
-  }
-  return {
-    text: '未向量化',
-    type: 'default' as const,
-    icon: 'i-mdi-information-outline'
-  };
+// 获取向量化状态显示
+function getEmbeddingStatus(item: KnowledgeApi.KnowledgeDocumentDTO) {
+  const status = item.embeddingStatus || 'PENDING';
+  return embeddingStatusLabels[status] || embeddingStatusLabels.PENDING;
 }
 
 async function loadData() {
   loading.value = true;
   try {
-    const { data, error } = await fetchGetKnowledgeList({
+    const { data, error } = await fetchGetKnowledgeDocumentList({
       page: pagination.page,
-      limit: pagination.limit,
-      projectId: searchParams.projectId,
-      type: searchParams.type
+      limit: pagination.limit
     });
 
     console.log('API 返回数据:', { data, error });
 
     if (!error && data) {
-      knowledgeList.value = (data.data || []).map(item => ({
-        ...item,
-        tag: parseTag(item.tag as unknown as string)
-      }));
+      // 后端分页结构：list, total, page, limit
+      knowledgeList.value = (data.list || []).filter(item => {
+        // 如果选择了类型筛选，应用筛选
+        if (searchParams.type !== undefined && item.type !== searchParams.type) {
+          return false;
+        }
+        return true;
+      });
       pagination.total = data.total || 0;
+      pagination.page = data.page || 1;
+      pagination.limit = data.limit || 20;
       console.log('处理后的列表:', knowledgeList.value);
     }
   } finally {
@@ -119,7 +87,6 @@ function handleSearch() {
 }
 
 function handleReset() {
-  searchParams.projectId = undefined;
   searchParams.type = undefined;
   pagination.page = 1;
   loadData();
@@ -130,13 +97,13 @@ function handleAddNew() {
   isEditing.value = true;
 }
 
-function handleEdit(item: KnowledgeApi.KnowledgeUpdate) {
-  currentEditData.value = { ...item, tag: parseTag(item.tag as unknown as string) };
+function handleEdit(item: KnowledgeApi.KnowledgeDocumentUpdate) {
+  currentEditData.value = { ...item };
   isEditing.value = true;
 }
 
 async function handleDelete(id: number) {
-  const { error } = await fetchDeleteKnowledge(id);
+  const { error } = await fetchDeleteKnowledgeDocument(id);
   if (!error) {
     window.$message?.success($t('page.profile.common.delete') + '成功');
     loadData();
@@ -159,7 +126,6 @@ function onFormSuccess() {
 }
 
 onMounted(() => {
-  loadProjects();
   loadData();
 });
 </script>
@@ -169,12 +135,12 @@ onMounted(() => {
     <div v-if="!isEditing" class="max-w-5xl mx-auto">
       <!-- 标题栏 -->
       <div class="flex justify-between items-center mb-6">
-        <h1 class="text-2xl font-bold text-gray-800">知识库管理</h1>
+        <h1 class="text-2xl font-bold text-gray-800">{{ $t('page.knowledge.title') }}</h1>
         <NButton type="primary" @click="handleAddNew">
           <template #icon>
             <div class="i-mdi-plus"></div>
           </template>
-          添加知识
+          {{ $t('page.knowledge.addBtn') }}
         </NButton>
       </div>
 
@@ -182,17 +148,9 @@ onMounted(() => {
       <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm mb-6">
         <div class="flex gap-4 items-center flex-wrap">
           <NSelect
-            v-model:value="searchParams.projectId"
-            :options="[{ label: '全部项目', value: undefined }, ...projectList.map(p => ({ label: p.name, value: p.id }))]"
-            placeholder="选择项目"
-            clearable
-            class="w-48"
-            :loading="projectLoading"
-          />
-          <NSelect
             v-model:value="searchParams.type"
             :options="knowledgeTypeOptions"
-            placeholder="知识类型"
+            :placeholder="$t('page.knowledge.type')"
             clearable
             class="w-40"
           />
@@ -200,9 +158,9 @@ onMounted(() => {
             <template #icon>
               <div class="i-mdi-magnify"></div>
             </template>
-            搜索
+            {{ $t('common.search') }}
           </NButton>
-          <NButton @click="handleReset">重置</NButton>
+          <NButton @click="handleReset">{{ $t('common.reset') }}</NButton>
         </div>
       </div>
 
@@ -225,7 +183,7 @@ onMounted(() => {
             <template #icon>
               <div class="i-mdi-plus"></div>
             </template>
-            创建第一个知识库
+            {{ $t('page.knowledge.createFirst') }}
           </NButton>
         </div>
 
@@ -235,39 +193,34 @@ onMounted(() => {
               <div class="flex-1">
                 <div class="flex items-center gap-3 mb-2">
                   <div class="i-mdi-book-outline text-2xl text-blue-500"></div>
-                  <h3 class="text-lg font-bold text-gray-800">{{ item.name }}</h3>
+                  <h3 class="text-lg font-bold text-gray-800">{{ item.title }}</h3>
                   <NTag :type="knowledgeTypeLabels[item.type]?.type" size="small">
-                    {{ knowledgeTypeLabels[item.type]?.label || '未知' }}
+                    {{ knowledgeTypeLabels[item.type]?.label || $t('page.knowledge.unknown') }}
                   </NTag>
-                  <NTag :type="getVectorStatus(item).type" size="small">
+                  <NTag :type="getEmbeddingStatus(item).type" size="small">
                     <template #icon>
-                      <div :class="getVectorStatus(item).icon"></div>
+                      <div :class="getEmbeddingStatus(item).icon"></div>
                     </template>
-                    {{ getVectorStatus(item).text }}
+                    {{ getEmbeddingStatus(item).text }}
                   </NTag>
-                </div>
-                <div class="text-gray-500 text-sm mb-2">
-                  <span class="i-mdi-folder-outline mr-1"></span>
-                  {{ getProjectName(item.projectId) }}
                 </div>
                 <div class="text-gray-400 text-xs mb-3 truncate max-w-lg">
                   <span class="i-mdi-link-variant mr-1"></span>
                   {{ item.content }}
                 </div>
-                <div v-if="item.tag && item.tag.length > 0" class="flex gap-2 flex-wrap">
-                  <NTag v-for="tag in item.tag" :key="tag" type="primary" size="small" :bordered="false">
-                    {{ tag }}
-                  </NTag>
+                <div v-if="item.lastError" class="text-red-500 text-xs mt-2">
+                  <span class="i-mdi-alert-circle mr-1"></span>
+                  {{ item.lastError }}
                 </div>
               </div>
               <div class="flex gap-2 ml-4">
-                <NButton size="small" tertiary type="info" @click="handleViewDetail(item.id)">
-                  查看详情
+                <NButton size="small" tertiary type="info" @click="handleViewDetail(item.id!)">
+                  {{ $t('page.knowledge.viewDetail') }}
                 </NButton>
-                <NButton size="small" secondary @click="handleEdit(item)">
+                <NButton size="small" secondary @click="handleEdit(item as KnowledgeApi.KnowledgeDocumentUpdate)">
                   {{ $t('page.profile.common.edit') }}
                 </NButton>
-                <NPopconfirm @positive-click="handleDelete(item.id)">
+                <NPopconfirm @positive-click="handleDelete(item.id!)">
                   <template #trigger>
                     <NButton size="small" type="error" ghost>
                       {{ $t('page.profile.common.delete') }}

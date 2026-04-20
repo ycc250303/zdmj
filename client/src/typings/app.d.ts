@@ -525,32 +525,55 @@ declare namespace App {
           
         };
         home: {
-          branchDesc: string;
-          greeting: string;
-          weatherDesc: string;
-          projectCount: string;
-          todo: string;
-          message: string;
-          downloadCount: string;
-          registerCount: string;
-          schedule: string;
-          study: string;
-          work: string;
-          rest: string;
-          entertainment: string;
-          visitCount: string;
-          turnover: string;
-          dealCount: string;
-          projectNews: {
+          hero: {
+            badge: string;
             title: string;
-            moreNews: string;
-            desc1: string;
-            desc2: string;
-            desc3: string;
-            desc4: string;
-            desc5: string;
+            subtitle: string;
+            startChat: string;
+            exploreKnowledge: string;
           };
-          creativity: string;
+          quickActions: {
+            title: string;
+            subtitle: string;
+          };
+          aiChat: {
+            title: string;
+            description: string;
+          };
+          knowledge: {
+            title: string;
+            description: string;
+          };
+          resume: {
+            title: string;
+            description: string;
+          };
+          features: {
+            title: string;
+            subtitle: string;
+            smartQA: {
+              title: string;
+              description: string;
+            };
+            knowledgeBase: {
+              title: string;
+              description: string;
+            };
+            resumeGen: {
+              title: string;
+              description: string;
+            };
+            fastCreate: {
+              title: string;
+              description: string;
+            };
+          };
+          tips: {
+            title: string;
+            tip1: string;
+            tip2: string;
+            tip3: string;
+          };
         };
         portal: {
           title: string;
@@ -753,6 +776,27 @@ declare namespace App {
           status: string;
           addSuccess: string;
           updateSuccess: string;
+          viewDetail: string;
+          unknown: string;
+          createFirst: string;
+          docTitle: string;
+          docTitlePlaceholder: string;
+          uploadFile: string;
+          uploadTip: string;
+          dragUpload: string;
+          dragUploadActive: string;
+          orInputUrl: string;
+          inputUrlPlaceholder: string;
+          githubRepoLink: string;
+          githubRepoPlaceholder: string;
+          githubRepoExample: string;
+          basicInfo: string;
+          vectorInfo: string;
+          lastVectorTime: string;
+          errorMsg: string;
+          openFile: string;
+          viewRepo: string;
+          downloadFile: string;
           typeOptions: {
             projectDoc: string;
             projectCode: string;
