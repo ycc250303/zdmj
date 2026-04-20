@@ -7,18 +7,22 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.prompt.PromptTemplate;
+import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+
+import org.springframework.beans.factory.annotation.Qualifier;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 
 @RequiredArgsConstructor
 @Component
-@Slf4j
 public class ChatUtil {
 
     private final ChatClient chatClient;
+    @Qualifier("chatClientWithMemory")
+    private final ChatClient chatClientWithMemory;
     private final PromptUtil promptUtil;
 
     /**
@@ -32,6 +36,34 @@ public class ChatUtil {
     public String chatOnce(String userMessage, String promptName, Map<String, Object> promptVars) {
         ChatClientRequestSpec spec = buildSpecWithoutMemory(promptName, promptVars);
         return spec.user(userMessage).call().content();
+    }
+
+    /**
+     * 单次结构化对话：在 user 侧附加 JSON Schema，只调用一次模型，解析失败直接抛出异常。
+     *
+     * @param userMessage 用户消息（如简历全文）
+     * @param promptName  提示词名称（system）
+     * @param promptVars  提示词模板变量
+     * @param outputType  输出 POJO 类型
+     */
+    public <T> T chatStructuredOnce(String userMessage, String promptName, Map<String, Object> promptVars,
+            Class<T> outputType) {
+        BeanOutputConverter<T> converter = new BeanOutputConverter<>(outputType);
+        String userPayload = buildStructuredUserPayload(userMessage, converter.getFormat());
+        String content = chatOnce(userPayload, promptName, promptVars);
+        String cleaned = stripCodeFence(content);
+        T parsed = converter.convert(cleaned);
+        if (parsed == null) {
+            throw new IllegalStateException("结构化输出解析结果为空");
+        }
+        return parsed;
+    }
+
+    private String buildStructuredUserPayload(String userMessage, String schemaHint) {
+        StringBuilder sb = new StringBuilder(userMessage == null ? "" : userMessage);
+        sb.append("\n\n请严格按照以下 JSON Schema 输出（仅 JSON 对象，无 Markdown、无前后说明）：\n");
+        sb.append(schemaHint);
+        return sb.toString();
     }
 
     /**
@@ -66,9 +98,9 @@ public class ChatUtil {
      * 在会话中流式对话
      * 
      * @param conversationId 会话ID
-     * @param userMessage 用户消息
-     * @param promptName  提示词名称
-     * @param promptVars  提示词模板变量
+     * @param userMessage    用户消息
+     * @param promptName     提示词名称
+     * @param promptVars     提示词模板变量
      * @return 对话内容
      */
     public Flux<String> chatStreamInConversation(Long conversationId, String userMessage, String promptName,
@@ -102,7 +134,7 @@ public class ChatUtil {
         if (conversationId == null) {
             throw new IllegalArgumentException("Conversation ID cannot be null");
         }
-        ChatClientRequestSpec spec = chatClient.prompt()
+        ChatClientRequestSpec spec = chatClientWithMemory.prompt()
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, String.valueOf(conversationId)));
         return applySystemPrompt(spec, promptName, promptVars);
     }
@@ -120,7 +152,7 @@ public class ChatUtil {
      */
     private ChatClientRequestSpec applySystemPrompt(ChatClientRequestSpec spec, String promptName,
             Map<String, Object> promptVars) {
-        if (promptName == null && promptName.isBlank()) {
+        if (!StringUtils.hasText(promptName)) {
             return spec;
         }
         String template = promptUtil.load(promptName);
@@ -130,5 +162,18 @@ public class ChatUtil {
         }
         PromptTemplate promptTemplate = new PromptTemplate(template);
         return spec.system(promptTemplate.render(variables));
+    }
+
+    private String stripCodeFence(String text) {
+        String t = text == null ? "" : text.trim();
+        if (t.startsWith("```json")) {
+            t = t.substring(7).trim();
+        } else if (t.startsWith("```")) {
+            t = t.substring(3).trim();
+        }
+        if (t.endsWith("```")) {
+            t = t.substring(0, t.length() - 3).trim();
+        }
+        return t;
     }
 }

@@ -9,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
@@ -26,7 +27,6 @@ import java.util.stream.Collectors;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
     /**
      * 处理业务异常
      * 
@@ -88,6 +88,24 @@ public class GlobalExceptionHandler {
                 .collect(Collectors.joining(", "));
         log.warn("参数校验失败: {}", message);
         return Result.error(ErrorCode.VALIDATION_ERROR.getCode(),
+                ErrorCode.VALIDATION_ERROR.getMessage() + ": " + message);
+    }
+
+    /**
+     * 处理方法参数校验异常（如 @PathVariable / @RequestParam 的约束校验）
+     *
+     * @param e 方法参数校验异常
+     * @return Result对象
+     */
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Result<?> handleHandlerMethodValidationException(HandlerMethodValidationException e) {
+        String message = e.getAllErrors().stream()
+                .map(error -> error.getDefaultMessage() != null ? error.getDefaultMessage() : error.toString())
+                .collect(Collectors.joining(", "));
+        log.warn("方法参数校验失败: {}", message);
+        return Result.error(
+                ErrorCode.VALIDATION_ERROR.getCode(),
                 ErrorCode.VALIDATION_ERROR.getMessage() + ": " + message);
     }
 
@@ -230,4 +248,5 @@ public class GlobalExceptionHandler {
         // 3) 其他业务错误 -> 400
         return HttpStatus.BAD_REQUEST;
     }
+
 }

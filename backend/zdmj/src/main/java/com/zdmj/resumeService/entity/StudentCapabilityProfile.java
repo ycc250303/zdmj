@@ -1,9 +1,12 @@
 package com.zdmj.resumeService.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.zdmj.common.model.BaseEntity;
+import com.zdmj.common.typehandler.JsonbStringTypeHandler;
+import java.math.BigDecimal;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -13,7 +16,7 @@ import lombok.EqualsAndHashCode;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName("student_capability_profiles")
+@TableName(value = "student_capability_profiles", autoResultMap = true)
 public class StudentCapabilityProfile extends BaseEntity {
     /**
      * 画像ID（主键，自增）
@@ -70,4 +73,49 @@ public class StudentCapabilityProfile extends BaseEntity {
      * 竞争力评分 (0-100)
      */
     private Integer competitivenessScore;
+
+    /**
+     * 岗位专项评估总分（可选）
+     */
+    private Integer overallScore;
+
+    /**
+     * 本次分析识别到的岗位类型：
+     * java_backend/frontend/cpp/software_test/default
+     */
+    private String targetRoleCode;
+
+    /**
+     * 岗位识别置信度（0~1）
+     */
+    private BigDecimal roleConfidence;
+
+    /**
+     * 实际使用的提示词名称
+     */
+    private String promptName;
+
+    /**
+     * 分项评分明细（JSONB）
+     */
+    @TableField(typeHandler = JsonbStringTypeHandler.class)
+    private String scoreDetail;
+
+    /**
+     * 缺失技能项（JSONB）
+     */
+    @TableField(typeHandler = JsonbStringTypeHandler.class)
+    private String missingSkills;
+
+    /**
+     * 证据不足项（JSONB）
+     */
+    @TableField(typeHandler = JsonbStringTypeHandler.class)
+    private String weakEvidenceItems;
+
+    /**
+     * 改进建议（JSONB）
+     */
+    @TableField(typeHandler = JsonbStringTypeHandler.class)
+    private String suggestions;
 }
