@@ -232,6 +232,7 @@ const local: App.I18n.Schema = {
     "profile_career":'工作经历管理',
     "profile_skill":'技能管理',
     "profile_basic-info":'基本信息',
+    "profile_capability":'能力画像',
     "knowledge": '知识库',
     "chat": 'AI 对话'
   },
@@ -461,6 +462,23 @@ const local: App.I18n.Schema = {
         homepageUrl: '个人主页/博客链接',
         homepageUrlPlaceholder: '选填，例如 GitHub 或个人博客地址',
         updateSuccess: '基本信息保存成功'
+      },
+      capability: {
+        title: '能力画像',
+        desc: 'AI 分析你的简历，为你生成详细的能力评估报告',
+        regenerate: '重新生成',
+        generate: '生成画像',
+        empty: '暂无能力画像数据',
+        summary: '一句话总结',
+        competitiveness: '综合竞争力',
+        completeness: '简历完整度',
+        totalScore: '总分',
+        scoreDetail: '岗位专项评估分项',
+        abilityDetail: '能力详情',
+        strengths: '简历优势',
+        missingSkills: '缺失技能',
+        weakEvidence: '证据不足项',
+        suggestions: '改进建议'
       }
     },
     resume: {

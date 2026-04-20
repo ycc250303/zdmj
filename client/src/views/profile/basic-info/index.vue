@@ -39,17 +39,36 @@ async function handleSubmit() {
   try {
     await formRef.value?.validate();
     loading.value = true;
-    
+
     const payload = { ...formData };
     if (!payload.homepageUrl) delete payload.homepageUrl;
-    //if (!payload.homepageUrl) (payload as any).homepageUrl = null;
 
     const { error, data } = await fetchUpdateUserInfo(payload);
-    
+
     if (!error) {
       window.$message?.success($t('page.profile.basicInfo.updateSuccess'));
       if (data) {
-        Object.assign(authStore.userInfo as any, data);
+        // 同步更新 localStorage 中的缓存，防止刷新丢失
+        const cachedUserStr = window.localStorage.getItem('custom_user_info');
+        if (cachedUserStr) {
+          try {
+            const cachedUser = JSON.parse(cachedUserStr);
+            // 更新缓存中的用户信息（后端返回的字段是name, phone, website）
+            cachedUser.name = data.name || cachedUser.name;
+            cachedUser.phone = data.phone || cachedUser.phone;
+            cachedUser.website = data.website || cachedUser.website;
+            window.localStorage.setItem('custom_user_info', JSON.stringify(cachedUser));
+
+            // 同时更新 store 中的用户信息，确保当前会话也生效
+            if (authStore.userInfo) {
+              (authStore.userInfo as any).name = cachedUser.name;
+              (authStore.userInfo as any).phone = cachedUser.phone;
+              (authStore.userInfo as any).website = cachedUser.website;
+            }
+          } catch (e) {
+            console.error('更新localStorage用户信息失败', e);
+          }
+        }
       }
     }
   } catch (errors) {

@@ -25,6 +25,7 @@ export const views: Record<LastLevelRouteKey, RouteComponent | (() => Promise<Ro
   knowledge: () => import("@/views/knowledge/index.vue"),
   portal: () => import("@/views/portal/index.vue"),
   "profile_basic-info": () => import("@/views/profile/basic-info/index.vue"),
+  profile_capability: () => import("@/views/profile/capability/index.vue"),
   profile_career: () => import("@/views/profile/career/index.vue"),
   profile_education: () => import("@/views/profile/education/index.vue"),
   profile_project: () => import("@/views/profile/project/index.vue"),

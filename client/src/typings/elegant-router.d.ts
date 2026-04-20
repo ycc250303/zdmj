@@ -28,6 +28,7 @@ declare module "@elegant-router/types" {
     "portal": "/portal";
     "profile": "/profile";
     "profile_basic-info": "/profile/basic-info";
+    "profile_capability": "/profile/capability";
     "profile_career": "/profile/career";
     "profile_education": "/profile/education";
     "profile_project": "/profile/project";
@@ -103,6 +104,7 @@ declare module "@elegant-router/types" {
     | "knowledge"
     | "portal"
     | "profile_basic-info"
+    | "profile_capability"
     | "profile_career"
     | "profile_education"
     | "profile_project"

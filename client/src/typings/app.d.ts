@@ -699,6 +699,23 @@ declare namespace App {
             homepageUrlPlaceholder: string;
             updateSuccess: string;
           };
+          capability: {
+            title: string;
+            desc: string;
+            regenerate: string;
+            generate: string;
+            empty: string;
+            summary: string;
+            competitiveness: string;
+            completeness: string;
+            totalScore: string;
+            scoreDetail: string;
+            abilityDetail: string;
+            strengths: string;
+            missingSkills: string;
+            weakEvidence: string;
+            suggestions: string;
+          };
         };
         resume:{
           template:string;

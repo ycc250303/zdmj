@@ -153,9 +153,9 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
 
   async function getUserInfo() {
     const cachedUserStr = window.localStorage.getItem('custom_user_info');
-    
+
     if (!cachedUserStr) {
-      return false; 
+      return false;
     }
 
     try {
@@ -171,7 +171,14 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
         roles: roles,
         buttons: []
       };
-      Object.assign(userInfo, formattedInfo);
+
+      // 将完整的用户信息都存储到userInfo中，方便其他页面使用
+      Object.assign(userInfo, formattedInfo, {
+        name: cachedUser.name,
+        phone: cachedUser.phone,
+        website: cachedUser.website,
+        email: cachedUser.email
+      });
 
       return true;
     } catch (e) {

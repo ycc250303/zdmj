@@ -174,6 +174,7 @@ const routeMap: RouteMap = {
   "portal": "/portal",
   "profile": "/profile",
   "profile_basic-info": "/profile/basic-info",
+  "profile_capability": "/profile/capability",
   "profile_career": "/profile/career",
   "profile_education": "/profile/education",
   "profile_project": "/profile/project",
