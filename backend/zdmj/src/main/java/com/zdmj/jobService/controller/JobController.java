@@ -103,12 +103,12 @@ public class JobController {
 
 
     /**
-     * 获取岗位能力画像
+     * 生成岗位能力画像
      * 
      * @param id 岗位ID
      * @return 岗位能力画像
      */
-    @GetMapping("/{id}/capability-profile")
+    @PostMapping ("/{id}/capability-profile")
     public Result<JobCapabilityProfileDTO> getJobCapabilityProfile(@PathVariable Long id) {
         return Result.success("获取岗位能力画像成功", jobCapabilityProfileService.getJobCapabilityProfile(id));
     }

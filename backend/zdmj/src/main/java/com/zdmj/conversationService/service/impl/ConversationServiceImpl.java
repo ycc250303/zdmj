@@ -9,7 +9,6 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.conversationService.dto.ConversationDTO;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.mapper.ConversationMapper;
-import com.zdmj.conversationService.mapper.ConversationStructMapper;
 import com.zdmj.conversationService.service.ConversationService;
 
 import lombok.RequiredArgsConstructor;
@@ -27,7 +26,6 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         implements ConversationService {
 
     private final ConversationMapper conversationMapper;
-    private final ConversationStructMapper conversationStructMapper;
     private final RedisUtil redisUtil;
 
     @Override
@@ -46,7 +44,11 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         Long userId = UserHolder.requireUserId();
 
         Conversation conversation = new Conversation();
-        conversationStructMapper.updateEntityFromDto(conversationDTO, conversation);
+        // 避免启动阶段依赖 MapStruct 生成 Bean，手动映射必要字段
+        if (conversationDTO != null) {
+            conversation.setConfig(conversationDTO.getConfig());
+            conversation.setContext(conversationDTO.getContext());
+        }
         conversation.setUserId(userId);
         conversation.setMessageCount(0);
 

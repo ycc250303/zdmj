@@ -3,6 +3,7 @@ package com.zdmj.resumeService.dto;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
+import java.util.Map;
 import lombok.Data;
 
 /**
@@ -90,17 +91,17 @@ public class StudentCapabilityProfileDTO {
      * 兼容模型返回的嵌套 capabilityProfile 字段，并回填到当前 DTO 扁平字段
      */
     @JsonProperty("capabilityProfile")
-    public void setCapabilityProfile(CapabilityProfile capabilityProfile) {
+    public void setCapabilityProfile(Map<String, String> capabilityProfile) {
         if (capabilityProfile == null) {
             return;
         }
-        this.professionalSkills = capabilityProfile.getProfessionalSkills();
-        this.certificates = capabilityProfile.getCertificates();
-        this.innovationAbility = capabilityProfile.getInnovationAbility();
-        this.learningAbility = capabilityProfile.getLearningAbility();
-        this.pressureResistance = capabilityProfile.getPressureResistance();
-        this.communicationAbility = capabilityProfile.getCommunicationAbility();
-        this.practicalAbility = capabilityProfile.getPracticalAbility();
+        this.professionalSkills = capabilityProfile.get("professionalSkills");
+        this.certificates = capabilityProfile.get("certificates");
+        this.innovationAbility = capabilityProfile.get("innovationAbility");
+        this.learningAbility = capabilityProfile.get("learningAbility");
+        this.pressureResistance = capabilityProfile.get("pressureResistance");
+        this.communicationAbility = capabilityProfile.get("communicationAbility");
+        this.practicalAbility = capabilityProfile.get("practicalAbility");
     }
 
     @Data
@@ -126,39 +127,6 @@ public class StudentCapabilityProfileDTO {
          * 职业素养评分
          */
         private Integer professionalPotentialScore;
-    }
-
-    @Data
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class CapabilityProfile {
-        /**
-         * 专业技能
-         */
-        private String professionalSkills;
-        /**
-         * 证书
-         */
-        private String certificates;
-        /**
-         * 创新能力
-         */
-        private String innovationAbility;
-        /**
-         * 学习能力
-         */
-        private String learningAbility;
-        /**
-         * 抗压能力
-         */
-        private String pressureResistance;
-        /**
-         * 沟通能力
-         */
-        private String communicationAbility;
-        /**
-         * 实习能力
-         */
-        private String practicalAbility;
     }
 
     @Data
