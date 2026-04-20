@@ -14,6 +14,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * PostgreSQL JSONB 数组与 Java List 的类型处理器
@@ -30,6 +31,8 @@ import java.util.List;
 public class JsonbListTypeHandler extends BaseTypeHandler<List<?>> {
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
+    private static final TypeReference<List<Integer>> INTEGER_LIST_TYPE = new TypeReference<List<Integer>>() {
+    };
     private static final TypeReference<List<Long>> LONG_LIST_TYPE = new TypeReference<List<Long>>() {
     };
     private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<List<String>>() {
@@ -77,16 +80,28 @@ public class JsonbListTypeHandler extends BaseTypeHandler<List<?>> {
         }
 
         try {
-            // 先尝试解析为 List<Long>
-            List<Long> longList = objectMapper.readValue(json, LONG_LIST_TYPE);
-            // 如果解析成功且列表不为空，返回 Long 列表
-            if (!longList.isEmpty()) {
-                return longList;
+            List<Object> rawList = objectMapper.readValue(json, new TypeReference<List<Object>>() {
+            });
+            if (rawList.isEmpty()) {
+                return new ArrayList<>();
             }
-            // 空列表时，尝试解析为 String 列表（保持向后兼容）
+            Object firstNonNull = rawList.stream().filter(item -> item != null).findFirst().orElse(null);
+            if (firstNonNull == null) {
+                return new ArrayList<>();
+            }
+            if (firstNonNull instanceof Integer) {
+                return objectMapper.readValue(json, INTEGER_LIST_TYPE);
+            }
+            if (firstNonNull instanceof Long) {
+                return objectMapper.readValue(json, LONG_LIST_TYPE);
+            }
+            if (firstNonNull instanceof Number) {
+                return rawList.stream()
+                        .map(item -> item == null ? null : ((Number) item).longValue())
+                        .collect(Collectors.toList());
+            }
             return objectMapper.readValue(json, STRING_LIST_TYPE);
         } catch (Exception e) {
-            // 不是 Long 类型，尝试解析为 List<String>
             try {
                 return objectMapper.readValue(json, STRING_LIST_TYPE);
             } catch (Exception ex) {

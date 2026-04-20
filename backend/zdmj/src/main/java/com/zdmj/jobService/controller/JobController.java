@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.zdmj.common.model.CreateGroup;
@@ -47,11 +46,25 @@ public class JobController {
     }
 
     /**
-     * 查询岗位列表（查询参数绑定 {@link JobPageQueryDTO}）
-     * <p>示例：{@code GET /jobs?page=1&limit=20&employment=INTERN&filterSalaryMin=200&jobName=后端}</p>
+     * 查询岗位列表（请求体绑定 {@link JobPageQueryDTO}）
+     * <p>请求体 JSON 示例：</p>
+     * <pre>{@code
+     * {
+     *   "page": 1,
+     *   "limit": 20,
+     *   "companySizes": [1, 2, 3],
+     *   "fundingTypes": "[1,2]",
+     *   "industries": ["互联网", "企业服务"],
+     *   "companyName": "某科技公司",
+     *   "employment": "INTERN",
+     *   "filterSalaryMin": 200,
+     *   "filterSalaryMax": 500,
+     *   "jobName": "后端"
+     * }
+     * }</pre>
      */
     @GetMapping
-    public Result<PageDTO<JobListItemDTO>> getPage(@ModelAttribute JobPageQueryDTO query) {
+    public Result<PageDTO<JobListItemDTO>> getPage(@RequestBody(required = false) JobPageQueryDTO query) {
         return Result.success("查询岗位列表成功", jobService.getPage(query));
     }
 

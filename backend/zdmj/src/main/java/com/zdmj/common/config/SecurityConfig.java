@@ -1,5 +1,7 @@
 package com.zdmj.common.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zdmj.common.model.Result;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -28,6 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final ObjectMapper objectMapper;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -80,7 +83,8 @@ public class SecurityConfig {
                             try {
                                 response.setStatus(HttpStatus.UNAUTHORIZED.value());
                                 response.setContentType("application/json;charset=UTF-8");
-                                response.getWriter().write("{\"code\":401,\"message\":\"Unauthorized\"}");
+                                response.getWriter()
+                                        .write(objectMapper.writeValueAsString(Result.error(401, "Unauthorized")));
                             } catch (Exception e) {
                                 // 如果响应在检查后提交，忽略异常
                                 log.debug("无法发送认证错误响应: {}", e.getMessage());
@@ -95,7 +99,8 @@ public class SecurityConfig {
                             try {
                                 response.setStatus(HttpStatus.FORBIDDEN.value());
                                 response.setContentType("application/json;charset=UTF-8");
-                                response.getWriter().write("{\"code\":403,\"message\":\"Access Denied\"}");
+                                response.getWriter()
+                                        .write(objectMapper.writeValueAsString(Result.error(403, "Access Denied")));
                             } catch (Exception e) {
                                 // 如果响应在检查后提交，忽略异常
                                 log.debug("无法发送授权错误响应: {}", e.getMessage());
