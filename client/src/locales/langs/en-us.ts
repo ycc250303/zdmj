@@ -230,11 +230,12 @@ const local: App.I18n.Schema = {
     resumes: 'Resume Library',
     'resumes-editor': 'Resume Editor',
     "profile": "Personal Information",
-    "profile_project": "portfolio",
+    "profile_project": "Portfolio",
     "profile_education": 'Education',
     "profile_career":'Career',
     "profile_skill":'Skills',
-    "profile_basic-info":'basic-info',
+    "profile_basic-info":'Basic Info',
+    "profile_capability": 'Capability Profile',
     "knowledge": 'Knowledge Base',
     "chat": 'AI Chat'
   },
@@ -294,7 +295,7 @@ const local: App.I18n.Schema = {
       hero: {
         badge: '✨ AI Career Assistant',
         title: 'Find Your Dream Job with AI',
-        subtitle: 'Smart chat, knowledge base, resume generation - all-in-one job hunting solution',
+        subtitle: 'Smart chat, knowledge base, and resume generation — an all-in-one job hunting solution',
         startChat: 'Start Chat',
         exploreKnowledge: 'Explore Knowledge'
       },
@@ -308,7 +309,7 @@ const local: App.I18n.Schema = {
       },
       knowledge: {
         title: 'Knowledge Base',
-        description: 'Upload study materials and let AI help you retrieve and understand'
+        description: 'Upload study materials and let AI help you retrieve and understand them'
       },
       resume: {
         title: 'Resume Generation',
@@ -464,6 +465,23 @@ const local: App.I18n.Schema = {
         homepageUrl: "Personal Homepage / Blog URL",
         homepageUrlPlaceholder: "Optional, e.g., GitHub or personal website",
         updateSuccess: "Basic information saved successfully"
+      },
+      capability: {
+        title: "Capability Profile",
+        desc: "AI analyzes your resume and generates a detailed capability assessment report",
+        regenerate: "Regenerate",
+        generate: "Generate Profile",
+        empty: "No capability profile data yet",
+        summary: "Summary",
+        competitiveness: "Overall Competitiveness",
+        completeness: "Resume Completeness",
+        totalScore: "Total Score",
+        scoreDetail: "Position-Specific Assessment",
+        abilityDetail: "Ability Details",
+        strengths: "Strengths",
+        missingSkills: "Missing Skills",
+        weakEvidence: "Weak Evidence Items",
+        suggestions: "Improvement Suggestions"
       }
     },
     resume: {
