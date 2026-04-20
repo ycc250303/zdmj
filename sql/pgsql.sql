@@ -529,11 +529,33 @@ CREATE TABLE IF NOT EXISTS job_capability_profiles (
     -- 沟通能力
     practical_ability TEXT,
     -- 实习能力
+    target_role_code VARCHAR(64) NOT NULL DEFAULT 'default',
+    -- 岗位类别：java_backend/frontend/cpp/software_test/default
+    role_confidence NUMERIC(5,4) NOT NULL DEFAULT 0.0,
+    -- 岗位分类置信度（0~1）
+    prompt_name VARCHAR(128) NOT NULL DEFAULT 'job-requirement/job-requirement-default',
+    -- 实际使用的岗位画像提示词名称
+    strengths JSONB DEFAULT '[]'::jsonb,
+    -- 面向求职者的常见加分方向
+    missing_skills JSONB DEFAULT '[]'::jsonb,
+    -- 优先补齐技能项
+    weak_evidence_items JSONB DEFAULT '[]'::jsonb,
+    -- 易被追问但证据薄弱项
+    suggestions JSONB DEFAULT '[]'::jsonb,
+    -- 准备建议（结构化）
+    summary TEXT,
+    -- 一句话总结
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
 );
 CREATE INDEX IF NOT EXISTS idx_job_capability_profiles_job_id ON job_capability_profiles(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_capability_profiles_role_code ON job_capability_profiles(target_role_code);
+-- 若历史库曾含评分/完整度相关列，升级时删除（幂等）
+ALTER TABLE job_capability_profiles DROP COLUMN IF EXISTS completeness_score;
+ALTER TABLE job_capability_profiles DROP COLUMN IF EXISTS competitiveness_score;
+ALTER TABLE job_capability_profiles DROP COLUMN IF EXISTS overall_score;
+ALTER TABLE job_capability_profiles DROP COLUMN IF EXISTS score_detail;
 --
 -- ==========================4 知识库模块==========================
 --

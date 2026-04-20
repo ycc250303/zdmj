@@ -67,8 +67,18 @@ public class PromptUtil {
         public static final String GENERATE_CONVERSATION_TITLE = "generate-conversation-title";
         /** 生成能力画像 */
         public static final String GENERATE_CAPABILITY_PROFILE = "generate-capability-profile";
-        /** 生成岗位能力画像 */
+        /** 生成岗位能力画像（旧版通用提示词） */
         public static final String GENERATE_JOB_CAPABILITY_PROFILE = "generate-job-capability-profile";
+        /** 岗位要求画像 Java 后端 */
+        public static final String JOB_REQUIREMENT_JAVA_BACKEND = "job-requirement/job-requirement-java-backend";
+        /** 岗位要求画像 前端 */
+        public static final String JOB_REQUIREMENT_FRONTEND = "job-requirement/job-requirement-frontend";
+        /** 岗位要求画像 C/C++ */
+        public static final String JOB_REQUIREMENT_CPP = "job-requirement/job-requirement-cpp";
+        /** 岗位要求画像 软件测试 */
+        public static final String JOB_REQUIREMENT_SOFTWARE_TEST = "job-requirement/job-requirement-software-test";
+        /** 岗位要求画像 默认兜底 */
+        public static final String JOB_REQUIREMENT_DEFAULT = "job-requirement/job-requirement-default";
         /** 知识库 RAG 问答 */
         public static final String KNOWLEDGEBASE_RAG_SYSTEM = "knowledgebase-rag-system";
         /** 知识库查询改写 */
@@ -124,6 +134,22 @@ public class PromptUtil {
             case CPP -> PromptNames.RESUME_ANALYSIS_CPP;
             case SOFTWARE_TEST -> PromptNames.RESUME_ANALYSIS_SOFTWARE_TEST;
             case UNKNOWN -> PromptNames.GENERATE_CAPABILITY_PROFILE;
+        };
+    }
+
+    /**
+     * 岗位角色 -> 岗位要求画像 PromptName 映射
+     */
+    public static String getJobRequirementPromptName(JobRole role) {
+        if (role == null) {
+            return PromptNames.JOB_REQUIREMENT_DEFAULT;
+        }
+        return switch (role) {
+            case JAVA -> PromptNames.JOB_REQUIREMENT_JAVA_BACKEND;
+            case FRONTEND -> PromptNames.JOB_REQUIREMENT_FRONTEND;
+            case CPP -> PromptNames.JOB_REQUIREMENT_CPP;
+            case SOFTWARE_TEST -> PromptNames.JOB_REQUIREMENT_SOFTWARE_TEST;
+            case UNKNOWN -> PromptNames.JOB_REQUIREMENT_DEFAULT;
         };
     }
 }
