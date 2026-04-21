@@ -134,17 +134,11 @@ export function fetchGetJobDetail(id: number) {
  * @param query 查询条件
  */
 export function fetchGetJobPage(query: JobApi.JobPageQuery) {
-  // 后端使用 @GetMapping + @RequestBody，需要强制 axios 发送 body
   return request<JobApi.PageResponse<JobApi.JobListItem>>({
     url: '/jobs',
     method: 'get',
-    data: query,
-    // 关键：告诉 axios 不要忽略 GET 请求的 data
-    transformRequest: [(data: any) => JSON.stringify(data)],
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  } as any);
+    data: query
+  });
 }
 
 /**

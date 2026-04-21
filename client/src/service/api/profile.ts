@@ -89,6 +89,18 @@ export function fetchGetCurrentCapabilityProfile() {
 }
 
 /**
+ * 查询当前用户的能力画像（仅查询，不触发生成）
+ * 对应接口：GET /capability-profile/current/query
+ * 注意：如果画像不存在，返回 null，不会抛出错误
+ */
+export function fetchQueryCapabilityProfile() {
+  return request<CapabilityProfileApi.StudentCapabilityProfile>({
+    url: '/capability-profile/current/query',
+    method: 'get'
+  });
+}
+
+/**
  * 生成能力画像（支持从 PDF 解析或文本直接生成）
  * 对应接口：POST /capability-profile/generate
  * 注意：此接口调用AI生成，耗时较长，设置超时时间为5分钟

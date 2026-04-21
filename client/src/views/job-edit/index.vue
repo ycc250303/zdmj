@@ -46,51 +46,51 @@ const keywordsInput = ref('');
 const industriesInput = ref('');
 
 // 表单验证
-const formRules = {
+const formRules = computed(() => ({
   jobName: {
     required: true,
-    message: () => $t('page.jobs.formValidation.jobNameRequired'),
+    message: $t('page.jobs.formValidation.jobNameRequired'),
     trigger: 'blur'
   },
   companyName: {
     required: true,
-    message: () => $t('page.jobs.formValidation.companyNameRequired'),
+    message: $t('page.jobs.formValidation.companyNameRequired'),
     trigger: 'blur'
   },
   description: {
     required: true,
-    message: () => $t('page.jobs.formValidation.descriptionRequired'),
+    message: $t('page.jobs.formValidation.descriptionRequired'),
     trigger: 'blur'
   },
   location: {
     required: true,
-    message: () => $t('page.jobs.formValidation.locationRequired'),
+    message: $t('page.jobs.formValidation.locationRequired'),
     trigger: 'blur'
   },
   salaryMin: {
     required: true,
-    type: 'number',
-    message: () => $t('page.jobs.formValidation.salaryMinRequired'),
+    type: 'number' as const,
+    message: $t('page.jobs.formValidation.salaryMinRequired'),
     trigger: 'blur'
   },
   salaryMax: {
     required: true,
-    type: 'number',
-    message: () => $t('page.jobs.formValidation.salaryMaxRequired'),
+    type: 'number' as const,
+    message: $t('page.jobs.formValidation.salaryMaxRequired'),
     trigger: 'blur'
   },
   salaryType: {
     required: true,
-    type: 'number',
-    message: () => $t('page.jobs.formValidation.salaryTypeRequired'),
+    type: 'number' as const,
+    message: $t('page.jobs.formValidation.salaryTypeRequired'),
     trigger: 'change'
   },
   link: {
     required: true,
-    message: () => $t('page.jobs.formValidation.linkRequired'),
+    message: $t('page.jobs.formValidation.linkRequired'),
     trigger: 'blur'
   }
-};
+}));
 
 const formRef = ref<any>();
 
@@ -114,16 +114,16 @@ async function loadJobDetail() {
       });
 
       // 设置数组字段
-      formData.jobDuties = data.content || [];
-      formData.jobRequirements = data.requirements || [];
+      formData.jobDuties = data.jobDuties || [];
+      formData.jobRequirements = data.jobRequirements || [];
       formData.keywords = data.keywords || [];
       formData.companyIndustries = data.companyIndustries || [];
 
       // 设置临时输入值
-      dutiesInput.value = formData.jobDuties.join('\n');
-      requirementsInput.value = formData.jobRequirements.join('\n');
-      keywordsInput.value = formData.keywords.join('\n');
-      industriesInput.value = formData.companyIndustries.join('\n');
+      dutiesInput.value = (formData.jobDuties || []).join('\n');
+      requirementsInput.value = (formData.jobRequirements || []).join('\n');
+      keywordsInput.value = (formData.keywords || []).join('\n');
+      industriesInput.value = (formData.companyIndustries || []).join('\n');
     } else {
       window.$message?.error($t('page.jobs.loadFailed'));
       router.back();
@@ -175,7 +175,7 @@ async function handleSubmit() {
 
     if (!error && data) {
       window.$message?.success(isEdit.value ? $t('page.jobs.updateSuccess') : $t('page.jobs.createSuccess'));
-      router.push({ name: 'job-detail', params: { id: data.id } });
+      router.push({ name: 'jobs' });
     } else {
       window.$message?.error(isEdit.value ? $t('page.jobs.updateFailed') : $t('page.jobs.createFailed'));
     }

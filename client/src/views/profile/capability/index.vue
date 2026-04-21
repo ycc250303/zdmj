@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { fetchGetCurrentCapabilityProfile, fetchGenerateCapabilityProfile, fetchUploadFile } from '@/service/api/profile';
+import { fetchQueryCapabilityProfile, fetchGenerateCapabilityProfile, fetchUploadFile } from '@/service/api/profile';
 import type { CapabilityProfileApi } from '@/service/api/profile';
 import { fetchGetResumeFullContentList } from '@/service/api/resume';
 import type { ResumeApi } from '@/service/api/resume';
@@ -58,8 +58,8 @@ async function loadData() {
   loading.value = true;
 
   try {
-    // 调用API检查是否已生成过画像
-    const { data, error } = await fetchGetCurrentCapabilityProfile();
+    // 调用API查询画像（仅查询，不触发生成）
+    const { data, error } = await fetchQueryCapabilityProfile();
 
     if (!error && data) {
       // 已生成过，显示数据
