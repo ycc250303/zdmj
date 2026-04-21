@@ -47,25 +47,36 @@ public class JobController {
     }
 
     /**
-     * 查询岗位列表（请求体绑定 {@link JobPageQueryDTO}）
-     * <p>请求体 JSON 示例：</p>
+     * 查询岗位列表（查询参数绑定 {@link JobPageQueryDTO}）
+     * <p>请求示例：</p>
      * <pre>{@code
-     * {
-     *   "page": 1,
-     *   "limit": 20,
-     *   "companySizes": [1, 2, 3],
-     *   "fundingTypes": "[1,2]",
-     *   "industries": ["互联网", "企业服务"],
-     *   "companyName": "某科技公司",
-     *   "employment": "INTERN",
-     *   "filterSalaryMin": 200,
-     *   "filterSalaryMax": 500,
-     *   "jobName": "后端"
-     * }
+     * GET /jobs?page=1&limit=20&companySizes=[1,2,3]&fundingTypes=[1,2]&industries=["互联网","企业服务"]
+     *     &companyName=某科技公司&employment=INTERN&filterSalaryMin=200&filterSalaryMax=500&jobName=后端
      * }</pre>
      */
     @GetMapping
-    public Result<PageDTO<JobListItemDTO>> getPage(@RequestBody(required = false) JobPageQueryDTO query) {
+    public Result<PageDTO<JobListItemDTO>> getPage(
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String limit,
+            @RequestParam(required = false) String companySizes,
+            @RequestParam(required = false) String fundingTypes,
+            @RequestParam(required = false) String industries,
+            @RequestParam(required = false) String companyName,
+            @RequestParam(required = false) String employment,
+            @RequestParam(required = false) String filterSalaryMin,
+            @RequestParam(required = false) String filterSalaryMax,
+            @RequestParam(required = false) String jobName) {
+        JobPageQueryDTO query = new JobPageQueryDTO();
+        query.setPage(page);
+        query.setLimit(limit);
+        query.setCompanySizes(companySizes);
+        query.setFundingTypes(fundingTypes);
+        query.setIndustries(industries);
+        query.setCompanyName(companyName);
+        query.setEmployment(employment == null || employment.isBlank() ? null : com.zdmj.jobService.enums.JobEmploymentFilter.valueOf(employment));
+        query.setFilterSalaryMin(filterSalaryMin);
+        query.setFilterSalaryMax(filterSalaryMax);
+        query.setJobName(jobName);
         return Result.success("查询岗位列表成功", jobService.getPage(query));
     }
 

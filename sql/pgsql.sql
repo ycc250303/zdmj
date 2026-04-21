@@ -536,13 +536,11 @@ CREATE TABLE IF NOT EXISTS job_capability_profiles (
     target_role_type VARCHAR(64) NOT NULL DEFAULT 'default',
     -- 岗位类型展示值（如 software-test）
     strengths JSONB DEFAULT '[]'::jsonb,
-    -- 面向求职者的常见加分方向
+    -- 重要要求项
     missing_skills JSONB DEFAULT '[]'::jsonb,
-    -- 优先补齐技能项
+    -- 缺失要求项
     weak_evidence_items JSONB DEFAULT '[]'::jsonb,
-    -- 易被追问但证据薄弱项
-    suggestions JSONB DEFAULT '[]'::jsonb,
-    -- 准备建议（结构化）
+    -- 缺少描述的要求项
     summary TEXT,
     -- 一句话总结
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -551,15 +549,6 @@ CREATE TABLE IF NOT EXISTS job_capability_profiles (
 );
 CREATE INDEX IF NOT EXISTS idx_job_capability_profiles_job_id ON job_capability_profiles(job_id);
 CREATE INDEX IF NOT EXISTS idx_job_capability_profiles_role_type ON job_capability_profiles(target_role_type);
--- 若历史库曾含评分/完整度相关列，升级时删除（幂等）
-ALTER TABLE job_capability_profiles DROP COLUMN IF EXISTS completeness_score;
-ALTER TABLE job_capability_profiles DROP COLUMN IF EXISTS competitiveness_score;
-ALTER TABLE job_capability_profiles DROP COLUMN IF EXISTS overall_score;
-ALTER TABLE job_capability_profiles DROP COLUMN IF EXISTS score_detail;
-ALTER TABLE student_capability_profiles ADD COLUMN IF NOT EXISTS target_role_type VARCHAR(64) NOT NULL DEFAULT 'default';
-ALTER TABLE job_capability_profiles ADD COLUMN IF NOT EXISTS target_role_type VARCHAR(64) NOT NULL DEFAULT 'default';
-ALTER TABLE student_capability_profiles DROP COLUMN IF EXISTS target_role_code;
-ALTER TABLE job_capability_profiles DROP COLUMN IF EXISTS target_role_code;
 --
 -- ==========================4 知识库模块==========================
 --
