@@ -101,3 +101,31 @@ export function fetchGenerateCapabilityProfile(data: CapabilityProfileApi.Capabi
     timeout: 300000 // 5分钟超时，AI生成需要较长时间
   });
 }
+
+/**
+ * 文件上传结果
+ */
+export interface FileUploadResult {
+  key: string;
+  url: string;
+  fileName: string;
+  fileSize: number;
+  contentType: string;
+}
+
+/**
+ * 上传文件到腾讯云COS
+ * 对应接口：POST /files/upload
+ * @param file 要上传的文件
+ * @param prefix 文件存储前缀，默认为'profile'
+ */
+export function fetchUploadFile(file: File, prefix = 'profile') {
+  const formData = new FormData();
+  formData.append('file', file);
+  return request<FileUploadResult>({
+    url: '/files/upload',
+    method: 'post',
+    data: formData,
+    params: { prefix }
+  });
+}

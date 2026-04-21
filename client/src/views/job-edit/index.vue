@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { $t } from '@/locales';
 import {
   fetchGetJobDetail,
   fetchCreateJob,
@@ -18,17 +19,6 @@ const isEdit = computed(() => !!editId.value);
 
 const loading = ref(false);
 const submitting = ref(false);
-
-const salaryTypeOptions = [
-  { label: '日薪', value: 1 },
-  { label: '月薪', value: 2 },
-  { label: '年薪', value: 3 }
-];
-
-const employmentOptions = [
-  { label: '实习', value: 'INTERN' },
-  { label: '全职', value: 'FULLTIME' }
-];
 
 // 表单数据
 const formData = reactive<JobApi.JobCreate & { id?: number }>({
@@ -59,45 +49,45 @@ const industriesInput = ref('');
 const formRules = {
   jobName: {
     required: true,
-    message: '请输入岗位名称',
+    message: () => $t('page.jobs.formValidation.jobNameRequired'),
     trigger: 'blur'
   },
   companyName: {
     required: true,
-    message: '请输入公司名称',
+    message: () => $t('page.jobs.formValidation.companyNameRequired'),
     trigger: 'blur'
   },
   description: {
     required: true,
-    message: '请输入岗位描述',
+    message: () => $t('page.jobs.formValidation.descriptionRequired'),
     trigger: 'blur'
   },
   location: {
     required: true,
-    message: '请输入工作地点',
+    message: () => $t('page.jobs.formValidation.locationRequired'),
     trigger: 'blur'
   },
   salaryMin: {
     required: true,
     type: 'number',
-    message: '请输入最低薪资',
+    message: () => $t('page.jobs.formValidation.salaryMinRequired'),
     trigger: 'blur'
   },
   salaryMax: {
     required: true,
     type: 'number',
-    message: '请输入最高薪资',
+    message: () => $t('page.jobs.formValidation.salaryMaxRequired'),
     trigger: 'blur'
   },
   salaryType: {
     required: true,
     type: 'number',
-    message: '请选择薪资类型',
+    message: () => $t('page.jobs.formValidation.salaryTypeRequired'),
     trigger: 'change'
   },
   link: {
     required: true,
-    message: '请输入岗位链接',
+    message: () => $t('page.jobs.formValidation.linkRequired'),
     trigger: 'blur'
   }
 };
@@ -135,11 +125,11 @@ async function loadJobDetail() {
       keywordsInput.value = formData.keywords.join('\n');
       industriesInput.value = formData.companyIndustries.join('\n');
     } else {
-      window.$message?.error('加载岗位详情失败');
+      window.$message?.error($t('page.jobs.loadFailed'));
       router.back();
     }
   } catch (err) {
-    window.$message?.error('加载岗位详情失败');
+    window.$message?.error($t('page.jobs.loadFailed'));
     router.back();
   } finally {
     loading.value = false;
@@ -173,7 +163,7 @@ async function handleSubmit() {
 
     // 验证薪资范围
     if (formData.salaryMin > formData.salaryMax) {
-      window.$message?.error('最低薪资不能大于最高薪资');
+      window.$message?.error($t('page.jobs.formValidation.salaryRangeInvalid'));
       return;
     }
 
@@ -184,10 +174,10 @@ async function handleSubmit() {
       : await fetchCreateJob(formData);
 
     if (!error && data) {
-      window.$message?.success(isEdit.value ? '更新成功' : '创建成功');
+      window.$message?.success(isEdit.value ? $t('page.jobs.updateSuccess') : $t('page.jobs.createSuccess'));
       router.push({ name: 'job-detail', params: { id: data.id } });
     } else {
-      window.$message?.error(isEdit.value ? '更新失败' : '创建失败');
+      window.$message?.error(isEdit.value ? $t('page.jobs.updateFailed') : $t('page.jobs.createFailed'));
     }
   } catch (err) {
     console.error('表单验证失败:', err);
@@ -215,122 +205,122 @@ onMounted(() => {
         <NButton quaternary circle @click="handleCancel">
           <template #icon><div class="i-mdi-arrow-left"></div></template>
         </NButton>
-        <h1 class="text-2xl font-bold text-slate-800">{{ isEdit ? '编辑岗位' : '创建岗位' }}</h1>
+        <h1 class="text-2xl font-bold text-slate-800">{{ isEdit ? $t('page.jobs.edit') : $t('page.jobs.create') }}</h1>
       </div>
 
       <!-- 表单 -->
       <div class="max-w-4xl">
         <NForm ref="formRef" :model="formData" :rules="formRules" label-placement="left" label-width="120px">
-          <NCard title="基本信息" class="mb-4 rounded-xl">
-            <NFormItem label="岗位名称" path="jobName">
-              <NInput v-model:value="formData.jobName" placeholder="请输入岗位名称" />
+          <NCard :title="$t('page.jobs.basicInfo')" class="mb-4 rounded-xl">
+            <NFormItem :label="$t('page.jobs.jobName')" path="jobName">
+              <NInput v-model:value="formData.jobName" :placeholder="$t('page.jobs.placeholders.jobName')" />
             </NFormItem>
 
-            <NFormItem label="公司名称" path="companyName">
-              <NInput v-model:value="formData.companyName" placeholder="请输入公司名称" />
+            <NFormItem :label="$t('page.jobs.companyName')" path="companyName">
+              <NInput v-model:value="formData.companyName" :placeholder="$t('page.jobs.placeholders.companyName')" />
             </NFormItem>
 
-            <NFormItem label="公司行业">
+            <NFormItem :label="$t('page.jobs.companyIndustry')">
               <NInput
                 v-model:value="industriesInput"
                 type="textarea"
                 :rows="3"
-                placeholder="每行输入一个行业，例如：&#10;互联网&#10;企业服务&#10;金融科技"
+                :placeholder="$t('page.jobs.placeholders.industries')"
               />
               <template #feedback>
                 <div class="text-xs text-slate-500">
-                  每行输入一个行业标签
+                  {{ $t('page.jobs.tips.industriesFormat') }}
                 </div>
               </template>
             </NFormItem>
 
-            <NFormItem label="工作地点" path="location">
-              <NInput v-model:value="formData.location" placeholder="请输入工作地点，例如：北京、上海、远程" />
+            <NFormItem :label="$t('page.jobs.location')" path="location">
+              <NInput v-model:value="formData.location" :placeholder="$t('page.jobs.placeholders.location')" />
             </NFormItem>
           </NCard>
 
-          <NCard title="薪资信息" class="mb-4 rounded-xl">
-            <NFormItem label="最低薪资" path="salaryMin">
-              <NInputNumber v-model:value="formData.salaryMin" :min="0" placeholder="请输入最低薪资" class="w-full" />
+          <NCard :title="$t('page.jobs.salaryInfo')" class="mb-4 rounded-xl">
+            <NFormItem :label="$t('page.jobs.salaryMin')" path="salaryMin">
+              <NInputNumber v-model:value="formData.salaryMin" :min="0" :placeholder="$t('page.jobs.salaryMin')" class="w-full" />
             </NFormItem>
 
-            <NFormItem label="最高薪资" path="salaryMax">
-              <NInputNumber v-model:value="formData.salaryMax" :min="0" placeholder="请输入最高薪资" class="w-full" />
+            <NFormItem :label="$t('page.jobs.salaryMax')" path="salaryMax">
+              <NInputNumber v-model:value="formData.salaryMax" :min="0" :placeholder="$t('page.jobs.salaryMax')" class="w-full" />
             </NFormItem>
 
-            <NFormItem label="薪资类型" path="salaryType">
+            <NFormItem :label="$t('page.jobs.salaryType')" path="salaryType">
               <NRadioGroup v-model:value="formData.salaryType">
-                <NRadio v-for="option in salaryTypeOptions" :key="option.value" :value="option.value">
-                  {{ option.label }}
-                </NRadio>
+                <NRadio :value="1">{{ $t('page.jobs.daily') }}</NRadio>
+                <NRadio :value="2">{{ $t('page.jobs.monthly') }}</NRadio>
+                <NRadio :value="3">{{ $t('page.jobs.yearly') }}</NRadio>
               </NRadioGroup>
             </NFormItem>
           </NCard>
 
-          <NCard title="岗位描述" class="mb-4 rounded-xl">
-            <NFormItem label="岗位描述" path="description">
+          <NCard :title="$t('page.jobs.jobDescription')" class="mb-4 rounded-xl">
+            <NFormItem :label="$t('page.jobs.jobDescription')" path="description">
               <NInput
                 v-model:value="formData.description"
                 type="textarea"
                 :rows="6"
-                placeholder="请输入岗位描述，包括岗位背景、工作内容等"
+                :placeholder="$t('page.jobs.placeholders.description')"
               />
             </NFormItem>
 
-            <NFormItem label="岗位职责">
+            <NFormItem :label="$t('page.jobs.jobDuties')">
               <NInput
                 v-model:value="dutiesInput"
                 type="textarea"
                 :rows="5"
-                placeholder="每行输入一条职责，例如：&#10;负责后端系统设计与开发&#10;参与技术方案评审&#10;编写技术文档"
+                :placeholder="$t('page.jobs.tips.dutiesFormat')"
               />
               <template #feedback>
                 <div class="text-xs text-slate-500">
-                  每行输入一条岗位职责
+                  {{ $t('page.jobs.tips.dutiesFormat') }}
                 </div>
               </template>
             </NFormItem>
 
-            <NFormItem label="岗位要求">
+            <NFormItem :label="$t('page.jobs.jobRequirements')">
               <NInput
                 v-model:value="requirementsInput"
                 type="textarea"
                 :rows="5"
-                placeholder="每行输入一条要求，例如：&#10;本科及以上学历，计算机相关专业&#10;3年以上后端开发经验&#10;熟练掌握Java/Python等语言"
+                :placeholder="$t('page.jobs.tips.requirementsFormat')"
               />
               <template #feedback>
                 <div class="text-xs text-slate-500">
-                  每行输入一条岗位要求
+                  {{ $t('page.jobs.tips.requirementsFormat') }}
                 </div>
               </template>
             </NFormItem>
 
-            <NFormItem label="岗位关键词">
+            <NFormItem :label="$t('page.jobs.jobKeywords')">
               <NInput
                 v-model:value="keywordsInput"
                 type="textarea"
                 :rows="3"
-                placeholder="可以使用逗号、空格或换行分隔，例如：&#10;Java, Spring Boot, MySQL&#10;或者：Java&#10;Spring Boot&#10;MySQL"
+                :placeholder="$t('page.jobs.tips.keywordsFormat')"
               />
               <template #feedback>
                 <div class="text-xs text-slate-500">
-                  支持使用逗号、空格或换行分隔关键词
+                  {{ $t('page.jobs.tips.keywordsFormat') }}
                 </div>
               </template>
             </NFormItem>
           </NCard>
 
-          <NCard title="其他信息" class="mb-4 rounded-xl">
-            <NFormItem label="岗位链接" path="link">
-              <NInput v-model:value="formData.link" placeholder="请输入岗位链接，例如：BOSS直聘、拉勾等" />
+          <NCard :title="$t('page.jobs.otherInfo')" class="mb-4 rounded-xl">
+            <NFormItem :label="$t('page.jobs.jobLink')" path="link">
+              <NInput v-model:value="formData.link" :placeholder="$t('page.jobs.placeholders.link')" />
             </NFormItem>
 
-            <NFormItem label="公司介绍">
+            <NFormItem :label="$t('page.jobs.companyIntro')">
               <NInput
                 v-model:value="formData.companyIntroduction"
                 type="textarea"
                 :rows="4"
-                placeholder="请输入公司介绍（可选）"
+                :placeholder="$t('page.jobs.placeholders.companyIntro')"
               />
             </NFormItem>
           </NCard>
@@ -338,9 +328,9 @@ onMounted(() => {
 
         <!-- 操作按钮 -->
         <div class="flex justify-end gap-3 mt-6">
-          <NButton size="large" @click="handleCancel">取消</NButton>
+          <NButton size="large" @click="handleCancel">{{ $t('common.cancel') }}</NButton>
           <NButton type="primary" size="large" :loading="submitting" @click="handleSubmit">
-            {{ isEdit ? '保存修改' : '创建岗位' }}
+            {{ isEdit ? $t('common.modify') : $t('page.jobs.create') }}
           </NButton>
         </div>
       </div>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { fetchGetCurrentCapabilityProfile, fetchGenerateCapabilityProfile } from '@/service/api/profile';
+import { fetchGetCurrentCapabilityProfile, fetchGenerateCapabilityProfile, fetchUploadFile } from '@/service/api/profile';
 import type { CapabilityProfileApi } from '@/service/api/profile';
 import { fetchGetResumeFullContentList } from '@/service/api/resume';
 import type { ResumeApi } from '@/service/api/resume';
@@ -12,8 +12,20 @@ const router = useRouter();
 const authStore = useAuthStore();
 const loading = ref(true);
 const generating = ref(false);
+const uploading = ref(false);
 const profile = ref<CapabilityProfileApi.StudentCapabilityProfile | null>(null);
 const isLogin = computed(() => Boolean(authStore.token));
+
+// 生成方式：'0'=自动生成（从简历数据）, '1'=文件上传, '2'=纯文本
+// 使用字符串类型，因为 NTabs 的 name 属性是字符串
+const generateMethod = ref<string>('0');
+
+// 文件上传相关
+const fileList = ref<any[]>([]);
+const uploadedFileUrl = ref('');
+
+// 纯文本输入
+const rawTextInput = ref('');
 
 // 计算总分项
 const totalScore = computed(() => {
@@ -131,39 +143,176 @@ function buildResumeText(resumes: ResumeApi.ResumeContentDTO[]): string {
   return parts.join('\n');
 }
 
-async function handleRegenerate() {
+/**
+ * 处理文件上传
+ */
+async function handleFileUpload() {
+  if (fileList.value.length === 0) {
+    window.$message?.warning($t('page.profile.capability.selectFileFirst'));
+    return;
+  }
+
+  uploading.value = true;
+
+  try {
+    // NUpload 的文件项结构：{ file: File, ... } 或直接是 File 对象
+    const fileItem = fileList.value[0];
+    const file = fileItem?.file || fileItem;
+
+    if (!file || !file.name) {
+      window.$message?.error($t('page.profile.capability.fileInvalid'));
+      uploading.value = false;
+      return;
+    }
+
+    // 验证文件名，检测中文字符
+    const hasNonAscii = /[^\x00-\x7F]/.test(file.name);
+    if (hasNonAscii) {
+      window.$message?.error($t('page.profile.capability.fileNameHasChinese'));
+      uploading.value = false;
+      return;
+    }
+
+    // 验证文件类型
+    const fileName = file.name.toLowerCase();
+    const validExtensions = ['.pdf', '.txt', '.doc', '.docx'];
+    const isValidExtension = validExtensions.some(ext => fileName.endsWith(ext));
+
+    if (!isValidExtension) {
+      window.$message?.error($t('page.profile.capability.onlySupportFormats'));
+      uploading.value = false;
+      return;
+    }
+
+    const { data, error } = await fetchUploadFile(file, 'profile');
+
+    if (!error && data) {
+      uploadedFileUrl.value = data.url;
+      // 确保当前在文件上传模式
+      generateMethod.value = '1';
+      console.log('✅ 文件上传成功:', {
+        fileName: data.fileName,
+        url: data.url,
+        key: data.key,
+        contentType: data.contentType
+      });
+      console.log('✅ 已切换到文件上传模式 (generateMethod = 1)');
+      window.$message?.success($t('page.profile.capability.uploadSuccess2'));
+    } else {
+      console.error('❌ 文件上传失败:', error);
+      window.$message?.error($t('page.profile.capability.uploadFailed') + ': ' + (error?.message || $t('page.profile.capability.unknownError')));
+    }
+  } catch (err: any) {
+    console.error('文件上传异常:', err);
+    window.$message?.error($t('page.profile.capability.uploadException') + ': ' + (err?.message || $t('page.profile.capability.checkNetwork')));
+  } finally {
+    uploading.value = false;
+  }
+}
+
+/**
+ * 处理文件选择变化
+ */
+function handleFileChange(options: any) {
+  // NUpload 的 update:file-list 事件可能直接传递数组，或者传递包含 fileList 属性的对象
+  const newFileList = Array.isArray(options) ? options : (options?.fileList || []);
+  fileList.value = newFileList;
+  // 如果用户删除了文件，清空URL
+  if (newFileList.length === 0) {
+    uploadedFileUrl.value = '';
+  }
+}
+
+/**
+ * 生成能力画像
+ */
+async function handleGenerate() {
   generating.value = true;
 
   try {
-    // 1. 获取用户的简历数据
-    const { data: resumes, error: resumeError } = await fetchGetResumeFullContentList();
+    let requestData: CapabilityProfileApi.CapabilityProfileGenerateReq = {};
 
-    if (resumeError || !resumes || resumes.length === 0) {
-      window.$message?.warning('请先完善简历信息（教育经历、项目经历、技能等）后再生成能力画像');
-      return;
+    if (generateMethod.value === '0') {
+      // 自动生成（从简历数据）
+      const { data: resumes, error: resumeError } = await fetchGetResumeFullContentList();
+
+      if (resumeError || !resumes || resumes.length === 0) {
+        window.$message?.warning($t('page.profile.capability.completeResumeFirst'));
+        return;
+      }
+
+      const resumeText = buildResumeText(resumes);
+
+      if (!resumeText || resumeText.length < 100) {
+        window.$message?.warning($t('page.profile.capability.resumeTooShort'));
+        return;
+      }
+
+      requestData = { rawText: resumeText };
+    } else if (generateMethod.value === '1') {
+      // 文件上传
+      if (!uploadedFileUrl.value) {
+        window.$message?.warning($t('page.profile.capability.pleaseUploadFile'));
+        return;
+      }
+
+      // 额外验证URL格式
+      try {
+        new URL(uploadedFileUrl.value);
+      } catch (e) {
+        console.error('❌ 无效的URL:', uploadedFileUrl.value);
+        window.$message?.error($t('page.profile.capability.urlInvalid'));
+        return;
+      }
+
+      requestData = { pdfUrl: uploadedFileUrl.value };
+      console.log('🔍 [文件上传模式] 请求参数:', JSON.stringify(requestData, null, 2));
+      console.log('🔍 [文件上传模式] PDF URL:', uploadedFileUrl.value);
+    } else if (generateMethod.value === '2') {
+      // 纯文本输入
+      if (!rawTextInput.value || rawTextInput.value.trim().length < 50) {
+        window.$message?.warning($t('page.profile.capability.inputAtLeastChars'));
+        return;
+      }
+      requestData = { rawText: rawTextInput.value.trim() };
     }
 
-    // 2. 拼接简历文本
-    const resumeText = buildResumeText(resumes);
-
-    if (!resumeText || resumeText.length < 100) {
-      window.$message?.warning('简历信息过少，请至少填写教育经历、项目经历或技能信息后再生成能力画像');
-      return;
-    }
-
-    // 3. 调用生成API（注意：AI生成需要较长时间，请耐心等待）
-    const { data, error } = await fetchGenerateCapabilityProfile({ rawText: resumeText });
+    const { data, error } = await fetchGenerateCapabilityProfile(requestData);
 
     if (!error && data) {
       profile.value = data;
-      window.$message?.success('生成能力画像成功');
+      window.$message?.success($t('page.profile.capability.generateSuccess'));
     } else {
       console.error('生成能力画像失败，错误信息:', error);
-      window.$message?.error('生成能力画像失败: ' + (error?.message || '未知错误'));
+      console.error('请求参数:', requestData);
+
+      // 打印完整的错误响应
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as any;
+        const errorData = axiosError.response?.data;
+        console.error('后端返回的完整错误:', errorData);
+        console.error('错误状态码:', axiosError.response?.status);
+
+        // 根据错误信息提供更具体的提示
+        let errorMessage = $t('page.profile.capability.generateFailed');
+        if (generateMethod.value === '1') {
+          // 文件上传模式
+          if (errorData?.msg?.includes('PDF') || errorData?.message?.includes('PDF')) {
+            errorMessage = $t('page.profile.capability.pdfParseFailed');
+          } else {
+            errorMessage = $t('page.profile.capability.fileProcessFailed') + ': ' + (errorData?.msg || errorData?.message || $t('page.profile.capability.unknownError'));
+          }
+        } else {
+          errorMessage = $t('page.profile.capability.generateFailed') + ': ' + (errorData?.msg || errorData?.message || $t('page.profile.capability.unknownError'));
+        }
+        window.$message?.error(errorMessage);
+      } else {
+        window.$message?.error($t('page.profile.capability.generateFailed') + ': ' + (error?.message || $t('page.profile.capability.unknownError')));
+      }
     }
   } catch (err: any) {
     console.error('生成能力画像异常:', err);
-    window.$message?.error('生成能力画像异常: ' + (err?.message || '请检查网络连接'));
+    window.$message?.error($t('page.profile.capability.generateFailed') + ': ' + (err?.message || $t('page.profile.capability.checkNetwork')));
   } finally {
     generating.value = false;
   }
@@ -185,9 +334,9 @@ onMounted(() => {
     <!-- 未登录提示 -->
     <div v-if="!isLogin" class="max-w-4xl mx-auto text-center py-20 bg-white rounded-xl border border-gray-100 shadow-sm">
       <div class="i-mdi-lock-outline text-6xl mb-4 mx-auto opacity-50 text-gray-400"></div>
-      <p class="text-gray-500 mb-4">请先登录后查看能力画像</p>
+      <p class="text-gray-500 mb-4">{{ $t('page.profile.capability.loginToView') }}</p>
       <NButton type="primary" @click="router.push('/login')">
-        前往登录
+        {{ $t('page.profile.capability.goToLogin') }}
       </NButton>
     </div>
 
@@ -200,12 +349,79 @@ onMounted(() => {
             <h1 class="text-2xl font-bold text-gray-800">{{ $t('page.profile.capability.title') }}</h1>
             <p class="text-gray-500 mt-2 text-sm">{{ $t('page.profile.capability.desc') }}</p>
           </div>
-          <NButton type="primary" size="large" :loading="generating" @click="handleRegenerate">
+          <NButton type="primary" size="large" :loading="generating" @click="handleGenerate">
             <template #icon>
               <div class="i-mdi-refresh"></div>
             </template>
             {{ $t('page.profile.capability.regenerate') }}
           </NButton>
+        </div>
+
+        <!-- 生成方式选择和输入区域 -->
+        <div class="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+          <h3 class="text-lg font-bold text-gray-800 mb-4">{{ $t('page.profile.capability.generateMethod') }}</h3>
+
+          <!-- 生成方式Tab -->
+          <NTabs v-model:value="generateMethod" type="segment">
+            <!-- 自动生成 -->
+            <NTabPane name="0" :tab="$t('page.profile.capability.autoGenerate')">
+              <p class="text-gray-600 text-sm">{{ $t('page.profile.capability.autoGenerateDesc') }}</p>
+            </NTabPane>
+
+            <!-- 文件上传 -->
+            <NTabPane name="1" :tab="$t('page.profile.capability.fileUpload')">
+              <div class="space-y-4">
+                <p class="text-gray-600 text-sm">{{ $t('page.profile.capability.fileUploadDesc') }}</p>
+                <NAlert type="info" :bordered="false" class="text-sm">
+                  <template #icon>
+                    <div class="i-mdi-information"></div>
+                  </template>
+                  <div class="space-y-1">
+                    <p>• {{ $t('page.profile.capability.uploadTips.useEnglishName') }}</p>
+                    <p>• {{ $t('page.profile.capability.uploadTips.fileSizeLimit') }}</p>
+                    <p>• {{ $t('page.profile.capability.uploadTips.tryTextInput') }}</p>
+                  </div>
+                </NAlert>
+                <NUpload
+                  :file-list="fileList"
+                  @update:file-list="handleFileChange"
+                  :max="1"
+                  accept=".pdf,.doc,.docx,.txt"
+                >
+                  <NButton :loading="uploading">
+                    <template #icon>
+                      <div class="i-mdi-upload"></div>
+                    </template>
+                    {{ $t('page.profile.capability.selectFile') }}
+                  </NButton>
+                </NUpload>
+                <NButton v-if="fileList.length > 0 && !uploadedFileUrl" type="primary" @click="handleFileUpload" :loading="uploading">
+                  {{ $t('page.profile.capability.uploadFile') }}
+                </NButton>
+                <NTag v-if="uploadedFileUrl" type="success" class="ml-2">
+                  <template #icon>
+                    <div class="i-mdi-check-circle"></div>
+                  </template>
+                  {{ $t('page.profile.capability.uploadSuccess') }}
+                </NTag>
+              </div>
+            </NTabPane>
+
+            <!-- 纯文本输入 -->
+            <NTabPane name="2" :tab="$t('page.profile.capability.textInput')">
+              <div class="space-y-4">
+                <p class="text-gray-600 text-sm">{{ $t('page.profile.capability.textInputDesc') }}</p>
+                <NInput
+                  v-model:value="rawTextInput"
+                  type="textarea"
+                  :placeholder="$t('page.profile.capability.textPlaceholder')"
+                  :rows="8"
+                  show-count
+                  :maxlength="10000"
+                />
+              </div>
+            </NTabPane>
+          </NTabs>
         </div>
 
         <!-- 一句话总结 -->
@@ -384,9 +600,64 @@ onMounted(() => {
       <div v-else class="max-w-4xl mx-auto text-center py-20 bg-white rounded-xl border border-gray-100 shadow-sm">
         <div class="i-mdi-file-document-outline text-6xl mb-4 mx-auto opacity-50 text-gray-400"></div>
         <p class="text-gray-400 mb-4">{{ $t('page.profile.capability.empty') }}</p>
-        <NButton type="primary" :loading="generating" @click="handleRegenerate">
-          {{ $t('page.profile.capability.generate') }}
-        </NButton>
+
+        <!-- 生成方式选择 -->
+        <div class="max-w-2xl mx-auto mb-6">
+          <NTabs v-model:value="generateMethod" type="segment" class="mb-6">
+            <NTabPane name="0" :tab="$t('page.profile.capability.autoGenerate')">
+              <p class="text-gray-600 text-sm mb-4">{{ $t('page.profile.capability.autoGenerateDesc') }}</p>
+            </NTabPane>
+
+            <NTabPane name="1" :tab="$t('page.profile.capability.fileUpload')">
+              <div class="space-y-4">
+                <p class="text-gray-600 text-sm">{{ $t('page.profile.capability.fileUploadDesc') }}</p>
+                <NUpload
+                  :file-list="fileList"
+                  @update:file-list="handleFileChange"
+                  :max="1"
+                  accept=".pdf,.doc,.docx,.txt"
+                >
+                  <NButton :loading="uploading">
+                    <template #icon>
+                      <div class="i-mdi-upload"></div>
+                    </template>
+                    {{ $t('page.profile.capability.selectFile') }}
+                  </NButton>
+                </NUpload>
+                <NButton v-if="fileList.length > 0 && !uploadedFileUrl" type="primary" @click="handleFileUpload" :loading="uploading">
+                  {{ $t('page.profile.capability.uploadFile') }}
+                </NButton>
+                <NTag v-if="uploadedFileUrl" type="success">
+                  <template #icon>
+                    <div class="i-mdi-check-circle"></div>
+                  </template>
+                  {{ $t('page.profile.capability.uploadSuccess') }}
+                </NTag>
+              </div>
+            </NTabPane>
+
+            <NTabPane name="2" :tab="$t('page.profile.capability.textInput')">
+              <div class="space-y-4">
+                <p class="text-gray-600 text-sm">{{ $t('page.profile.capability.textInputDesc') }}</p>
+                <NInput
+                  v-model:value="rawTextInput"
+                  type="textarea"
+                  :placeholder="$t('page.profile.capability.textPlaceholder')"
+                  :rows="8"
+                  show-count
+                  :maxlength="10000"
+                />
+              </div>
+            </NTabPane>
+          </NTabs>
+
+          <NButton type="primary" size="large" :loading="generating" @click="handleGenerate">
+            <template #icon>
+              <div class="i-mdi-auto-fix"></div>
+            </template>
+            {{ $t('page.profile.capability.generate') }}
+          </NButton>
+        </div>
       </div>
     </NSpin>
   </div>

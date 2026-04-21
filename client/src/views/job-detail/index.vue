@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { $t } from '@/locales';
 import {
   fetchGetJobDetail,
   fetchGetJobCapabilityProfile,
@@ -14,7 +15,7 @@ const router = useRouter();
 const route = useRoute();
 
 const jobId = computed(() => {
-  const id = route.params.id;
+  const id = route.query.id;
   return id ? Number(id) : null;
 });
 
@@ -23,18 +24,23 @@ const capabilityProfile = ref<JobApi.JobCapabilityProfile | null>(null);
 const loading = ref(false);
 const generatingProfile = ref(false);
 
-const salaryTypeOptions = [
-  { label: $t('page.jobs.daily') as string, value: 1 },
-  { label: $t('page.jobs.monthly') as string, value: 2 },
-  { label: $t('page.jobs.yearly') as string, value: 3 }
-];
-
 function formatSalary(job: JobApi.JobListItem): string {
-  const typeLabel = salaryTypeOptions.find(t => t.value === job.salaryType)?.label || '';
+  const typeMap = {
+    1: $t('page.jobs.daily'),
+    2: $t('page.jobs.monthly'),
+    3: $t('page.jobs.yearly')
+  };
+  const typeLabel = typeMap[job.salaryType as keyof typeof typeMap] || '';
   return `${job.salaryMin}-${job.salaryMax} ${typeLabel}`;
 }
 
 async function loadJobDetail() {
+  if (!jobId.value) {
+    window.$message?.error($t('page.jobs.loadFailed'));
+    router.back();
+    return;
+  }
+
   loading.value = true;
   try {
     const { data, error } = await fetchGetJobDetail(jobId.value);
@@ -55,6 +61,8 @@ async function loadJobDetail() {
 }
 
 async function loadCapabilityProfile() {
+  if (!jobId.value) return;
+
   try {
     const { data, error } = await fetchGetJobCapabilityProfile(jobId.value);
     if (!error && data) {
@@ -66,6 +74,8 @@ async function loadCapabilityProfile() {
 }
 
 async function handleGenerateProfile() {
+  if (!jobId.value) return;
+
   generatingProfile.value = true;
   window.$message?.info($t('page.jobs.profileGenerating') as string, { duration: 5000 });
   try {
@@ -85,7 +95,7 @@ async function handleGenerateProfile() {
 }
 
 function handleEdit() {
-  router.push({ name: 'job-edit', query: { id: jobId.value } });
+  router.push({ name: 'job-edit', query: { id: String(jobId.value) } });
 }
 
 function handleBack() {

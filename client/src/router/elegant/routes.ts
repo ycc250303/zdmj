@@ -71,7 +71,7 @@ export const generatedRoutes: GeneratedRoute[] = [
   },
   {
     name: 'job-detail',
-    path: '/jobs/job-detail/:id',
+    path: '/job-detail',
     component: 'layout.base$view.job-detail',
     meta: {
       title: 'job-detail',
@@ -81,7 +81,7 @@ export const generatedRoutes: GeneratedRoute[] = [
   },
   {
     name: 'job-edit',
-    path: '/jobs/job-edit',
+    path: '/job-edit',
     component: 'layout.base$view.job-edit',
     meta: {
       title: 'job-edit',

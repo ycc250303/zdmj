@@ -24,27 +24,8 @@ const pagination = reactive({
 // --- 查询条件 ---
 const searchForm = reactive<JobApi.JobPageQuery>({
   page: 1,
-  limit: 20,
-  jobName: '',
-  companyName: '',
-  employment: undefined,
-  filterSalaryMin: undefined,
-  filterSalaryMax: undefined
+  limit: 20
 });
-
-const showSearchPanel = ref(false);
-
-// --- 薪资类型选项 ---
-const salaryTypeOptions = [
-  { label: $t('page.jobs.daily') as string, value: 1 },
-  { label: $t('page.jobs.monthly') as string, value: 2 },
-  { label: $t('page.jobs.yearly') as string, value: 3 }
-];
-
-const employmentOptions = [
-  { label: $t('page.jobs.intern') as string, value: 'INTERN' },
-  { label: $t('page.jobs.fulltime') as string, value: 'FULLTIME' }
-];
 
 // --- 计算属性 ---
 const hasJobs = computed(() => jobList.value.length > 0);
@@ -70,28 +51,13 @@ async function loadJobData() {
   }
 }
 
-function handleSearch() {
-  pagination.page = 1;
-  loadJobData();
-}
-
-function handleReset() {
-  searchForm.jobName = '';
-  searchForm.companyName = '';
-  searchForm.employment = undefined;
-  searchForm.filterSalaryMin = undefined;
-  searchForm.filterSalaryMax = undefined;
-  pagination.page = 1;
-  loadJobData();
-}
-
 function handlePageChange(page: number) {
   pagination.page = page;
   loadJobData();
 }
 
 function handleViewDetail(id: number) {
-  router.push({ name: 'job-detail', params: { id } });
+  router.push({ name: 'job-detail', query: { id: String(id) } });
 }
 
 function handleCreate() {
@@ -123,7 +89,12 @@ function handleDelete(id: number) {
 }
 
 function formatSalary(job: JobApi.JobListItem): string {
-  const typeLabel = salaryTypeOptions.find(t => t.value === job.salaryType)?.label || '';
+  const typeMap = {
+    1: $t('page.jobs.daily'),
+    2: $t('page.jobs.monthly'),
+    3: $t('page.jobs.yearly')
+  };
+  const typeLabel = typeMap[job.salaryType as keyof typeof typeMap] || '';
   return `${job.salaryMin}-${job.salaryMax} ${typeLabel}`;
 }
 
@@ -142,38 +113,6 @@ onMounted(() => {
           {{ $t('page.jobs.create') }}
         </NButton>
       </div>
-
-      <!-- 搜索区域 -->
-      <NCard class="mb-4">
-        <div class="flex items-center gap-3">
-          <NInput
-            v-model:value="searchForm.jobName"
-            :placeholder="$t('page.jobs.searchJobName')"
-            clearable
-            class="w-48"
-            @keyup.enter="handleSearch"
-          />
-          <NInput
-            v-model:value="searchForm.companyName"
-            :placeholder="$t('page.jobs.searchCompanyName')"
-            clearable
-            class="w-48"
-            @keyup.enter="handleSearch"
-          />
-          <NSelect
-            v-model:value="searchForm.employment"
-            :placeholder="$t('page.jobs.employmentType')"
-            clearable
-            :options="employmentOptions"
-            class="w-32"
-          />
-          <NButton type="primary" @click="handleSearch">
-            <template #icon><div class="i-mdi-magnify"></div></template>
-            {{ $t('common.search') }}
-          </NButton>
-          <NButton @click="handleReset">{{ $t('common.reset') }}</NButton>
-        </div>
-      </NCard>
 
       <!-- 岗位列表 -->
       <div v-if="hasJobs" class="space-y-4">
@@ -256,7 +195,6 @@ onMounted(() => {
       <div v-if="hasJobs" class="mt-6 flex justify-center">
         <NPagination
           v-model:page="pagination.page"
-          :page-count="Math.ceil(pagination.total / pagination.limit)"
           :page-size="pagination.limit"
           :item-count="pagination.total"
           show-size-picker

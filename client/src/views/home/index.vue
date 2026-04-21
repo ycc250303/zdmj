@@ -46,8 +46,8 @@ const quickActions = ref<QuickAction[]>([
   },
   {
     id: 4,
-    title: '岗位信息',
-    description: '浏览和管理岗位信息，生成岗位能力画像',
+    title: $t('page.home.jobs.title'),
+    description: $t('page.home.jobs.description'),
     icon: 'i-mdi-briefcase',
     route: '/jobs',
     color: 'from-orange-50 to-orange-100',
