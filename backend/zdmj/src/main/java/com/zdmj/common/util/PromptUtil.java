@@ -161,7 +161,7 @@ public class PromptUtil {
      */
     public static String getResumeAnalysisPromptName(JobRole role) {
         if (role == null) {
-            return PromptNames.GENERATE_CAPABILITY_PROFILE;
+            return PromptNames.RESUME_ANALYSIS_DEFAULT;
         }
         return switch (role) {
             case JAVA -> PromptNames.RESUME_ANALYSIS_JAVA_BACKEND;
@@ -174,7 +174,7 @@ public class PromptUtil {
             case BIG_DATA -> PromptNames.RESUME_ANALYSIS_BIG_DATA;
             case DEVOPS_SRE -> PromptNames.RESUME_ANALYSIS_DEVOPS_SRE;
             case CYBERSECURITY -> PromptNames.RESUME_ANALYSIS_CYBERSECURITY;
-            case UNKNOWN -> PromptNames.GENERATE_CAPABILITY_PROFILE;
+            case UNKNOWN -> PromptNames.RESUME_ANALYSIS_DEFAULT;
         };
     }
 

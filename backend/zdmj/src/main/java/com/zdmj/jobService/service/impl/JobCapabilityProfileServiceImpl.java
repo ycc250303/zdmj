@@ -70,9 +70,9 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
 
         JobCapabilityProfile newProfile = toEntity(aiResult);
         newProfile.setJobId(jobId);
-        newProfile.setTargetRoleCode(PromptUtil.getRoleCodeByJobRole(role));
         newProfile.setRoleConfidence(BigDecimal.valueOf(estimateRoleConfidence(role, jobContext)));
         newProfile.setPromptName(promptName);
+        newProfile.setTargetRoleType(PromptUtil.getPromptDisplayType(promptName));
         newProfile.setStrengths(toJson(aiResult.getStrengths()));
         newProfile.setMissingSkills(toJson(aiResult.getMissingSkills()));
         newProfile.setWeakEvidenceItems(toJson(aiResult.getWeakEvidenceItems()));
@@ -165,7 +165,8 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
             return null;
         }
         JobCapabilityProfileDTO dto = new JobCapabilityProfileDTO();
-        dto.setTargetRoleType(PromptUtil.getPromptDisplayType(entity.getPromptName()));
+        dto.setTargetRoleType(StringUtils.hasText(entity.getTargetRoleType()) ? entity.getTargetRoleType()
+                : PromptUtil.getPromptDisplayType(entity.getPromptName()));
         dto.setProfessionalSkills(entity.getProfessionalSkills());
         dto.setCertificates(entity.getCertificates());
         dto.setInnovationAbility(entity.getInnovationAbility());

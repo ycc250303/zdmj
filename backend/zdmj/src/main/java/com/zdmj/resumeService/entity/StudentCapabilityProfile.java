@@ -80,12 +80,6 @@ public class StudentCapabilityProfile extends BaseEntity {
     private Integer overallScore;
 
     /**
-     * 本次分析识别到的岗位类型：
-     * java_backend/frontend/cpp/software_test/default
-     */
-    private String targetRoleCode;
-
-    /**
      * 岗位识别置信度（0~1）
      */
     private BigDecimal roleConfidence;
@@ -94,6 +88,11 @@ public class StudentCapabilityProfile extends BaseEntity {
      * 实际使用的提示词名称
      */
     private String promptName;
+
+    /**
+     * 岗位类型展示值（如 software-test）
+     */
+    private String targetRoleType;
 
     /**
      * 分项评分明细（JSONB）

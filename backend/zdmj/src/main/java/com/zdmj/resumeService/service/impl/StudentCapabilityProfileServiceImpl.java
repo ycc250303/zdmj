@@ -100,9 +100,10 @@ public class StudentCapabilityProfileServiceImpl
 
         StudentCapabilityProfile newProfile = toEntity(aiResult);
         newProfile.setUserId(userId);
-        newProfile.setTargetRoleCode(PromptUtil.getRoleCodeByJobRole(jobRole));
         newProfile.setRoleConfidence(BigDecimal.valueOf(resumeRole.getConfidence()));
-        newProfile.setPromptName(PromptUtil.getResumeAnalysisPromptName(jobRole));
+        String promptName = PromptUtil.getResumeAnalysisPromptName(jobRole);
+        newProfile.setPromptName(promptName);
+        newProfile.setTargetRoleType(PromptUtil.getPromptDisplayType(promptName));
         newProfile.setScoreDetail(toJson(aiResult.getScoreDetail()));
         newProfile.setMissingSkills(toJson(aiResult.getMissingSkills()));
         newProfile.setWeakEvidenceItems(toJson(aiResult.getWeakEvidenceItems()));
@@ -126,7 +127,8 @@ public class StudentCapabilityProfileServiceImpl
             return null;
         }
         StudentCapabilityProfileDTO dto = new StudentCapabilityProfileDTO();
-        dto.setTargetRoleType(PromptUtil.getPromptDisplayType(entity.getPromptName()));
+        dto.setTargetRoleType(StringUtils.hasText(entity.getTargetRoleType()) ? entity.getTargetRoleType()
+                : PromptUtil.getPromptDisplayType(entity.getPromptName()));
         dto.setProfessionalSkills(entity.getProfessionalSkills());
         dto.setCertificates(entity.getCertificates());
         dto.setInnovationAbility(entity.getInnovationAbility());
@@ -192,6 +194,11 @@ public class StudentCapabilityProfileServiceImpl
         out.setSummary(aiResult.getSummary());
     }
 
+    /**
+     * 解析简历文本
+     * @param reqDTO 简历生成请求DTO
+     * @return 简历文本
+     */
     private String resolveSourceText(CapabilityProfileGenerateReqDTO reqDTO) {
         String sourceText;
         if (StringUtils.hasText(reqDTO.getPdfUrl())) {
