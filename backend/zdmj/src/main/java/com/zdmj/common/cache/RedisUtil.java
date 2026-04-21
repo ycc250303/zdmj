@@ -95,6 +95,7 @@ public class RedisUtil {
             if (jsonValue == null) {
                 return null;
             }
+            log.debug("获取缓存成功: key={}, value={}", key, jsonValue);
             return objectMapper.readValue(jsonValue, clazz);
         } catch (org.springframework.dao.QueryTimeoutException | io.lettuce.core.RedisCommandTimeoutException e) {
             log.warn("获取缓存超时（不影响主流程）: key={}, error={}", key, e.getMessage());
