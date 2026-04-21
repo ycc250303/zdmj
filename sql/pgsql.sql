@@ -408,12 +408,12 @@ CREATE TABLE IF NOT EXISTS student_capability_profiles (
     -- 竞争力评分 (0-100)
     overall_score INTEGER,
     -- 岗位专项评估总分（可选）
-    target_role_code VARCHAR(64) NOT NULL DEFAULT 'default',
-    -- 本次分析识别到的岗位类型：java_backend/frontend/cpp/software_test/default
     role_confidence NUMERIC(5,4) NOT NULL DEFAULT 0.0,
     -- 岗位识别置信度（0~1）
     prompt_name VARCHAR(128) NOT NULL DEFAULT 'generate-capability-profile',
     -- 实际使用的提示词名称
+    target_role_type VARCHAR(64) NOT NULL DEFAULT 'default',
+    -- 岗位类型展示值（如 software-test）
     score_detail JSONB DEFAULT '{}'::jsonb,
     -- 分项评分明细（结构化输出）
     missing_skills JSONB DEFAULT '[]'::jsonb,
@@ -430,7 +430,7 @@ CREATE TABLE IF NOT EXISTS student_capability_profiles (
 CREATE INDEX IF NOT EXISTS idx_student_capability_profiles_user_id
     ON student_capability_profiles(user_id);
 CREATE INDEX IF NOT EXISTS idx_student_capability_profiles_target_role
-    ON student_capability_profiles(target_role_code);
+    ON student_capability_profiles(target_role_type);
 --
 -- ==========================3 岗位模块==========================
 --
@@ -529,12 +529,12 @@ CREATE TABLE IF NOT EXISTS job_capability_profiles (
     -- 沟通能力
     practical_ability TEXT,
     -- 实习能力
-    target_role_code VARCHAR(64) NOT NULL DEFAULT 'default',
-    -- 岗位类别：java_backend/frontend/cpp/software_test/default
     role_confidence NUMERIC(5,4) NOT NULL DEFAULT 0.0,
     -- 岗位分类置信度（0~1）
-    prompt_name VARCHAR(128) NOT NULL DEFAULT 'job-requirement/job-requirement-default',
+    prompt_name VARCHAR(128) NOT NULL DEFAULT 'job-requirement/default',
     -- 实际使用的岗位画像提示词名称
+    target_role_type VARCHAR(64) NOT NULL DEFAULT 'default',
+    -- 岗位类型展示值（如 software-test）
     strengths JSONB DEFAULT '[]'::jsonb,
     -- 面向求职者的常见加分方向
     missing_skills JSONB DEFAULT '[]'::jsonb,
@@ -550,12 +550,16 @@ CREATE TABLE IF NOT EXISTS job_capability_profiles (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
 );
 CREATE INDEX IF NOT EXISTS idx_job_capability_profiles_job_id ON job_capability_profiles(job_id);
-CREATE INDEX IF NOT EXISTS idx_job_capability_profiles_role_code ON job_capability_profiles(target_role_code);
+CREATE INDEX IF NOT EXISTS idx_job_capability_profiles_role_type ON job_capability_profiles(target_role_type);
 -- 若历史库曾含评分/完整度相关列，升级时删除（幂等）
 ALTER TABLE job_capability_profiles DROP COLUMN IF EXISTS completeness_score;
 ALTER TABLE job_capability_profiles DROP COLUMN IF EXISTS competitiveness_score;
 ALTER TABLE job_capability_profiles DROP COLUMN IF EXISTS overall_score;
 ALTER TABLE job_capability_profiles DROP COLUMN IF EXISTS score_detail;
+ALTER TABLE student_capability_profiles ADD COLUMN IF NOT EXISTS target_role_type VARCHAR(64) NOT NULL DEFAULT 'default';
+ALTER TABLE job_capability_profiles ADD COLUMN IF NOT EXISTS target_role_type VARCHAR(64) NOT NULL DEFAULT 'default';
+ALTER TABLE student_capability_profiles DROP COLUMN IF EXISTS target_role_code;
+ALTER TABLE job_capability_profiles DROP COLUMN IF EXISTS target_role_code;
 --
 -- ==========================4 知识库模块==========================
 --

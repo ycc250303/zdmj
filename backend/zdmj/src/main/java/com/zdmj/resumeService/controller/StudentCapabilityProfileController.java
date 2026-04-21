@@ -31,6 +31,16 @@ public class StudentCapabilityProfileController {
     }
 
     /**
+     * 仅查询当前用户能力画像（不存在时返回 null，不触发生成）
+     *
+     * @return 能力画像信息或 null
+     */
+    @GetMapping("/current/query")
+    public Result<StudentCapabilityProfileDTO> getCurrentProfileOrNull() {
+        return Result.success("查询能力画像成功", profileService.getCurrentUserProfileOrNull());
+    }
+
+    /**
      * 生成能力画像（支持从 PDF 解析或文本直接生成）
      *
      * @param reqDTO 生成参数

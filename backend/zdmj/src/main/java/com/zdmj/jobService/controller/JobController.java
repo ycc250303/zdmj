@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.zdmj.common.model.CreateGroup;
@@ -103,12 +104,34 @@ public class JobController {
 
 
     /**
-     * 获取岗位能力画像
+     * 查询岗位能力画像（仅查询，不触发生成；不存在返回 null）
+     *
+     * @param id 岗位ID
+     * @return 岗位能力画像或 null
+     */
+    @GetMapping("/capability-profile")
+    public Result<JobCapabilityProfileDTO> queryJobCapabilityProfileByParam(@RequestParam Long id) {
+        return Result.success("查询岗位能力画像成功", jobCapabilityProfileService.getJobCapabilityProfileOrNull(id));
+    }
+
+    /**
+     * 查询岗位能力画像（仅查询，不触发生成；不存在返回 null）
+     *
+     * @param id 岗位ID
+     * @return 岗位能力画像或 null
+     */
+    @GetMapping("/{id}/capability-profile")
+    public Result<JobCapabilityProfileDTO> queryJobCapabilityProfile(@PathVariable Long id) {
+        return Result.success("查询岗位能力画像成功", jobCapabilityProfileService.getJobCapabilityProfileOrNull(id));
+    }
+
+    /**
+     * 生成岗位能力画像（若已有则覆盖重写）
      * 
      * @param id 岗位ID
      * @return 岗位能力画像
      */
-    @GetMapping("/{id}/capability-profile")
+    @PostMapping("/{id}/capability-profile")
     public Result<JobCapabilityProfileDTO> getJobCapabilityProfile(@PathVariable Long id) {
         return Result.success("获取岗位能力画像成功", jobCapabilityProfileService.getJobCapabilityProfile(id));
     }

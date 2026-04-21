@@ -47,12 +47,21 @@ public class StudentCapabilityProfileServiceImpl
 
     @Override
     public StudentCapabilityProfileDTO getCurrentUserProfile() {
+        StudentCapabilityProfileDTO dto = getCurrentUserProfileOrNull();
+        if (dto == null) {
+            throw new BusinessException(404, "当前用户尚未生成能力画像");
+        }
+        return dto;
+    }
+
+    @Override
+    public StudentCapabilityProfileDTO getCurrentUserProfileOrNull() {
         Long userId = UserHolder.requireUserId();
         StudentCapabilityProfile profile = getOne(
                 new LambdaQueryWrapper<StudentCapabilityProfile>()
                         .eq(StudentCapabilityProfile::getUserId, userId));
         if (profile == null) {
-            throw new BusinessException(404, "当前用户尚未生成能力画像");
+            return null;
         }
         StudentCapabilityProfileDTO dto = toDto(profile);
         hydrateDtoFromEntity(profile, dto);
@@ -91,9 +100,10 @@ public class StudentCapabilityProfileServiceImpl
 
         StudentCapabilityProfile newProfile = toEntity(aiResult);
         newProfile.setUserId(userId);
-        newProfile.setTargetRoleCode(toRoleCode(jobRole));
         newProfile.setRoleConfidence(BigDecimal.valueOf(resumeRole.getConfidence()));
-        newProfile.setPromptName(PromptUtil.getResumeAnalysisPromptName(jobRole));
+        String promptName = PromptUtil.getResumeAnalysisPromptName(jobRole);
+        newProfile.setPromptName(promptName);
+        newProfile.setTargetRoleType(PromptUtil.getPromptDisplayType(promptName));
         newProfile.setScoreDetail(toJson(aiResult.getScoreDetail()));
         newProfile.setMissingSkills(toJson(aiResult.getMissingSkills()));
         newProfile.setWeakEvidenceItems(toJson(aiResult.getWeakEvidenceItems()));
@@ -117,6 +127,8 @@ public class StudentCapabilityProfileServiceImpl
             return null;
         }
         StudentCapabilityProfileDTO dto = new StudentCapabilityProfileDTO();
+        dto.setTargetRoleType(StringUtils.hasText(entity.getTargetRoleType()) ? entity.getTargetRoleType()
+                : PromptUtil.getPromptDisplayType(entity.getPromptName()));
         dto.setProfessionalSkills(entity.getProfessionalSkills());
         dto.setCertificates(entity.getCertificates());
         dto.setInnovationAbility(entity.getInnovationAbility());
@@ -182,6 +194,11 @@ public class StudentCapabilityProfileServiceImpl
         out.setSummary(aiResult.getSummary());
     }
 
+    /**
+     * 解析简历文本
+     * @param reqDTO 简历生成请求DTO
+     * @return 简历文本
+     */
     private String resolveSourceText(CapabilityProfileGenerateReqDTO reqDTO) {
         String sourceText;
         if (StringUtils.hasText(reqDTO.getPdfUrl())) {
@@ -283,24 +300,6 @@ public class StudentCapabilityProfileServiceImpl
             log.warn("JSON 序列化失败，字段将置空: {}", e.getMessage());
             return null;
         }
-    }
-
-    /**
-     * 将岗位角色转换为岗位代码
-     * @param role 岗位角色
-     * @return 岗位代码
-     */
-    private String toRoleCode(JobRole role) {
-        if (role == null) {
-            return "default";
-        }
-        return switch (role) {
-            case JAVA -> "java_backend";
-            case FRONTEND -> "frontend";
-            case CPP -> "cpp";
-            case SOFTWARE_TEST -> "software_test";
-            case UNKNOWN -> "default";
-        };
     }
 
     @lombok.Data
