@@ -8,6 +8,7 @@ const resumeStore = useResumeStore();
 async function handleSaveResume() {
   await resumeStore.saveAllData();
 }
+
 </script>
 
 <template>
@@ -24,18 +25,26 @@ async function handleSaveResume() {
         
         <NCollapseItem :title="$t('page.resume.basicInfo')" name="basic">
           <NGrid :x-gap="12" :cols="2">
-            <NFormItem :label="$t('page.resume.fullName')">
-              <NInput v-model:value="resumeStore.personalInfo.fullName" />
-            </NFormItem>
-            <NFormItem :label="$t('page.resume.major')">
-              <NInput v-model:value="resumeStore.personalInfo.major" />
-            </NFormItem>
-            <NFormItem :label="$t('page.resume.phone')">
-              <NInput v-model:value="resumeStore.personalInfo.phone" />
-            </NFormItem>
-            <NFormItem :label="$t('page.resume.email')">
-              <NInput v-model:value="resumeStore.personalInfo.email" />
-            </NFormItem>
+            <NGridItem>
+              <NFormItem :label="$t('page.resume.fullName')">
+                <NInput v-model:value="resumeStore.personalInfo.fullName" />
+              </NFormItem>
+            </NGridItem>
+            <NGridItem>
+              <NFormItem :label="$t('page.resume.targetJob', '目标岗位/专业')">
+                <NInput v-model:value="resumeStore.personalInfo.major" />
+              </NFormItem>
+            </NGridItem>
+            <NGridItem>
+              <NFormItem :label="$t('page.resume.phone')">
+                <NInput v-model:value="resumeStore.personalInfo.phone" />
+              </NFormItem>
+            </NGridItem>
+            <NGridItem>
+              <NFormItem :label="$t('page.resume.email')">
+                <NInput v-model:value="resumeStore.personalInfo.email" />
+              </NFormItem>
+            </NGridItem>
           </NGrid>
           <NFormItem :label="$t('page.profile.basicInfo.homepageUrl', '个人主页 / Github 等')">
             <NInput v-model:value="resumeStore.personalInfo.homepageUrl" placeholder="https://" />
@@ -50,11 +59,21 @@ async function handleSaveResume() {
               <NSwitch v-model:value="edu.visible" size="small" />
             </div>
             <NGrid :x-gap="12" :cols="2">
-              <NFormItem :label="$t('page.resume.school')"><NInput v-model:value="edu.school" /></NFormItem>
-              <NFormItem :label="$t('page.resume.major')"><NInput v-model:value="edu.major" /></NFormItem>
-              <NFormItem :label="$t('page.resume.startDate')"><NInput v-model:value="edu.startDate" /></NFormItem>
-              <NFormItem :label="$t('page.resume.endDate')"><NInput v-model:value="edu.endDate" /></NFormItem>
-              <NFormItem :label="$t('page.resume.gpa')"><NInput v-model:value="edu.gpa" /></NFormItem>
+              <NGridItem>
+                <NFormItem :label="$t('page.resume.school')"><NInput v-model:value="edu.school" /></NFormItem>
+              </NGridItem>
+              <NGridItem>
+                <NFormItem :label="$t('page.resume.major')"><NInput v-model:value="edu.major" /></NFormItem>
+              </NGridItem>
+              <NGridItem>
+                <NFormItem :label="$t('page.resume.startDate')"><NInput v-model:value="edu.startDate" /></NFormItem>
+              </NGridItem>
+              <NGridItem>
+                <NFormItem :label="$t('page.resume.endDate')"><NInput v-model:value="edu.endDate" /></NFormItem>
+              </NGridItem>
+              <NGridItem>
+                <NFormItem :label="$t('page.resume.gpa')"><NInput v-model:value="edu.gpa" /></NFormItem>
+              </NGridItem>
             </NGrid>
           </div>
           </template>
@@ -75,8 +94,12 @@ async function handleSaveResume() {
             </div>
             <NFormItem :label="$t('page.resume.projectName')"><NInput v-model:value="proj.name" /></NFormItem>
             <NGrid :x-gap="12" :cols="2">
-              <NFormItem :label="$t('page.resume.role')"><NInput v-model:value="proj.role" /></NFormItem>
-              <NFormItem :label="$t('page.resume.duration')"><NInput v-model:value="proj.startDate" /></NFormItem>
+              <NGridItem>
+                <NFormItem :label="$t('page.resume.role')"><NInput v-model:value="proj.role" /></NFormItem>
+              </NGridItem>
+              <NGridItem>
+                <NFormItem :label="$t('page.resume.duration')"><NInput v-model:value="proj.startDate" /></NFormItem>
+              </NGridItem>
             </NGrid>
             <NFormItem :label="$t('page.resume.projectDesc')">
               <RichTextEditor v-model="proj.description" />
