@@ -13,6 +13,11 @@ import lombok.Data;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class StudentCapabilityProfileDTO {
     /**
+     * 简历适配岗位类型（展示用，使用提示词名称）
+     */
+    private String targetRoleType;
+
+    /**
      * 专业技能：2～4 句中文，须结合简历中的课程/项目/技术栈写具体证据，避免只堆砌关键词。
      */
     private String professionalSkills;

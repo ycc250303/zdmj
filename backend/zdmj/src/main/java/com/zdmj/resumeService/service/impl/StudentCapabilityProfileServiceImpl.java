@@ -100,7 +100,7 @@ public class StudentCapabilityProfileServiceImpl
 
         StudentCapabilityProfile newProfile = toEntity(aiResult);
         newProfile.setUserId(userId);
-        newProfile.setTargetRoleCode(toRoleCode(jobRole));
+        newProfile.setTargetRoleCode(PromptUtil.getRoleCodeByJobRole(jobRole));
         newProfile.setRoleConfidence(BigDecimal.valueOf(resumeRole.getConfidence()));
         newProfile.setPromptName(PromptUtil.getResumeAnalysisPromptName(jobRole));
         newProfile.setScoreDetail(toJson(aiResult.getScoreDetail()));
@@ -126,6 +126,7 @@ public class StudentCapabilityProfileServiceImpl
             return null;
         }
         StudentCapabilityProfileDTO dto = new StudentCapabilityProfileDTO();
+        dto.setTargetRoleType(PromptUtil.getPromptDisplayType(entity.getPromptName()));
         dto.setProfessionalSkills(entity.getProfessionalSkills());
         dto.setCertificates(entity.getCertificates());
         dto.setInnovationAbility(entity.getInnovationAbility());
@@ -292,24 +293,6 @@ public class StudentCapabilityProfileServiceImpl
             log.warn("JSON 序列化失败，字段将置空: {}", e.getMessage());
             return null;
         }
-    }
-
-    /**
-     * 将岗位角色转换为岗位代码
-     * @param role 岗位角色
-     * @return 岗位代码
-     */
-    private String toRoleCode(JobRole role) {
-        if (role == null) {
-            return "default";
-        }
-        return switch (role) {
-            case JAVA -> "java_backend";
-            case FRONTEND -> "frontend";
-            case CPP -> "cpp";
-            case SOFTWARE_TEST -> "software_test";
-            case UNKNOWN -> "default";
-        };
     }
 
     @lombok.Data

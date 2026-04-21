@@ -533,7 +533,7 @@ CREATE TABLE IF NOT EXISTS job_capability_profiles (
     -- 岗位类别：java_backend/frontend/cpp/software_test/default
     role_confidence NUMERIC(5,4) NOT NULL DEFAULT 0.0,
     -- 岗位分类置信度（0~1）
-    prompt_name VARCHAR(128) NOT NULL DEFAULT 'job-requirement/job-requirement-default',
+    prompt_name VARCHAR(128) NOT NULL DEFAULT 'job-requirement/default',
     -- 实际使用的岗位画像提示词名称
     strengths JSONB DEFAULT '[]'::jsonb,
     -- 面向求职者的常见加分方向

@@ -70,7 +70,7 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
 
         JobCapabilityProfile newProfile = toEntity(aiResult);
         newProfile.setJobId(jobId);
-        newProfile.setTargetRoleCode(toRoleCode(role));
+        newProfile.setTargetRoleCode(PromptUtil.getRoleCodeByJobRole(role));
         newProfile.setRoleConfidence(BigDecimal.valueOf(estimateRoleConfidence(role, jobContext)));
         newProfile.setPromptName(promptName);
         newProfile.setStrengths(toJson(aiResult.getStrengths()));
@@ -165,6 +165,7 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
             return null;
         }
         JobCapabilityProfileDTO dto = new JobCapabilityProfileDTO();
+        dto.setTargetRoleType(PromptUtil.getPromptDisplayType(entity.getPromptName()));
         dto.setProfessionalSkills(entity.getProfessionalSkills());
         dto.setCertificates(entity.getCertificates());
         dto.setInnovationAbility(entity.getInnovationAbility());
@@ -261,19 +262,6 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
             log.warn("岗位画像 JSON 序列化失败，字段将置空: {}", e.getMessage());
             return null;
         }
-    }
-
-    private String toRoleCode(JobRole role) {
-        if (role == null) {
-            return "default";
-        }
-        return switch (role) {
-            case JAVA -> "java_backend";
-            case FRONTEND -> "frontend";
-            case CPP -> "cpp";
-            case SOFTWARE_TEST -> "software_test";
-            case UNKNOWN -> "default";
-        };
     }
 
     @lombok.Data

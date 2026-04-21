@@ -9,6 +9,11 @@ import lombok.Data;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class JobCapabilityProfileDTO {
     /**
+     * 岗位类型（展示用，使用提示词名称）
+     */
+    private String targetRoleType;
+
+    /**
      * 岗位要求画像七维（顶层输出，面向求职者）
      */
     private String professionalSkills;
