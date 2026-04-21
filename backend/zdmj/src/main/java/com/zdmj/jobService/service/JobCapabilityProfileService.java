@@ -12,4 +12,12 @@ public interface JobCapabilityProfileService extends IService<JobCapabilityProfi
      * @return 岗位能力画像
      */
     JobCapabilityProfileDTO getJobCapabilityProfile(Long jobId);
+
+    /**
+     * 仅查询岗位能力画像；若不存在则返回 null
+     *
+     * @param jobId 岗位ID
+     * @return 岗位能力画像或 null
+     */
+    JobCapabilityProfileDTO getJobCapabilityProfileOrNull(Long jobId);
 }

@@ -5,6 +5,7 @@ import com.zdmj.common.model.Result;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -59,6 +60,7 @@ public class SecurityConfig {
                                 "/actuator/health", // 健康检查
                                 "/actuator/info" // 应用信息
                         ).permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/zdmj/jobs/**").permitAll()
 
                         // 对于异步分发（ASYNC dispatcher），允许所有请求
                         // 这可以避免 "Unable to handle the Spring Security Exception because the response is

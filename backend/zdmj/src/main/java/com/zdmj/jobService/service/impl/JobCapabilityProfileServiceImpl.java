@@ -89,6 +89,22 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         return responseDto;
     }
 
+    @Override
+    public JobCapabilityProfileDTO getJobCapabilityProfileOrNull(Long jobId) {
+        JobListItemDTO jobDetail = jobService.getDetail(jobId);
+        if (jobDetail == null) {
+            throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
+        }
+        JobCapabilityProfile profile = getOne(
+                new LambdaQueryWrapper<JobCapabilityProfile>().eq(JobCapabilityProfile::getJobId, jobId));
+        if (profile == null) {
+            return null;
+        }
+        JobCapabilityProfileDTO dto = toDto(profile);
+        hydrateDtoFromEntity(profile, dto);
+        return dto;
+    }
+
     /**
      * 岗位类型识别
      * @param text 岗位文本

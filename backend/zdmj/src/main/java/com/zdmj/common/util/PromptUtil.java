@@ -84,13 +84,13 @@ public class PromptUtil {
         /** 知识库查询改写 */
         public static final String KNOWLEDGEBASE_RAG_QUERY_REWRITE = "knowledgebase-query-rewrite";
         /** 简历分析 Java 后端 */
-        public static final String RESUME_ANALYSIS_JAVA_BACKEND = "resume-analysis-java-backend";
+        public static final String RESUME_ANALYSIS_JAVA_BACKEND = "resume-analysis/resume-analysis-java-backend";
         /** 简历分析 前端 */
-        public static final String RESUME_ANALYSIS_FRONTEND = "resume-analysis-frontend";
+        public static final String RESUME_ANALYSIS_FRONTEND = "resume-analysis/resume-analysis-frontend";
         /** 简历分析 C/C++ */
-        public static final String RESUME_ANALYSIS_CPP = "resume-analysis-cpp";
+        public static final String RESUME_ANALYSIS_CPP = "resume-analysis/resume-analysis-cpp";
         /** 简历分析 软件测试 */
-        public static final String RESUME_ANALYSIS_SOFTWARE_TEST = "resume-analysis-software-test";
+        public static final String RESUME_ANALYSIS_SOFTWARE_TEST = "resume-analysis/resume-analysis-software-test";
         /** 岗位分类 job-detect */
         public static final String JOB_DETECT = "job-detect";
     }

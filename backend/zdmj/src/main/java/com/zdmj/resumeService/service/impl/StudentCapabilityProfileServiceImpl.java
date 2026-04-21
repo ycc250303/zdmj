@@ -47,12 +47,21 @@ public class StudentCapabilityProfileServiceImpl
 
     @Override
     public StudentCapabilityProfileDTO getCurrentUserProfile() {
+        StudentCapabilityProfileDTO dto = getCurrentUserProfileOrNull();
+        if (dto == null) {
+            throw new BusinessException(404, "当前用户尚未生成能力画像");
+        }
+        return dto;
+    }
+
+    @Override
+    public StudentCapabilityProfileDTO getCurrentUserProfileOrNull() {
         Long userId = UserHolder.requireUserId();
         StudentCapabilityProfile profile = getOne(
                 new LambdaQueryWrapper<StudentCapabilityProfile>()
                         .eq(StudentCapabilityProfile::getUserId, userId));
         if (profile == null) {
-            throw new BusinessException(404, "当前用户尚未生成能力画像");
+            return null;
         }
         StudentCapabilityProfileDTO dto = toDto(profile);
         hydrateDtoFromEntity(profile, dto);
