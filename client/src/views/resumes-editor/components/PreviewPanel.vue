@@ -41,6 +41,91 @@ const currentComponent = computed(() => {
 });
 
 const predefineColors = ['#2563eb', '#0f172a', '#059669', '#7c3aed', '#dc2626'];
+
+//pdf导出
+// 确保上面有 import { ref, computed, watch, onMounted } from 'vue';
+
+// 声明我们要抓取的 DOM 节点
+const printableRef = ref<HTMLElement | null>(null);
+
+// 终极版 iframe 打印方案
+const handleExportPdf = () => {
+  if (!printableRef.value) {
+    window.$message?.error('未找到简历内容！');
+    return;
+  }
+
+  // 1. 获取带有样式的外层 HTML（使用 outerHTML 保留容器本身的主题色变量）
+  const printContent = printableRef.value.outerHTML;
+
+  // 2. 抓取当前整个 Vue 项目打包后的所有 CSS 样式表
+  const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+    .map(el => el.outerHTML)
+    .join('\n');
+
+  // 3. 动态创建一个“隐形”的 iframe 放到页面里
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'absolute';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = 'none';
+  iframe.style.zIndex = '-9999';
+  document.body.appendChild(iframe);
+
+  // 4. 把我们的简历和提取的 CSS 写进这个独立的 iframe 空间
+  const doc = iframe.contentWindow?.document;
+  if (!doc) return;
+
+  doc.open();
+  doc.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>简历导出 - ${resumeStore.personalInfo?.fullName || 'SmartHire'}</title>
+        ${styles}
+        <style>
+          /* 专门针对 iframe 内部的 A4 纸复位样式 */
+          body { 
+            margin: 0 !important; 
+            padding: 0 !important; 
+            background: #ffffff !important; 
+          }
+          /* 让简历容器贴边，并去除在网页上好看但打印出来会黑一圈的阴影 */
+          .printable-area {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            transform: none !important;
+          }
+          /* 消除浏览器自带的网址、页码等页眉页脚 */
+          @page {
+            size: A4 portrait;
+            margin: 0mm; 
+          }
+        </style>
+      </head>
+      <body>
+        ${printContent}
+      </body>
+    </html>
+  `);
+  doc.close();
+
+  // 5. 等待 iframe 里面的 CSS 渲染完毕后，唤起打印
+  iframe.onload = () => {
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      
+      // 用户关闭打印窗口后，销毁这个 iframe 防止内存泄漏
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 1000);
+    }, 500); // 留 500ms 缓冲，确保字体和样式完全挂载
+  };
+};
 </script>
 
 <template>
@@ -65,7 +150,7 @@ const predefineColors = ['#2563eb', '#0f172a', '#059669', '#7c3aed', '#dc2626'];
           <div class="i-mdi-magnify-plus text-slate-400 cursor-pointer hover:text-blue-600" @click="zoomLevel += 0.1"></div>
           <span class="text-xs font-bold text-slate-500 w-8">{{ Math.round(zoomLevel * 100) }}%</span>
         </div>
-        <NButton type="primary" size="small">
+        <NButton type="primary" size="small" @click="handleExportPdf">
           <template #icon><div class="i-mdi-download"></div></template>
           {{ $t('page.resume.exportPdf') }}
         </NButton>
@@ -78,6 +163,7 @@ const predefineColors = ['#2563eb', '#0f172a', '#059669', '#7c3aed', '#dc2626'];
         :style="{ transform: `scale(${zoomLevel})`, transformOrigin: 'top center', transition: 'transform 0.1s linear' }"
       >
         <div 
+          ref="printableRef"
           class="bg-white printable-area"
           :style="{ 
             width: '794px', 
