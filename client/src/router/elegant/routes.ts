@@ -70,6 +70,35 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
+    name: 'job-detail',
+    path: '/jobs/job-detail/:id',
+    component: 'layout.base$view.job-detail',
+    meta: {
+      title: 'job-detail',
+      i18nKey: 'route.job-detail',
+      hideInMenu: true
+    }
+  },
+  {
+    name: 'job-edit',
+    path: '/jobs/job-edit',
+    component: 'layout.base$view.job-edit',
+    meta: {
+      title: 'job-edit',
+      i18nKey: 'route.job-edit',
+      hideInMenu: true
+    }
+  },
+  {
+    name: 'jobs',
+    path: '/jobs',
+    component: 'layout.base$view.jobs',
+    meta: {
+      title: 'jobs',
+      i18nKey: 'route.jobs'
+    }
+  },
+  {
     name: 'knowledge',
     path: '/knowledge',
     component: 'layout.base$view.knowledge',

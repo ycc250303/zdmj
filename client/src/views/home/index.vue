@@ -43,6 +43,15 @@ const quickActions = ref<QuickAction[]>([
     route: '/resumes',
     color: 'from-emerald-50 to-emerald-100',
     positionClass: 'card-3'
+  },
+  {
+    id: 4,
+    title: '岗位信息',
+    description: '浏览和管理岗位信息，生成岗位能力画像',
+    icon: 'i-mdi-briefcase',
+    route: '/jobs',
+    color: 'from-orange-50 to-orange-100',
+    positionClass: 'card-4'
   }
 ]);
 
@@ -330,6 +339,21 @@ function navigateTo(route: string) {
   margin-left: -90px; /* 保持hover时位置不变 */
 }
 
+.card-4 {
+  top: 20%;
+  left: 50%;
+  margin-left: -90px;
+  animation-delay: 1s;
+}
+
+.card-4:hover {
+  margin-left: -90px;
+}
+
+.card-4 .card-icon {
+  color: #f97316;
+}
+
 .card-icon {
   font-size: 48px;
   margin-bottom: 12px;
@@ -421,6 +445,16 @@ function navigateTo(route: string) {
   }
 
   .card-3:hover {
+    margin-left: -70px;
+  }
+
+  .card-4 {
+    top: 15%;
+    left: 55%;
+    margin-left: -70px;
+  }
+
+  .card-4:hover {
     margin-left: -70px;
   }
 }

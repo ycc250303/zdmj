@@ -4,3 +4,4 @@ export * from './knowledge';
 export * from './resume';
 export * from './profile';
 export * from './conversation';
+export * from './job';

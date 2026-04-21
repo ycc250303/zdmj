@@ -23,6 +23,9 @@ declare module "@elegant-router/types" {
     "chat": "/chat";
     "home": "/home";
     "iframe-page": "/iframe-page/:url";
+    "job-detail": "/job-detail";
+    "job-edit": "/job-edit";
+    "jobs": "/jobs";
     "knowledge": "/knowledge";
     "login": "/login/:module(pwd-login|code-login|register|reset-pwd|bind-wechat)?";
     "portal": "/portal";
@@ -72,6 +75,9 @@ declare module "@elegant-router/types" {
     | "chat"
     | "home"
     | "iframe-page"
+    | "job-detail"
+    | "job-edit"
+    | "jobs"
     | "knowledge"
     | "login"
     | "portal"
@@ -101,6 +107,9 @@ declare module "@elegant-router/types" {
     | "login"
     | "chat"
     | "home"
+    | "job-detail"
+    | "job-edit"
+    | "jobs"
     | "knowledge"
     | "portal"
     | "profile_basic-info"

@@ -13,6 +13,7 @@ const { baseURL, otherBaseURL } = getServiceBaseURL(import.meta.env, isHttpProxy
 export const request = createFlatRequest(
   {
     baseURL,
+    timeout: 60000, // 默认60秒超时
     headers: {
       apifoxToken: 'XL299LiMEDZ0H5h3A29PxwQXdMJqWyY2'
     }
@@ -28,6 +29,12 @@ export const request = createFlatRequest(
     async onRequest(config) {
       const Authorization = getAuthorization();
       Object.assign(config.headers, { Authorization });
+
+      // 支持GET请求带body（后端使用 @GetMapping + @RequestBody）
+      if (config.method?.toLowerCase() === 'get' && config.data) {
+        // @ts-ignore - axios默认不支持GET带body，需要强制设置
+        config.headers['Content-Type'] = 'application/json';
+      }
 
       return config;
     },
