@@ -34,7 +34,6 @@ DROP TABLE IF EXISTS knowledge_vector_tasks;
 DROP TABLE IF EXISTS conversations;
 DROP TABLE IF EXISTS messages;
 DROP TABLE IF EXISTS SPRING_AI_CHAT_MEMORY;
-DROP TABLE IF EXISTS job_career_graphs;
 --
 -- ==========================1 用户模块==========================
 --
@@ -537,13 +536,11 @@ CREATE TABLE IF NOT EXISTS job_capability_profiles (
     target_role_type VARCHAR(64) NOT NULL DEFAULT 'default',
     -- 岗位类型展示值（如 software-test）
     strengths JSONB DEFAULT '[]'::jsonb,
-    -- 面向求职者的常见加分方向
+    -- 重要要求项
     missing_skills JSONB DEFAULT '[]'::jsonb,
-    -- 优先补齐技能项
+    -- 缺失要求项
     weak_evidence_items JSONB DEFAULT '[]'::jsonb,
-    -- 易被追问但证据薄弱项
-    suggestions JSONB DEFAULT '[]'::jsonb,
-    -- 准备建议（结构化）
+    -- 缺少描述的要求项
     summary TEXT,
     -- 一句话总结
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -552,41 +549,6 @@ CREATE TABLE IF NOT EXISTS job_capability_profiles (
 );
 CREATE INDEX IF NOT EXISTS idx_job_capability_profiles_job_id ON job_capability_profiles(job_id);
 CREATE INDEX IF NOT EXISTS idx_job_capability_profiles_role_type ON job_capability_profiles(target_role_type);
--- 若历史库曾含评分/完整度相关列，升级时删除（幂等）
-ALTER TABLE job_capability_profiles DROP COLUMN IF EXISTS completeness_score;
-ALTER TABLE job_capability_profiles DROP COLUMN IF EXISTS competitiveness_score;
-ALTER TABLE job_capability_profiles DROP COLUMN IF EXISTS overall_score;
-ALTER TABLE job_capability_profiles DROP COLUMN IF EXISTS score_detail;
-ALTER TABLE student_capability_profiles ADD COLUMN IF NOT EXISTS target_role_type VARCHAR(64) NOT NULL DEFAULT 'default';
-ALTER TABLE job_capability_profiles ADD COLUMN IF NOT EXISTS target_role_type VARCHAR(64) NOT NULL DEFAULT 'default';
-ALTER TABLE student_capability_profiles DROP COLUMN IF EXISTS target_role_code;
-ALTER TABLE job_capability_profiles DROP COLUMN IF EXISTS target_role_code;
--- 3.4 岗位关联图谱表（垂直晋升路径 + 换岗路径，一个岗位最多一条）
-CREATE TABLE IF NOT EXISTS job_career_graphs (
-    id BIGSERIAL PRIMARY KEY,
-    -- 图谱ID
-    job_id BIGINT NOT NULL,
-    -- 岗位ID（逻辑外键：jobs.id），业务上 1-to-1
-    role_confidence NUMERIC(5,4) NOT NULL DEFAULT 0.0,
-    -- 岗位分类置信度（0~1）
-    prompt_name VARCHAR(128) NOT NULL DEFAULT 'job-career-graph/default',
-    -- 实际使用的岗位图谱提示词名称
-    target_role_type VARCHAR(64) NOT NULL DEFAULT 'default',
-    -- 岗位类型展示值（如 java-backend / frontend / ai-agent / default）
-    current_node JSONB,
-    -- 当前岗位所在节点 { level, title, roleType, description }
-    vertical_path JSONB NOT NULL DEFAULT '[]'::jsonb,
-    -- 垂直晋升路径数组（≥3 节点）
-    transition_paths JSONB NOT NULL DEFAULT '[]'::jsonb,
-    -- 换岗路径数组（≥5 条，每条 ≥2 节点）
-    summary TEXT,
-    -- 一句话总结
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    -- 创建时间
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
-);
-CREATE UNIQUE INDEX IF NOT EXISTS uk_job_career_graphs_job_id ON job_career_graphs(job_id);
-CREATE INDEX IF NOT EXISTS idx_job_career_graphs_role_type ON job_career_graphs(target_role_type);
 --
 -- ==========================4 知识库模块==========================
 --

@@ -17,12 +17,10 @@ import com.zdmj.common.model.Result;
 import com.zdmj.common.model.UpdateGroup;
 import com.zdmj.jobService.dto.JobListItemDTO;
 import com.zdmj.jobService.dto.JobCapabilityProfileDTO;
-import com.zdmj.jobService.dto.JobCareerGraphDTO;
 import com.zdmj.jobService.dto.JobDTO;
 import com.zdmj.jobService.dto.JobPageQueryDTO;
 import com.zdmj.jobService.entity.Job;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
-import com.zdmj.jobService.service.JobCareerGraphService;
 import com.zdmj.jobService.service.JobService;
 import lombok.RequiredArgsConstructor;
 
@@ -36,7 +34,6 @@ public class JobController {
 
     private final JobService jobService;
     private final JobCapabilityProfileService jobCapabilityProfileService;
-    private final JobCareerGraphService jobCareerGraphService;
 
     /**
      * 查询岗位详情
@@ -50,25 +47,36 @@ public class JobController {
     }
 
     /**
-     * 查询岗位列表（请求体绑定 {@link JobPageQueryDTO}）
-     * <p>请求体 JSON 示例：</p>
+     * 查询岗位列表（查询参数绑定 {@link JobPageQueryDTO}）
+     * <p>请求示例：</p>
      * <pre>{@code
-     * {
-     *   "page": 1,
-     *   "limit": 20,
-     *   "companySizes": [1, 2, 3],
-     *   "fundingTypes": "[1,2]",
-     *   "industries": ["互联网", "企业服务"],
-     *   "companyName": "某科技公司",
-     *   "employment": "INTERN",
-     *   "filterSalaryMin": 200,
-     *   "filterSalaryMax": 500,
-     *   "jobName": "后端"
-     * }
+     * GET /jobs?page=1&limit=20&companySizes=[1,2,3]&fundingTypes=[1,2]&industries=["互联网","企业服务"]
+     *     &companyName=某科技公司&employment=INTERN&filterSalaryMin=200&filterSalaryMax=500&jobName=后端
      * }</pre>
      */
     @GetMapping
-    public Result<PageDTO<JobListItemDTO>> getPage(@RequestBody(required = false) JobPageQueryDTO query) {
+    public Result<PageDTO<JobListItemDTO>> getPage(
+            @RequestParam(required = false) String page,
+            @RequestParam(required = false) String limit,
+            @RequestParam(required = false) String companySizes,
+            @RequestParam(required = false) String fundingTypes,
+            @RequestParam(required = false) String industries,
+            @RequestParam(required = false) String companyName,
+            @RequestParam(required = false) String employment,
+            @RequestParam(required = false) String filterSalaryMin,
+            @RequestParam(required = false) String filterSalaryMax,
+            @RequestParam(required = false) String jobName) {
+        JobPageQueryDTO query = new JobPageQueryDTO();
+        query.setPage(page);
+        query.setLimit(limit);
+        query.setCompanySizes(companySizes);
+        query.setFundingTypes(fundingTypes);
+        query.setIndustries(industries);
+        query.setCompanyName(companyName);
+        query.setEmployment(employment == null || employment.isBlank() ? null : com.zdmj.jobService.enums.JobEmploymentFilter.valueOf(employment));
+        query.setFilterSalaryMin(filterSalaryMin);
+        query.setFilterSalaryMax(filterSalaryMax);
+        query.setJobName(jobName);
         return Result.success("查询岗位列表成功", jobService.getPage(query));
     }
 
@@ -137,33 +145,5 @@ public class JobController {
     @PostMapping("/{id}/capability-profile")
     public Result<JobCapabilityProfileDTO> getJobCapabilityProfile(@PathVariable Long id) {
         return Result.success("获取岗位能力画像成功", jobCapabilityProfileService.getJobCapabilityProfile(id));
-    }
-
-    /**
-     * 查询岗位关联图谱（仅查询，不触发 LLM 生成；不存在返回 null）。
-     *
-     * <p>图谱包含两部分：</p>
-     * <ul>
-     *     <li>{@code verticalPath} — 垂直岗位图谱（岗位未来发展路径，至少 3 个层级节点）。</li>
-     *     <li>{@code transitionPaths} — 换岗路径图谱（至少 5 条，每条 ≥2 个节点）。</li>
-     * </ul>
-     *
-     * @param id 岗位ID
-     * @return 岗位关联图谱或 null
-     */
-    @GetMapping("/{id}/career-graph")
-    public Result<JobCareerGraphDTO> queryJobCareerGraph(@PathVariable Long id) {
-        return Result.success("查询岗位关联图谱成功", jobCareerGraphService.getOrNull(id));
-    }
-
-    /**
-     * 生成岗位关联图谱（若已有则覆盖重写）。
-     *
-     * @param id 岗位ID
-     * @return 岗位关联图谱
-     */
-    @PostMapping("/{id}/career-graph")
-    public Result<JobCareerGraphDTO> generateJobCareerGraph(@PathVariable Long id) {
-        return Result.success("生成岗位关联图谱成功", jobCareerGraphService.generate(id));
     }
 }

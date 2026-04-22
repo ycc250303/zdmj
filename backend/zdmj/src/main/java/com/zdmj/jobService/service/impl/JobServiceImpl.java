@@ -10,9 +10,7 @@ import com.zdmj.jobService.dto.JobDTO;
 import com.zdmj.jobService.dto.JobPageQueryDTO;
 import com.zdmj.jobService.entity.Company;
 import com.zdmj.jobService.entity.Job;
-import com.zdmj.jobService.mapper.CompanyStructMapper;
 import com.zdmj.jobService.mapper.CompanyMapper;
-import com.zdmj.jobService.mapper.JobStructMapper;
 import com.zdmj.jobService.mapper.JobMapper;
 import com.zdmj.jobService.service.JobService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -24,6 +22,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -33,8 +32,6 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
 
     private final CompanyMapper companyMapper;
     private final RedisUtil redisCacheUtil;
-    private final JobStructMapper jobStructMapper;
-    private final CompanyStructMapper companyStructMapper;
 
     @Override
     public JobListItemDTO getDetail(Long id) {
@@ -114,7 +111,7 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
     }
 
     private void fillJobFromDto(Job job, JobDTO dto, Company company) {
-        jobStructMapper.patchFromDto(dto, job);
+        patchJobFromDto(dto, job);
         job.setCompanyId(company.getId());
         job.setCompanyName(company.getName());
         if (job.getContent() == null) {
@@ -137,9 +134,47 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
         if (company != null) {
             return company;
         }
-        Company created = companyStructMapper.fromJobDto(dto);
+        Company created = new Company();
+        created.setName(dto.getCompanyName());
+        created.setSize(Objects.requireNonNullElse(dto.getCompanySize(), 1));
+        created.setType(dto.getCompanyFundingType());
+        created.setIndustries(dto.getCompanyIndustries() == null ? new ArrayList<>() : dto.getCompanyIndustries());
+        created.setIntroduction(dto.getCompanyIntroduction());
         companyMapper.insert(created);
         return created;
+    }
+
+    private void patchJobFromDto(JobDTO dto, Job job) {
+        if (dto.getJobName() != null) {
+            job.setJobName(dto.getJobName());
+        }
+        if (dto.getDescription() != null) {
+            job.setDescription(dto.getDescription());
+        }
+        if (dto.getLocation() != null) {
+            job.setLocation(dto.getLocation());
+        }
+        if (dto.getSalaryMin() != null) {
+            job.setSalaryMin(dto.getSalaryMin());
+        }
+        if (dto.getSalaryMax() != null) {
+            job.setSalaryMax(dto.getSalaryMax());
+        }
+        if (dto.getSalaryType() != null) {
+            job.setSalaryType(dto.getSalaryType());
+        }
+        if (dto.getLink() != null) {
+            job.setLink(dto.getLink());
+        }
+        if (dto.getJobDuties() != null) {
+            job.setContent(dto.getJobDuties());
+        }
+        if (dto.getJobRequirements() != null) {
+            job.setRequirements(dto.getJobRequirements());
+        }
+        if (dto.getKeywords() != null) {
+            job.setKeywords(dto.getKeywords());
+        }
     }
 
     /**

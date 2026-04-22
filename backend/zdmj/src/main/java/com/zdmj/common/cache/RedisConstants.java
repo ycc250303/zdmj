@@ -41,4 +41,5 @@ public class RedisConstants {
     // 岗位不存在时的空值标记 TTL（秒）
     public static final int JOB_DETAIL_NULL_TTL = 60;
 
+
 }
