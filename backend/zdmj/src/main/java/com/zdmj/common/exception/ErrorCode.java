@@ -88,7 +88,9 @@ public enum ErrorCode {
     // ========== 岗位与公司 (82xx) ==========
     JOB_NOT_FOUND(8201, "岗位不存在"),
     JOB_CAPABILITY_PROFILE_GENERATION_FAILED(8202, "生成岗位能力画像失败"),
-    JOB_DETECT_FAILED(8203, "岗位分类失败");
+    JOB_DETECT_FAILED(8203, "岗位分类失败"),
+    JOB_CAREER_GRAPH_GENERATION_FAILED(8204, "生成岗位关联图谱失败"),
+    JOB_CAREER_GRAPH_INVALID(8205, "岗位关联图谱结果不符合要求（晋升路径或换岗路径数量不足）");
 
     private final Integer code;
     private final String message;
