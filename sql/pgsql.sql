@@ -34,6 +34,7 @@ DROP TABLE IF EXISTS knowledge_vector_tasks;
 DROP TABLE IF EXISTS conversations;
 DROP TABLE IF EXISTS messages;
 DROP TABLE IF EXISTS SPRING_AI_CHAT_MEMORY;
+DROP TABLE IF EXISTS job_career_graphs;
 --
 -- ==========================1 用户模块==========================
 --
@@ -560,6 +561,32 @@ ALTER TABLE student_capability_profiles ADD COLUMN IF NOT EXISTS target_role_typ
 ALTER TABLE job_capability_profiles ADD COLUMN IF NOT EXISTS target_role_type VARCHAR(64) NOT NULL DEFAULT 'default';
 ALTER TABLE student_capability_profiles DROP COLUMN IF EXISTS target_role_code;
 ALTER TABLE job_capability_profiles DROP COLUMN IF EXISTS target_role_code;
+-- 3.4 岗位关联图谱表（垂直晋升路径 + 换岗路径，一个岗位最多一条）
+CREATE TABLE IF NOT EXISTS job_career_graphs (
+    id BIGSERIAL PRIMARY KEY,
+    -- 图谱ID
+    job_id BIGINT NOT NULL,
+    -- 岗位ID（逻辑外键：jobs.id），业务上 1-to-1
+    role_confidence NUMERIC(5,4) NOT NULL DEFAULT 0.0,
+    -- 岗位分类置信度（0~1）
+    prompt_name VARCHAR(128) NOT NULL DEFAULT 'job-career-graph/default',
+    -- 实际使用的岗位图谱提示词名称
+    target_role_type VARCHAR(64) NOT NULL DEFAULT 'default',
+    -- 岗位类型展示值（如 java-backend / frontend / ai-agent / default）
+    current_node JSONB,
+    -- 当前岗位所在节点 { level, title, roleType, description }
+    vertical_path JSONB NOT NULL DEFAULT '[]'::jsonb,
+    -- 垂直晋升路径数组（≥3 节点）
+    transition_paths JSONB NOT NULL DEFAULT '[]'::jsonb,
+    -- 换岗路径数组（≥5 条，每条 ≥2 节点）
+    summary TEXT,
+    -- 一句话总结
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- 创建时间
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_job_career_graphs_job_id ON job_career_graphs(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_career_graphs_role_type ON job_career_graphs(target_role_type);
 --
 -- ==========================4 知识库模块==========================
 --
