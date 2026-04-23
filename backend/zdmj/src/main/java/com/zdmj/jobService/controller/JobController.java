@@ -17,10 +17,12 @@ import com.zdmj.common.model.Result;
 import com.zdmj.common.model.UpdateGroup;
 import com.zdmj.jobService.dto.JobListItemDTO;
 import com.zdmj.jobService.dto.JobCapabilityProfileDTO;
+import com.zdmj.jobService.dto.JobCareerGraphDTO;
 import com.zdmj.jobService.dto.JobDTO;
 import com.zdmj.jobService.dto.JobPageQueryDTO;
 import com.zdmj.jobService.entity.Job;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
+import com.zdmj.jobService.service.JobCareerGraphService;
 import com.zdmj.jobService.service.JobService;
 import lombok.RequiredArgsConstructor;
 
@@ -34,6 +36,7 @@ public class JobController {
 
     private final JobService jobService;
     private final JobCapabilityProfileService jobCapabilityProfileService;
+    private final JobCareerGraphService jobCareerGraphService;
 
     /**
      * 查询岗位详情
@@ -146,4 +149,32 @@ public class JobController {
     public Result<JobCapabilityProfileDTO> getJobCapabilityProfile(@PathVariable Long id) {
         return Result.success("获取岗位能力画像成功", jobCapabilityProfileService.getJobCapabilityProfile(id));
     }
+
+        /**
+     * 查询岗位关联图谱（仅查询，不触发 LLM 生成；不存在返回 null）。
+     *
+     * <p>图谱包含两部分：</p>
+     * <ul>
+     *     <li>{@code verticalPath} — 垂直岗位图谱（岗位未来发展路径，至少 3 个层级节点）。</li>
+     *     <li>{@code transitionPaths} — 换岗路径图谱（至少 5 条，每条 ≥2 个节点）。</li>
+     * </ul>
+     *
+     * @param id 岗位ID
+     * @return 岗位关联图谱或 null
+     */
+        @GetMapping("/{id}/career-graph")
+        public Result<JobCareerGraphDTO> queryJobCareerGraph(@PathVariable Long id) {
+            return Result.success("查询岗位关联图谱成功", jobCareerGraphService.getOrNull(id));
+        }
+    
+        /**
+         * 生成岗位关联图谱（若已有则覆盖重写）。
+         *
+         * @param id 岗位ID
+         * @return 岗位关联图谱
+         */
+        @PostMapping("/{id}/career-graph")
+        public Result<JobCareerGraphDTO> generateJobCareerGraph(@PathVariable Long id) {
+            return Result.success("生成岗位关联图谱成功", jobCareerGraphService.generate(id));
+        }
 }
