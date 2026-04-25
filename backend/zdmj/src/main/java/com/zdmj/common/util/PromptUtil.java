@@ -116,6 +116,15 @@ public class PromptUtil {
         public static final String RESUME_ANALYSIS_CYBERSECURITY = "resume-analysis/cybersecurity";
         /** 岗位分类 job-detect */
         public static final String JOB_DETECT = "job-detect";
+
+        /** 岗位关联图谱 Java 后端 */
+        public static final String JOB_CAREER_GRAPH_JAVA_BACKEND = "job-career-graph/java-backend";
+        /** 岗位关联图谱 前端 */
+        public static final String JOB_CAREER_GRAPH_FRONTEND = "job-career-graph/frontend";
+        /** 岗位关联图谱 AI/Agent 开发 */
+        public static final String JOB_CAREER_GRAPH_AI_AGENT = "job-career-graph/ai-agent";
+        /** 岗位关联图谱 默认兜底 */
+        public static final String JOB_CAREER_GRAPH_DEFAULT = "job-career-graph/default";
     }
 
     public enum JobRole {
@@ -219,6 +228,24 @@ public class PromptUtil {
             case DEVOPS_SRE -> "devops_sre";
             case CYBERSECURITY -> "cybersecurity";
             case UNKNOWN -> "default";
+        };
+    }
+
+    /**
+     * 岗位角色 -> 岗位关联图谱 PromptName 映射。
+     *
+     * <p>仅为核心方向（Java 后端 / 前端 / AI）提供专属图谱提示词，其它角色统一走
+     * {@link PromptNames#JOB_CAREER_GRAPH_DEFAULT}，以控制提示词数量同时保证主流岗位输出质量。</p>
+     */
+    public static String getJobCareerGraphPromptName(JobRole role) {
+        if (role == null) {
+            return PromptNames.JOB_CAREER_GRAPH_DEFAULT;
+        }
+        return switch (role) {
+            case JAVA -> PromptNames.JOB_CAREER_GRAPH_JAVA_BACKEND;
+            case FRONTEND -> PromptNames.JOB_CAREER_GRAPH_FRONTEND;
+            case AI_AGENT -> PromptNames.JOB_CAREER_GRAPH_AI_AGENT;
+            default -> PromptNames.JOB_CAREER_GRAPH_DEFAULT;
         };
     }
 
