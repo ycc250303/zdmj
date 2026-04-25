@@ -81,8 +81,11 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
     public JobCareerGraphDTO generate(Long jobId) {
         JobListItemDTO jobDetail = jobService.getDetail(jobId);
 
-        String jobContext = buildJobContext(jobDetail);
-        JobRole role = detectRole(jobContext);
+        String jobContext = JobAnalysisSupport.buildJobContext(
+                jobDetail,
+                "这是待分析的岗位信息（请基于它生成岗位关联图谱，包含岗位晋升路径与跨岗位转岗路径）：");
+        JobRole role = JobAnalysisSupport.detectRole(
+                jobContext, chatUtil, KEYWORDS, KEYWORD_DIRECT_HIT_THRESHOLD, log);
         String promptName = PromptUtil.getJobCareerGraphPromptName(role);
         log.info("生成岗位关联图谱: jobId={}, role={}, prompt={}", jobId, role, promptName);
 
@@ -106,7 +109,8 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
         entity.setJobId(jobId);
         entity.setPromptName(promptName);
         entity.setTargetRoleType(PromptUtil.getPromptDisplayType(promptName));
-        entity.setRoleConfidence(BigDecimal.valueOf(estimateRoleConfidence(role, jobContext)));
+        entity.setRoleConfidence(BigDecimal.valueOf(
+                JobAnalysisSupport.estimateRoleConfidence(role, jobContext, KEYWORDS)));
         if (existing != null) {
             entity.setId(existing.getId());
             updateById(entity);
@@ -192,64 +196,16 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
         }
     }
 
-    /**
-     * 关键词 + LLM 兜底的岗位识别，与 {@link JobCapabilityProfileServiceImpl#detectRole} 保持一致。
-     */
-    private JobRole detectRole(String text) {
-        if (!StringUtils.hasText(text)) {
-            return JobRole.UNKNOWN;
-        }
-        String lower = text.toLowerCase();
-        JobRole bestRole = JobRole.UNKNOWN;
-        int bestScore = 0;
-        for (Map.Entry<JobRole, List<String>> entry : KEYWORDS.entrySet()) {
-            int score = 0;
-            for (String kw : entry.getValue()) {
-                if (lower.contains(kw.toLowerCase())) {
-                    score++;
-                }
-            }
-            if (score > bestScore) {
-                bestScore = score;
-                bestRole = entry.getKey();
-            }
-        }
-        if (bestScore >= KEYWORD_DIRECT_HIT_THRESHOLD) {
-            return bestRole;
-        }
-        try {
-            RoleDetectLLMResult llmResult = chatUtil.chatStructuredOnce(text, PromptUtil.PromptNames.JOB_DETECT,
-                    null, RoleDetectLLMResult.class);
-            JobRole role = PromptUtil.getJobRoleByString(llmResult.getRoleCode());
-            return role == JobRole.UNKNOWN ? bestRole : role;
-        } catch (Exception e) {
-            log.warn("岗位类型识别失败，回退关键词规则: {}", e.getMessage());
-            return bestRole;
-        }
-    }
-
-    /** 置信度估算，对齐 {@link JobCapabilityProfileServiceImpl#estimateRoleConfidence} */
-    private double estimateRoleConfidence(JobRole role, String text) {
-        if (role == null || role == JobRole.UNKNOWN || !StringUtils.hasText(text)) {
-            return 0.2;
-        }
-        String lower = text.toLowerCase();
-        int hit = 0;
-        for (String kw : KEYWORDS.getOrDefault(role, List.of())) {
-            if (lower.contains(kw.toLowerCase())) {
-                hit++;
-            }
-        }
-        return Math.min(0.95, 0.35 + hit * 0.1);
-    }
-
     /** DTO → Entity（JSONB 列 JSON 文本化） */
     private JobCareerGraph toEntity(JobCareerGraphDTO dto) {
         JobCareerGraph entity = new JobCareerGraph();
         entity.setSummary(dto.getSummary());
-        entity.setCurrentNode(toJson(dto.getCurrentNode()));
-        entity.setVerticalPath(toJson(dto.getVerticalPath()));
-        entity.setTransitionPaths(toJson(dto.getTransitionPaths()));
+        entity.setCurrentNode(JobAnalysisSupport.toJson(
+                dto.getCurrentNode(), objectMapper, log, "岗位图谱 JSON 序列化失败，字段将置空"));
+        entity.setVerticalPath(JobAnalysisSupport.toJson(
+                dto.getVerticalPath(), objectMapper, log, "岗位图谱 JSON 序列化失败，字段将置空"));
+        entity.setTransitionPaths(JobAnalysisSupport.toJson(
+                dto.getTransitionPaths(), objectMapper, log, "岗位图谱 JSON 序列化失败，字段将置空"));
         return entity;
     }
 
@@ -281,62 +237,4 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
         return dto;
     }
 
-    private String toJson(Object value) {
-        if (value == null) {
-            return null;
-        }
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (Exception e) {
-            log.warn("岗位图谱 JSON 序列化失败，字段将置空: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    private String buildJobContext(JobListItemDTO job) {
-        return """
-                这是待分析的岗位信息（请基于它生成岗位关联图谱，包含岗位晋升路径与跨岗位转岗路径）：
-                岗位名称：%s
-                公司名称：%s
-                工作地点：%s
-                薪资：%s
-                岗位描述：%s
-                岗位职责：%s
-                岗位要求：%s
-                关键词：%s
-                公司行业：%s
-                """.formatted(
-                valueOrNA(job.getJobName()),
-                valueOrNA(job.getCompanyName()),
-                valueOrNA(job.getLocation()),
-                valueOrNA(job.getSalary()),
-                valueOrNA(job.getDescription()),
-                joinList(job.getJobDuties()),
-                joinList(job.getJobRequirements()),
-                joinList(job.getKeywords()),
-                joinList(job.getCompanyIndustries()));
-    }
-
-    private static String joinList(List<String> values) {
-        if (values == null || values.isEmpty()) {
-            return "未提供";
-        }
-        return values.stream()
-                .filter(StringUtils::hasText)
-                .map(String::trim)
-                .reduce((a, b) -> a + "；" + b)
-                .orElse("未提供");
-    }
-
-    private static String valueOrNA(String value) {
-        return StringUtils.hasText(value) ? value.trim() : "未提供";
-    }
-
-    /** 与 {@link JobCapabilityProfileServiceImpl} 中同名结构保持一致，仅用于 LLM 响应解析 */
-    @lombok.Data
-    private static class RoleDetectLLMResult {
-        private String roleCode;
-        private double confidence;
-        private String reason;
-    }
 }

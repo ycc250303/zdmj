@@ -129,17 +129,6 @@ public class JobController {
     }
 
     /**
-     * 查询岗位能力画像（仅查询，不触发生成；不存在返回 null）
-     *
-     * @param id 岗位ID
-     * @return 岗位能力画像或 null
-     */
-    @GetMapping("/{id}/capability-profile")
-    public Result<JobCapabilityProfileDTO> queryJobCapabilityProfile(@PathVariable Long id) {
-        return Result.success("查询岗位能力画像成功", jobCapabilityProfileService.getJobCapabilityProfileOrNull(id));
-    }
-
-    /**
      * 生成岗位能力画像（若已有则覆盖重写）
      * 
      * @param id 岗位ID

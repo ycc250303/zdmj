@@ -59,6 +59,13 @@ public class ChatUtil {
         return parsed;
     }
 
+    /**
+     * 构建结构化用户消息
+     * 
+     * @param userMessage 用户消息
+     * @param schemaHint  JSON Schema 提示
+     * @return 结构化用户消息
+     */
     private String buildStructuredUserPayload(String userMessage, String schemaHint) {
         StringBuilder sb = new StringBuilder(userMessage == null ? "" : userMessage);
         sb.append("\n\n请严格按照以下 JSON Schema 输出（仅 JSON 对象，无 Markdown、无前后说明）：\n");
@@ -164,6 +171,12 @@ public class ChatUtil {
         return spec.system(promptTemplate.render(variables));
     }
 
+    /**
+     * 去除代码块
+     * 
+     * @param text 文本
+     * @return 去除代码块后的文本
+     */
     private String stripCodeFence(String text) {
         String t = text == null ? "" : text.trim();
         if (t.startsWith("```json")) {

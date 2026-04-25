@@ -51,8 +51,11 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
 
-        String jobContext = buildJobContext(jobDetail);
-        JobRole role = detectRole(jobContext);
+        String jobContext = JobAnalysisSupport.buildJobContext(
+                jobDetail,
+                "这是待分析的岗位信息（面向求职者输出岗位要求画像）：");
+        JobRole role = JobAnalysisSupport.detectRole(
+                jobContext, chatUtil, KEYWORDS, KEYWORD_DIRECT_HIT_THRESHOLD, log);
         log.info("岗位类型识别: role={}", role);
         String promptName = PromptUtil.getJobRequirementPromptName(role);
         log.info("使用提示词: {}", promptName);
@@ -70,12 +73,16 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
 
         JobCapabilityProfile newProfile = toEntity(aiResult);
         newProfile.setJobId(jobId);
-        newProfile.setRoleConfidence(BigDecimal.valueOf(estimateRoleConfidence(role, jobContext)));
+        newProfile.setRoleConfidence(BigDecimal.valueOf(
+                JobAnalysisSupport.estimateRoleConfidence(role, jobContext, KEYWORDS)));
         newProfile.setPromptName(promptName);
         newProfile.setTargetRoleType(PromptUtil.getPromptDisplayType(promptName));
-        newProfile.setStrengths(toJson(aiResult.getStrengths()));
-        newProfile.setMissingSkills(toJson(aiResult.getMissingSkills()));
-        newProfile.setWeakEvidenceItems(toJson(aiResult.getWeakEvidenceItems()));
+        newProfile.setStrengths(JobAnalysisSupport.toJson(
+                aiResult.getStrengths(), objectMapper, log, "岗位画像 JSON 序列化失败，字段将置空"));
+        newProfile.setMissingSkills(JobAnalysisSupport.toJson(
+                aiResult.getMissingSkills(), objectMapper, log, "岗位画像 JSON 序列化失败，字段将置空"));
+        newProfile.setWeakEvidenceItems(JobAnalysisSupport.toJson(
+                aiResult.getWeakEvidenceItems(), objectMapper, log, "岗位画像 JSON 序列化失败，字段将置空"));
 
         if (existingProfile != null) {
             newProfile.setId(existingProfile.getId());
@@ -103,61 +110,6 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         JobCapabilityProfileDTO dto = toDto(profile);
         hydrateDtoFromEntity(profile, dto);
         return dto;
-    }
-
-    /**
-     * 岗位类型识别
-     * @param text 岗位文本
-     * @return 岗位类型
-     */
-    private JobRole detectRole(String text) {
-        if (!StringUtils.hasText(text)) {
-            return JobRole.UNKNOWN;
-        }
-        String lower = text.toLowerCase();
-        JobRole bestRole = JobRole.UNKNOWN;
-        int bestScore = 0;
-
-        for (var entry : KEYWORDS.entrySet()) {
-            int score = 0;
-            for (String kw : entry.getValue()) {
-                if (lower.contains(kw.toLowerCase())) {
-                    score++;
-                }
-            }
-            if (score > bestScore) {
-                bestScore = score;
-                bestRole = entry.getKey();
-            }
-        }
-
-        if (bestScore >= KEYWORD_DIRECT_HIT_THRESHOLD) {
-            return bestRole;
-        }
-
-        try {
-            RoleDetectLLMResult llmResult = chatUtil.chatStructuredOnce(text, PromptUtil.PromptNames.JOB_DETECT,
-                    null, RoleDetectLLMResult.class);
-            JobRole role = PromptUtil.getJobRoleByString(llmResult.getRoleCode());
-            return role == JobRole.UNKNOWN ? bestRole : role;
-        } catch (Exception e) {
-            log.warn("岗位类型识别失败，回退关键词规则: {}", e.getMessage());
-            return bestRole;
-        }
-    }
-
-    private double estimateRoleConfidence(JobRole role, String text) {
-        if (role == null || role == JobRole.UNKNOWN || !StringUtils.hasText(text)) {
-            return 0.2;
-        }
-        String lower = text.toLowerCase();
-        int hit = 0;
-        for (String kw : KEYWORDS.getOrDefault(role, List.of())) {
-            if (lower.contains(kw.toLowerCase())) {
-                hit++;
-            }
-        }
-        return Math.min(0.95, 0.35 + hit * 0.1);
     }
 
     private static JobCapabilityProfileDTO toDto(JobCapabilityProfile entity) {
@@ -217,58 +169,4 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         }
     }
 
-    private String buildJobContext(JobListItemDTO job) {
-        return """
-                这是待分析的岗位信息（面向求职者输出岗位要求画像）：
-                岗位名称：%s
-                公司名称：%s
-                工作地点：%s
-                薪资：%s
-                岗位描述：%s
-                岗位职责：%s
-                岗位要求：%s
-                关键词：%s
-                公司行业：%s
-                """.formatted(
-                valueOrNA(job.getJobName()),
-                valueOrNA(job.getCompanyName()),
-                valueOrNA(job.getLocation()),
-                valueOrNA(job.getSalary()),
-                valueOrNA(job.getDescription()),
-                joinList(job.getJobDuties()),
-                joinList(job.getJobRequirements()),
-                joinList(job.getKeywords()),
-                joinList(job.getCompanyIndustries()));
-    }
-
-    private static String joinList(List<String> values) {
-        if (values == null || values.isEmpty()) {
-            return "未提供";
-        }
-        return values.stream().filter(StringUtils::hasText).map(String::trim).reduce((a, b) -> a + "；" + b)
-                .orElse("未提供");
-    }
-
-    private static String valueOrNA(String value) {
-        return StringUtils.hasText(value) ? value.trim() : "未提供";
-    }
-
-    private String toJson(Object value) {
-        if (value == null) {
-            return null;
-        }
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (Exception e) {
-            log.warn("岗位画像 JSON 序列化失败，字段将置空: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    @lombok.Data
-    private static class RoleDetectLLMResult {
-        private String roleCode;
-        private double confidence;
-        private String reason;
-    }
 }
