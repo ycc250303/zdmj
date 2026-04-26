@@ -1,0 +1,797 @@
+const local: App.I18n.Schema = {
+  system: {
+    title: '“职”点迷津',
+    updateTitle: '系统版本更新通知',
+    updateContent: '检测到系统有新版本发布，是否立即刷新页面？',
+    updateConfirm: '立即刷新',
+    updateCancel: '稍后再说'
+  },
+  common: {
+    action: '操作',
+    add: '新增',
+    addSuccess: '添加成功',
+    backToHome: '返回首页',
+    batchDelete: '批量删除',
+    cancel: '取消',
+    close: '关闭',
+    check: '勾选',
+    expandColumn: '展开列',
+    columnSetting: '列设置',
+    config: '配置',
+    confirm: '确认',
+    delete: '删除',
+    deleteSuccess: '删除成功',
+    confirmDelete: '确认删除吗？',
+    edit: '编辑',
+    warning: '警告',
+    error: '错误',
+    index: '序号',
+    keywordSearch: '请输入关键词搜索',
+    logout: '退出登录',
+    logoutConfirm: '确认退出登录吗？',
+    lookForward: '敬请期待',
+    modify: '修改',
+    modifySuccess: '修改成功',
+    noData: '无数据',
+    operate: '操作',
+    pleaseCheckValue: '请检查输入的值是否合法',
+    refresh: '刷新',
+    requestFailed: '请求失败',
+    reset: '重置',
+    search: '搜索',
+    switch: '切换',
+    tip: '提示',
+    trigger: '触发',
+    update: '更新',
+    updateSuccess: '更新成功',
+    userCenter: '个人中心',
+    yesOrNo: {
+      yes: '是',
+      no: '否'
+    }
+  },
+  request: {
+    logout: '请求失败后登出用户',
+    logoutMsg: '用户状态失效，请重新登录',
+    logoutWithModal: '请求失败后弹出模态框再登出用户',
+    logoutWithModalMsg: '用户状态失效，请重新登录',
+    refreshToken: '请求的token已过期，刷新token',
+    tokenExpired: 'token已过期'
+  },
+  theme: {
+    themeDrawerTitle: '主题配置',
+    tabs: {
+      appearance: '外观',
+      layout: '布局',
+      general: '通用',
+      preset: '预设'
+    },
+    appearance: {
+      themeSchema: {
+        title: '主题模式',
+        light: '亮色模式',
+        dark: '暗黑模式',
+        auto: '跟随系统'
+      },
+      grayscale: '灰色模式',
+      colourWeakness: '色弱模式',
+      themeColor: {
+        title: '主题颜色',
+        primary: '主色',
+        info: '信息色',
+        success: '成功色',
+        warning: '警告色',
+        error: '错误色',
+        followPrimary: '跟随主色'
+      },
+      themeRadius: {
+        title: '主题圆角'
+      },
+      recommendColor: '应用推荐算法的颜色',
+      recommendColorDesc: '推荐颜色的算法参照',
+      preset: {
+        title: '主题预设',
+        apply: '应用',
+        applySuccess: '预设应用成功',
+        default: {
+          name: '默认预设',
+          desc: 'Soybean 默认主题预设'
+        },
+        dark: {
+          name: '暗色预设',
+          desc: '适用于夜间使用的暗色主题预设'
+        },
+        compact: {
+          name: '紧凑型',
+          desc: '适用于小屏幕的紧凑布局预设'
+        },
+        azir: {
+          name: 'Azir的预设',
+          desc: '是 Azir 比较喜欢的莫兰迪色系冷淡风'
+        }
+      }
+    },
+    layout: {
+      layoutMode: {
+        title: '布局模式',
+        vertical: '左侧菜单模式',
+        'vertical-mix': '左侧菜单混合模式',
+        'vertical-hybrid-header-first': '左侧混合-顶部优先',
+        horizontal: '顶部菜单模式',
+        'top-hybrid-sidebar-first': '顶部混合-侧边优先',
+        'top-hybrid-header-first': '顶部混合-顶部优先',
+        vertical_detail: '左侧菜单布局，菜单在左，内容在右。',
+        'vertical-mix_detail': '左侧双菜单布局，一级菜单在左侧深色区域，二级菜单在左侧浅色区域。',
+        'vertical-hybrid-header-first_detail':
+          '左侧混合布局，一级菜单在顶部，二级菜单在左侧深色区域，三级菜单在左侧浅色区域。',
+        horizontal_detail: '顶部菜单布局，菜单在顶部，内容在下方。',
+        'top-hybrid-sidebar-first_detail': '顶部混合布局，一级菜单在左侧，二级菜单在顶部。',
+        'top-hybrid-header-first_detail': '顶部混合布局，一级菜单在顶部，二级菜单在左侧。'
+      },
+      tab: {
+        title: '标签栏设置',
+        visible: '显示标签栏',
+        cache: '标签栏信息缓存',
+        cacheTip: '一键开启/关闭全局 keepalive',
+        height: '标签栏高度',
+        mode: {
+          title: '标签栏风格',
+          slider: '滑块风格',
+          chrome: '谷歌风格',
+          button: '按钮风格'
+        },
+        closeByMiddleClick: '鼠标中键关闭标签页',
+        closeByMiddleClickTip: '启用后可以使用鼠标中键点击标签页进行关闭'
+      },
+      header: {
+        title: '头部设置',
+        height: '头部高度',
+        breadcrumb: {
+          visible: '显示面包屑',
+          showIcon: '显示面包屑图标'
+        }
+      },
+      sider: {
+        title: '侧边栏设置',
+        inverted: '深色侧边栏',
+        width: '侧边栏宽度',
+        collapsedWidth: '侧边栏折叠宽度',
+        mixWidth: '混合布局侧边栏宽度',
+        mixCollapsedWidth: '混合布局侧边栏折叠宽度',
+        mixChildMenuWidth: '混合布局子菜单宽度'
+      },
+      footer: {
+        title: '底部设置',
+        visible: '显示底部',
+        fixed: '固定底部',
+        height: '底部高度',
+        right: '底部居右'
+      },
+      content: {
+        title: '内容区域设置',
+        scrollMode: {
+          title: '滚动模式',
+          tip: '主题滚动仅 main 部分滚动，外层滚动可携带头部底部一起滚动',
+          wrapper: '外层滚动',
+          content: '主体滚动'
+        },
+        page: {
+          animate: '页面切换动画',
+          mode: {
+            title: '页面切换动画类型',
+            'fade-slide': '滑动',
+            fade: '淡入淡出',
+            'fade-bottom': '底部消退',
+            'fade-scale': '缩放消退',
+            'zoom-fade': '渐变',
+            'zoom-out': '闪现',
+            none: '无'
+          }
+        },
+        fixedHeaderAndTab: '固定头部和标签栏'
+      }
+    },
+    general: {
+      title: '通用设置',
+      watermark: {
+        title: '水印设置',
+        visible: '显示全屏水印',
+        text: '自定义水印文本',
+        enableUserName: '启用用户名水印',
+        enableTime: '显示当前时间',
+        timeFormat: '时间格式'
+      },
+      multilingual: {
+        title: '多语言设置',
+        visible: '显示多语言按钮'
+      },
+      globalSearch: {
+        title: '全局搜索设置',
+        visible: '显示全局搜索按钮'
+      }
+    },
+    configOperation: {
+      copyConfig: '复制配置',
+      copySuccessMsg: '复制成功，请替换 src/theme/settings.ts 中的变量 themeSettings',
+      resetConfig: '重置配置',
+      resetSuccessMsg: '重置成功'
+    }
+  },
+  route: {
+    login: '登录',
+    403: '无权限',
+    404: '页面不存在',
+    500: '服务器错误',
+    'iframe-page': '外链页面',
+    home: '首页',
+    portal: '门户',
+    jobs: '岗位信息',
+    'job-detail': '岗位详情',
+    'job-edit': '编辑岗位',
+    knowledge: '知识库',
+    chat: 'AI 对话',
+    resumes: '简历库',
+    'resumes-editor': '简历编辑器',
+    "profile": "个人信息",
+    "profile_project": "项目经历管理",
+    "profile_education": '教育经历管理',
+    "profile_career":'工作经历管理',
+    "profile_skill":'技能管理',
+    "profile_basic-info":'基本信息',
+    "profile_capability":'能力画像'
+  },
+  page: {
+    login: {
+      common: {
+        loginOrRegister: '登录 / 注册',
+        userNamePlaceholder: '请输入用户名',
+        phonePlaceholder: '请输入手机号',
+        emailPlaceholder: '请输入邮箱地址',
+        codePlaceholder: '请输入验证码',
+        passwordPlaceholder: '请输入密码',
+        confirmPasswordPlaceholder: '请再次输入密码',
+        codeLogin: '验证码登录',
+        confirm: '确定',
+        back: '返回',
+        validateSuccess: '验证成功',
+        loginSuccess: '登录成功',
+        welcomeBack: '欢迎回来，{userName} ！'
+      },
+      pwdLogin: {
+        title: '密码登录',
+        rememberMe: '记住我',
+        forgetPassword: '忘记密码？',
+        register: '注册账号',
+        otherAccountLogin: '其他账号登录',
+        otherLoginMode: '其他登录方式',
+        superAdmin: '超级管理员',
+        admin: '管理员',
+        user: '普通用户'
+      },
+      codeLogin: {
+        title: '验证码登录',
+        getCode: '获取验证码',
+        reGetCode: '{time}秒后重新获取',
+        sendCodeSuccess: '验证码发送成功',
+        imageCodePlaceholder: '请输入图片验证码',
+        notSupported: '此功能还在开发中~'
+      },
+      register: {
+        title: '注册账号',
+        agreement: '我已经仔细阅读并接受',
+        protocol: '《用户协议》',
+        policy: '《隐私权政策》',
+        success: '账号注册成功！快去登录吧',
+        sendCodeSuccess: '验证码发送成功，请前往邮箱查收！' 
+      },
+      resetPwd: {
+        title: '重置密码',
+        success: '密码重置成功，快去登录吧！'
+      },
+      bindWeChat: {
+        title: '绑定微信'
+      }
+    },
+    home: {
+      hero: {
+        badge: '✨ 智能求职助手',
+        title: '让 AI 助你找到理想工作',
+        subtitle: '智能对话、知识库管理、简历生成，一站式求职解决方案',
+        startChat: '开始对话',
+        exploreKnowledge: '探索知识库'
+      },
+      quickActions: {
+        title: '快速开始',
+        subtitle: '选择一个功能，开始你的智能求职之旅'
+      },
+      aiChat: {
+        title: 'AI 对话',
+        description: '与智能助手实时对话，获取求职建议和职业指导'
+      },
+      knowledge: {
+        title: '知识库',
+        description: '上传学习资料，AI 助你快速检索和理解知识'
+      },
+      resume: {
+        title: '简历生成',
+        description: '快速创建专业简历，突出你的技能和经验'
+      },
+      jobs: {
+        title: '岗位信息',
+        description: '浏览和管理岗位信息，生成岗位能力画像'
+      },
+      features: {
+        title: '核心功能',
+        subtitle: '强大的功能，为你的求职之路保驾护航',
+        smartQA: {
+          title: '智能问答',
+          description: '基于先进 AI 技术，提供精准的求职建议和解答'
+        },
+        knowledgeBase: {
+          title: '知识库管理',
+          description: '上传和管理学习资料，支持 PDF、Markdown 等多种格式'
+        },
+        resumeGen: {
+          title: '简历生成',
+          description: 'AI 辅助创建专业简历，自动优化内容格式'
+        },
+        fastCreate: {
+          title: '快速创建',
+          description: '简单几步，即可生成完整的专业简历'
+        }
+      },
+      tips: {
+        title: '使用小贴士',
+        tip1: '先在知识库中上传你的学习资料和项目文档',
+        tip2: '通过 AI 对话获取个性化的求职建议',
+        tip3: '使用简历生成功能快速创建专业简历'
+      }
+    },
+    portal: {
+      title: '”职”点迷津',
+      hello: '你好，',
+      enterConsole: '进入控制台',
+      loginSystem: '登录系统',
+      heroTitle: '欢迎来到 SmartHire\n智能求职导航',
+      heroDesc: '面向软件工程大学生的智能、高效、一站式求职解决方案',
+      actionEnter: '进入控制台',
+      actionLogin: '立即登录体验'
+    },
+    chat: {
+      newChat: '新对话',
+      startNewConversation: '开始一段新的对话吧~~',
+      aiAssistant: 'AI 助手',
+      inputPlaceholder: '给 AI 助手发送消息',
+      collapseChatList: '折叠对话列表',
+      expandChatList: '展开对话列表',
+      deleteConfirm: '确定要删除该对话吗？',
+      deleteSuccess: '删除成功',
+      deleteFailed: '删除失败',
+      createSuccess: '创建成功',
+      createFailed: '创建失败',
+      sendFailed: '发送消息失败'
+    },
+    profile: {
+      "common": {
+        "add": "添加",
+        "edit": "编辑",
+        "delete": "删除",
+        "save": "保存内容",
+        "cancel": "取消",
+        "confirmDelete": "确定要删除这条记录吗？",
+        "requiredDesc": "带有 * 的为必填项",
+        "visibleInResume": "是否在简历中展示",
+        "visible": "展示",
+        "hidden": "隐藏",
+        "dateFormat": "YYYY-MM-DD",
+        "present": "至今",
+        "empty": "暂无数据，点击右上角添加吧"
+      },
+      "project": {
+        "title": "项目经历管理",
+        "addBtn": "添加新项目",
+        "name": "项目名称",
+        "namePlaceholder": "例如：企业级简历制作平台",
+        "role": "你的角色",
+        "rolePlaceholder": "例如：前端开发工程师",
+        "startDate": "开始时间",
+        "endDate": "结束时间",
+        "endDatePlaceholder": "选填，进行中可为空",
+        "description": "项目描述",
+        "descPlaceholder": "简要描述项目的目标和解决方案",
+        "contribution": "主要贡献",
+        "contriPlaceholder": "列出你的具体工作内容和技术难点突破",
+        "techStack": "技术栈",
+        "highlights": "项目亮点",
+        "hlPlaceholder": "选填，列出项目的突出成果或核心难点",
+        "url": "项目链接",
+        "urlPlaceholder": "选填，例如 GitHub 或线上地址",
+        "addSuccess": "项目添加成功",
+        "updateSuccess": "项目更新成功"
+      },
+      "education": {
+        "title": "教育经历管理",
+        "addBtn": "添加教育经历",
+        "school": "学校名称",
+        "schoolPlaceholder": "例如：同济大学",
+        "major": "专业",
+        "majorPlaceholder": "例如：软件工程",
+        "degree": "学历",
+        "startDate": "入学时间",
+        "endDate": "毕业时间",
+        "endDatePlaceholder": "选填，在读可为空",
+        "gpa": "成绩/绩点",
+        "gpaPlaceholder": "选填，例如：3.8/4.0 或 专业前10%",
+        "addSuccess": "教育经历添加成功",
+        "updateSuccess": "教育经历更新成功",
+        "degrees": {
+          "phd": "博士",
+          "master": "硕士",
+          "bachelor": "本科",
+          "associate": "大专",
+          "highSchool": "高中",
+          "other": "其他"
+        }
+      },
+      career: {
+        title: '工作/实习经历管理',
+        addBtn: '添加工作经历',
+        company: '公司名称',
+        companyPlaceholder: '例如：字节跳动',
+        position: '职位名称',
+        positionPlaceholder: '例如：前端实习生',
+        startDate: '入职时间',
+        endDate: '离职时间',
+        endDatePlaceholder: '选填，在职可为空',
+        details: '工作职责与业绩',
+        detailsPlaceholder: '详细描述你的工作内容、使用的技术及取得的成果',
+        addSuccess: '工作经历添加成功',
+        updateSuccess: '工作经历更新成功'
+      },
+      skill: {
+        title: '专业技能管理',
+        addBtn: '添加技能清单',
+        name: '清单名称',
+        namePlaceholder: '例如：专业技能',
+        category: '技能分类',
+        categoryPlaceholder: '例如：前端框架',
+        items: '技能详情 (输入后按回车键添加)',
+        addCategory: '添加技能分类',
+        addSuccess: '技能添加成功',
+        updateSuccess: '技能更新成功'
+      },
+      basicInfo: {
+        title: '基本信息',
+        desc: '请完善你的个人基础信息，这将展示在简历的头部',
+        name: '真实姓名',
+        namePlaceholder: '请输入你的真实姓名',
+        phone: '联系电话',
+        phonePlaceholder: '请输入常用的手机号码',
+        homepageUrl: '个人主页/博客链接',
+        homepageUrlPlaceholder: '选填，例如 GitHub 或个人博客地址',
+        updateSuccess: '基本信息保存成功'
+      },
+      capability: {
+        title: '能力画像',
+        desc: 'AI 分析你的简历，为你生成详细的能力评估报告',
+        regenerate: '重新生成',
+        generate: '生成画像',
+        empty: '暂无能力画像数据',
+        summary: '一句话总结',
+        competitiveness: '综合竞争力',
+        completeness: '简历完整度',
+        totalScore: '总分',
+        scoreDetail: '岗位专项评估分项',
+        abilityDetail: '能力详情',
+        strengths: '简历优势',
+        missingSkills: '缺失技能',
+        weakEvidence: '证据不足项',
+        suggestions: '改进建议',
+        generateMethod: '生成方式',
+        autoGenerate: '自动生成',
+        autoGenerateDesc: '从已填写的简历信息（教育经历、项目经历、技能等）自动生成能力画像',
+        fileUpload: '文件上传',
+        fileUploadDesc: '上传简历文件（支持 PDF、Word、TXT），AI 将自动分析文件内容生成画像',
+        selectFile: '选择文件',
+        uploadFile: '上传文件',
+        uploadSuccess: '文件上传成功',
+        textInput: '纯文本输入',
+        textInputDesc: '直接粘贴简历文本内容，AI 将分析文本生成画像',
+        textPlaceholder: '请粘贴简历文本内容，包括个人信息、教育经历、项目经验、技能特长等...',
+        fileUploadTips: '文件上传提示',
+        uploadTips: {
+          useEnglishName: '建议使用英文文件名，避免中文和特殊字符',
+          fileSizeLimit: '文件大小建议不超过10MB',
+          tryTextInput: '如果PDF解析失败，可以尝试使用"纯文本输入"方式'
+        },
+        selectFileFirst: '请选择要上传的文件',
+        fileInvalid: '文件对象无效，请重新选择',
+        fileNameHasChinese: '文件名包含中文字符，后端无法解析。请将文件重命名为英文（如：resume.pdf）后再试',
+        onlySupportFormats: '仅支持 PDF、TXT、DOC、DOCX 格式的文件',
+        uploadSuccess2: '文件上传成功',
+        uploadFailed: '文件上传失败',
+        uploadException: '文件上传异常',
+        checkNetwork: '请检查网络连接',
+        unknownError: '未知错误',
+        pleaseUploadFile: '请先上传文件',
+        urlInvalid: '文件URL格式无效，请重新上传文件',
+        inputAtLeastChars: '请输入至少50个字符的文本内容',
+        completeResumeFirst: '请先完善简历信息（教育经历、项目经历、技能等）后再生成能力画像',
+        resumeTooShort: '简历信息过少，请至少填写教育经历、项目经历或技能信息后再生成能力画像',
+        generateSuccess: '生成能力画像成功',
+        generateFailed: '生成能力画像失败',
+        pdfParseFailed: 'PDF文件解析失败，请确保：\n1. 文件是有效的PDF格式\n2. 文件没有密码保护\n3. 文件大小不超过10MB\n\n建议：可以尝试使用"纯文本输入"方式，直接粘贴简历内容',
+        fileProcessFailed: '文件处理失败',
+        loginToView: '请先登录后查看能力画像',
+        goToLogin: '前往登录'
+      }
+    },
+    resume: {
+      template: '排版模板',
+      color: '主题颜色',
+      exportPdf: '导出 PDF',
+      contact: '联系方式',
+      education: '教育经历',
+      skills: '专业技能',
+      experience: '实习经历',
+      projects: '项目经历',
+      present: '至今',
+      name: '姓名',
+      targetJob: '目标岗位 / 专业',
+      "manageContent": "简历内容管理",
+      "saveSync": "保存并同步至云端",
+      "saveSuccess": "所有简历修改已同步至云端！",
+      "saveFail": "保存失败，请检查网络",
+      "basicInfo": "基础信息",
+      "fullName": "姓名",
+      "major": "专业",
+      "phone": "电话",
+      "email": "邮箱",
+      "school": "学校",
+      "startDate": "开始日期",
+      "endDate": "结束日期",
+      "gpa": "GPA",
+      "projectName": "项目名称",
+      "role": "角色",
+      "duration": "起止时间",
+      "projectDesc": "项目描述及贡献 (建议使用圆点列表重点突出)",
+      "company": "公司名称",
+      "jobDetails": "工作职责及业绩",
+      "skillListName": "技能清单名称",
+      "skillTip": "专业技能的具体细项请在“个人信息管理”模块中增删，此处支持总体排版预览。",
+      "standardTemplate": "标准版",
+      "modernTemplate": "简约版",
+      "myResumes": "我的简历",
+      "subtitle": "全局聚合您的个人经历，一键生成企业级排版格式。",
+      "tagSmart": "SmartHire 标准简历",
+      "statusReady": "数据已就绪",
+      "editResume": "进入简历编辑器",
+      "emptyDesc": "您还没有生成过简历",
+      "createBtn": "立即生成专属简历",
+      "dialogDeleteTitle": "重置确认",
+      "dialogDeleteContent": "确定要清除这份简历吗？您的底层经历数据（教育、项目等）将安全保留。",
+      "dialogDeleteConfirm": "确定重置",
+      "msgDeleteSuccess": "已清除该简历",
+      "msgDeleteFail": "重置失败，请稍后重试",
+      "modalTitle": "前置设置：选择或创建技能画像",
+      "tabSelect": "选择已有技能",
+      "tabCreate": "新建技能清单",
+      "noSkillAvailable": "暂无可用的技能清单",
+      "formLabelListName": "给您的技能清单起个名字 (如：前端开发专属)",
+      "formPlaceholderName": "请输入技能清单名称",
+      "alertSkillTip": "注：创建后您可以在“个人信息管理”中详细编辑具体的技能栈（Vue, React等）。",
+      "modalConfirm": "确认并进入编辑器",
+       "cancel": "取消",
+      "getFail": "获取数据失败",
+      "pleaseInput": "请填写",
+      "createFail": "创建失败"
+    },
+    jobs: {
+      title: "岗位信息",
+      create: "创建岗位",
+      edit: "编辑岗位",
+      delete: "删除岗位",
+      viewDetail: "查看详情",
+      generateProfile: "生成能力画像",
+      regenerateProfile: "重新生成画像",
+      searchJobName: "搜索岗位名称",
+      searchCompanyName: "搜索公司名称",
+      employmentType: "用工类型",
+      intern: "实习",
+      fulltime: "全职",
+      basicInfo: "基本信息",
+      jobName: "岗位名称",
+      companyName: "公司名称",
+      companyIndustry: "公司行业",
+      location: "工作地点",
+      salaryInfo: "薪资信息",
+      salaryMin: "最低薪资",
+      salaryMax: "最高薪资",
+      salaryType: "薪资类型",
+      daily: "日薪",
+      monthly: "月薪",
+      yearly: "年薪",
+      jobDescription: "岗位描述",
+      jobDuties: "岗位职责",
+      jobRequirements: "岗位要求",
+      jobKeywords: "岗位关键词",
+      otherInfo: "其他信息",
+      jobLink: "岗位链接",
+      companyIntro: "公司介绍",
+      capabilityProfile: "岗位能力画像",
+      technicalSkills: "技术技能",
+      softSkills: "软技能",
+      toolUsage: "工具使用",
+      domainKnowledge: "领域知识",
+      suggestions: "建议",
+      noProfile: "暂无能力画像",
+      confirmDelete: "确认删除",
+      confirmDeleteContent: "确定要删除这个岗位吗？",
+      deleteSuccess: "删除成功",
+      deleteFailed: "删除失败",
+      createSuccess: "创建成功",
+      updateSuccess: "更新成功",
+      createFailed: "创建失败",
+      updateFailed: "更新失败",
+      loadFailed: "加载失败",
+      formValidation: {
+        jobNameRequired: "请输入岗位名称",
+        companyNameRequired: "请输入公司名称",
+        descriptionRequired: "请输入岗位描述",
+        locationRequired: "请输入工作地点",
+        salaryMinRequired: "请输入最低薪资",
+        salaryMaxRequired: "请输入最高薪资",
+        salaryTypeRequired: "请选择薪资类型",
+        linkRequired: "请输入岗位链接",
+        salaryRangeInvalid: "最低薪资不能大于最高薪资"
+      },
+      placeholders: {
+        jobName: "请输入岗位名称",
+        companyName: "请输入公司名称",
+        location: "请输入工作地点，例如：北京、上海、远程",
+        description: "请输入岗位描述，包括岗位背景、工作内容等",
+        duties: "每行输入一条职责",
+        requirements: "每行输入一条要求",
+        keywords: "每行输入一个关键词",
+        link: "请输入岗位链接，例如：BOSS直聘、拉勾等",
+        companyIntro: "请输入公司介绍（可选）",
+        industries: "每行输入一个行业"
+      },
+      tips: {
+        dutiesFormat: "每行输入一条岗位职责，例如：负责后端系统设计与开发",
+        requirementsFormat: "每行输入一条岗位要求，例如：本科及以上学历",
+        keywordsFormat: "支持使用逗号、空格或换行分隔关键词",
+        industriesFormat: "每行输入一个行业标签"
+      },
+      empty: "暂无岗位数据",
+      createFirst: "创建第一个岗位",
+      profileGenerating: "正在生成能力画像...",
+      profileGenerated: "生成能力画像成功",
+      loadProfileFailed: "加载能力画像失败",
+      generateProfileError: "生成能力画像错误",
+      retryLater: "，请稍后重试",
+      jobType: "岗位类型",
+      certificateRequired: "证书要求",
+      innovationAbility: "创新能力",
+      learningAbility: "学习能力",
+      pressureResistance: "抗压能力",
+      communicationAbility: "沟通能力",
+      practicalAbility: "实践能力",
+      strengths: "岗位优势",
+      missingSkills: "缺失技能项",
+      weakEvidenceItems: "证据不足项",
+      summary: "总结",
+      infoSuffix: "信息",
+      industryLabel: "行业："
+    },
+    knowledge: {
+      title: '知识库管理',
+      addBtn: '添加知识',
+      searchPlaceholder: '搜索项目名称',
+      name: '知识库名称',
+      namePlaceholder: '请输入知识库名称',
+      projectName: '项目名称',
+      projectNamePlaceholder: '请输入项目名称',
+      type: '知识类型',
+      fileType: '文件类型',
+      content: '内容',
+      contentPlaceholder: '请输入内容',
+      tag: '知识标签',
+      status: '向量化状态',
+      addSuccess: '知识库创建成功',
+      updateSuccess: '知识库更新成功',
+      viewDetail: '查看详情',
+      unknown: '未知',
+      createFirst: '创建第一个知识文档',
+      docTitle: '文档标题',
+      docTitlePlaceholder: '请输入文档标题',
+      uploadFile: '文档文件',
+      uploadTip: '支持 PDF 和 Markdown 文件',
+      dragUpload: '拖拽文件到此处，或点击上传',
+      dragUploadActive: '释放文件即可上传',
+      orInputUrl: '或直接输入链接',
+      inputUrlPlaceholder: '输入 COS 文件链接（支持 .pdf 或 .md）',
+      githubRepoLink: 'GitHub 仓库链接',
+      githubRepoPlaceholder: '请输入 GitHub 仓库链接，如 https://github.com/username/repo',
+      githubRepoExample: '示例：https://github.com/username/repository',
+      basicInfo: '基本信息',
+      vectorInfo: '向量化信息',
+      lastVectorTime: '最后向量化时间',
+      errorMsg: '错误信息',
+      openFile: '打开文件',
+      viewRepo: '查看仓库',
+      downloadFile: '下载文件',
+      typeOptions: {
+        projectDoc: '项目文档',
+        projectCode: '项目代码',
+        techDoc: '技术文档',
+        other: '其他',
+        deepWiki: '项目DeepWiki'
+      },
+      fileTypeOptions: {
+        txt: '文本 (TXT)',
+        url: '链接 (URL)',
+        doc: '文档 (DOC/PDF)',
+        md: 'Markdown (MD)'
+      },
+      statusOptions: {
+        pending: '待处理',
+        processing: '向量化中',
+        success: '已完成',
+        failed: '失败',
+        cancelled: '已取消'
+      }
+    }
+  },
+  form: {
+    required: '不能为空',
+    userName: {
+      required: '请输入用户名',
+      invalid: '用户名格式不正确'
+    },
+    phone: {
+      required: '请输入手机号',
+      invalid: '手机号格式不正确'
+    },
+    pwd: {
+      required: '请输入密码',
+      invalid: '密码格式不正确，6-18位字符，包含字母、数字、下划线'
+    },
+    confirmPwd: {
+      required: '请输入确认密码',
+      invalid: '两次输入密码不一致'
+    },
+    code: {
+      required: '请输入验证码',
+      invalid: '验证码格式不正确'
+    },
+    email: {
+      required: '请输入邮箱',
+      invalid: '邮箱格式不正确'
+    }
+  },
+  dropdown: {
+    closeCurrent: '关闭',
+    closeOther: '关闭其它',
+    closeLeft: '关闭左侧',
+    closeRight: '关闭右侧',
+    closeAll: '关闭所有'
+  },
+  icon: {
+    themeConfig: '主题配置',
+    themeSchema: '主题模式',
+    lang: '切换语言',
+    fullscreen: '全屏',
+    fullscreenExit: '退出全屏',
+    reload: '刷新页面',
+    collapse: '折叠菜单',
+    expand: '展开菜单',
+    pin: '固定',
+    unpin: '取消固定'
+  },
+  datatable: {
+    itemCount: '共 {total} 条'
+  }
+};
+
+export default local;

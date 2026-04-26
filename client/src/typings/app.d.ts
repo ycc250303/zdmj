@@ -1,0 +1,1075 @@
+/** The global namespace for the app */
+declare namespace App {
+  /** Theme namespace */
+  namespace Theme {
+    type ColorPaletteNumber = import('@sa/color').ColorPaletteNumber;
+
+    /** Theme setting */
+    interface ThemeSetting {
+      /** Theme scheme */
+      themeScheme: UnionKey.ThemeScheme;
+      /** grayscale mode */
+      grayscale: boolean;
+      /** colour weakness mode */
+      colourWeakness: boolean;
+      /** Whether to recommend color */
+      recommendColor: boolean;
+      /** Theme color */
+      themeColor: string;
+      /** Theme radius */
+      themeRadius: number;
+      /** Other color */
+      otherColor: OtherColor;
+      /** Whether info color is followed by the primary color */
+      isInfoFollowPrimary: boolean;
+      /** Layout */
+      layout: {
+        /** Layout mode */
+        mode: UnionKey.ThemeLayoutMode;
+        /** Scroll mode */
+        scrollMode: UnionKey.ThemeScrollMode;
+      };
+      /** Page */
+      page: {
+        /** Whether to show the page transition */
+        animate: boolean;
+        /** Page animate mode */
+        animateMode: UnionKey.ThemePageAnimateMode;
+      };
+      /** Header */
+      header: {
+        /** Header height */
+        height: number;
+        /** Header breadcrumb */
+        breadcrumb: {
+          /** Whether to show the breadcrumb */
+          visible: boolean;
+          /** Whether to show the breadcrumb icon */
+          showIcon: boolean;
+        };
+        /** Multilingual */
+        multilingual: {
+          /** Whether to show the multilingual */
+          visible: boolean;
+        };
+        globalSearch: {
+          /** Whether to show the GlobalSearch */
+          visible: boolean;
+        };
+      };
+      /** Tab */
+      tab: {
+        /** Whether to show the tab */
+        visible: boolean;
+        /**
+         * Whether to cache the tab
+         *
+         * If cache, the tabs will get from the local storage when the page is refreshed
+         */
+        cache: boolean;
+        /** Tab height */
+        height: number;
+        /** Tab mode */
+        mode: UnionKey.ThemeTabMode;
+        /** Whether to close tab by middle click */
+        closeTabByMiddleClick: boolean;
+      };
+      /** Fixed header and tab */
+      fixedHeaderAndTab: boolean;
+      /** Sider */
+      sider: {
+        /** Inverted sider */
+        inverted: boolean;
+        /** Sider width */
+        width: number;
+        /** Collapsed sider width */
+        collapsedWidth: number;
+        /** Sider width when the layout is 'vertical-mix', 'top-hybrid-sidebar-first', or 'top-hybrid-header-first' */
+        mixWidth: number;
+        /**
+         * Collapsed sider width when the layout is 'vertical-mix', 'top-hybrid-sidebar-first', or
+         * 'top-hybrid-header-first'
+         */
+        mixCollapsedWidth: number;
+        /** Child menu width when the layout is 'vertical-mix', 'top-hybrid-sidebar-first', or 'top-hybrid-header-first' */
+        mixChildMenuWidth: number;
+      };
+      /** Footer */
+      footer: {
+        /** Whether to show the footer */
+        visible: boolean;
+        /** Whether fixed the footer */
+        fixed: boolean;
+        /** Footer height */
+        height: number;
+        /**
+         * Whether float the footer to the right when the layout is 'top-hybrid-sidebar-first' or
+         * 'top-hybrid-header-first'
+         */
+        right: boolean;
+      };
+      /** Watermark */
+      watermark: {
+        /** Whether to show the watermark */
+        visible: boolean;
+        /** Watermark text */
+        text: string;
+        /** Whether to use user name as watermark text */
+        enableUserName: boolean;
+        /** Whether to use current time as watermark text */
+        enableTime: boolean;
+        /** Time format for watermark text */
+        timeFormat: string;
+      };
+      /** define some theme settings tokens, will transform to css variables */
+      tokens: {
+        light: ThemeSettingToken;
+        dark?: {
+          [K in keyof ThemeSettingToken]?: Partial<ThemeSettingToken[K]>;
+        };
+      };
+    }
+
+    interface OtherColor {
+      info: string;
+      success: string;
+      warning: string;
+      error: string;
+    }
+
+    interface ThemeColor extends OtherColor {
+      primary: string;
+    }
+
+    type ThemeColorKey = keyof ThemeColor;
+
+    type ThemePaletteColor = {
+      [key in ThemeColorKey | `${ThemeColorKey}-${ColorPaletteNumber}`]: string;
+    };
+
+    type BaseToken = Record<string, Record<string, string>>;
+
+    interface ThemeSettingTokenColor {
+      /** the progress bar color, if not set, will use the primary color */
+      nprogress?: string;
+      container: string;
+      layout: string;
+      inverted: string;
+      'base-text': string;
+    }
+
+    interface ThemeSettingTokenBoxShadow {
+      header: string;
+      sider: string;
+      tab: string;
+    }
+
+    interface ThemeSettingToken {
+      colors: ThemeSettingTokenColor;
+      boxShadow: ThemeSettingTokenBoxShadow;
+    }
+
+    type ThemeTokenColor = ThemePaletteColor & ThemeSettingTokenColor;
+
+    /** Theme token CSS variables */
+    type ThemeTokenCSSVars = {
+      colors: ThemeTokenColor & { [key: string]: string };
+      boxShadow: ThemeSettingTokenBoxShadow & { [key: string]: string };
+    };
+  }
+
+  /** Global namespace */
+  namespace Global {
+    type VNode = import('vue').VNode;
+    type RouteLocationNormalizedLoaded = import('vue-router').RouteLocationNormalizedLoaded;
+    type RouteKey = import('@elegant-router/types').RouteKey;
+    type RouteMap = import('@elegant-router/types').RouteMap;
+    type RoutePath = import('@elegant-router/types').RoutePath;
+    type LastLevelRouteKey = import('@elegant-router/types').LastLevelRouteKey;
+
+    /** The router push options */
+    type RouterPushOptions = {
+      query?: Record<string, string>;
+      params?: Record<string, string>;
+    };
+
+    /** The global header props */
+    interface HeaderProps {
+      /** Whether to show the logo */
+      showLogo?: boolean;
+      /** Whether to show the menu toggler */
+      showMenuToggler?: boolean;
+      /** Whether to show the menu */
+      showMenu?: boolean;
+    }
+
+    /** The global menu */
+    type Menu = {
+      /**
+       * The menu key
+       *
+       * Equal to the route key
+       */
+      key: string;
+      /** The menu label */
+      label: string;
+      /** The menu i18n key */
+      i18nKey?: I18n.I18nKey | null;
+      /** The route key */
+      routeKey: RouteKey;
+      /** The route path */
+      routePath: RoutePath;
+      /** The menu icon */
+      icon?: () => VNode;
+      /** The menu children */
+      children?: Menu[];
+    };
+
+    type Breadcrumb = Omit<Menu, 'children'> & {
+      options?: Breadcrumb[];
+    };
+
+    /** Tab route */
+    type TabRoute = Pick<RouteLocationNormalizedLoaded, 'name' | 'path' | 'meta'> &
+      Partial<Pick<RouteLocationNormalizedLoaded, 'fullPath' | 'query' | 'matched'>>;
+
+    /** The global tab */
+    type Tab = {
+      /** The tab id */
+      id: string;
+      /** The tab label */
+      label: string;
+      /**
+       * The new tab label
+       *
+       * If set, the tab label will be replaced by this value
+       */
+      newLabel?: string;
+      /**
+       * The old tab label
+       *
+       * when reset the tab label, the tab label will be replaced by this value
+       */
+      oldLabel?: string;
+      /** The tab route key */
+      routeKey: LastLevelRouteKey;
+      /** The tab route path */
+      routePath: RouteMap[LastLevelRouteKey];
+      /** The tab route full path */
+      fullPath: string;
+      /** The tab fixed index */
+      fixedIndex?: number | null;
+      /**
+       * Tab icon
+       *
+       * Iconify icon
+       */
+      icon?: string;
+      /**
+       * Tab local icon
+       *
+       * Local icon
+       */
+      localIcon?: string;
+      /** I18n key */
+      i18nKey?: I18n.I18nKey | null;
+    };
+
+    /** Form rule */
+    type FormRule = import('naive-ui').FormItemRule;
+
+    /** The global dropdown key */
+    type DropdownKey = 'closeCurrent' | 'closeOther' | 'closeLeft' | 'closeRight' | 'closeAll';
+  }
+
+  /**
+   * I18n namespace
+   *
+   * Locales type
+   */
+  namespace I18n {
+    type RouteKey = import('@elegant-router/types').RouteKey;
+
+    type LangType = 'en-US' | 'zh-CN';
+
+    type LangOption = {
+      label: string;
+      key: LangType;
+    };
+
+    type I18nRouteKey = Exclude<RouteKey, 'root' | 'not-found'>;
+
+    type FormMsg = {
+      required: string;
+      invalid: string;
+    };
+
+    type Schema = {
+      system: {
+        title: string;
+        updateTitle: string;
+        updateContent: string;
+        updateConfirm: string;
+        updateCancel: string;
+      };
+      common: {
+        action: string;
+        add: string;
+        addSuccess: string;
+        backToHome: string;
+        batchDelete: string;
+        cancel: string;
+        close: string;
+        check: string;
+        expandColumn: string;
+        columnSetting: string;
+        config: string;
+        confirm: string;
+        delete: string;
+        deleteSuccess: string;
+        confirmDelete: string;
+        edit: string;
+        warning: string;
+        error: string;
+        index: string;
+        keywordSearch: string;
+        logout: string;
+        logoutConfirm: string;
+        lookForward: string;
+        modify: string;
+        modifySuccess: string;
+        noData: string;
+        operate: string;
+        pleaseCheckValue: string;
+        refresh: string;
+        requestFailed: string;
+        reset: string;
+        search: string;
+        switch: string;
+        tip: string;
+        trigger: string;
+        update: string;
+        updateSuccess: string;
+        userCenter: string;
+        yesOrNo: {
+          yes: string;
+          no: string;
+        };
+      };
+      request: {
+        logout: string;
+        logoutMsg: string;
+        logoutWithModal: string;
+        logoutWithModalMsg: string;
+        refreshToken: string;
+        tokenExpired: string;
+      };
+      theme: {
+        themeDrawerTitle: string;
+        tabs: {
+          appearance: string;
+          layout: string;
+          general: string;
+          preset: string;
+        };
+        appearance: {
+          themeSchema: { title: string } & Record<UnionKey.ThemeScheme, string>;
+          grayscale: string;
+          colourWeakness: string;
+          themeColor: {
+            title: string;
+            followPrimary: string;
+          } & Record<Theme.ThemeColorKey, string>;
+          recommendColor: string;
+          recommendColorDesc: string;
+          themeRadius: {
+            title: string;
+          };
+          preset: {
+            title: string;
+            apply: string;
+            applySuccess: string;
+            [key: string]:
+              | {
+                  name: string;
+                  desc: string;
+                }
+              | string;
+          };
+        };
+        layout: {
+          layoutMode: { title: string } & Record<UnionKey.ThemeLayoutMode, string> & {
+              [K in `${UnionKey.ThemeLayoutMode}_detail`]: string;
+            };
+          tab: {
+            title: string;
+            visible: string;
+            cache: string;
+            cacheTip: string;
+            height: string;
+            mode: { title: string } & Record<UnionKey.ThemeTabMode, string>;
+            closeByMiddleClick: string;
+            closeByMiddleClickTip: string;
+          };
+          header: {
+            title: string;
+            height: string;
+            breadcrumb: {
+              visible: string;
+              showIcon: string;
+            };
+          };
+          sider: {
+            title: string;
+            inverted: string;
+            width: string;
+            collapsedWidth: string;
+            mixWidth: string;
+            mixCollapsedWidth: string;
+            mixChildMenuWidth: string;
+          };
+          footer: {
+            title: string;
+            visible: string;
+            fixed: string;
+            height: string;
+            right: string;
+          };
+          content: {
+            title: string;
+            scrollMode: { title: string; tip: string } & Record<UnionKey.ThemeScrollMode, string>;
+            page: {
+              animate: string;
+              mode: { title: string } & Record<UnionKey.ThemePageAnimateMode, string>;
+            };
+            fixedHeaderAndTab: string;
+          };
+        };
+        general: {
+          title: string;
+          watermark: {
+            title: string;
+            visible: string;
+            text: string;
+            enableUserName: string;
+            enableTime: string;
+            timeFormat: string;
+          };
+          multilingual: {
+            title: string;
+            visible: string;
+          };
+          globalSearch: {
+            title: string;
+            visible: string;
+          };
+        };
+        configOperation: {
+          copyConfig: string;
+          copySuccessMsg: string;
+          resetConfig: string;
+          resetSuccessMsg: string;
+        };
+      };
+      route: Record<I18nRouteKey, string>;
+      page: {
+        login: {
+          common: {
+            loginOrRegister: string;
+            userNamePlaceholder: string;
+            phonePlaceholder: string;
+            emailPlaceholder: string;
+            codePlaceholder: string;
+            passwordPlaceholder: string;
+            confirmPasswordPlaceholder: string;
+            codeLogin: string;
+            confirm: string;
+            back: string;
+            validateSuccess: string;
+            loginSuccess: string;
+            welcomeBack: string;
+          };
+          pwdLogin: {
+            title: string;
+            rememberMe: string;
+            forgetPassword: string;
+            register: string;
+            otherAccountLogin: string;
+            otherLoginMode: string;
+            superAdmin: string;
+            admin: string;
+            user: string;
+          };
+          codeLogin: {
+            title: string;
+            getCode: string;
+            reGetCode: string;
+            sendCodeSuccess: string;
+            imageCodePlaceholder: string;
+            notSupported: string;
+          };
+          register: {
+            title: string;
+            agreement: string;
+            protocol: string;
+            policy: string;
+            success: string;
+          sendCodeSuccess: string;
+          };
+          resetPwd: {
+            title: string;
+            success: string;
+          };
+          bindWeChat: {
+            title: string;
+          };
+          
+        };
+        home: {
+          hero: {
+            badge: string;
+            title: string;
+            subtitle: string;
+            startChat: string;
+            exploreKnowledge: string;
+          };
+          quickActions: {
+            title: string;
+            subtitle: string;
+          };
+          aiChat: {
+            title: string;
+            description: string;
+          };
+          knowledge: {
+            title: string;
+            description: string;
+          };
+          resume: {
+            title: string;
+            description: string;
+          };
+          jobs: {
+            title: string;
+            description: string;
+          };
+          features: {
+            title: string;
+            subtitle: string;
+            smartQA: {
+              title: string;
+              description: string;
+            };
+            knowledgeBase: {
+              title: string;
+              description: string;
+            };
+            resumeGen: {
+              title: string;
+              description: string;
+            };
+            fastCreate: {
+              title: string;
+              description: string;
+            };
+          };
+          tips: {
+            title: string;
+            tip1: string;
+            tip2: string;
+            tip3: string;
+          };
+        };
+        portal: {
+          title: string;
+          hello: string;
+          enterConsole: string;
+          loginSystem: string;
+          heroTitle: string;
+          heroDesc: string;
+          actionEnter: string;
+          actionLogin: string;
+        };
+        chat: {
+          newChat: string;
+          startNewConversation: string;
+          aiAssistant: string;
+          inputPlaceholder: string;
+          collapseChatList: string;
+          expandChatList: string;
+          deleteConfirm: string;
+          deleteSuccess: string;
+          deleteFailed: string;
+          createSuccess: string;
+          createFailed: string;
+          sendFailed: string;
+        };
+        profile: {
+          common: {
+            add: string;
+            edit: string;
+            delete: string;
+            save: string;
+            cancel: string;
+            confirmDelete: string;
+            requiredDesc: string;
+            visibleInResume: string;
+            visible: string;
+            hidden: string;
+            dateFormat: string;
+            present: string;
+            empty: string;
+          };
+          project: {
+            title: string;
+            addBtn: string;
+            name: string;
+            namePlaceholder: string;
+            role: string;
+            rolePlaceholder: string;
+            startDate: string;
+            endDate: string;
+            endDatePlaceholder: string;
+            description: string;
+            descPlaceholder: string;
+            contribution: string;
+            contriPlaceholder: string;
+            techStack: string;
+            highlights: string;
+            hlPlaceholder: string;
+            url: string;
+            urlPlaceholder: string;
+            addSuccess: string;
+            updateSuccess: string;
+          };
+          education: {
+            title: string;
+            addBtn: string;
+            school: string;
+            schoolPlaceholder: string;
+            major: string;
+            majorPlaceholder: string;
+            degree: string;
+            startDate: string;
+            endDate: string;
+            endDatePlaceholder: string;
+            gpa: string;
+            gpaPlaceholder: string;
+            addSuccess: string;
+            updateSuccess: string;
+            degrees: {
+              phd: string;
+              master: string;
+              bachelor: string;
+              associate: string;
+              highSchool: string;
+              other: string;
+            };
+          };
+          career: {
+            title: string;
+            addBtn: string;
+            company: string;
+            companyPlaceholder: string;
+            position: string;
+            positionPlaceholder: string;
+            startDate: string;
+            endDate: string;
+            endDatePlaceholder: string;
+            details: string;
+            detailsPlaceholder: string;
+            addSuccess: string;
+            updateSuccess: string;
+          };
+          skill: {
+            title: string;
+            addBtn: string;
+            name: string;
+            namePlaceholder: string;
+            category: string;
+            categoryPlaceholder: string;
+            items: string;
+            addCategory: string;
+            addSuccess: string;
+            updateSuccess: string;
+          };
+          basicInfo: {
+            title: string;
+            desc: string;
+            name: string;
+            namePlaceholder: string;
+            phone: string;
+            phonePlaceholder: string;
+            homepageUrl: string;
+            homepageUrlPlaceholder: string;
+            updateSuccess: string;
+          };
+          capability: {
+            title: string;
+            desc: string;
+            regenerate: string;
+            generate: string;
+            empty: string;
+            summary: string;
+            competitiveness: string;
+            completeness: string;
+            totalScore: string;
+            scoreDetail: string;
+            abilityDetail: string;
+            strengths: string;
+            missingSkills: string;
+            weakEvidence: string;
+            suggestions: string;
+            generateMethod: string;
+            autoGenerate: string;
+            autoGenerateDesc: string;
+            fileUpload: string;
+            fileUploadDesc: string;
+            selectFile: string;
+            uploadFile: string;
+            uploadSuccess: string;
+            textInput: string;
+            textInputDesc: string;
+            textPlaceholder: string;
+            fileUploadTips: string;
+            uploadTips: {
+              useEnglishName: string;
+              fileSizeLimit: string;
+              tryTextInput: string;
+            };
+            selectFileFirst: string;
+            fileInvalid: string;
+            fileNameHasChinese: string;
+            onlySupportFormats: string;
+            uploadSuccess2: string;
+            uploadFailed: string;
+            uploadException: string;
+            checkNetwork: string;
+            unknownError: string;
+            pleaseUploadFile: string;
+            urlInvalid: string;
+            inputAtLeastChars: string;
+            completeResumeFirst: string;
+            resumeTooShort: string;
+            generateSuccess: string;
+            generateFailed: string;
+            pdfParseFailed: string;
+            fileProcessFailed: string;
+            loginToView: string;
+            goToLogin: string;
+          };
+        };
+        resume:{
+          template:string;
+          color: string;
+          exportPdf: string;
+          contact: string;
+          education: string;
+          skills: string;
+          experience: string;
+          projects: string;
+          present: string;
+          name: string;
+          targetJob: string;
+          "manageContent": string;
+          "saveSync": string;
+          "saveSuccess": string;
+          "saveFail":string;
+          "basicInfo": string;
+          "fullName":string;
+          "major": string;
+          "phone": string;
+          "email": string;
+          "school":string;
+          "startDate":string;
+          "endDate": string;
+          "gpa": string;
+          "projectName": string;
+          "role": string;
+          "duration": string;
+          "projectDesc": string;
+          "company": string;
+          "jobDetails":string;
+          "skillListName": string;
+          "skillTip":string;
+          "standardTemplate": string;
+          "myResumes": string;
+          "modernTemplate": string;
+          "subtitle": string;
+          "tagSmart": string;
+          "statusReady": string;
+          "editResume": string;
+          "emptyDesc": string;
+          "createBtn": string;
+          "dialogDeleteTitle": string;
+          "dialogDeleteContent": string;
+          "dialogDeleteConfirm": string;
+          "msgDeleteSuccess": string;
+          "msgDeleteFail": string;
+          "modalTitle": string;
+          "tabSelect": string;
+          "tabCreate": string;
+          "noSkillAvailable": string;
+          "formLabelListName": string;
+          "formPlaceholderName": string;
+          "alertSkillTip": string;
+          "modalConfirm": string;
+          "cancel": string;
+          "getFail":string;
+          "pleaseInput": string;
+          "createFail": string;
+        };
+        knowledge: {
+          title: string;
+          addBtn: string;
+          searchPlaceholder: string;
+          name: string;
+          namePlaceholder: string;
+          projectName: string;
+          projectNamePlaceholder: string;
+          type: string;
+          fileType: string;
+          content: string;
+          contentPlaceholder: string;
+          tag: string;
+          status: string;
+          addSuccess: string;
+          updateSuccess: string;
+          viewDetail: string;
+          unknown: string;
+          createFirst: string;
+          docTitle: string;
+          docTitlePlaceholder: string;
+          uploadFile: string;
+          uploadTip: string;
+          dragUpload: string;
+          dragUploadActive: string;
+          orInputUrl: string;
+          inputUrlPlaceholder: string;
+          githubRepoLink: string;
+          githubRepoPlaceholder: string;
+          githubRepoExample: string;
+          basicInfo: string;
+          vectorInfo: string;
+          lastVectorTime: string;
+          errorMsg: string;
+          openFile: string;
+          viewRepo: string;
+          downloadFile: string;
+          typeOptions: {
+            projectDoc: string;
+            projectCode: string;
+            techDoc: string;
+            other: string;
+            deepWiki: string;
+          };
+          fileTypeOptions: {
+            txt: string;
+            url: string;
+            doc: string;
+            md: string;
+          };
+          statusOptions: {
+            pending: string;
+            processing: string;
+            success: string;
+            failed: string;
+            cancelled: string;
+          };
+        };
+        jobs: {
+          title: string;
+          create: string;
+          edit: string;
+          delete: string;
+          viewDetail: string;
+          generateProfile: string;
+          regenerateProfile: string;
+          searchJobName: string;
+          searchCompanyName: string;
+          employmentType: string;
+          intern: string;
+          fulltime: string;
+          basicInfo: string;
+          jobName: string;
+          companyName: string;
+          companyIndustry: string;
+          location: string;
+          salaryInfo: string;
+          salaryMin: string;
+          salaryMax: string;
+          salaryType: string;
+          daily: string;
+          monthly: string;
+          yearly: string;
+          jobDescription: string;
+          jobDuties: string;
+          jobRequirements: string;
+          jobKeywords: string;
+          otherInfo: string;
+          jobLink: string;
+          companyIntro: string;
+          capabilityProfile: string;
+          technicalSkills: string;
+          softSkills: string;
+          toolUsage: string;
+          domainKnowledge: string;
+          suggestions: string;
+          noProfile: string;
+          confirmDelete: string;
+          confirmDeleteContent: string;
+          deleteSuccess: string;
+          deleteFailed: string;
+          createSuccess: string;
+          updateSuccess: string;
+          createFailed: string;
+          updateFailed: string;
+          loadFailed: string;
+          formValidation: {
+            jobNameRequired: string;
+            companyNameRequired: string;
+            descriptionRequired: string;
+            locationRequired: string;
+            salaryMinRequired: string;
+            salaryMaxRequired: string;
+            salaryTypeRequired: string;
+            linkRequired: string;
+            salaryRangeInvalid: string;
+          };
+          placeholders: {
+            jobName: string;
+            companyName: string;
+            location: string;
+            description: string;
+            duties: string;
+            requirements: string;
+            keywords: string;
+            link: string;
+            companyIntro: string;
+            industries: string;
+          };
+          tips: {
+            dutiesFormat: string;
+            requirementsFormat: string;
+            keywordsFormat: string;
+            industriesFormat: string;
+          };
+          empty: string;
+          createFirst: string;
+          profileGenerating: string;
+          profileGenerated: string;
+          loadProfileFailed: string;
+          generateProfileError: string;
+          retryLater: string;
+          jobType: string;
+          certificateRequired: string;
+          innovationAbility: string;
+          learningAbility: string;
+          pressureResistance: string;
+          communicationAbility: string;
+          practicalAbility: string;
+          strengths: string;
+          missingSkills: string;
+          weakEvidenceItems: string;
+          summary: string;
+          infoSuffix: string;
+          industryLabel: string;
+        };
+      };
+      form: {
+        required: string;
+        userName: FormMsg;
+        phone: FormMsg;
+        pwd: FormMsg;
+        confirmPwd: FormMsg;
+        code: FormMsg;
+        email: FormMsg;
+      };
+      dropdown: Record<Global.DropdownKey, string>;
+      icon: {
+        themeConfig: string;
+        themeSchema: string;
+        lang: string;
+        fullscreen: string;
+        fullscreenExit: string;
+        reload: string;
+        collapse: string;
+        expand: string;
+        pin: string;
+        unpin: string;
+      };
+      datatable: {
+        itemCount: string;
+      };
+    };
+
+    type GetI18nKey<T extends Record<string, unknown>, K extends keyof T = keyof T> = K extends string
+      ? T[K] extends Record<string, unknown>
+        ? `${K}.${GetI18nKey<T[K]>}`
+        : K
+      : never;
+
+    type I18nKey = GetI18nKey<Schema>;
+
+    type TranslateOptions<Locales extends string> = import('vue-i18n').TranslateOptions<Locales>;
+
+    interface $T {
+      (key: I18nKey): string;
+      (key: I18nKey, plural: number, options?: TranslateOptions<LangType>): string;
+      (key: I18nKey, defaultMsg: string, options?: TranslateOptions<I18nKey>): string;
+      (key: I18nKey, list: unknown[], options?: TranslateOptions<I18nKey>): string;
+      (key: I18nKey, list: unknown[], plural: number): string;
+      (key: I18nKey, list: unknown[], defaultMsg: string): string;
+      (key: I18nKey, named: Record<string, unknown>, options?: TranslateOptions<LangType>): string;
+      (key: I18nKey, named: Record<string, unknown>, plural: number): string;
+      (key: I18nKey, named: Record<string, unknown>, defaultMsg: string): string;
+    }
+  }
+
+  /** Service namespace */
+  namespace Service {
+    /** Other baseURL key */
+    type OtherBaseURLKey = 'demo';
+
+    interface ServiceConfigItem {
+      /** The backend service base url */
+      baseURL: string;
+      /** The proxy pattern of the backend service base url */
+      proxyPattern: string;
+    }
+
+    interface OtherServiceConfigItem extends ServiceConfigItem {
+      key: OtherBaseURLKey;
+    }
+
+    /** The backend service config */
+    interface ServiceConfig extends ServiceConfigItem {
+      /** Other backend service config */
+      other: OtherServiceConfigItem[];
+    }
+
+    interface SimpleServiceConfig extends Pick<ServiceConfigItem, 'baseURL'> {
+      other: Record<OtherBaseURLKey, string>;
+    }
+
+    /** The backend service response data */
+    type Response<T = unknown> = {
+      /** The backend service response code */
+      code: string;
+      /** The backend service response message */
+      msg: string;
+      /** The backend service response data */
+      data: T;
+    };
+
+    /** The demo backend service response data */
+    type DemoResponse<T = unknown> = {
+      /** The backend service response code */
+      status: string;
+      /** The backend service response message */
+      message: string;
+      /** The backend service response data */
+      result: T;
+    };
+  }
+}

@@ -1,0 +1,9 @@
+packages:
+  - packages/*
+
+ignoredBuiltDependencies:
+  - '@parcel/watcher'
+  - esbuild
+  - simple-git-hooks
+  - unrs-resolver
+  - vue-demi
