@@ -1,0 +1,44 @@
+{
+  "module": "jobService",
+  "pathCountMin": 6,
+  "requiredPaths": [
+    {
+      "id": "register-create",
+      "matchers": [
+        ".*JobServiceImplTest#.*create.*"
+      ]
+    },
+    {
+      "id": "login-get-detail",
+      "matchers": [
+        ".*JobServiceImplTest#.*getDetail.*"
+      ]
+    },
+    {
+      "id": "reset-like-graph-generate",
+      "matchers": [
+        ".*JobCareerGraphServiceImplTest#.*generate.*"
+      ]
+    },
+    {
+      "id": "update-info",
+      "matchers": [
+        ".*JobServiceImplTest#.*update.*"
+      ]
+    },
+    {
+      "id": "negative-not-found",
+      "matchers": [
+        ".*JobServiceImplTest#.*notFound.*",
+        ".*JobServiceImplTest#.*null.*marker.*"
+      ]
+    },
+    {
+      "id": "negative-llm-fail",
+      "matchers": [
+        ".*JobCapabilityProfileServiceImplTest#.*fail.*",
+        ".*JobCareerGraphServiceImplTest#.*fail.*"
+      ]
+    }
+  ]
+}
