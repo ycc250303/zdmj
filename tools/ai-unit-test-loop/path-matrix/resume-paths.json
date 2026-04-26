@@ -1,0 +1,44 @@
+{
+  "module": "resumeService",
+  "pathCountMin": 6,
+  "requiredPaths": [
+    {
+      "id": "REGISTER_HAPPY",
+      "matchers": [
+        "(?i).*ResumeServiceImplTest#.*(create|contentById).*"
+      ]
+    },
+    {
+      "id": "LOGIN_HAPPY",
+      "matchers": [
+        "(?i).*StudentCapabilityProfileServiceImplTest#.*generateProfile.*(newProfile|existingProfile).*"
+      ]
+    },
+    {
+      "id": "RESET_PASSWORD",
+      "matchers": [
+        "(?i).*StudentCapabilityProfileServiceImplTest#.*generateProfile.*(llmIllegalState|llmRuntime).*"
+      ]
+    },
+    {
+      "id": "UPDATE_INFO",
+      "matchers": [
+        "(?i).*ResumeServiceImplTest#.*(getResumeContentList|getByUserId_userNotLogin).*"
+      ]
+    },
+    {
+      "id": "EXCEPTION_NO_PERMISSION",
+      "matchers": [
+        "(?i).*ResumeCrudServicesTest#.*(notOwner|notOwner_shouldThrow).*",
+        "(?i).*ResumeServiceImplTest#.*update_notOwner.*"
+      ]
+    },
+    {
+      "id": "EXCEPTION_VALIDATE_OR_DELETE",
+      "matchers": [
+        "(?i).*ResumeCrudServicesTest#.*(invalidDate|removeFail|userNotLogin).*",
+        "(?i).*StudentCapabilityProfileServiceImplTest#.*missingInput.*"
+      ]
+    }
+  ]
+}

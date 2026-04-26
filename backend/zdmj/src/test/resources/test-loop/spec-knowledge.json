@@ -1,0 +1,100 @@
+{
+  "module": "knowledgeService",
+  "publicMethods": [
+    {
+      "className": "KnowledgeBasesServiceImpl",
+      "method": "create()",
+      "givenWhenThen": {
+        "given": ["用户已登录"],
+        "when": "创建知识库并保存",
+        "then": ["保存成功返回实体", "scope 固定为 1"]
+      },
+      "paths": [
+        {"pathId": "REGISTER_HAPPY", "type": "happy", "description": "create 保存成功"},
+        {"pathId": "REGISTER_NEGATIVE_SAVE_FAIL", "type": "negative", "description": "save=false 抛 KNOWLEDGE_BASE_SAVE_FAILED"}
+      ],
+      "assertionContract": [
+        {"field": "exception.code", "expected": "8001", "reason": "保存失败必须断言错误码"},
+        {"field": "interaction", "expected": "verify save", "reason": "校验持久化行为"}
+      ]
+    },
+    {
+      "className": "KnowledgeDocumentServiceImpl",
+      "method": "create(KnowledgeDocumentDTO)",
+      "givenWhenThen": {
+        "given": ["用户已登录", "URL 和类型合法"],
+        "when": "创建知识文档并提交向量任务",
+        "then": ["文档 embeddingStatus=PENDING", "任务在事务提交后异步执行"]
+      },
+      "paths": [
+        {"pathId": "LOGIN_HAPPY", "type": "happy", "description": "创建文档并提交任务成功"},
+        {"pathId": "LOGIN_NEGATIVE_BAD_URL", "type": "negative", "description": "URL 非法抛 URL_FORMAT_ERROR"},
+        {"pathId": "LOGIN_NEGATIVE_SAVE_FAIL", "type": "negative", "description": "save=false 抛 KNOWLEDGE_DOCUMENT_CREATE_FAILED"}
+      ],
+      "assertionContract": [
+        {"field": "exception.code", "expected": "1007/8011/8013", "reason": "输入错误与持久化失败要可区分"},
+        {"field": "interaction", "expected": "verify submitVectorizeTask/updateById", "reason": "保证调用链完整"}
+      ]
+    },
+    {
+      "className": "KnowledgeDocumentServiceImpl",
+      "method": "update(KnowledgeDocumentDTO)",
+      "givenWhenThen": {
+        "given": ["用户已登录", "文档存在且属于本人"],
+        "when": "更新文档内容",
+        "then": ["内容变化时提交向量任务", "无变化时不提交任务"]
+      },
+      "paths": [
+        {"pathId": "UPDATE_INFO_HAPPY", "type": "happy", "description": "内容变化更新成功并调度任务"},
+        {"pathId": "UPDATE_INFO_NEGATIVE_NOT_FOUND", "type": "negative", "description": "文档不存在或越权抛 KNOWLEDGE_DOCUMENT_NOT_FOUND"},
+        {"pathId": "UPDATE_INFO_NEGATIVE_UPDATE_FAIL", "type": "negative", "description": "updateById=false 抛 KNOWLEDGE_DOCUMENT_UPDATE_FAILED"}
+      ],
+      "assertionContract": [
+        {"field": "exception.code", "expected": "8012/8013", "reason": "资源缺失与更新失败要可区分"},
+        {"field": "interaction", "expected": "verify submitVectorizeTask only when content changed", "reason": "防止无意义任务提交"}
+      ]
+    },
+    {
+      "className": "KnowledgeRagServiceImpl",
+      "method": "streamAnswer(Long,String)",
+      "givenWhenThen": {
+        "given": ["RAG 配置可开关", "当前用户已登录"],
+        "when": "执行检索增强问答",
+        "then": ["无命中回退普通对话", "有命中使用 RAG_SYSTEM 生成答案"]
+      },
+      "paths": [
+        {"pathId": "RESET_PASSWORD_HAPPY", "type": "happy", "description": "RAG 开启且命中上下文生成答案"},
+        {"pathId": "RESET_PASSWORD_NEGATIVE_EMPTY_HITS", "type": "negative", "description": "无命中回退 SYSTEM"},
+        {"pathId": "EXCEPTION_NOT_LOGIN", "type": "negative", "description": "未登录抛 USER_NOT_LOGIN"}
+      ],
+      "assertionContract": [
+        {"field": "prompt", "expected": "KNOWLEDGEBASE_RAG_SYSTEM/SYSTEM", "reason": "根据命中情况选择提示词"},
+        {"field": "interaction", "expected": "verify chatStreamInConversation", "reason": "确保对话调用行为正确"}
+      ]
+    }
+  ],
+  "minimumTestSet": [
+    {"caseId": "knowledge_base_create_save_fail", "coversPathIds": ["REGISTER_NEGATIVE_SAVE_FAIL"]},
+    {"caseId": "knowledge_doc_create_success", "coversPathIds": ["LOGIN_HAPPY"]},
+    {"caseId": "knowledge_doc_create_bad_url", "coversPathIds": ["LOGIN_NEGATIVE_BAD_URL"]},
+    {"caseId": "knowledge_doc_update_changed", "coversPathIds": ["UPDATE_INFO_HAPPY"]},
+    {"caseId": "knowledge_doc_update_not_found", "coversPathIds": ["UPDATE_INFO_NEGATIVE_NOT_FOUND"]},
+    {"caseId": "knowledge_rag_empty_hits_fallback", "coversPathIds": ["RESET_PASSWORD_NEGATIVE_EMPTY_HITS"]}
+  ],
+  "extendedTestSet": [
+    {"caseId": "knowledge_base_get_or_create_race_conflict", "coversPathIds": ["REGISTER_HAPPY"]},
+    {"caseId": "knowledge_rag_not_login", "coversPathIds": ["EXCEPTION_NOT_LOGIN"]},
+    {"caseId": "knowledge_doc_update_no_change_skip_embedding", "coversPathIds": ["UPDATE_INFO_HAPPY"]}
+  ],
+  "coverageTargets": {
+    "line": 0.85,
+    "branch": 0.75,
+    "condition": 0.7,
+    "pathCount": 6
+  },
+  "riskPoints": [
+    "知识文档类型与 URL 校验分支较多，容易遗漏异常断言",
+    "RAG 链路存在降级逻辑，需覆盖有命中和无命中分支",
+    "异步任务提交要同时断言状态更新和调用行为"
+  ]
+}

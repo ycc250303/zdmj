@@ -1,0 +1,328 @@
+{
+  "module": "com.zdmj.conversationService",
+  "publicMethods": [
+    {
+      "className": "ConversationServiceImpl",
+      "method": "create(ConversationDTO)",
+      "givenWhenThen": {
+        "given": [
+          "UserHolder 可提供当前用户",
+          "conversationDTO 可为空"
+        ],
+        "when": "调用 create",
+        "then": [
+          "保存成功返回会话对象并 messageCount=0",
+          "保存失败抛 BusinessException(CONVERSATION_CREATE_FAILED)"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "conversation.create.happy.with_dto",
+          "type": "happy",
+          "description": "dto 非空保存成功"
+        },
+        {
+          "pathId": "conversation.create.boundary.null_dto",
+          "type": "boundary",
+          "description": "dto 为空仍可创建"
+        },
+        {
+          "pathId": "conversation.create.negative.save_failed",
+          "type": "negative",
+          "description": "save 返回 false 抛 9001"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "exception.code",
+          "expected": "9001",
+          "reason": "创建失败错误码"
+        }
+      ]
+    },
+    {
+      "className": "ConversationServiceImpl",
+      "method": "getById(Long)",
+      "givenWhenThen": {
+        "given": [
+          "优先读 Redis，miss 再查 DB",
+          "需校验当前用户权限"
+        ],
+        "when": "调用 getById",
+        "then": [
+          "命中并授权则返回",
+          "未找到/越权/参数空时抛异常"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "conversation.getById.happy.cache_hit_authorized",
+          "type": "happy",
+          "description": "缓存命中且用户匹配"
+        },
+        {
+          "pathId": "conversation.getById.happy.db_hit_authorized",
+          "type": "happy",
+          "description": "缓存未命中，DB 命中并回写缓存"
+        },
+        {
+          "pathId": "conversation.getById.negative.id_null",
+          "type": "negative",
+          "description": "id 为空抛 1001"
+        },
+        {
+          "pathId": "conversation.getById.negative.no_permission",
+          "type": "negative",
+          "description": "用户不匹配抛 1003"
+        },
+        {
+          "pathId": "conversation.getById.negative.not_found",
+          "type": "negative",
+          "description": "DB 查不到抛 9003"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "exception.code",
+          "expected": "1001|1003|9003",
+          "reason": "参数校验/权限/不存在分支"
+        }
+      ]
+    },
+    {
+      "className": "ConversationServiceImpl",
+      "method": "updateTitle(Long,String)",
+      "givenWhenThen": {
+        "given": [
+          "title 需非空白",
+          "会话需属于当前用户"
+        ],
+        "when": "调用 updateTitle",
+        "then": [
+          "更新成功返回并刷新缓存",
+          "标题非法/越权/更新失败时抛异常"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "conversation.updateTitle.happy.trim_and_update",
+          "type": "happy",
+          "description": "title 去空格后更新成功"
+        },
+        {
+          "pathId": "conversation.updateTitle.negative.title_blank",
+          "type": "negative",
+          "description": "title 空白抛 1001"
+        },
+        {
+          "pathId": "conversation.updateTitle.negative.no_permission",
+          "type": "negative",
+          "description": "会话不属于当前用户抛 1003"
+        },
+        {
+          "pathId": "conversation.updateTitle.negative.update_failed",
+          "type": "negative",
+          "description": "updateById 返回 false 抛 9004"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "conversation.title",
+          "expected": "trim(title)",
+          "reason": "源码显式 trim"
+        }
+      ]
+    },
+    {
+      "className": "ConversationServiceImpl",
+      "method": "delete(Long)",
+      "givenWhenThen": {
+        "given": [
+          "会话存在且属于当前用户"
+        ],
+        "when": "调用 delete",
+        "then": [
+          "removeById 成功后清理缓存",
+          "越权或删除失败抛异常"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "conversation.delete.happy.remove_and_evict_cache",
+          "type": "happy",
+          "description": "删除成功并删缓存"
+        },
+        {
+          "pathId": "conversation.delete.negative.no_permission",
+          "type": "negative",
+          "description": "越权抛 1003"
+        },
+        {
+          "pathId": "conversation.delete.negative.remove_failed",
+          "type": "negative",
+          "description": "removeById=false 抛 9002"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "exception.code",
+          "expected": "1003|9002",
+          "reason": "权限与删除失败分支"
+        }
+      ]
+    },
+    {
+      "className": "MessageServiceImpl",
+      "method": "resumeStream(Long,int)",
+      "givenWhenThen": {
+        "given": [
+          "读取 Redis content/status/error",
+          "offset 小于 0 归零"
+        ],
+        "when": "调用 resumeStream",
+        "then": [
+          "completed 返回 done",
+          "failed 返回 error",
+          "streaming 返回 replay 与 live"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "message.resumeStream.happy.completed_with_done",
+          "type": "happy",
+          "description": "completed 状态补发 done"
+        },
+        {
+          "pathId": "message.resumeStream.happy.streaming_with_live_sink",
+          "type": "happy",
+          "description": "streaming 且 sink 存在"
+        },
+        {
+          "pathId": "message.resumeStream.boundary.offset_negative_to_zero",
+          "type": "boundary",
+          "description": "offset<0 归零"
+        },
+        {
+          "pathId": "message.resumeStream.negative.stream_id_null",
+          "type": "negative",
+          "description": "streamId 为空抛 1001"
+        },
+        {
+          "pathId": "message.resumeStream.negative.failed_status_error_event",
+          "type": "negative",
+          "description": "failed 状态返回 error 事件"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "exception.code",
+          "expected": "1001",
+          "reason": "streamId 参数校验"
+        }
+      ]
+    },
+    {
+      "className": "MessageServiceImpl",
+      "method": "getMessagesByConversationId(Long,Integer,Integer)",
+      "givenWhenThen": {
+        "given": [
+          "先校验会话可访问",
+          "page/limit 存在默认值与上限"
+        ],
+        "when": "调用 getMessagesByConversationId",
+        "then": [
+          "返回 PageDTO",
+          "conversationId 无效/越权会抛异常"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "message.getMessages.happy.normal_page_query",
+          "type": "happy",
+          "description": "正常分页查询"
+        },
+        {
+          "pathId": "message.getMessages.boundary_default_page_limit",
+          "type": "boundary",
+          "description": "page/limit 默认值生效"
+        },
+        {
+          "pathId": "message.getMessages.boundary_limit_capped_100",
+          "type": "boundary",
+          "description": "limit 上限 100"
+        },
+        {
+          "pathId": "message.getMessages.negative_conversation_access_failed",
+          "type": "negative",
+          "description": "会话访问失败抛异常"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "pagination.limit",
+          "expected": "1..100",
+          "reason": "源码限流"
+        }
+      ]
+    }
+  ],
+  "minimumTestSet": [
+    {
+      "caseId": "TC-CONV-01",
+      "coversPathIds": [
+        "conversation.create.happy.with_dto"
+      ]
+    },
+    {
+      "caseId": "TC-CONV-02",
+      "coversPathIds": [
+        "conversation.getById.negative.id_null"
+      ]
+    },
+    {
+      "caseId": "TC-CONV-03",
+      "coversPathIds": [
+        "conversation.updateTitle.negative.title_blank"
+      ]
+    },
+    {
+      "caseId": "TC-MSG-01",
+      "coversPathIds": [
+        "message.resumeStream.happy.completed_with_done"
+      ]
+    },
+    {
+      "caseId": "TC-MSG-02",
+      "coversPathIds": [
+        "message.getMessages.boundary_limit_capped_100"
+      ]
+    }
+  ],
+  "extendedTestSet": [
+    {
+      "caseId": "TC-CONV-EXT-01",
+      "coversPathIds": [
+        "conversation.updateTitle.negative.update_failed",
+        "conversation.delete.negative.remove_failed"
+      ]
+    },
+    {
+      "caseId": "TC-MSG-EXT-01",
+      "coversPathIds": [
+        "message.resumeStream.negative.failed_status_error_event",
+        "message.resumeStream.boundary.offset_negative_to_zero"
+      ]
+    }
+  ],
+  "coverageTargets": {
+    "line": 0.85,
+    "branch": 0.75,
+    "condition": 0.7,
+    "pathCount": 6
+  },
+  "riskPoints": [
+    "createStream 异步回调分支较多，需要用流测试触发 doOnComplete/doOnError",
+    "权限校验依赖 UserHolder 上下文，需在测试中稳定设置与清理",
+    "缓存逻辑与 DB 逻辑并存，需分别覆盖 cache-hit 与 db-hit"
+  ]
+}
