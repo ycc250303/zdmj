@@ -1,18 +1,17 @@
 package com.zdmj.userAuthService.service.impl;
 
-import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
 
-import java.util.Properties;
-
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -23,30 +22,35 @@ class EmailServiceImplTest {
     @Mock
     private JavaMailSender mailSender;
 
+    @Mock
+    private MimeMessage mimeMessage;
+
     private EmailServiceImpl emailService;
 
     @BeforeEach
     void setUp() {
-        emailService = new EmailServiceImpl(mailSender, "noreply@zdmj.com");
+        emailService = new EmailServiceImpl(mailSender, "noreply@test.com");
     }
 
     @Test
-    void sendEmail_success_shouldInvokeMailSenderSend() {
-        MimeMessage message = new MimeMessage(Session.getDefaultInstance(new Properties()));
-        when(mailSender.createMimeMessage()).thenReturn(message);
+    void sendEmail_whenMailSenderFails_shouldThrowRuntimeException() {
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+        doThrow(new MailSendException("send failed")).when(mailSender).send(mimeMessage);
 
-        emailService.sendEmail("to@zdmj.com", "subject", "<b>content</b>");
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> emailService.sendEmail("to@test.com", "subject", "content"));
 
-        verify(mailSender).send(message);
+        assertEquals("邮件发送失败", ex.getMessage());
+        verify(mailSender).send(mimeMessage);
     }
 
     @Test
-    void sendEmail_whenMailSenderThrows_shouldWrapToRuntimeException() {
-        MimeMessage message = new MimeMessage(Session.getDefaultInstance(new Properties()));
-        when(mailSender.createMimeMessage()).thenReturn(message);
-        doThrow(new RuntimeException("smtp error")).when(mailSender).send(any(MimeMessage.class));
+    void sendEmail_whenSuccess_shouldSendMimeMessage() {
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
 
-        assertThrows(RuntimeException.class,
-                () -> emailService.sendEmail("to@zdmj.com", "subject", "<b>content</b>"));
+        assertDoesNotThrow(() -> emailService.sendEmail("to@test.com", "subject", "<b>content</b>"));
+
+        verify(mailSender).createMimeMessage();
+        verify(mailSender).send(mimeMessage);
     }
 }

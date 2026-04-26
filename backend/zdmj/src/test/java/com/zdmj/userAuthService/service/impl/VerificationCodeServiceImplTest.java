@@ -5,7 +5,6 @@ import com.zdmj.userAuthService.service.EmailService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -15,97 +14,120 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 class VerificationCodeServiceImplTest {
 
     @Mock
     private StringRedisTemplate redisTemplate;
+
     @Mock
     private ValueOperations<String, String> valueOperations;
+
     @Mock
     private EmailService emailService;
 
-    private VerificationCodeServiceImpl service;
+    private VerificationCodeServiceImpl verificationCodeService;
 
     @BeforeEach
     void setUp() {
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        service = new VerificationCodeServiceImpl(redisTemplate, emailService);
-    }
-
-    @Test
-    void sendVerificationCode_success_shouldStoreCodeAndSendEmail() {
-        boolean sent = service.sendVerificationCode("a@zdmj.com");
-
-        assertTrue(sent);
-        ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<String> codeCaptor = ArgumentCaptor.forClass(String.class);
-        verify(valueOperations).set(keyCaptor.capture(), codeCaptor.capture(), eq((long) RedisConstants.CODE_EXPIRE_TTL), eq(TimeUnit.SECONDS));
-        verify(emailService).sendEmail(eq("a@zdmj.com"), eq("注册验证码"), anyString());
-        assertEquals(RedisConstants.VERIFICATION_CODE_KEY + "a@zdmj.com", keyCaptor.getValue());
-        assertTrue(codeCaptor.getValue().matches("\\d{6}"));
+        verificationCodeService = new VerificationCodeServiceImpl(redisTemplate, emailService);
     }
 
     @Test
     void sendVerificationCode_whenRedisThrows_shouldReturnFalse() {
-        when(redisTemplate.opsForValue()).thenThrow(new RuntimeException("redis down"));
+        String email = "test@demo.com";
+        String key = RedisConstants.VERIFICATION_CODE_KEY + email;
+        doThrow(new RuntimeException("redis down")).when(valueOperations)
+                .set(eq(key), anyString(), anyLong(), eq(TimeUnit.SECONDS));
 
-        boolean sent = service.sendVerificationCode("b@zdmj.com");
+        boolean result = verificationCodeService.sendVerificationCode(email);
 
-        assertFalse(sent);
+        assertFalse(result);
+        verify(valueOperations).set(eq(key), anyString(), anyLong(), eq(TimeUnit.SECONDS));
+        verifyNoInteractions(emailService);
     }
 
     @Test
-    void verifyCode_whenStoredCodeMissing_shouldReturnFalse() {
-        when(valueOperations.get(RedisConstants.VERIFICATION_CODE_KEY + "c@zdmj.com")).thenReturn(null);
+    void sendVerificationCode_whenAllSuccess_shouldSaveCodeAndSendEmail() {
+        String email = "test@demo.com";
+        String key = RedisConstants.VERIFICATION_CODE_KEY + email;
 
-        boolean valid = service.verifyCode("c@zdmj.com", "123456");
+        boolean result = verificationCodeService.sendVerificationCode(email);
 
-        assertFalse(valid);
+        assertEquals(true, result);
+        verify(valueOperations).set(eq(key), anyString(), anyLong(), eq(TimeUnit.SECONDS));
+        verify(emailService).sendEmail(eq(email), eq("注册验证码"), anyString());
     }
 
     @Test
-    void verifyCode_whenCodeMatches_shouldDeleteAndReturnTrue() {
-        String key = RedisConstants.VERIFICATION_CODE_KEY + "d@zdmj.com";
-        when(valueOperations.get(key)).thenReturn("123456");
+    void verifyCode_whenCodeMissing_shouldReturnFalseAndNotDelete() {
+        String email = "test@demo.com";
+        String key = RedisConstants.VERIFICATION_CODE_KEY + email;
+        when(valueOperations.get(key)).thenReturn(null);
 
-        boolean valid = service.verifyCode("d@zdmj.com", "123456");
+        boolean result = verificationCodeService.verifyCode(email, "123456");
 
-        assertTrue(valid);
-        verify(redisTemplate).delete(key);
-    }
-
-    @Test
-    void verifyCode_whenCodeNotMatches_shouldReturnFalseWithoutDelete() {
-        String key = RedisConstants.VERIFICATION_CODE_KEY + "e@zdmj.com";
-        when(valueOperations.get(key)).thenReturn("123456");
-
-        boolean valid = service.verifyCode("e@zdmj.com", "000000");
-
-        assertFalse(valid);
+        assertFalse(result);
+        verify(valueOperations).get(key);
         verify(redisTemplate, never()).delete(key);
     }
 
     @Test
-    void verifyCode_whenOpsThrows_shouldReturnFalse() {
-        when(redisTemplate.opsForValue()).thenThrow(new RuntimeException("boom"));
+    void verifyCode_whenCodeMismatch_shouldReturnFalseAndNotDelete() {
+        String email = "test@demo.com";
+        String key = RedisConstants.VERIFICATION_CODE_KEY + email;
+        when(valueOperations.get(key)).thenReturn("999999");
 
-        boolean valid = service.verifyCode("f@zdmj.com", "123456");
+        boolean result = verificationCodeService.verifyCode(email, "123456");
 
-        assertFalse(valid);
+        assertFalse(result);
+        verify(valueOperations).get(key);
+        verify(redisTemplate, never()).delete(key);
     }
 
     @Test
-    void generateCode_shouldReturnSixDigitNumberString() {
-        String code = service.generateCode();
-        assertTrue(code.matches("\\d{6}"));
+    void verifyCode_whenRedisThrows_shouldReturnFalse() {
+        String email = "test@demo.com";
+        String key = RedisConstants.VERIFICATION_CODE_KEY + email;
+        when(valueOperations.get(key)).thenThrow(new RuntimeException("redis timeout"));
+
+        boolean result = verificationCodeService.verifyCode(email, "123456");
+
+        assertFalse(result);
+        verify(valueOperations).get(key);
+        verify(redisTemplate, never()).delete(anyString());
+    }
+
+    @Test
+    void verifyCode_whenCodeMatches_shouldReturnTrueAndDeleteKey() {
+        String email = "test@demo.com";
+        String key = RedisConstants.VERIFICATION_CODE_KEY + email;
+        when(valueOperations.get(key)).thenReturn("123456");
+
+        boolean result = verificationCodeService.verifyCode(email, "123456");
+
+        assertEquals(true, result);
+        verify(valueOperations).get(key);
+        verify(redisTemplate, times(1)).delete(key);
+    }
+
+    @Test
+    void generateCode_shouldBeSixDigitNumber() {
+        String code = verificationCodeService.generateCode();
+
+        assertEquals(6, code.length());
+        assertEquals(code, String.format("%06d", Integer.parseInt(code)));
     }
 }

@@ -1,0 +1,384 @@
+{
+  "module": "userAuthService",
+  "publicMethods": [
+    {
+      "className": "UserServiceImpl",
+      "method": "register(UserRegisterDTO)",
+      "givenWhenThen": {
+        "given": [
+          "用户名不存在",
+          "邮箱不存在",
+          "验证码校验通过"
+        ],
+        "when": "调用 register",
+        "then": [
+          "创建并保存 User",
+          "返回 UserDTO",
+          "密码必须经过 PasswordUtil.encode"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "P1-register-happy",
+          "type": "happy",
+          "description": "用户名和邮箱都可用，验证码正确，save 成功"
+        },
+        {
+          "pathId": "P2-register-username-exists",
+          "type": "negative",
+          "description": "用户名已存在，抛 USER_ALREADY_EXISTS(2001)"
+        },
+        {
+          "pathId": "P3-register-email-exists",
+          "type": "negative",
+          "description": "邮箱已存在，抛 USER_EMAIL_EXISTS(2002)"
+        },
+        {
+          "pathId": "P4-register-captcha-invalid",
+          "type": "negative",
+          "description": "验证码错误，抛 CAPTCHA_ERROR(2003)"
+        },
+        {
+          "pathId": "P5-register-save-failed",
+          "type": "negative",
+          "description": "save 失败，抛 USER_REGISTER_FAILED(2004)"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "BusinessException.code",
+          "expected": "2001/2002/2003/2004 按分支匹配",
+          "reason": "必须验证错误码语义而非仅异常类型"
+        },
+        {
+          "field": "savedUser.password",
+          "expected": "不等于明文密码",
+          "reason": "保证密码经过编码"
+        }
+      ]
+    },
+    {
+      "className": "UserServiceImpl",
+      "method": "login(UserLoginDTO)",
+      "givenWhenThen": {
+        "given": [
+          "输入用户名或邮箱",
+          "可查到用户且密码匹配"
+        ],
+        "when": "调用 login",
+        "then": [
+          "生成 JWT token",
+          "如有旧 token 则删除",
+          "将新 token 写入 Redis 并返回用户信息"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "P6-login-happy",
+          "type": "happy",
+          "description": "账号存在且密码匹配，token 刷新成功"
+        },
+        {
+          "pathId": "P7-login-user-not-found",
+          "type": "negative",
+          "description": "用户不存在，抛 USER_PASSWORD_WRONG(2005)"
+        },
+        {
+          "pathId": "P8-login-password-wrong",
+          "type": "negative",
+          "description": "密码不匹配，抛 USER_PASSWORD_WRONG(2005)"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "redis interactions",
+          "expected": "旧 token 存在时 delete，再 setString",
+          "reason": "验证会话替换行为"
+        },
+        {
+          "field": "BusinessException.code",
+          "expected": "2005",
+          "reason": "登录失败统一错误语义"
+        }
+      ]
+    },
+    {
+      "className": "UserServiceImpl",
+      "method": "resetPassword(UserResetPasswordDTO)",
+      "givenWhenThen": {
+        "given": [
+          "根据邮箱查找用户",
+          "验证码校验通过"
+        ],
+        "when": "调用 resetPassword",
+        "then": [
+          "密码被重新编码并更新",
+          "更新失败抛业务异常"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "P9-reset-happy",
+          "type": "happy",
+          "description": "邮箱已注册、验证码正确、更新成功"
+        },
+        {
+          "pathId": "P10-reset-email-unregistered",
+          "type": "negative",
+          "description": "邮箱未注册，抛 USER_EMAIL_NOT_REGISTERED(2007)"
+        },
+        {
+          "pathId": "P11-reset-captcha-invalid",
+          "type": "negative",
+          "description": "验证码错误，抛 CAPTCHA_ERROR(2003)"
+        },
+        {
+          "pathId": "P12-reset-update-failed",
+          "type": "negative",
+          "description": "更新失败，抛 PASSWORD_CHANGE_FAILED(2008)"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "BusinessException.code",
+          "expected": "2007/2003/2008 按分支匹配",
+          "reason": "确保重置失败语义准确"
+        }
+      ]
+    },
+    {
+      "className": "UserServiceImpl",
+      "method": "updateCurrentUser(UserUpdateDTO)",
+      "givenWhenThen": {
+        "given": [
+          "UserHolder 中存在当前用户ID",
+          "数据库存在该用户"
+        ],
+        "when": "调用 updateCurrentUser",
+        "then": [
+          "仅更新非 null 字段",
+          "更新成功返回 UserDTO"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "P13-update-happy",
+          "type": "happy",
+          "description": "更新 name/phone/website 的子集并成功持久化"
+        },
+        {
+          "pathId": "P14-update-user-not-found",
+          "type": "negative",
+          "description": "用户不存在，抛 USER_NOT_FOUND(2006)"
+        },
+        {
+          "pathId": "P15-update-save-failed",
+          "type": "negative",
+          "description": "updateById 失败，抛 USER_REGISTER_FAILED(2004)"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "updated fields",
+          "expected": "null 字段不覆盖原值",
+          "reason": "符合按需更新语义"
+        },
+        {
+          "field": "BusinessException.code",
+          "expected": "2006/2004",
+          "reason": "失败路径必须断言错误码"
+        }
+      ]
+    },
+    {
+      "className": "VerificationCodeServiceImpl",
+      "method": "sendVerificationCode(String), verifyCode(String,String), generateCode()",
+      "givenWhenThen": {
+        "given": [
+          "Redis 与 EmailService 可用或不可用"
+        ],
+        "when": "发送或校验验证码",
+        "then": [
+          "成功时行为正确",
+          "异常时返回 false 且不抛出"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "P16-send-code-happy",
+          "type": "happy",
+          "description": "验证码入 Redis 且邮件发送成功"
+        },
+        {
+          "pathId": "P17-send-code-exception",
+          "type": "negative",
+          "description": "任一步骤异常，返回 false"
+        },
+        {
+          "pathId": "P18-verify-code-happy",
+          "type": "happy",
+          "description": "验证码匹配，返回 true 并删除 key"
+        },
+        {
+          "pathId": "P19-verify-code-mismatch-or-missing",
+          "type": "negative",
+          "description": "验证码不存在或不匹配，返回 false"
+        },
+        {
+          "pathId": "P20-generate-code-boundary",
+          "type": "boundary",
+          "description": "验证码必须是 6 位数字字符串"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "redisTemplate.delete",
+          "expected": "仅在 verify 成功时调用",
+          "reason": "防止错误删除验证码"
+        }
+      ]
+    },
+    {
+      "className": "EmailServiceImpl / JwtUtil",
+      "method": "sendEmail(...) / token 工具方法",
+      "givenWhenThen": {
+        "given": [
+          "邮件发送组件可用或抛异常",
+          "JWT token 合法或非法"
+        ],
+        "when": "调用 sendEmail 或 JwtUtil 系列方法",
+        "then": [
+          "邮件异常抛 RuntimeException",
+          "JWT 非法 token 返回 null/false"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "P21-email-send-failed",
+          "type": "negative",
+          "description": "mailSender 失败，抛 RuntimeException(邮件发送失败)"
+        },
+        {
+          "pathId": "P22-jwt-happy",
+          "type": "happy",
+          "description": "token 生成并可解析 userId/username，validateToken=true"
+        },
+        {
+          "pathId": "P23-jwt-invalid",
+          "type": "negative",
+          "description": "非法 token，claims 解析为 null，validateToken=false"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "RuntimeException.message",
+          "expected": "邮件发送失败",
+          "reason": "验证包装异常语义"
+        },
+        {
+          "field": "validateToken",
+          "expected": "非法 token 返回 false",
+          "reason": "保障鉴权健壮性"
+        }
+      ]
+    }
+  ],
+  "minimumTestSet": [
+    {
+      "caseId": "MIN-REG-01",
+      "coversPathIds": [
+        "P1-register-happy"
+      ]
+    },
+    {
+      "caseId": "MIN-REG-02",
+      "coversPathIds": [
+        "P2-register-username-exists"
+      ]
+    },
+    {
+      "caseId": "MIN-LOGIN-01",
+      "coversPathIds": [
+        "P6-login-happy"
+      ]
+    },
+    {
+      "caseId": "MIN-LOGIN-02",
+      "coversPathIds": [
+        "P8-login-password-wrong"
+      ]
+    },
+    {
+      "caseId": "MIN-RESET-01",
+      "coversPathIds": [
+        "P10-reset-email-unregistered"
+      ]
+    },
+    {
+      "caseId": "MIN-UPD-01",
+      "coversPathIds": [
+        "P13-update-happy"
+      ]
+    }
+  ],
+  "extendedTestSet": [
+    {
+      "caseId": "EXT-REG-03",
+      "coversPathIds": [
+        "P3-register-email-exists",
+        "P4-register-captcha-invalid",
+        "P5-register-save-failed"
+      ]
+    },
+    {
+      "caseId": "EXT-LOGIN-03",
+      "coversPathIds": [
+        "P7-login-user-not-found"
+      ]
+    },
+    {
+      "caseId": "EXT-RESET-03",
+      "coversPathIds": [
+        "P9-reset-happy",
+        "P11-reset-captcha-invalid",
+        "P12-reset-update-failed"
+      ]
+    },
+    {
+      "caseId": "EXT-UPD-02",
+      "coversPathIds": [
+        "P14-update-user-not-found",
+        "P15-update-save-failed"
+      ]
+    },
+    {
+      "caseId": "EXT-CODE-01",
+      "coversPathIds": [
+        "P16-send-code-happy",
+        "P17-send-code-exception",
+        "P18-verify-code-happy",
+        "P19-verify-code-mismatch-or-missing",
+        "P20-generate-code-boundary"
+      ]
+    },
+    {
+      "caseId": "EXT-MAIL-JWT-01",
+      "coversPathIds": [
+        "P21-email-send-failed",
+        "P22-jwt-happy",
+        "P23-jwt-invalid"
+      ]
+    }
+  ],
+  "coverageTargets": {
+    "line": 0.85,
+    "branch": 0.75,
+    "condition": 0.7,
+    "pathCount": 6
+  },
+  "riskPoints": [
+    "updateCurrentUser 失败使用 USER_REGISTER_FAILED(2004)，语义复用风险",
+    "sendVerificationCode 先写 Redis 再发邮件，邮件失败时可能残留验证码",
+    "JwtUtil.getClaimsFromToken 吞掉解析异常，仅返回 null"
+  ]
+}

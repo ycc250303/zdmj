@@ -1,13 +1,16 @@
 package com.zdmj.userAuthService.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import com.zdmj.common.cache.RedisConstants;
 import com.zdmj.common.cache.RedisUtil;
+import com.zdmj.common.cache.RedisConstants;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.userAuthService.dto.UserDTO;
 import com.zdmj.userAuthService.dto.UserLoginDTO;
 import com.zdmj.userAuthService.dto.UserLoginResponseDTO;
 import com.zdmj.userAuthService.dto.UserRegisterDTO;
@@ -26,24 +29,27 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceImplTest {
 
     @Mock
     private VerificationCodeService verificationCodeService;
+
     @Mock
     private RedisUtil redisUtil;
 
@@ -62,14 +68,69 @@ class UserServiceImplTest {
     }
 
     @Test
-    void register_success_shouldEncryptPasswordAndReturnDto() {
-        UserRegisterDTO dto = buildRegisterDto();
+    void register_whenUsernameExists_shouldThrow2001() {
+        UserRegisterDTO dto = buildRegisterDTO();
+        doReturn(true).when(userService).existsByUsername(dto.getUsername());
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> userService.register(dto));
+
+        assertEquals(ErrorCode.USER_ALREADY_EXISTS.getCode(), ex.getCode());
+        verify(userService).existsByUsername(dto.getUsername());
+        verify(userService, never()).existsByEmail(anyString());
+        verifyNoInteractions(verificationCodeService);
+    }
+
+    @Test
+    void register_whenEmailExists_shouldThrow2002() {
+        UserRegisterDTO dto = buildRegisterDTO();
+        doReturn(false).when(userService).existsByUsername(dto.getUsername());
+        doReturn(true).when(userService).existsByEmail(dto.getEmail());
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> userService.register(dto));
+
+        assertEquals(ErrorCode.USER_EMAIL_EXISTS.getCode(), ex.getCode());
+        verify(userService).existsByUsername(dto.getUsername());
+        verify(userService).existsByEmail(dto.getEmail());
+        verifyNoInteractions(verificationCodeService);
+    }
+
+    @Test
+    void register_whenCaptchaInvalid_shouldThrow2003() {
+        UserRegisterDTO dto = buildRegisterDTO();
         doReturn(false).when(userService).existsByUsername(dto.getUsername());
         doReturn(false).when(userService).existsByEmail(dto.getEmail());
-        when(verificationCodeService.verifyCode(dto.getEmail(), dto.getVerificationCode())).thenReturn(true);
+        doReturn(false).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode());
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> userService.register(dto));
+
+        assertEquals(ErrorCode.CAPTCHA_ERROR.getCode(), ex.getCode());
+        verify(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode());
+        verify(userService, never()).save(any(User.class));
+    }
+
+    @Test
+    void register_whenSaveFailed_shouldThrow2004() {
+        UserRegisterDTO dto = buildRegisterDTO();
+        doReturn(false).when(userService).existsByUsername(dto.getUsername());
+        doReturn(false).when(userService).existsByEmail(dto.getEmail());
+        doReturn(true).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode());
+        doReturn(false).when(userService).save(any(User.class));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> userService.register(dto));
+
+        assertEquals(ErrorCode.USER_REGISTER_FAILED.getCode(), ex.getCode());
+        verify(userService).save(any(User.class));
+    }
+
+    @Test
+    void register_whenAllValid_shouldReturnUserDTOAndEncodePassword() {
+        UserRegisterDTO dto = buildRegisterDTO();
+        doReturn(false).when(userService).existsByUsername(dto.getUsername());
+        doReturn(false).when(userService).existsByEmail(dto.getEmail());
+        doReturn(true).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode());
         doReturn(true).when(userService).save(any(User.class));
 
-        var result = userService.register(dto);
+        UserDTO result = userService.register(dto);
 
         assertEquals(dto.getUsername(), result.getUsername());
         assertEquals(dto.getEmail(), result.getEmail());
@@ -77,254 +138,254 @@ class UserServiceImplTest {
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
         verify(userService).save(userCaptor.capture());
         User savedUser = userCaptor.getValue();
+        assertEquals(dto.getUsername(), savedUser.getUsername());
+        assertEquals(dto.getEmail(), savedUser.getEmail());
         assertNotEquals(dto.getPassword(), savedUser.getPassword());
         assertTrue(PasswordUtil.matches(dto.getPassword(), savedUser.getPassword()));
     }
 
     @Test
-    void register_username_exists_shouldThrowBusinessException() {
-        UserRegisterDTO dto = buildRegisterDto();
-        doReturn(true).when(userService).existsByUsername(dto.getUsername());
+    void login_whenUserNotFound_shouldThrow2005() {
+        UserLoginDTO dto = new UserLoginDTO();
+        dto.setUsernameOrEmail("ghost");
+        dto.setPassword("password123");
+        doReturn(null).when(userService).getUserByUsername("ghost");
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> userService.register(dto));
-
-        assertEquals(ErrorCode.USER_ALREADY_EXISTS.getCode(), ex.getCode());
-    }
-
-    @Test
-    void register_email_exists_shouldThrowBusinessException() {
-        UserRegisterDTO dto = buildRegisterDto();
-        doReturn(false).when(userService).existsByUsername(dto.getUsername());
-        doReturn(true).when(userService).existsByEmail(dto.getEmail());
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> userService.register(dto));
-
-        assertEquals(ErrorCode.USER_EMAIL_EXISTS.getCode(), ex.getCode());
-    }
-
-    @Test
-    void register_captcha_invalid_shouldThrowBusinessException() {
-        UserRegisterDTO dto = buildRegisterDto();
-        doReturn(false).when(userService).existsByUsername(dto.getUsername());
-        doReturn(false).when(userService).existsByEmail(dto.getEmail());
-        when(verificationCodeService.verifyCode(dto.getEmail(), dto.getVerificationCode())).thenReturn(false);
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> userService.register(dto));
-
-        assertEquals(ErrorCode.CAPTCHA_ERROR.getCode(), ex.getCode());
-    }
-
-    @Test
-    void register_save_failed_shouldThrowBusinessException() {
-        UserRegisterDTO dto = buildRegisterDto();
-        doReturn(false).when(userService).existsByUsername(dto.getUsername());
-        doReturn(false).when(userService).existsByEmail(dto.getEmail());
-        when(verificationCodeService.verifyCode(dto.getEmail(), dto.getVerificationCode())).thenReturn(true);
-        doReturn(false).when(userService).save(any(User.class));
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> userService.register(dto));
-
-        assertEquals(ErrorCode.USER_REGISTER_FAILED.getCode(), ex.getCode());
-    }
-
-    @Test
-    void login_success_by_username_shouldReturnTokenAndStoreInRedis() {
-        User user = buildUser(10L, "tester", "pwd123456", "test@zdmj.com");
-        UserLoginDTO loginDTO = new UserLoginDTO();
-        loginDTO.setUsernameOrEmail("tester");
-        loginDTO.setPassword("pwd123456");
-        doReturn(user).when(userService).getUserByUsername("tester");
-        when(redisUtil.exists(RedisConstants.JWT_TOKEN_KEY + user.getId())).thenReturn(false);
-
-        UserLoginResponseDTO response = userService.login(loginDTO);
-
-        assertNotNull(response.getToken());
-        assertEquals(user.getUsername(), response.getUser().getUsername());
-        verify(redisUtil).setString(RedisConstants.JWT_TOKEN_KEY + user.getId(), response.getToken(), RedisConstants.JWT_TOKEN_TTL);
-    }
-
-    @Test
-    void login_success_by_email_with_old_token_shouldDeleteOldTokenFirst() {
-        User user = buildUser(11L, "tester2", "pwd123456", "test2@zdmj.com");
-        UserLoginDTO loginDTO = new UserLoginDTO();
-        loginDTO.setUsernameOrEmail(user.getEmail());
-        loginDTO.setPassword("pwd123456");
-        doReturn(user).when(userService).getUserByEmail(user.getEmail());
-        when(redisUtil.exists(RedisConstants.JWT_TOKEN_KEY + user.getId())).thenReturn(true);
-
-        UserLoginResponseDTO response = userService.login(loginDTO);
-
-        assertNotNull(response.getToken());
-        String key = RedisConstants.JWT_TOKEN_KEY + user.getId();
-        verify(redisUtil).delete(key);
-        verify(redisUtil).setString(key, response.getToken(), RedisConstants.JWT_TOKEN_TTL);
-    }
-
-    @Test
-    void login_user_not_found_shouldThrowBusinessException() {
-        UserLoginDTO loginDTO = new UserLoginDTO();
-        loginDTO.setUsernameOrEmail("missing");
-        loginDTO.setPassword("pwd");
-        doReturn(null).when(userService).getUserByUsername("missing");
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> userService.login(loginDTO));
+        BusinessException ex = assertThrows(BusinessException.class, () -> userService.login(dto));
 
         assertEquals(ErrorCode.USER_PASSWORD_WRONG.getCode(), ex.getCode());
+        verify(userService).getUserByUsername("ghost");
+        verify(redisUtil, never()).exists(anyString());
     }
 
     @Test
-    void login_password_wrong_shouldThrowBusinessException() {
-        User user = buildUser(12L, "tester3", "rightPwd", "test3@zdmj.com");
-        UserLoginDTO loginDTO = new UserLoginDTO();
-        loginDTO.setUsernameOrEmail("tester3");
-        loginDTO.setPassword("wrongPwd");
-        doReturn(user).when(userService).getUserByUsername("tester3");
+    void login_whenPasswordWrong_shouldThrow2005() {
+        UserLoginDTO dto = new UserLoginDTO();
+        dto.setUsernameOrEmail("alice");
+        dto.setPassword("wrong-password");
+        User user = new User();
+        user.setId(1L);
+        user.setUsername("alice");
+        user.setPassword(PasswordUtil.encode("right-password"));
+        doReturn(user).when(userService).getUserByUsername("alice");
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> userService.login(loginDTO));
+        BusinessException ex = assertThrows(BusinessException.class, () -> userService.login(dto));
 
         assertEquals(ErrorCode.USER_PASSWORD_WRONG.getCode(), ex.getCode());
-        verifyNoMoreInteractions(redisUtil);
+        verify(userService).getUserByUsername("alice");
+        verify(redisUtil, never()).setString(anyString(), anyString(), anyInt());
     }
 
     @Test
-    void getUserById_success_shouldReturnDto() {
-        User user = buildUser(20L, "u20", "pwd", "u20@zdmj.com");
-        doReturn(user).when(userService).getById(20L);
+    void login_whenSuccess_shouldDeleteOldTokenAndWriteNewToken() {
+        UserLoginDTO dto = new UserLoginDTO();
+        dto.setUsernameOrEmail("alice");
+        dto.setPassword("right-password");
+        User user = new User();
+        user.setId(1L);
+        user.setUsername("alice");
+        user.setPassword(PasswordUtil.encode("right-password"));
+        doReturn(user).when(userService).getUserByUsername("alice");
+        doReturn(true).when(redisUtil).exists(RedisConstants.JWT_TOKEN_KEY + 1L);
 
-        var dto = userService.getUserById(20L);
+        UserLoginResponseDTO response = userService.login(dto);
 
-        assertEquals(20L, dto.getId());
-        assertEquals("u20", dto.getUsername());
+        assertEquals("alice", response.getUser().getUsername());
+        assertEquals(3, response.getToken().split("\\.").length);
+        verify(redisUtil).exists(RedisConstants.JWT_TOKEN_KEY + 1L);
+        verify(redisUtil).delete(RedisConstants.JWT_TOKEN_KEY + 1L);
+        verify(redisUtil).setString(eq(RedisConstants.JWT_TOKEN_KEY + 1L), eq(response.getToken()),
+                eq(RedisConstants.JWT_TOKEN_TTL));
     }
 
     @Test
-    void getUserById_notFound_shouldThrowBusinessException() {
-        doReturn(null).when(userService).getById(anyLong());
+    void getUserById_whenUserExists_shouldReturnDTO() {
+        User user = new User();
+        user.setId(123L);
+        user.setUsername("u123");
+        user.setEmail("u123@test.com");
+        doReturn(user).when(userService).getById(123L);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> userService.getUserById(99L));
+        UserDTO dto = userService.getUserById(123L);
+
+        assertEquals(123L, dto.getId());
+        assertEquals("u123", dto.getUsername());
+        assertEquals("u123@test.com", dto.getEmail());
+        verify(userService).getById(123L);
+    }
+
+    @Test
+    void getUserById_whenUserMissing_shouldThrow2006() {
+        doReturn(null).when(userService).getById(404L);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> userService.getUserById(404L));
 
         assertEquals(ErrorCode.USER_NOT_FOUND.getCode(), ex.getCode());
+        verify(userService).getById(404L);
     }
 
     @Test
-    void resetPassword_success_shouldUpdatePassword() {
-        User user = buildUser(30L, "u30", "oldPwd", "u30@zdmj.com");
-        UserResetPasswordDTO dto = new UserResetPasswordDTO();
-        dto.setEmail(user.getEmail());
-        dto.setVerificationCode("123456");
-        dto.setNewPassword("newPwd123");
-        doReturn(user).when(userService).getUserByEmail(user.getEmail());
-        when(verificationCodeService.verifyCode(dto.getEmail(), dto.getVerificationCode())).thenReturn(true);
-        doReturn(true).when(userService).update(any());
+    void existsByUsername_andExistsByEmail_shouldReflectCountResult() {
+        doReturn(1L).doReturn(0L).when(userService).count(any(LambdaQueryWrapper.class));
 
-        userService.resetPassword(dto);
+        boolean usernameExists = userService.existsByUsername("alice");
+        boolean emailExists = userService.existsByEmail("alice@test.com");
 
-        verify(userService).update(any());
+        assertEquals(true, usernameExists);
+        assertFalse(emailExists);
+        verify(userService, times(2)).count(any(LambdaQueryWrapper.class));
     }
 
     @Test
-    void resetPassword_email_not_registered_shouldThrowBusinessException() {
-        UserResetPasswordDTO dto = new UserResetPasswordDTO();
-        dto.setEmail("missing@zdmj.com");
-        dto.setVerificationCode("123456");
-        dto.setNewPassword("newPwd123");
+    void getUserByUsername_andGetUserByEmail_shouldReturnQueryResult() {
+        User byUsername = new User();
+        byUsername.setUsername("alice");
+        User byEmail = new User();
+        byEmail.setEmail("alice@test.com");
+        doReturn(byUsername).doReturn(byEmail).when(userService).getOne(any(LambdaQueryWrapper.class));
+
+        User user1 = userService.getUserByUsername("alice");
+        User user2 = userService.getUserByEmail("alice@test.com");
+
+        assertEquals("alice", user1.getUsername());
+        assertEquals("alice@test.com", user2.getEmail());
+        verify(userService, times(2)).getOne(any(LambdaQueryWrapper.class));
+    }
+
+    @Test
+    void resetPassword_whenEmailNotRegistered_shouldThrow2007() {
+        UserResetPasswordDTO dto = buildResetDTO();
         doReturn(null).when(userService).getUserByEmail(dto.getEmail());
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.resetPassword(dto));
 
         assertEquals(ErrorCode.USER_EMAIL_NOT_REGISTERED.getCode(), ex.getCode());
+        verify(userService).getUserByEmail(dto.getEmail());
+        verifyNoInteractions(verificationCodeService);
     }
 
     @Test
-    void resetPassword_captcha_invalid_shouldThrowBusinessException() {
-        User user = buildUser(31L, "u31", "oldPwd", "u31@zdmj.com");
-        UserResetPasswordDTO dto = new UserResetPasswordDTO();
-        dto.setEmail(user.getEmail());
-        dto.setVerificationCode("123456");
-        dto.setNewPassword("newPwd123");
-        doReturn(user).when(userService).getUserByEmail(user.getEmail());
-        when(verificationCodeService.verifyCode(dto.getEmail(), dto.getVerificationCode())).thenReturn(false);
+    void resetPassword_whenCaptchaInvalid_shouldThrow2003() {
+        UserResetPasswordDTO dto = buildResetDTO();
+        User user = new User();
+        user.setId(99L);
+        doReturn(user).when(userService).getUserByEmail(dto.getEmail());
+        doReturn(false).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode());
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.resetPassword(dto));
 
         assertEquals(ErrorCode.CAPTCHA_ERROR.getCode(), ex.getCode());
+        verify(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode());
+        verify(userService, never()).update(any(LambdaUpdateWrapper.class));
     }
 
     @Test
-    void resetPassword_update_fail_shouldThrowBusinessException() {
-        User user = buildUser(32L, "u32", "oldPwd", "u32@zdmj.com");
-        UserResetPasswordDTO dto = new UserResetPasswordDTO();
-        dto.setEmail(user.getEmail());
-        dto.setVerificationCode("123456");
-        dto.setNewPassword("newPwd123");
-        doReturn(user).when(userService).getUserByEmail(user.getEmail());
-        when(verificationCodeService.verifyCode(dto.getEmail(), dto.getVerificationCode())).thenReturn(true);
-        doReturn(false).when(userService).update(any());
+    void resetPassword_whenUpdateFailed_shouldThrow2008() {
+        UserResetPasswordDTO dto = buildResetDTO();
+        User user = new User();
+        user.setId(88L);
+        doReturn(user).when(userService).getUserByEmail(dto.getEmail());
+        doReturn(true).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode());
+        doReturn(false).when(userService).update(any(LambdaUpdateWrapper.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.resetPassword(dto));
 
         assertEquals(ErrorCode.PASSWORD_CHANGE_FAILED.getCode(), ex.getCode());
+        verify(userService).update(any(LambdaUpdateWrapper.class));
     }
 
     @Test
-    void updateCurrentUser_success_shouldUpdateAllowedFieldsOnly() {
-        UserHolder.set(UserContext.of(40L, "u40", "u40@zdmj.com"));
-        User user = buildUser(40L, "u40", "pwd", "u40@zdmj.com");
-        user.setName("oldName");
-        user.setPhone("oldPhone");
-        user.setWebsite("oldSite");
-        doReturn(user).when(userService).getById(40L);
-        doReturn(true).when(userService).updateById(any(User.class));
+    void resetPassword_whenAllValid_shouldUpdatePasswordSuccessfully() {
+        UserResetPasswordDTO dto = buildResetDTO();
+        User user = new User();
+        user.setId(88L);
+        doReturn(user).when(userService).getUserByEmail(dto.getEmail());
+        doReturn(true).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode());
+        doReturn(true).when(userService).update(any(LambdaUpdateWrapper.class));
 
-        UserUpdateDTO dto = new UserUpdateDTO();
-        dto.setName("newName");
-        dto.setPhone("newPhone");
+        userService.resetPassword(dto);
 
-        var result = userService.updateCurrentUser(dto);
-
-        assertEquals("newName", result.getName());
-        assertEquals("newPhone", result.getPhone());
-        assertEquals("oldSite", result.getWebsite());
+        verify(userService).getUserByEmail(dto.getEmail());
+        verify(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode());
+        verify(userService).update(any(LambdaUpdateWrapper.class));
     }
 
     @Test
-    void updateCurrentUser_notLoggedIn_shouldThrowBusinessException() {
+    void updateCurrentUser_whenUserNotFound_shouldThrow2006() {
+        UserHolder.set(UserContext.of(12L, "u12"));
         UserUpdateDTO dto = new UserUpdateDTO();
-        dto.setName("newName");
+        dto.setName("new-name");
+        doReturn(null).when(userService).getById(12L);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.updateCurrentUser(dto));
 
-        assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
-    }
-
-    @Test
-    void updateCurrentUser_userNotFound_shouldThrowBusinessException() {
-        UserHolder.set(UserContext.of(41L, "u41", "u41@zdmj.com"));
-        doReturn(null).when(userService).getById(41L);
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> userService.updateCurrentUser(new UserUpdateDTO()));
-
         assertEquals(ErrorCode.USER_NOT_FOUND.getCode(), ex.getCode());
+        verify(userService).getById(12L);
+        verify(userService, never()).updateById(any(User.class));
     }
 
     @Test
-    void updateCurrentUser_updateFailed_shouldThrowBusinessException() {
-        UserHolder.set(UserContext.of(42L, "u42", "u42@zdmj.com"));
-        User user = buildUser(42L, "u42", "pwd", "u42@zdmj.com");
-        doReturn(user).when(userService).getById(42L);
+    void updateCurrentUser_whenUpdateFailed_shouldThrow2004() {
+        UserHolder.set(UserContext.of(13L, "u13"));
+        UserUpdateDTO dto = new UserUpdateDTO();
+        dto.setName("neo");
+
+        User existing = new User();
+        existing.setId(13L);
+        existing.setName("old");
+
+        doReturn(existing).when(userService).getById(13L);
         doReturn(false).when(userService).updateById(any(User.class));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> userService.updateCurrentUser(new UserUpdateDTO()));
+        BusinessException ex = assertThrows(BusinessException.class, () -> userService.updateCurrentUser(dto));
 
         assertEquals(ErrorCode.USER_REGISTER_FAILED.getCode(), ex.getCode());
+        assertEquals("neo", existing.getName());
+        verify(userService).updateById(existing);
     }
 
-    private UserRegisterDTO buildRegisterDto() {
+    @Test
+    void updateCurrentUser_whenSuccess_shouldOnlyUpdateNonNullFields() {
+        UserHolder.set(UserContext.of(15L, "u15"));
+        UserUpdateDTO dto = new UserUpdateDTO();
+        dto.setName("new-name");
+        dto.setPhone(null);
+        dto.setWebsite(null);
+
+        User existing = new User();
+        existing.setId(15L);
+        existing.setName("old-name");
+        existing.setPhone("13800000000");
+        existing.setWebsite("https://old.site");
+
+        doReturn(existing).when(userService).getById(15L);
+        doReturn(true).when(userService).updateById(existing);
+
+        UserDTO result = userService.updateCurrentUser(dto);
+
+        assertEquals("new-name", result.getName());
+        assertEquals("13800000000", result.getPhone());
+        assertEquals("https://old.site", result.getWebsite());
+        verify(userService).updateById(existing);
+        assertEquals("new-name", existing.getName());
+        assertEquals("13800000000", existing.getPhone());
+        assertEquals("https://old.site", existing.getWebsite());
+    }
+
+    private UserRegisterDTO buildRegisterDTO() {
         UserRegisterDTO dto = new UserRegisterDTO();
-        dto.setUsername("new_user");
-        dto.setPassword("password123");
-        dto.setEmail("new_user@zdmj.com");
+        dto.setUsername("alice");
+        dto.setPassword("Password123");
+        dto.setEmail("alice@test.com");
         dto.setVerificationCode("123456");
+        return dto;
+    }
+
+    private UserResetPasswordDTO buildResetDTO() {
+        UserResetPasswordDTO dto = new UserResetPasswordDTO();
+        dto.setEmail("alice@test.com");
+        dto.setVerificationCode("123456");
+        dto.setNewPassword("newPassword123");
         return dto;
     }
 
@@ -335,14 +396,5 @@ class UserServiceImplTest {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
         TableInfoHelper.initTableInfo(assistant, User.class);
         tableInfoInitialized = true;
-    }
-
-    private User buildUser(Long id, String username, String rawPassword, String email) {
-        User user = new User();
-        user.setId(id);
-        user.setUsername(username);
-        user.setEmail(email);
-        user.setPassword(PasswordUtil.encode(rawPassword));
-        return user;
     }
 }
