@@ -1,0 +1,81 @@
+{
+  "module": "resumeService",
+  "publicMethods": [
+    {
+      "className": "ResumeServiceImpl",
+      "method": "create(ResumeDTO)",
+      "givenWhenThen": {
+        "given": ["用户已登录", "简历名可用"],
+        "when": "创建简历",
+        "then": ["保存成功并返回简历", "自动挂载当前可见教育/工作/项目ID"]
+      },
+      "paths": [
+        {"pathId": "REGISTER_HAPPY", "type": "happy", "description": "创建简历成功"},
+        {"pathId": "REGISTER_NEGATIVE_NAME_EXISTS", "type": "negative", "description": "简历名重复抛 RESUME_NAME_EXISTS"}
+      ],
+      "assertionContract": [
+        {"field": "exception.code", "expected": "3001", "reason": "重名分支必须断言错误码"},
+        {"field": "interaction", "expected": "verify existsByName/save", "reason": "确保分支与持久化行为被验证"}
+      ]
+    },
+    {
+      "className": "StudentCapabilityProfileServiceImpl",
+      "method": "generateProfile(CapabilityProfileGenerateReqDTO)",
+      "givenWhenThen": {
+        "given": ["用户已登录", "提供 rawText 或 pdfUrl"],
+        "when": "生成能力画像",
+        "then": ["成功保存或更新画像", "缺参抛 400", "LLM异常抛 500"]
+      },
+      "paths": [
+        {"pathId": "LOGIN_HAPPY", "type": "happy", "description": "rawText 生成成功并保存"},
+        {"pathId": "LOGIN_NEGATIVE_BAD_REQUEST", "type": "negative", "description": "缺少输入抛 400"},
+        {"pathId": "RESET_PASSWORD_NEGATIVE_LLM_FAIL", "type": "negative", "description": "LLM异常抛 500"}
+      ],
+      "assertionContract": [
+        {"field": "exception.code", "expected": "400/500", "reason": "输入和外部依赖失败必须可区分"},
+        {"field": "interaction", "expected": "verify chatStructuredOnce/save|updateById", "reason": "确保调用链完整"}
+      ]
+    },
+    {
+      "className": "ResumeServiceImpl",
+      "method": "getResumeContentList()",
+      "givenWhenThen": {
+        "given": ["用户已登录", "存在多个简历"],
+        "when": "查询简历完整列表",
+        "then": ["逐个聚合内容", "返回列表顺序与查询结果一致"]
+      },
+      "paths": [
+        {"pathId": "UPDATE_INFO_HAPPY", "type": "happy", "description": "列表聚合成功"},
+        {"pathId": "UPDATE_INFO_NEGATIVE_NOT_LOGIN", "type": "negative", "description": "未登录抛 USER_NOT_LOGIN"}
+      ],
+      "assertionContract": [
+        {"field": "list.size", "expected": ">=1", "reason": "验证聚合结果"},
+        {"field": "interaction", "expected": "verify selectByUserId/getResumeContentById", "reason": "验证聚合行为"}
+      ]
+    }
+  ],
+  "minimumTestSet": [
+    {"caseId": "resume_create_name_exists", "coversPathIds": ["REGISTER_NEGATIVE_NAME_EXISTS"]},
+    {"caseId": "profile_generate_missing_input", "coversPathIds": ["LOGIN_NEGATIVE_BAD_REQUEST"]},
+    {"caseId": "profile_generate_llm_illegal_state", "coversPathIds": ["RESET_PASSWORD_NEGATIVE_LLM_FAIL"]},
+    {"caseId": "resume_content_list_aggregate", "coversPathIds": ["UPDATE_INFO_HAPPY"]},
+    {"caseId": "resume_get_by_user_not_login", "coversPathIds": ["UPDATE_INFO_NEGATIVE_NOT_LOGIN"]},
+    {"caseId": "resume_content_by_id_mapping", "coversPathIds": ["REGISTER_HAPPY", "LOGIN_HAPPY"]}
+  ],
+  "extendedTestSet": [
+    {"caseId": "education_update_not_owner", "coversPathIds": ["EXCEPTION_NO_PERMISSION"]},
+    {"caseId": "career_update_invalid_date", "coversPathIds": ["EXCEPTION_INVALID_DATE"]},
+    {"caseId": "skill_delete_remove_fail", "coversPathIds": ["EXCEPTION_DELETE_FAIL"]}
+  ],
+  "coverageTargets": {
+    "line": 0.85,
+    "branch": 0.75,
+    "condition": 0.7,
+    "pathCount": 6
+  },
+  "riskPoints": [
+    "ResumeServiceImpl 聚合查询存在多Mapper映射，需防止弱断言",
+    "StudentCapabilityProfileServiceImpl 对外部LLM依赖强，需覆盖异常分支",
+    "CRUD 所有权校验分支较多，需确保 NO_PERMISSION 都被覆盖"
+  ]
+}

@@ -1,0 +1,954 @@
+{
+  "module": "com.zdmj.jobService",
+  "publicMethods": [
+    {
+      "className": "JobServiceImpl",
+      "method": "getDetail(Long)",
+      "givenWhenThen": {
+        "given": [
+          "redis 可能命中空值标记",
+          "redis 可能命中 DTO",
+          "缓存未命中时 DB 可能为空或有数据"
+        ],
+        "when": "根据岗位 id 查询详情",
+        "then": [
+          "空值标记命中时抛 BusinessException: JOB_NOT_FOUND(8201)",
+          "DB 为空时写入空值缓存并抛 JOB_NOT_FOUND(8201)",
+          "DB 命中时写缓存并返回 DTO"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "JOB_GET_DETAIL_NULL_MARKER",
+          "type": "negative",
+          "description": "缓存空值标记命中，抛岗位不存在"
+        },
+        {
+          "pathId": "JOB_GET_DETAIL_DB_MISS",
+          "type": "negative",
+          "description": "缓存未命中且 DB 无记录，写空值并抛岗位不存在"
+        },
+        {
+          "pathId": "JOB_GET_DETAIL_CACHE_HIT",
+          "type": "happy",
+          "description": "缓存命中直接返回"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "BusinessException.errorCode",
+          "expected": "8201",
+          "reason": "岗位不存在语义必须稳定"
+        },
+        {
+          "field": "redisCacheUtil.setNullValue",
+          "expected": "DB miss 时被调用",
+          "reason": "避免缓存穿透"
+        }
+      ]
+    },
+    {
+      "className": "JobServiceImpl",
+      "method": "update(JobDTO)",
+      "givenWhenThen": {
+        "given": [
+          "岗位可能不存在",
+          "岗位存在时需要清理详情缓存"
+        ],
+        "when": "按 DTO 更新岗位",
+        "then": [
+          "岗位不存在抛 BusinessException: JOB_NOT_FOUND(8201)",
+          "更新成功后清理 normal/null 两类缓存键"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "JOB_UPDATE_NOT_FOUND",
+          "type": "negative",
+          "description": "DB 无岗位，抛岗位不存在"
+        },
+        {
+          "pathId": "JOB_UPDATE_SUCCESS",
+          "type": "happy",
+          "description": "更新成功并清理缓存"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "redisCacheUtil.delete",
+          "expected": "至少被调用 2 次",
+          "reason": "normal/null 标记都应清理"
+        }
+      ]
+    },
+    {
+      "className": "JobServiceImpl",
+      "method": "delete(Long)",
+      "givenWhenThen": {
+        "given": [
+          "removeById 可能返回 false",
+          "删除成功需要清理缓存"
+        ],
+        "when": "删除岗位",
+        "then": [
+          "removeById=false 抛 BusinessException: JOB_NOT_FOUND(8201)",
+          "删除成功后清理 normal/null 缓存"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "JOB_DELETE_NOT_FOUND",
+          "type": "negative",
+          "description": "删除不存在岗位抛 8201"
+        },
+        {
+          "pathId": "JOB_DELETE_SUCCESS",
+          "type": "happy",
+          "description": "删除成功并清理缓存"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "BusinessException.errorCode",
+          "expected": "8201",
+          "reason": "错误码一致性"
+        }
+      ]
+    },
+    {
+      "className": "JobCapabilityProfileServiceImpl",
+      "method": "getJobCapabilityProfile(Long)",
+      "givenWhenThen": {
+        "given": [
+          "chatUtil 结构化生成可能抛异常",
+          "existing profile 可能存在"
+        ],
+        "when": "生成岗位能力画像",
+        "then": [
+          "LLM 失败抛 BusinessException: JOB_CAPABILITY_PROFILE_GENERATION_FAILED(8202)",
+          "成功时执行 upsert 并返回 DTO"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "JOB_PROFILE_GENERATE_FAIL",
+          "type": "negative",
+          "description": "chatStructuredOnce 异常映射为 8202"
+        },
+        {
+          "pathId": "JOB_PROFILE_UPSERT_UPDATE",
+          "type": "happy",
+          "description": "existing 存在走更新"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "BusinessException.errorCode",
+          "expected": "8202",
+          "reason": "能力画像失败语义"
+        }
+      ]
+    },
+    {
+      "className": "JobCareerGraphServiceImpl",
+      "method": "generate(Long)",
+      "givenWhenThen": {
+        "given": [
+          "chatUtil 可能抛异常",
+          "生成图谱可能不满足 3/5/2 规则"
+        ],
+        "when": "生成岗位路径图谱",
+        "then": [
+          "LLM 失败抛 BusinessException: JOB_CAREER_GRAPH_GENERATION_FAILED(8204)",
+          "非法图谱抛 BusinessException: JOB_CAREER_GRAPH_INVALID(8205)",
+          "合法图谱标记 currentNode 后持久化"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "JOB_GRAPH_GENERATE_FAIL",
+          "type": "negative",
+          "description": "chat 异常映射为 8204"
+        },
+        {
+          "pathId": "JOB_GRAPH_VALIDATE_FAIL",
+          "type": "negative",
+          "description": "图谱不合规映射为 8205"
+        },
+        {
+          "pathId": "JOB_GRAPH_GENERATE_SUCCESS",
+          "type": "happy",
+          "description": "图谱合法并保存"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "BusinessException.errorCode",
+          "expected": "8204/8205",
+          "reason": "生成失败与结构不合法需区分"
+        }
+      ]
+    },
+    {
+      "className": "JobAnalysisSupport",
+      "method": "detectRole(String, ChatUtil, Map, int, Logger)",
+      "givenWhenThen": {
+        "given": [
+          "文本可能为空",
+          "关键词可能达到阈值",
+          "LLM 调用可能异常"
+        ],
+        "when": "识别岗位角色",
+        "then": [
+          "空文本返回 UNKNOWN",
+          "阈值命中直接返回最佳角色",
+          "LLM 异常回退关键词最佳角色"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "JOB_ROLE_EMPTY_TEXT",
+          "type": "boundary",
+          "description": "空文本边界返回 UNKNOWN"
+        },
+        {
+          "pathId": "JOB_ROLE_LLM_FALLBACK",
+          "type": "negative",
+          "description": "LLM 抛异常回退关键词角色"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "return role",
+          "expected": "UNKNOWN 或关键词最佳角色",
+          "reason": "角色判定逻辑正确性"
+        }
+      ]
+    }
+  ],
+  "minimumTestSet": [
+    {
+      "caseId": "T_JOB_DETAIL_NULL_MARKER",
+      "coversPathIds": [
+        "JOB_GET_DETAIL_NULL_MARKER"
+      ]
+    },
+    {
+      "caseId": "T_JOB_DETAIL_DB_MISS",
+      "coversPathIds": [
+        "JOB_GET_DETAIL_DB_MISS"
+      ]
+    },
+    {
+      "caseId": "T_JOB_UPDATE_NOT_FOUND",
+      "coversPathIds": [
+        "JOB_UPDATE_NOT_FOUND"
+      ]
+    },
+    {
+      "caseId": "T_JOB_DELETE_NOT_FOUND",
+      "coversPathIds": [
+        "JOB_DELETE_NOT_FOUND"
+      ]
+    },
+    {
+      "caseId": "T_JOB_PROFILE_GENERATE_FAIL",
+      "coversPathIds": [
+        "JOB_PROFILE_GENERATE_FAIL"
+      ]
+    },
+    {
+      "caseId": "T_JOB_GRAPH_VALIDATE_FAIL",
+      "coversPathIds": [
+        "JOB_GRAPH_VALIDATE_FAIL"
+      ]
+    }
+  ],
+  "extendedTestSet": [
+    {
+      "caseId": "T_JOB_GRAPH_SUCCESS",
+      "coversPathIds": [
+        "JOB_GRAPH_GENERATE_SUCCESS"
+      ]
+    },
+    {
+      "caseId": "T_JOB_ROLE_EMPTY_TEXT",
+      "coversPathIds": [
+        "JOB_ROLE_EMPTY_TEXT"
+      ]
+    }
+  ],
+  "coverageTargets": {
+    "line": 0.85,
+    "branch": 0.75,
+    "condition": 0.7,
+    "pathCount": 6
+  },
+  "riskPoints": [
+    "缓存相关行为若仅断言返回值，可能遗漏 delete/setNullValue 交互。",
+    "图谱生成路径需避免仅 happy path，必须覆盖 validateGraph 不通过分支。",
+    "LLM 依赖需 mock，避免外部不稳定导致误判。"
+  ]
+}
+{
+  "module": "backend/zdmj/src/main/java/com/zdmj/jobService",
+  "publicMethods": [
+    {
+      "className": "com.zdmj.jobService.service.impl.JobServiceImpl",
+      "method": "getDetail(Long id)",
+      "givenWhenThen": {
+        "given": [
+          "输入岗位ID",
+          "Redis缓存可能存在命中、空值标记或未命中",
+          "数据库可能存在或不存在该岗位详情"
+        ],
+        "when": "调用 getDetail",
+        "then": [
+          "缓存命中时直接返回缓存DTO",
+          "缓存未命中且数据库存在时写入缓存并返回DTO",
+          "缓存空值标记或数据库不存在时抛出BusinessException(ErrorCode.JOB_NOT_FOUND)"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "JOB-GETDETAIL-HAPPY-CACHE-HIT",
+          "type": "happy",
+          "description": "缓存中存在岗位详情对象，直接返回，不访问数据库"
+        },
+        {
+          "pathId": "JOB-GETDETAIL-HAPPY-DB-HIT",
+          "type": "happy",
+          "description": "缓存未命中、数据库命中，写入缓存并返回DTO"
+        },
+        {
+          "pathId": "JOB-GETDETAIL-NEG-CACHE-NULL",
+          "type": "negative",
+          "description": "命中缓存空值标记，抛出JOB_NOT_FOUND"
+        },
+        {
+          "pathId": "JOB-GETDETAIL-NEG-DB-MISS",
+          "type": "negative",
+          "description": "缓存未命中且数据库不存在，写入空值标记并抛出JOB_NOT_FOUND"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "exception.code",
+          "expected": "8201",
+          "reason": "BusinessException(ErrorCode.JOB_NOT_FOUND)必须映射岗位不存在语义"
+        },
+        {
+          "field": "cache.writeTTL",
+          "expected": "命中DB后写入JOB_DETAIL_TTL",
+          "reason": "验证缓存回填策略"
+        },
+        {
+          "field": "cache.nullMarker",
+          "expected": "DB不存在时写入JOB_DETAIL_NULL_TTL",
+          "reason": "验证缓存穿透防护策略"
+        }
+      ]
+    },
+    {
+      "className": "com.zdmj.jobService.service.impl.JobServiceImpl",
+      "method": "getPage(JobPageQueryDTO query)",
+      "givenWhenThen": {
+        "given": [
+          "query允许为空",
+          "分页参数可能为null、0、负数或超上限",
+          "筛选字段可能为空集合或带空白字符"
+        ],
+        "when": "调用 getPage",
+        "then": [
+          "query为null时使用默认分页(page=1,limit=20)",
+          "limit超过100时被截断为100",
+          "空集合筛选条件转为null、字符串筛选去首尾空格",
+          "返回PageDTO并兜底total为0"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "JOB-GETPAGE-HAPPY-NORMAL",
+          "type": "happy",
+          "description": "传入有效分页和筛选条件，返回正常分页数据"
+        },
+        {
+          "pathId": "JOB-GETPAGE-BOUND-NULL-QUERY",
+          "type": "boundary",
+          "description": "query为空，使用默认分页并正常返回"
+        },
+        {
+          "pathId": "JOB-GETPAGE-BOUND-LIMIT-CAP",
+          "type": "boundary",
+          "description": "limit大于100时被截断到100"
+        },
+        {
+          "pathId": "JOB-GETPAGE-NEG-INVALID-PAGE-LIMIT",
+          "type": "negative",
+          "description": "page/limit小于1时回退默认值，不抛异常"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "result.page",
+          "expected": "非法页码时回退为1",
+          "reason": "保证分页入参健壮性"
+        },
+        {
+          "field": "result.limit",
+          "expected": "非法limit回退20，超限截断100",
+          "reason": "保证最大页大小约束"
+        },
+        {
+          "field": "mapper.queryArgs",
+          "expected": "空集合筛选被归一为null，字符串去空白",
+          "reason": "保证SQL筛选一致性"
+        }
+      ]
+    },
+    {
+      "className": "com.zdmj.jobService.service.impl.JobServiceImpl",
+      "method": "create(JobDTO dto)",
+      "givenWhenThen": {
+        "given": [
+          "dto包含岗位信息和公司信息",
+          "公司可能已存在或不存在",
+          "部分列表字段可能为空"
+        ],
+        "when": "调用 create",
+        "then": [
+          "按公司名查找公司，不存在则自动创建公司",
+          "岗位字段按dto回填并保存",
+          "content/requirements/keywords为空时初始化为空列表"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "JOB-CREATE-HAPPY-COMPANY-EXISTS",
+          "type": "happy",
+          "description": "公司存在，复用公司ID创建岗位"
+        },
+        {
+          "pathId": "JOB-CREATE-HAPPY-COMPANY-CREATE",
+          "type": "happy",
+          "description": "公司不存在，先创建公司再创建岗位"
+        },
+        {
+          "pathId": "JOB-CREATE-NEG-COMPANY-NAME-NULL",
+          "type": "negative",
+          "description": "公司名为空导致公司创建/查询不可用（由底层约束触发异常）"
+        },
+        {
+          "pathId": "JOB-CREATE-BOUND-EMPTY-LISTS",
+          "type": "boundary",
+          "description": "职责/要求/关键词未提供时最终持久化为空列表而非null"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "job.companyId",
+          "expected": "必须关联有效公司ID",
+          "reason": "岗位与公司关联是核心业务约束"
+        },
+        {
+          "field": "job.content/job.requirements/job.keywords",
+          "expected": "null输入时写入空列表",
+          "reason": "避免后续读取NPE和JSON序列化风险"
+        },
+        {
+          "field": "transaction",
+          "expected": "异常时整体回滚",
+          "reason": "方法声明了@Transactional(rollbackFor=Exception.class)"
+        }
+      ]
+    },
+    {
+      "className": "com.zdmj.jobService.service.impl.JobServiceImpl",
+      "method": "update(JobDTO dto)",
+      "givenWhenThen": {
+        "given": [
+          "dto包含岗位ID",
+          "岗位可能存在或不存在",
+          "更新后需要清理详情缓存"
+        ],
+        "when": "调用 update",
+        "then": [
+          "岗位不存在时抛出BusinessException(ErrorCode.JOB_NOT_FOUND)",
+          "岗位存在时按dto非空字段补丁更新",
+          "更新成功后清理岗位详情缓存和空值标记"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "JOB-UPDATE-HAPPY",
+          "type": "happy",
+          "description": "岗位存在，更新成功并清理缓存"
+        },
+        {
+          "pathId": "JOB-UPDATE-NEG-NOT-FOUND",
+          "type": "negative",
+          "description": "岗位不存在，抛出JOB_NOT_FOUND"
+        },
+        {
+          "pathId": "JOB-UPDATE-BOUND-PARTIAL-PATCH",
+          "type": "boundary",
+          "description": "dto仅包含部分字段，仅更新非空字段"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "exception.code",
+          "expected": "8201",
+          "reason": "岗位不存在必须抛JOB_NOT_FOUND语义"
+        },
+        {
+          "field": "cache.evict",
+          "expected": "删除详情缓存键与空值标记键",
+          "reason": "避免更新后读取脏缓存"
+        },
+        {
+          "field": "updated.fields",
+          "expected": "仅dto非空字段被修改",
+          "reason": "patch语义由patchJobFromDto定义"
+        }
+      ]
+    },
+    {
+      "className": "com.zdmj.jobService.service.impl.JobServiceImpl",
+      "method": "delete(Long id)",
+      "givenWhenThen": {
+        "given": [
+          "输入岗位ID",
+          "岗位可能存在或不存在"
+        ],
+        "when": "调用 delete",
+        "then": [
+          "删除失败时抛出BusinessException(ErrorCode.JOB_NOT_FOUND)",
+          "删除成功后清理详情缓存和空值标记"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "JOB-DELETE-HAPPY",
+          "type": "happy",
+          "description": "removeById成功，删除缓存键"
+        },
+        {
+          "pathId": "JOB-DELETE-NEG-NOT-FOUND",
+          "type": "negative",
+          "description": "removeById返回false，抛出JOB_NOT_FOUND"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "exception.code",
+          "expected": "8201",
+          "reason": "删除不存在岗位必须映射JOB_NOT_FOUND"
+        },
+        {
+          "field": "cache.evict",
+          "expected": "成功删除后执行delete和deleteNullValue",
+          "reason": "保持缓存与数据库一致"
+        }
+      ]
+    },
+    {
+      "className": "com.zdmj.jobService.service.impl.JobCapabilityProfileServiceImpl",
+      "method": "getJobCapabilityProfile(Long jobId)",
+      "givenWhenThen": {
+        "given": [
+          "岗位详情可通过jobService.getDetail获取",
+          "根据岗位上下文进行角色识别并调用结构化LLM",
+          "画像记录可能已存在或不存在"
+        ],
+        "when": "调用 getJobCapabilityProfile",
+        "then": [
+          "岗位不存在时抛BusinessException(ErrorCode.JOB_NOT_FOUND)",
+          "LLM调用失败时抛BusinessException(ErrorCode.JOB_CAPABILITY_PROFILE_GENERATION_FAILED)",
+          "生成结果写入或更新数据库并返回DTO（含JSON字段回填）"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "CAP-PROFILE-HAPPY-INSERT",
+          "type": "happy",
+          "description": "画像不存在，生成后save并返回"
+        },
+        {
+          "pathId": "CAP-PROFILE-HAPPY-UPDATE",
+          "type": "happy",
+          "description": "画像已存在，生成后updateById并返回"
+        },
+        {
+          "pathId": "CAP-PROFILE-NEG-JOB-NOT-FOUND",
+          "type": "negative",
+          "description": "jobService.getDetail抛JOB_NOT_FOUND"
+        },
+        {
+          "pathId": "CAP-PROFILE-NEG-LLM-FAIL",
+          "type": "negative",
+          "description": "chatStructuredOnce抛异常，转化为JOB_CAPABILITY_PROFILE_GENERATION_FAILED"
+        },
+        {
+          "pathId": "CAP-PROFILE-BOUND-JSON-SERIALIZE-FAIL",
+          "type": "boundary",
+          "description": "JSON序列化失败时对应字段置空但整体流程继续"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "exception.code",
+          "expected": "8202",
+          "reason": "画像生成失败必须映射JOB_CAPABILITY_PROFILE_GENERATION_FAILED"
+        },
+        {
+          "field": "entity.roleConfidence",
+          "expected": "由estimateRoleConfidence计算并落库",
+          "reason": "保证角色识别置信度可追踪"
+        },
+        {
+          "field": "dto.targetRoleType",
+          "expected": "优先entity.targetRoleType，否则由promptName映射",
+          "reason": "保证前端展示类型稳定"
+        }
+      ]
+    },
+    {
+      "className": "com.zdmj.jobService.service.impl.JobCapabilityProfileServiceImpl",
+      "method": "getJobCapabilityProfileOrNull(Long jobId)",
+      "givenWhenThen": {
+        "given": [
+          "岗位详情需先校验存在",
+          "画像记录可能存在或不存在"
+        ],
+        "when": "调用 getJobCapabilityProfileOrNull",
+        "then": [
+          "岗位不存在时抛BusinessException(ErrorCode.JOB_NOT_FOUND)",
+          "画像不存在返回null",
+          "画像存在时返回DTO并反序列化JSON字段"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "CAP-ORNULL-HAPPY-EXISTS",
+          "type": "happy",
+          "description": "岗位存在且画像存在，返回完整DTO"
+        },
+        {
+          "pathId": "CAP-ORNULL-BOUND-NOT-EXISTS",
+          "type": "boundary",
+          "description": "岗位存在但画像不存在，返回null"
+        },
+        {
+          "pathId": "CAP-ORNULL-NEG-JOB-NOT-FOUND",
+          "type": "negative",
+          "description": "岗位不存在，抛JOB_NOT_FOUND"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "exception.code",
+          "expected": "8201",
+          "reason": "岗位不存在必须映射JOB_NOT_FOUND"
+        },
+        {
+          "field": "result.nullability",
+          "expected": "仅画像不存在时返回null",
+          "reason": "方法语义是OrNull查询而非生成"
+        }
+      ]
+    },
+    {
+      "className": "com.zdmj.jobService.service.impl.JobCareerGraphServiceImpl",
+      "method": "getOrNull(Long jobId)",
+      "givenWhenThen": {
+        "given": [
+          "先通过jobService.getDetail校验岗位存在",
+          "图谱记录可能存在或不存在"
+        ],
+        "when": "调用 getOrNull",
+        "then": [
+          "岗位不存在时抛BusinessException(ErrorCode.JOB_NOT_FOUND)",
+          "图谱不存在返回null",
+          "图谱存在时反序列化并返回DTO"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "GRAPH-ORNULL-HAPPY-EXISTS",
+          "type": "happy",
+          "description": "岗位存在且图谱存在，返回DTO"
+        },
+        {
+          "pathId": "GRAPH-ORNULL-BOUND-NOT-EXISTS",
+          "type": "boundary",
+          "description": "岗位存在但图谱不存在，返回null"
+        },
+        {
+          "pathId": "GRAPH-ORNULL-NEG-JOB-NOT-FOUND",
+          "type": "negative",
+          "description": "岗位不存在，抛JOB_NOT_FOUND"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "exception.code",
+          "expected": "8201",
+          "reason": "岗位不存在必须映射JOB_NOT_FOUND"
+        },
+        {
+          "field": "result.targetRoleType",
+          "expected": "优先entity.targetRoleType，否则由promptName推导",
+          "reason": "保证历史数据兼容"
+        }
+      ]
+    },
+    {
+      "className": "com.zdmj.jobService.service.impl.JobCareerGraphServiceImpl",
+      "method": "generate(Long jobId)",
+      "givenWhenThen": {
+        "given": [
+          "岗位详情存在并可构造岗位上下文",
+          "通过角色识别选择图谱提示词并调用结构化LLM",
+          "图谱需满足垂直路径与换岗路径硬性校验"
+        ],
+        "when": "调用 generate",
+        "then": [
+          "LLM调用失败时抛BusinessException(ErrorCode.JOB_CAREER_GRAPH_GENERATION_FAILED)",
+          "图谱结构不达标时抛BusinessException(ErrorCode.JOB_CAREER_GRAPH_INVALID)",
+          "图谱达标时设置currentNode并写入DB（存在则更新，不存在则新增）"
+        ]
+      },
+      "paths": [
+        {
+          "pathId": "GRAPH-GEN-HAPPY-INSERT",
+          "type": "happy",
+          "description": "图谱达标且记录不存在，save成功并返回DTO"
+        },
+        {
+          "pathId": "GRAPH-GEN-HAPPY-UPDATE",
+          "type": "happy",
+          "description": "图谱达标且记录已存在，updateById成功并返回DTO"
+        },
+        {
+          "pathId": "GRAPH-GEN-NEG-LLM-FAIL",
+          "type": "negative",
+          "description": "chatStructuredOnce异常，抛JOB_CAREER_GRAPH_GENERATION_FAILED"
+        },
+        {
+          "pathId": "GRAPH-GEN-NEG-INVALID-VERTICAL",
+          "type": "negative",
+          "description": "垂直路径节点数<3，抛JOB_CAREER_GRAPH_INVALID"
+        },
+        {
+          "pathId": "GRAPH-GEN-NEG-INVALID-TRANSITION-COUNT",
+          "type": "negative",
+          "description": "换岗路径条数<5，抛JOB_CAREER_GRAPH_INVALID"
+        },
+        {
+          "pathId": "GRAPH-GEN-NEG-INVALID-TRANSITION-NODES",
+          "type": "negative",
+          "description": "任一换岗路径节点数<2，抛JOB_CAREER_GRAPH_INVALID"
+        },
+        {
+          "pathId": "GRAPH-GEN-BOUND-CURRENT-NODE-FALLBACK",
+          "type": "boundary",
+          "description": "currentNode缺失level/title时按中间层回填并标记verticalPath.current"
+        }
+      ],
+      "assertionContract": [
+        {
+          "field": "exception.code",
+          "expected": "8204",
+          "reason": "LLM生成失败必须映射JOB_CAREER_GRAPH_GENERATION_FAILED"
+        },
+        {
+          "field": "exception.code",
+          "expected": "8205",
+          "reason": "图谱结构校验失败必须映射JOB_CAREER_GRAPH_INVALID"
+        },
+        {
+          "field": "graph.constraints",
+          "expected": "vertical>=3, transition>=5, eachTransitionNodes>=2",
+          "reason": "方法内validateGraph的硬性业务规则"
+        }
+      ]
+    }
+  ],
+  "minimumTestSet": [
+    {
+      "caseId": "MIN-001-DETAIL-CACHE-HIT",
+      "coversPathIds": [
+        "JOB-GETDETAIL-HAPPY-CACHE-HIT"
+      ]
+    },
+    {
+      "caseId": "MIN-002-DETAIL-DB-MISS",
+      "coversPathIds": [
+        "JOB-GETDETAIL-NEG-DB-MISS"
+      ]
+    },
+    {
+      "caseId": "MIN-003-PAGE-DEFAULT-AND-CAP",
+      "coversPathIds": [
+        "JOB-GETPAGE-BOUND-NULL-QUERY",
+        "JOB-GETPAGE-BOUND-LIMIT-CAP"
+      ]
+    },
+    {
+      "caseId": "MIN-004-CREATE-WITH-NEW-COMPANY",
+      "coversPathIds": [
+        "JOB-CREATE-HAPPY-COMPANY-CREATE",
+        "JOB-CREATE-BOUND-EMPTY-LISTS"
+      ]
+    },
+    {
+      "caseId": "MIN-005-UPDATE-NOT-FOUND",
+      "coversPathIds": [
+        "JOB-UPDATE-NEG-NOT-FOUND"
+      ]
+    },
+    {
+      "caseId": "MIN-006-DELETE-HAPPY",
+      "coversPathIds": [
+        "JOB-DELETE-HAPPY"
+      ]
+    },
+    {
+      "caseId": "MIN-007-PROFILE-LLM-FAIL",
+      "coversPathIds": [
+        "CAP-PROFILE-NEG-LLM-FAIL"
+      ]
+    },
+    {
+      "caseId": "MIN-008-PROFILE-ORNULL-NOT-EXISTS",
+      "coversPathIds": [
+        "CAP-ORNULL-BOUND-NOT-EXISTS"
+      ]
+    },
+    {
+      "caseId": "MIN-009-GRAPH-GENERATE-INVALID",
+      "coversPathIds": [
+        "GRAPH-GEN-NEG-INVALID-VERTICAL"
+      ]
+    },
+    {
+      "caseId": "MIN-010-GRAPH-GENERATE-SUCCESS",
+      "coversPathIds": [
+        "GRAPH-GEN-HAPPY-INSERT",
+        "GRAPH-GEN-BOUND-CURRENT-NODE-FALLBACK"
+      ]
+    }
+  ],
+  "extendedTestSet": [
+    {
+      "caseId": "EXT-001-DETAIL-CACHE-NULL-MARKER",
+      "coversPathIds": [
+        "JOB-GETDETAIL-NEG-CACHE-NULL"
+      ]
+    },
+    {
+      "caseId": "EXT-002-DETAIL-DB-HIT-CACHE-WRITE",
+      "coversPathIds": [
+        "JOB-GETDETAIL-HAPPY-DB-HIT"
+      ]
+    },
+    {
+      "caseId": "EXT-003-PAGE-INVALID-PARAMS",
+      "coversPathIds": [
+        "JOB-GETPAGE-NEG-INVALID-PAGE-LIMIT"
+      ]
+    },
+    {
+      "caseId": "EXT-004-CREATE-COMPANY-EXISTS",
+      "coversPathIds": [
+        "JOB-CREATE-HAPPY-COMPANY-EXISTS"
+      ]
+    },
+    {
+      "caseId": "EXT-005-CREATE-INVALID-COMPANY-NAME",
+      "coversPathIds": [
+        "JOB-CREATE-NEG-COMPANY-NAME-NULL"
+      ]
+    },
+    {
+      "caseId": "EXT-006-UPDATE-PARTIAL-PATCH",
+      "coversPathIds": [
+        "JOB-UPDATE-BOUND-PARTIAL-PATCH",
+        "JOB-UPDATE-HAPPY"
+      ]
+    },
+    {
+      "caseId": "EXT-007-DELETE-NOT-FOUND",
+      "coversPathIds": [
+        "JOB-DELETE-NEG-NOT-FOUND"
+      ]
+    },
+    {
+      "caseId": "EXT-008-PROFILE-UPSERT-PATHS",
+      "coversPathIds": [
+        "CAP-PROFILE-HAPPY-INSERT",
+        "CAP-PROFILE-HAPPY-UPDATE"
+      ]
+    },
+    {
+      "caseId": "EXT-009-PROFILE-JOB-NOT-FOUND",
+      "coversPathIds": [
+        "CAP-PROFILE-NEG-JOB-NOT-FOUND",
+        "CAP-ORNULL-NEG-JOB-NOT-FOUND"
+      ]
+    },
+    {
+      "caseId": "EXT-010-PROFILE-JSON-SERIALIZATION-FAIL",
+      "coversPathIds": [
+        "CAP-PROFILE-BOUND-JSON-SERIALIZE-FAIL"
+      ]
+    },
+    {
+      "caseId": "EXT-011-GRAPH-ORNULL-PATHS",
+      "coversPathIds": [
+        "GRAPH-ORNULL-HAPPY-EXISTS",
+        "GRAPH-ORNULL-BOUND-NOT-EXISTS",
+        "GRAPH-ORNULL-NEG-JOB-NOT-FOUND"
+      ]
+    },
+    {
+      "caseId": "EXT-012-GRAPH-LLM-FAIL",
+      "coversPathIds": [
+        "GRAPH-GEN-NEG-LLM-FAIL"
+      ]
+    },
+    {
+      "caseId": "EXT-013-GRAPH-INVALID-TRANSITION-COUNT",
+      "coversPathIds": [
+        "GRAPH-GEN-NEG-INVALID-TRANSITION-COUNT"
+      ]
+    },
+    {
+      "caseId": "EXT-014-GRAPH-INVALID-TRANSITION-NODES",
+      "coversPathIds": [
+        "GRAPH-GEN-NEG-INVALID-TRANSITION-NODES"
+      ]
+    },
+    {
+      "caseId": "EXT-015-GRAPH-UPDATE-PATH",
+      "coversPathIds": [
+        "GRAPH-GEN-HAPPY-UPDATE"
+      ]
+    }
+  ],
+  "coverageTargets": {
+    "line": 0.9,
+    "branch": 0.82,
+    "condition": 0.78,
+    "pathCount": 35
+  },
+  "riskPoints": [
+    "JobServiceImpl.create/update未在服务层显式校验dto关键字段，异常更多依赖底层数据库约束，需在测试中验证失败语义稳定性",
+    "JobCapabilityProfileServiceImpl与JobCareerGraphServiceImpl依赖外部LLM，结构化返回的稳定性直接影响业务成功率",
+    "JobAnalysisSupport.detectRole在LLM识别失败时静默回退关键词规则，可能产生角色误判但不抛异常",
+    "JSON序列化/反序列化失败仅记录日志，业务继续执行，可能导致返回DTO字段部分缺失",
+    "JobCareerGraphServiceImpl对图谱结构有硬性阈值，提示词变更后容易触发JOB_CAREER_GRAPH_INVALID",
+    "岗位详情读取依赖Redis空值标记机制，缓存TTL配置不当可能导致短期误判为岗位不存在"
+  ]
+}

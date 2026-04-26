@@ -1,0 +1,43 @@
+{
+  "module": "userAuthService",
+  "pathCountMin": 6,
+  "requiredPaths": [
+    {
+      "id": "REGISTER_HAPPY",
+      "matchers": [
+        "(?i).*UserServiceImplTest#.*register.*(allvalid|success).*"
+      ]
+    },
+    {
+      "id": "LOGIN_HAPPY",
+      "matchers": [
+        "(?i).*UserServiceImplTest#.*login.*success.*"
+      ]
+    },
+    {
+      "id": "RESET_PASSWORD",
+      "matchers": [
+        "(?i).*UserServiceImplTest#.*resetPassword.*"
+      ]
+    },
+    {
+      "id": "UPDATE_INFO",
+      "matchers": [
+        "(?i).*UserServiceImplTest#.*updateCurrentUser.*"
+      ]
+    },
+    {
+      "id": "VERIFICATION_CODE",
+      "matchers": [
+        "(?i).*VerificationCodeServiceImplTest#.*(sendVerificationCode|verifyCode|generateCode).*"
+      ]
+    },
+    {
+      "id": "EMAIL_AND_JWT",
+      "matchers": [
+        "(?i).*EmailServiceImplTest#.*sendEmail.*",
+        "(?i).*JwtUtilTest#.*(invalidToken|generateParseValidateAndGetExpiration).*"
+      ]
+    }
+  ]
+}

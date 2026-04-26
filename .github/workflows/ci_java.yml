@@ -11,6 +11,7 @@ on:
       # - main
     paths:
       - 'backend/zdmj/**'
+      - 'tools/ai-unit-test-loop/**'
       - '.github/workflows/ci_java.yml'
   # 当创建或更新PR到backend或main分支时触发
   pull_request:
@@ -19,6 +20,7 @@ on:
       # - main
     paths:
       - 'backend/zdmj/**'
+      - 'tools/ai-unit-test-loop/**'
       - '.github/workflows/ci_java.yml'
 
 jobs:
@@ -62,7 +64,42 @@ jobs:
         working-directory: ./backend/zdmj
         run: mvn -B -ntp test
 
-      # 步骤5: 失败提醒与统一退出
+      # 步骤5: 覆盖率与路径门禁
+      - name: Run coverage and path gates
+        id: quality_gates
+        if: steps.compile.outcome == 'success' && steps.unit_test.outcome == 'success'
+        continue-on-error: true
+        working-directory: ./backend/zdmj
+        run: |
+          python3 ../../tools/ai-unit-test-loop/scripts/coverage_gate.py \
+            --jacoco-xml target/site/jacoco/jacoco.xml \
+            --class-prefix com/zdmj/userAuthService/service/impl/,com/zdmj/userAuthService/util/ \
+            --line-min 0.70 \
+            --branch-min 0.55 \
+            --condition-min 0.55
+          python3 ../../tools/ai-unit-test-loop/scripts/path_gate.py \
+            --manifest ../../tools/ai-unit-test-loop/path-matrix/user-auth-paths.json \
+            --surefire-dir target/surefire-reports
+
+      # 步骤6: 失败归因（测试失败时）
+      - name: Triage failed test cases
+        id: triage
+        if: steps.compile.outcome == 'success' && steps.unit_test.outcome != 'success'
+        continue-on-error: true
+        working-directory: ./backend/zdmj
+        run: |
+          python3 ../../tools/ai-unit-test-loop/scripts/triage_failures.py --surefire-dir target/surefire-reports
+
+      # 步骤7: 反投机审计（仅在测试通过后执行）
+      - name: Audit test quality
+        id: audit
+        if: steps.compile.outcome == 'success' && steps.unit_test.outcome == 'success'
+        continue-on-error: true
+        working-directory: ./backend/zdmj
+        run: |
+          python3 ../../tools/ai-unit-test-loop/scripts/audit_quality.py --test-root src/test/java/com/zdmj/userAuthService --risk-pass 80
+
+      # 步骤8: 失败提醒与统一退出
       # 在日志和 Summary 明确提示失败原因，并让 CI 最终失败
       - name: Notify when compile or tests fail
         if: always()
@@ -81,8 +118,20 @@ jobs:
             failed=1
           fi
 
+          if [ "${{ steps.compile.outcome }}" = "success" ] && [ "${{ steps.unit_test.outcome }}" = "success" ] && [ "${{ steps.quality_gates.outcome }}" != "success" ]; then
+            echo "::error title=CI检查失败::覆盖率或路径门禁未通过，请补充测试用例。"
+            echo "- ❌ 覆盖率/路径门禁未通过（Run coverage and path gates）" >> "$GITHUB_STEP_SUMMARY"
+            failed=1
+          fi
+
+          if [ "${{ steps.compile.outcome }}" = "success" ] && [ "${{ steps.unit_test.outcome }}" = "success" ] && [ "${{ steps.audit.outcome }}" != "success" ]; then
+            echo "::error title=CI检查失败::反投机审计未通过，请修复弱断言或路径缺失问题。"
+            echo "- ❌ 反投机审计未通过（Audit test quality）" >> "$GITHUB_STEP_SUMMARY"
+            failed=1
+          fi
+
           if [ "$failed" -eq 0 ]; then
-            echo "- ✅ 编译通过，单元测试通过" >> "$GITHUB_STEP_SUMMARY"
+            echo "- ✅ 编译通过，单元测试通过，质量门禁通过" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "请查看失败步骤日志并修复后重新触发 CI。" >> "$GITHUB_STEP_SUMMARY"
