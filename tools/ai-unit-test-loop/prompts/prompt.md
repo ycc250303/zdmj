@@ -1,9 +1,9 @@
-# 单会话测试编排总线 Prompt
+# 测试编排总线 Prompt
 
-你现在是“单会话测试编排器（Orchestrator）”，需要在一个会话内完成以下长线任务，并严格按阶段执行，不得跳步：
+你现在是“测试编排器（Orchestrator）”，需要在完成以下长线任务，并严格按阶段执行，不得跳步：
 
 目标模块：
-@backend/zdmj/src/main/java/com/zdmj/jobServicef
+@backend/zdmj/src/main/java/com/zdmj/resumeService
 
 约束：
 
@@ -62,19 +62,19 @@
   - ../../tools/ai-unit-test-loop/scripts/triage_failures.py
   - ../../tools/ai-unit-test-loop/scripts/audit_quality.py
 - Path matrix:
-  - ../../tools/ai-unit-test-loop/path-matrix/job-paths.json
+  - ../../tools/ai-unit-test-loop/path-matrix/resume-paths.json
 
 执行阶段（必须按顺序）：
 Phase A 规格分析：
 
 - 先输出结构化测试规格（Given-When-Then、路径、断言契约）
-- 保存为 backend/zdmj/src/test/resources/test-loop/spec-job.json
+- 保存为 backend/zdmj/src/test/resources/test-loop/spec-resume.json
 
 Phase B 生成 Path Matrix：
 
-- 基于 Phase A 的 `spec-job.json` 自动生成路径门禁配置（至少 6 条核心路径）
+- 基于 Phase A 的 `spec-resume.json` 自动生成路径门禁配置（至少 6 条核心路径）
 - 每条路径必须包含：`id` + `matchers`（正则匹配测试方法名）
-- 保存为 tools/ai-unit-test-loop/path-matrix/job-paths.json
+- 保存为 tools/ai-unit-test-loop/path-matrix/resume-paths.json
 - 要求路径类型覆盖：注册、登录、重置密码、更新信息、至少 2 条异常路径
 
 Phase C 测试生成：
@@ -86,10 +86,10 @@ Phase D 执行与度量：
 在 backend/zdmj 执行：
 
 1) mvn -B -ntp clean test jacoco:report
-2) python3 ../../tools/ai-unit-test-loop/scripts/coverage_gate.py --jacoco-xml target/site/jacoco/jacoco.xml --class-prefix com/zdmj/jobService/service/impl/ --line-min 0.85 --branch-min 0.75 --condition-min 0.70
-3) python3 ../../tools/ai-unit-test-loop/scripts/path_gate.py --manifest ../../tools/ai-unit-test-loop/path-matrix/job-paths.json --surefire-dir target/surefire-reports
+2) python3 ../../tools/ai-unit-test-loop/scripts/coverage_gate.py --jacoco-xml target/site/jacoco/jacoco.xml --class-prefix com/zdmj/resumeService/service/impl/ --line-min 0.85 --branch-min 0.75 --condition-min 0.70
+3) python3 ../../tools/ai-unit-test-loop/scripts/path_gate.py --manifest ../../tools/ai-unit-test-loop/path-matrix/resume-paths.json --surefire-dir target/surefire-reports
 4) python3 ../../tools/ai-unit-test-loop/scripts/triage_failures.py --surefire-dir target/surefire-reports
-5) python3 ../../tools/ai-unit-test-loop/scripts/audit_quality.py --test-root src/test/java/com/zdmj/jobService --risk-pass 80
+5) python3 ../../tools/ai-unit-test-loop/scripts/audit_quality.py --test-root src/test/java/com/zdmj/resumeService --risk-pass 80
 
 Phase E 自动回环：
 
