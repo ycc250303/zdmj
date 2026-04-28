@@ -148,6 +148,15 @@ export const generatedRoutes: GeneratedRoute[] = [
         }
       },
       {
+        name: 'profile_capability',
+        path: '/profile/capability',
+        component: 'view.profile_capability',
+        meta: {
+          title: 'profile_capability',
+          i18nKey: 'route.profile_capability'
+        }
+      },
+      {
         name: 'profile_career',
         path: '/profile/career',
         component: 'view.profile_career',
@@ -181,15 +190,6 @@ export const generatedRoutes: GeneratedRoute[] = [
         meta: {
           title: 'profile_skill',
           i18nKey: 'route.profile_skill'
-        }
-      },
-      {
-        name: 'profile_capability',
-        path: '/profile/capability',
-        component: 'view.profile_capability',
-        meta: {
-          title: 'profile_capability',
-          i18nKey: 'route.profile_capability'
         }
       }
     ]
