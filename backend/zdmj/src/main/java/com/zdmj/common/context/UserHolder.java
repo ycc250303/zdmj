@@ -1,18 +1,21 @@
 package com.zdmj.common.context;
 
+import org.springframework.core.NamedThreadLocal;
+
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 
 /**
  * 用户信息持有者
- * 使用ThreadLocal存储当前请求的用户信息，避免重复解析HTTP请求
  */
 public class UserHolder {
 
+    private UserHolder(){}
+
     /**
-     * 使用ThreadLocal存储用户上下文信息
+     * 使用NamedThreadLocal存储用户上下文信息
      */
-    private static final ThreadLocal<UserContext> USER_CONTEXT = new ThreadLocal<>();
+    private static final NamedThreadLocal<UserContext> USER_CONTEXT = new NamedThreadLocal<>("zdmj-user-context");
 
     /**
      * 设置当前用户上下文
@@ -20,6 +23,10 @@ public class UserHolder {
      * @param userContext 用户上下文
      */
     public static void set(UserContext userContext) {
+        if (userContext == null) {
+            USER_CONTEXT.remove();
+            return;
+        }
         USER_CONTEXT.set(userContext);
     }
 
@@ -38,7 +45,8 @@ public class UserHolder {
      * @return 用户ID，如果未登录返回null
      */
     public static Long getUserId() {
-        return getValue(UserContext::getUserId);
+        UserContext context = USER_CONTEXT.get();
+        return context == null ? null : context.getUserId();
     }
 
     /**
@@ -47,7 +55,8 @@ public class UserHolder {
      * @return 用户名，如果未登录返回null
      */
     public static String getUsername() {
-        return getValue(UserContext::getUsername);
+        UserContext context = USER_CONTEXT.get();
+        return context == null ? null : context.getUsername();
     }
 
     /**
@@ -56,21 +65,10 @@ public class UserHolder {
      * @return 邮箱，如果未登录返回null
      */
     public static String getEmail() {
-        return getValue(UserContext::getEmail);
-    }
-
-    /**
-     * 从用户上下文中获取值的通用方法
-     * 
-     * @param getter 值获取函数
-     * @param <T> 返回值类型
-     * @return 值，如果上下文为null则返回null
-     */
-    private static <T> T getValue(java.util.function.Function<UserContext, T> getter) {
         UserContext context = USER_CONTEXT.get();
-        return context != null ? getter.apply(context) : null;
+        return context == null ? null : context.getEmail();
     }
-
+ 
     /**
      * 检查当前用户是否已登录
      * 

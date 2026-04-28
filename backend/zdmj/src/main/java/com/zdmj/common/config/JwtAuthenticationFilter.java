@@ -35,71 +35,40 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
+        // 从请求头中获取Token
+        String token = getTokenFromRequest(request);
 
-        try {
-            // 从请求头中获取Token
-            String token = getTokenFromRequest(request);
+        if (StringUtils.hasText(token) && JwtUtil.validateToken(token)) {
+            try {
+                Long userId = JwtUtil.getUserIdFromToken(token);
+                String username = JwtUtil.getUsernameFromToken(token);
 
-            if (StringUtils.hasText(token) && JwtUtil.validateToken(token)) {
-                try {
-                    // 从Token中获取用户信息
-                    Long userId = JwtUtil.getUserIdFromToken(token);
-                    String username = JwtUtil.getUsernameFromToken(token);
+                if (userId != null && username != null) {
+                    // 二次校验：Redis 中必须存在并且与当前 token 一致（支持单点登录/踢下线）
+                    String tokenKey = RedisConstants.JWT_TOKEN_KEY + userId;
+                    String storedToken = redisCacheUtil.getString(tokenKey);
 
-                    if (userId != null && username != null) {
-                        // 检查Redis中是否存在该Token
-                        String tokenKey = RedisConstants.JWT_TOKEN_KEY + userId;
-                        String storedToken = redisCacheUtil.getString(tokenKey);
+                    if (storedToken != null && storedToken.equals(token)) {
+                        UserContext userContext = UserContext.of(userId, username);
+                        UserHolder.set(userContext);
 
-                        // 如果Redis中不存在该Token或Token不匹配，说明Token已被删除（如用户登出或重新登录），拒绝访问
-                        if (storedToken == null || !storedToken.equals(token)) {
-                            log.warn("JWT Token在Redis中不存在或已失效: userId={}, username={}", userId, username);
-                            // 不设置认证信息，后续的权限检查会拒绝访问
-                        } else {
-                            // Token有效，创建用户上下文并存储到ThreadLocal（避免重复解析HTTP请求）
-                            UserContext userContext = UserContext.of(userId, username);
-                            UserHolder.set(userContext);
-
-                            // 创建认证对象
-                            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                                    userId, // principal
-                                    null, // credentials
-                                    Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")) // authorities
-                            );
-                            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
-                            // 设置到Security上下文
-                            SecurityContextHolder.getContext().setAuthentication(authentication);
-                            log.debug("JWT认证成功: userId={}, username={}", userId, username);
-                        }
+                        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                                userContext,
+                                null,
+                                Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
+                        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                    } else {
+                        log.warn("JWT Token在Redis中不存在或已失效: userId={}, username={}", userId, username);
                     }
-                } catch (Exception e) {
-                    log.error("JWT认证失败: {}", e.getMessage());
+                } else {
+                    log.warn("JWT Token解析用户信息失败: userId={}, username={}", userId, username);
                 }
-            }
-
-            // 继续过滤器链
-            filterChain.doFilter(request, response);
-        } finally {
-            // 对于异步响应（如SSE），不应该清除SecurityContext，因为响应还在流式传输中
-            // 检查请求的Accept头或路径模式来判断是否是SSE端点
-            String acceptHeader = request.getHeader("Accept");
-            String requestPath = request.getRequestURI();
-            boolean isSseByAccept = acceptHeader != null && acceptHeader.contains("text/event-stream");
-            // 检查路径：POST /conversations/{id}/messages 或 GET
-            // /conversations/{id}/messages/{id}/stream
-            boolean isSseByPath = requestPath != null &&
-                    (requestPath.contains("/conversations/") && requestPath.contains("/messages") &&
-                            (request.getMethod().equals("POST") || requestPath.contains("/stream")));
-            boolean isSseResponse = isSseByAccept || isSseByPath;
-
-            // 只有在响应已提交且不是SSE流式响应时，才清除SecurityContext和UserHolder
-            // 对于SSE响应，SecurityContext需要在整个流式传输期间保持有效
-            if (response.isCommitted() && !isSseResponse) {
-                // 请求结束后清除ThreadLocal，避免内存泄漏
-                UserHolder.clear();
+            } catch (Exception e) {
+                log.error("JWT认证失败: {}", e.getMessage(), e);
             }
         }
+        filterChain.doFilter(request, response);
     }
 
     /**
@@ -114,9 +83,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return bearerToken.substring(7);
         }
         // 兼容没有Bearer前缀的情况
-        if (StringUtils.hasText(bearerToken)) {
-            return bearerToken;
-        }
-        return null;
+        return StringUtils.hasText(bearerToken) ? bearerToken : null;
     }
 }

@@ -31,6 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final RequestContextCleanupFilter requestContextCleanupFilter;
     private final ObjectMapper objectMapper;
 
     @Bean
@@ -44,6 +45,9 @@ public class SecurityConfig {
 
                 // 设置Session创建策略为无状态（使用JWT，不需要Session）
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+                // 添加请求上下文清理过滤器（必须基于已注册顺序的内置过滤器定位）
+                .addFilterBefore(requestContextCleanupFilter, UsernamePasswordAuthenticationFilter.class)
 
                 // 添加JWT过滤器
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
