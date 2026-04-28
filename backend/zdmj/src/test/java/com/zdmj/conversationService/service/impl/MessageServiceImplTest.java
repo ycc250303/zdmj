@@ -11,6 +11,7 @@ import com.zdmj.common.util.ChatUtil;
 import com.zdmj.conversationService.dto.MessageDTO;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.entity.Message;
+import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.service.ConversationService;
 import com.zdmj.knowledgeService.service.KnowledgeRagService;
@@ -28,22 +29,31 @@ import reactor.core.publisher.Sinks;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.atLeastOnce;
 
 @ExtendWith(MockitoExtension.class)
 class MessageServiceImplTest {
@@ -56,6 +66,8 @@ class MessageServiceImplTest {
     private MessageMapper messageMapper;
     @Mock
     private ConversationService conversationService;
+    @Mock
+    private ConversationMapper conversationMapper;
     @Mock
     private KnowledgeRagService knowledgeRagService;
     @Mock
@@ -70,8 +82,10 @@ class MessageServiceImplTest {
                 chatUtil,
                 messageMapper,
                 conversationService,
+                conversationMapper,
                 knowledgeRagService,
                 ragConfig));
+        lenient().doReturn(2).when(conversationMapper).incrementMessageCountAndGet(anyLong(), anyLong(), anyInt());
         UserHolder.set(UserContext.of(1L, "u1"));
     }
 
@@ -243,7 +257,6 @@ class MessageServiceImplTest {
             return 1;
         }).when(messageMapper).insert(any(Message.class));
         doReturn(1).when(messageMapper).updateById(any(Message.class));
-        doReturn(true).when(conversationService).updateById(any(Conversation.class));
 
         List<ServerSentEvent<String>> events = messageService.createStream(dto).collectList().block();
 
@@ -297,7 +310,6 @@ class MessageServiceImplTest {
             }
             return 1;
         }).when(messageMapper).insert(any(Message.class));
-        doReturn(true).when(conversationService).updateById(any(Conversation.class));
         doReturn(Flux.concat(Flux.just("x"), Flux.error(new RuntimeException("boom"))))
                 .when(chatUtil).chatStreamInConversation(eq(304L), eq("ask"), anyString(), any());
 
@@ -327,10 +339,90 @@ class MessageServiceImplTest {
         }).when(messageMapper).insert(any(Message.class));
         doReturn(Flux.just("ok")).when(chatUtil).chatStreamInConversation(eq(305L), eq("go"), anyString(), any());
         doReturn(0).when(messageMapper).updateById(any(Message.class));
-        doReturn(true).when(conversationService).updateById(any(Conversation.class));
 
         assertThrows(RuntimeException.class, () -> messageService.createStream(dto).collectList().block());
         verify(redisUtil).setString("chat:stream:902:status", "failed", 3600);
         verify(redisUtil).setString("chat:stream:902:error", "assistant message persist failed", 3600);
+    }
+
+    @Test
+    void createStream_concurrentSameConversation_shouldAllocateUniqueSequentialSequences() throws Exception {
+        Long conversationId = 400L;
+        Conversation conversation = new Conversation();
+        conversation.setId(conversationId);
+        conversation.setMessageCount(0);
+        doReturn(conversation).when(conversationService).getById(conversationId);
+
+        RagConfig.Rewrite rewrite = new RagConfig.Rewrite();
+        rewrite.setEnabled(false);
+        doReturn(rewrite).when(ragConfig).getRewrite();
+        doReturn("title-once").when(chatUtil).chatOnce(anyString(), anyString(), any());
+        doReturn(Flux.just("ok")).when(chatUtil)
+                .chatStreamInConversation(eq(conversationId), anyString(), anyString(), any());
+
+        AtomicInteger counter = new AtomicInteger(0);
+        doReturn(1).when(conversationMapper).updateTitleByIdAndUserId(eq(conversationId), anyLong(), anyString());
+        org.mockito.Mockito.doAnswer(inv -> counter.addAndGet(2))
+                .when(conversationMapper).incrementMessageCountAndGet(eq(conversationId), anyLong(), eq(2));
+
+        ConcurrentLinkedQueue<Integer> insertedSequences = new ConcurrentLinkedQueue<>();
+        AtomicInteger assistantIdSeed = new AtomicInteger(10000);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            Message m = invocation.getArgument(0);
+            insertedSequences.add(m.getSequence());
+            if (m.getRole() != null && m.getRole() == 2) {
+                m.setId((long) assistantIdSeed.incrementAndGet());
+            }
+            return 1;
+        }).when(messageMapper).insert(any(Message.class));
+        doReturn(1).when(messageMapper).updateById(any(Message.class));
+
+        MessageDTO dto1 = new MessageDTO();
+        dto1.setConversationId(conversationId);
+        dto1.setMessage("hello-1");
+        MessageDTO dto2 = new MessageDTO();
+        dto2.setConversationId(conversationId);
+        dto2.setMessage("hello-2");
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<List<ServerSentEvent<String>>> f1 = pool.submit(() -> {
+                UserHolder.set(UserContext.of(1L, "u1"));
+                try {
+                    return messageService.createStream(dto1).collectList().block();
+                } finally {
+                    UserHolder.clear();
+                }
+            });
+            Future<List<ServerSentEvent<String>>> f2 = pool.submit(() -> {
+                UserHolder.set(UserContext.of(1L, "u1"));
+                try {
+                    return messageService.createStream(dto2).collectList().block();
+                } finally {
+                    UserHolder.clear();
+                }
+            });
+
+            List<ServerSentEvent<String>> e1 = f1.get(5, TimeUnit.SECONDS);
+            List<ServerSentEvent<String>> e2 = f2.get(5, TimeUnit.SECONDS);
+            assertFalse(e1 == null || e1.isEmpty());
+            assertFalse(e2 == null || e2.isEmpty());
+
+            // 每次 createStream 会插入两条消息，两个并发请求总计4条
+            assertEquals(4, insertedSequences.size());
+            Set<Integer> seqSet = Set.copyOf(insertedSequences);
+            assertEquals(4, seqSet.size());
+            assertTrue(seqSet.containsAll(Set.of(1, 2, 3, 4)));
+
+            verify(conversationMapper, times(2))
+                    .incrementMessageCountAndGet(eq(conversationId), anyLong(), eq(2));
+            // 只应在第一轮计数（newCount==2）触发标题更新
+            verify(conversationMapper, times(1))
+                    .updateTitleByIdAndUserId(eq(conversationId), anyLong(), eq("title-once"));
+            verify(messageMapper, atLeastOnce()).updateById(any(Message.class));
+        } finally {
+            pool.shutdown();
+            pool.awaitTermination(5, TimeUnit.SECONDS);
+        }
     }
 }

@@ -737,7 +737,7 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 消息创建时间
 );
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);
-CREATE INDEX IF NOT EXISTS idx_messages_conversation_id_sequence ON messages(conversation_id, sequence);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_messages_conversation_id_sequence ON messages(conversation_id, sequence);
 CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id);
 CREATE INDEX IF NOT EXISTS idx_messages_user_id_conversation_id ON messages(user_id, conversation_id);
 --
