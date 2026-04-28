@@ -5,9 +5,13 @@ import com.zdmj.userAuthService.service.EmailService;
 import com.zdmj.userAuthService.service.VerificationCodeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -21,6 +25,14 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
 
     private final StringRedisTemplate redisTemplate;
     private final EmailService emailService;
+    private static final RedisScript<Long> VERIFY_AND_DELETE_SCRIPT = loadVerifyAndDeleteScript();
+
+    private static RedisScript<Long> loadVerifyAndDeleteScript() {
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("lua/verify_code_and_delete.lua"));
+        script.setResultType(Long.class);
+        return script;
+    }
 
     @Override
     public boolean sendVerificationCode(String email) {
@@ -52,23 +64,17 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
     public boolean verifyCode(String email, String code) {
         try {
             String key = RedisConstants.VERIFICATION_CODE_KEY + email;
-            String storedCode = redisTemplate.opsForValue().get(key);
-
-            if (storedCode == null) {
-                log.warn("验证码已过期或不存在: {}", email);
+            Long result = redisTemplate.execute(VERIFY_AND_DELETE_SCRIPT, Collections.singletonList(key), code);
+            if (Long.valueOf(1L).equals(result)) {
+                log.info("验证码验证成功: {}", email);
+                return true;
+            }
+            if (Long.valueOf(-1L).equals(result)) {
+                log.warn("验证码错误: {}", email);
                 return false;
             }
-
-            boolean isValid = storedCode.equals(code);
-            if (isValid) {
-                // 验证成功后删除验证码
-                redisTemplate.delete(key);
-                log.info("验证码验证成功: {}", email);
-            } else {
-                log.warn("验证码错误: {}", email);
-            }
-
-            return isValid;
+            log.warn("验证码已过期或不存在: {}", email);
+            return false;
         } catch (Exception e) {
             log.error("验证验证码失败: {}", email, e);
             return false;
