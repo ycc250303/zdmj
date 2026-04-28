@@ -89,14 +89,14 @@ class KnowledgeEmbeddingServiceImplTest {
         task.setId(88L);
         task.setDocumentId(123L);
         task.setUserId(77L);
-        task.setStatus(KnowledgeVectorTaskStatusEnum.PENDING.getCode());
         task.setTaskType(999);
+        when(knowledgeVectorTaskMapper.claimPendingTask(88L)).thenReturn(1);
         when(knowledgeVectorTaskMapper.selectById(88L)).thenReturn(task);
 
         service.executeTaskAsync(88L);
 
-        assertEquals(KnowledgeVectorTaskStatusEnum.FAILED.getCode(), task.getStatus());
-        verify(knowledgeVectorTaskMapper, Mockito.atLeast(2)).updateById(task);
+        verify(knowledgeVectorTaskMapper).claimPendingTask(88L);
+        verify(knowledgeVectorTaskMapper).markTaskFailed(Mockito.eq(88L), Mockito.anyString());
     }
 
     @Test
@@ -141,30 +141,35 @@ class KnowledgeEmbeddingServiceImplTest {
     }
 
     @Test
-    void executeTaskAsyncTaskMissing_shouldReturnWithoutUpdate() {
-        when(knowledgeVectorTaskMapper.selectById(7001L)).thenReturn(null);
+    void executeTaskAsyncWhenClaimFailed_shouldReturnWithoutSelectOrMark() {
+        when(knowledgeVectorTaskMapper.claimPendingTask(7001L)).thenReturn(0);
         KnowledgeEmbeddingServiceImpl service = new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
                 knowledgeVectorTaskMapper);
 
         service.executeTaskAsync(7001L);
 
-        verify(knowledgeVectorTaskMapper, never()).updateById(Mockito.any(KnowledgeVectorTask.class));
+        verify(knowledgeVectorTaskMapper, never()).selectById(Mockito.anyLong());
+        verify(knowledgeVectorTaskMapper, never()).markTaskSuccess(Mockito.anyLong());
+        verify(knowledgeVectorTaskMapper, never()).markTaskFailed(Mockito.anyLong(), Mockito.anyString());
     }
 
     @Test
-    void executeTaskAsyncTaskNotPending_shouldReturnWithoutRunning() {
+    void executeTaskAsyncTaskMissingAfterClaim_shouldReturnWithoutMark() {
         KnowledgeVectorTask task = new KnowledgeVectorTask();
         task.setId(7002L);
-        task.setStatus(KnowledgeVectorTaskStatusEnum.SUCCESS.getCode());
-        when(knowledgeVectorTaskMapper.selectById(7002L)).thenReturn(task);
+        when(knowledgeVectorTaskMapper.claimPendingTask(7002L)).thenReturn(1);
+        when(knowledgeVectorTaskMapper.selectById(7002L)).thenReturn(null);
         KnowledgeEmbeddingServiceImpl service = new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
                 knowledgeVectorTaskMapper);
 
         service.executeTaskAsync(7002L);
 
-        verify(knowledgeVectorTaskMapper, never()).updateById(task);
+        verify(knowledgeVectorTaskMapper).claimPendingTask(7002L);
+        verify(knowledgeVectorTaskMapper).selectById(7002L);
+        verify(knowledgeVectorTaskMapper, never()).markTaskSuccess(Mockito.anyLong());
+        verify(knowledgeVectorTaskMapper, never()).markTaskFailed(Mockito.anyLong(), Mockito.anyString());
     }
 
     @Test
@@ -266,16 +271,16 @@ class KnowledgeEmbeddingServiceImplTest {
         task.setId(8801L);
         task.setDocumentId(120L);
         task.setUserId(1L);
-        task.setStatus(KnowledgeVectorTaskStatusEnum.PENDING.getCode());
         task.setTaskType(KnowledgeVectorTaskTypeEnum.DELETE.getCode());
+        when(knowledgeVectorTaskMapper.claimPendingTask(8801L)).thenReturn(1);
         when(knowledgeVectorTaskMapper.selectById(8801L)).thenReturn(task);
         when(knowledgeDocumentMapper.selectById(120L)).thenReturn(null);
 
         service.executeTaskAsync(8801L);
 
-        assertEquals(KnowledgeVectorTaskStatusEnum.SUCCESS.getCode(), task.getStatus());
+        verify(knowledgeVectorTaskMapper).claimPendingTask(8801L);
         verify(knowledgeVectorMapper).deleteByDocumentIdAndUserId(120L, 1L);
-        verify(knowledgeVectorTaskMapper, Mockito.atLeast(2)).updateById(task);
+        verify(knowledgeVectorTaskMapper).markTaskSuccess(8801L);
     }
 
     @Test

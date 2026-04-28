@@ -92,16 +92,16 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
     @Async("embeddingExecutor")
     @Transactional(rollbackFor = Exception.class)
     public void executeTaskAsync(Long taskId) {
+        int claimed = knowledgeVectorTaskMapper.claimPendingTask(taskId);
+        if (claimed != 1) {
+            return;
+        }
+
         KnowledgeVectorTask task = knowledgeVectorTaskMapper.selectById(taskId);
         if (task == null) {
+            log.warn("异步向量任务不存在，跳过执行: taskId={}", taskId);
             return;
         }
-        if (task.getStatus() == null || task.getStatus() != KnowledgeVectorTaskStatusEnum.PENDING.getCode()) {
-            return;
-        }
-        task.setStatus(KnowledgeVectorTaskStatusEnum.RUNNING.getCode());
-        task.setStartedAt(LocalDateTime.now());
-        knowledgeVectorTaskMapper.updateById(task);
 
         try {
             if (task.getTaskType() != null && task.getTaskType() == KnowledgeVectorTaskTypeEnum.EMBEDDING.getCode()) {
@@ -112,15 +112,9 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
             } else {
                 throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED.getCode(), "未知任务类型");
             }
-            task.setStatus(KnowledgeVectorTaskStatusEnum.SUCCESS.getCode());
-            task.setCompletedAt(LocalDateTime.now());
-            task.setErrorMessage(null);
-            knowledgeVectorTaskMapper.updateById(task);
+            knowledgeVectorTaskMapper.markTaskSuccess(taskId);
         } catch (Exception e) {
-            task.setStatus(KnowledgeVectorTaskStatusEnum.FAILED.getCode());
-            task.setCompletedAt(LocalDateTime.now());
-            task.setErrorMessage(e.getMessage());
-            knowledgeVectorTaskMapper.updateById(task);
+            knowledgeVectorTaskMapper.markTaskFailed(taskId, e.getMessage());
             log.error("异步向量任务执行失败: taskId={}, DocumentId={}, error={}",
                     taskId, task.getDocumentId(), e.getMessage(), e);
         }
