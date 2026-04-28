@@ -15,6 +15,7 @@ import com.zdmj.conversationService.dto.MessageDTO;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.entity.Message;
 import com.zdmj.conversationService.enums.MessageRoleEnum;
+import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.service.ConversationService;
 import com.zdmj.conversationService.service.MessageService;
@@ -29,7 +30,6 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -46,6 +46,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     private final ChatUtil chatUtil;
     private final MessageMapper messageMapper;
     private final ConversationService conversationService;
+    private final ConversationMapper conversationMapper;
     private final KnowledgeRagService knowledgeRagService;
     private final RagConfig ragConfig;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -64,34 +65,52 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Flux<ServerSentEvent<String>> createStream(MessageDTO dto) {
-        Conversation conversation = requireConversationAccess(dto.getConversationId());
+        requireConversationAccess(dto.getConversationId());
         Long userId = UserHolder.requireUserId();
 
-        // 1.写入 user 消息
-        int messageCount = conversation.getMessageCount();
+        // 1.原子递增消息计数
+        Integer newCount = conversationMapper.incrementMessageCountAndGet(dto.getConversationId(), userId, 2);
+        if (newCount == null || newCount < 2) {
+            throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
+        }
 
+        int userSeq = newCount - 1;
+        int assistantSeq = newCount;
+
+        // 2.写入 user 消息
         Message userMsg = new Message();
         userMsg.setConversationId(dto.getConversationId());
         userMsg.setUserId(userId);
         userMsg.setRole(MessageRoleEnum.USER.getCode()); // user
         userMsg.setContent(dto.getMessage());
-        userMsg.setSequence(messageCount + 1);
+        userMsg.setSequence(userSeq);
         if (messageMapper.insert(userMsg) != 1) {
             throw new BusinessException(ErrorCode.MESSAGE_CREATE_FAILED);
         }
 
-        // 2.预写 assistant 消息
+        // 3.预写 assistant 消息
         Message assistantMsg = new Message();
         assistantMsg.setConversationId(dto.getConversationId());
         assistantMsg.setUserId(userId);
         assistantMsg.setRole(2); // assistant
         assistantMsg.setContent("");
-        assistantMsg.setSequence(messageCount + 2);
+        assistantMsg.setSequence(assistantSeq);
         if (messageMapper.insert(assistantMsg) != 1) {
             throw new BusinessException(ErrorCode.MESSAGE_CREATE_FAILED);
         }
 
-        // 3.创建流式消息
+        // 4.更新会话标题
+        if (newCount == 2) {
+            String title = chatUtil.chatOnce(
+                    dto.getMessage(),
+                    PromptUtil.PromptNames.GENERATE_CONVERSATION_TITLE,
+                    null
+            );
+            // 仅更新标题，避免回写旧的 message_count / last_message_at
+            conversationMapper.updateTitleByIdAndUserId(dto.getConversationId(), userId, title);
+        }
+
+        // 5.创建流式消息
         Long streamId = assistantMsg.getId();
         String statusKey = StreamKeys.status(streamId);
         String contentKey = StreamKeys.content(streamId);
@@ -101,18 +120,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         Sinks.Many<String> sink = Sinks.many().multicast().onBackpressureBuffer();
         streamSinkMap.put(streamId, sink);
 
-        // 4.更新会话信息（上下文、消息总数、最后一条消息时间）
-        conversation.setMessageCount(messageCount + 2);
-        conversation.setLastMessageAt(LocalDateTime.now());
-        // 生成会话标题
-        if (messageCount == 0) {
-            String title = chatUtil.chatOnce(dto.getMessage(), PromptUtil.PromptNames.GENERATE_CONVERSATION_TITLE,null);
-
-            conversation.setTitle(title);
-        }
-        conversationService.updateById(conversation);
-
-        // 5.初始化状态
+        // 6.初始化状态
         redisUtil.setString(statusKey, "streaming", STREAM_TTL_SECONDS);
         redisUtil.setString(contentKey, "", STREAM_TTL_SECONDS);
         redisUtil.setString(doneKey, "0", STREAM_TTL_SECONDS);
@@ -122,7 +130,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         AtomicLong lastFlushAt = new AtomicLong(System.currentTimeMillis());
         AtomicInteger lastFlushedLen = new AtomicInteger(0);
 
-        // 6.调用 AI 服务
+        // 7.调用 AI 服务
         Flux<String> chatFlux = ragConfig.getRewrite().isEnabled()
                 ? knowledgeRagService.streamAnswer(dto.getConversationId(), dto.getMessage())
                 : chatUtil.chatStreamInConversation(
@@ -187,7 +195,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
                 })
                 .subscribe();
 
-        // 5.返回流式消息
+        // 8.返回流式消息
         Flux<ServerSentEvent<String>> meta = Flux.just(
                 ServerSentEvent.<String>builder()
                         .event("meta")

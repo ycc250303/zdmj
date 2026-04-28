@@ -4,4 +4,26 @@
     <select id="selectByUserId" resultType="com.zdmj.conversationService.entity.Conversation">
         SELECT * FROM conversations WHERE user_id = #{userId} ORDER BY updated_at DESC
     </select>
+
+    <!--
+      PostgreSQL 原子递增并返回最新 message_count
+      通过 user_id 做权限隔离，防止跨用户更新
+    -->
+    <select id="incrementMessageCountAndGet" parameterType="map">
+        UPDATE conversations
+        SET message_count   = COALESCE(message_count, 0) + #{delta},
+            last_message_at = NOW(),
+            updated_at      = NOW()
+        WHERE id = #{conversationId}
+          AND user_id = #{userId}
+        RETURNING message_count
+    </select>
+
+    <update id="updateTitleByIdAndUserId" parameterType="map">
+        UPDATE conversations
+        SET title = #{title},
+            updated_at = NOW()
+        WHERE id = #{conversationId}
+          AND user_id = #{userId}
+    </update>
 </mapper>

@@ -8,4 +8,36 @@
     -->
     <!-- 根据知识库ID删除向量化任务 -->
     <delete id="deleteByKnowledgeId"> DELETE FROM knowledge_vector_tasks WHERE knowledge_id = #{knowledgeId} </delete>
+
+    <!-- 原子抢占任务：仅 PENDING(1) 可更新为 RUNNING(2) -->
+    <update id="claimPendingTask">
+        UPDATE knowledge_vector_tasks
+        SET status = 2,
+            started_at = NOW(),
+            updated_at = NOW()
+        WHERE id = #{taskId}
+          AND status = 1
+    </update>
+
+    <!-- 原子结束任务：仅 RUNNING(2) 可更新为 SUCCESS(3) -->
+    <update id="markTaskSuccess">
+        UPDATE knowledge_vector_tasks
+        SET status = 3,
+            completed_at = NOW(),
+            error_message = NULL,
+            updated_at = NOW()
+        WHERE id = #{taskId}
+          AND status = 2
+    </update>
+
+    <!-- 原子结束任务：仅 RUNNING(2) 可更新为 FAILED(4) -->
+    <update id="markTaskFailed">
+        UPDATE knowledge_vector_tasks
+        SET status = 4,
+            completed_at = NOW(),
+            error_message = #{errorMessage},
+            updated_at = NOW()
+        WHERE id = #{taskId}
+          AND status = 2
+    </update>
 </mapper>
