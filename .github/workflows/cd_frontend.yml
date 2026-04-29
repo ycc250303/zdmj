@@ -1,0 +1,40 @@
+name: CD - Deploy Frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'client/**'
+      - 'deploy/deploy_frontend.sh'
+      - '.github/workflows/cd_frontend.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: cd-frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SERVER_HOST: 111.229.81.45
+  SERVER_USER: root
+  APP_DIR: /opt/zdmj/zdmj
+
+jobs:
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Deploy frontend on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.SERVER_HOST }}
+          username: ${{ env.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
+            cd "${{ env.APP_DIR }}"
+            chmod +x ./deploy/deploy_frontend.sh
+            ./deploy/deploy_frontend.sh

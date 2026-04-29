@@ -17,3 +17,4 @@ docs/backend/Prisma-AI功能分类-Spring-AI-vs-LangChain.md
 /client/packages
 /docs/软管
 /.vscode
+/.agents/skills
