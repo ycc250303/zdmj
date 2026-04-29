@@ -2,7 +2,7 @@
 
 更新系统
 
-```
+```bash
 sudo apt update
 sudo apt upgrade -y
 ```
@@ -80,27 +80,57 @@ docker compose ps
 nano .env
 ```
 
-## DashScope API Key 与 401 InvalidApiKey
-
-- `application.yml` 中 **不再写死** `api-key`，运行时只认环境变量：`DASHSCOPE_API_KEY` 或 `SPRING_AI_DASHSCOPE_API_KEY`（`docker-compose` 已从 `.env` 注入）。
-- 修改 `.env` 或 `application.yml` 后必须 **重新构建并启动后端镜像**，否则容器内仍是旧 JAR 里的配置：
+# 5.前端部署
 
 ```bash
-cd /opt/zdmj   # 与 docker-compose.yml、.env 同目录
-docker compose build --no-cache backend && docker compose up -d backend
-```
+# 1) 系统更新
+sudo apt update
+sudo apt upgrade -y
 
-- 在服务器上确认变量已进入容器（不打印密钥内容）：
+# 2) 基础工具
+sudo apt install -y curl git rsync nginx
+
+# 3) 安装 nvm（用于安装 Node）
+curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+source ~/.nvm/nvm.sh
+
+# 4) 安装 Node 20（满足 client 要求 >=20.19）
+nvm install 20
+nvm use 20
+nvm alias default 20
+
+# 5) 启用 corepack（管理 pnpm）
+corepack enable
+corepack prepare pnpm@latest --activate
+
+# 6) 验证版本
+node -v
+pnpm -v
+nginx -v
+rsync --version
+git --version
+```
 
 ```bash
-docker exec zdmj-backend sh -c 'if [ -n "$DASHSCOPE_API_KEY" ]; then echo DASHSCOPE_API_KEY=ok; else echo DASHSCOPE_API_KEY=empty; fi; if [ -n "$SPRING_AI_DASHSCOPE_API_KEY" ]; then echo SPRING_AI_DASHSCOPE_API_KEY=ok; else echo SPRING_AI_DASHSCOPE_API_KEY=empty; fi'
+cd /opt/zdmj/zdmj
+git fetch origin
+git checkout main
+git pull --ff-only origin main
+
+cd client
+pnpm install --frozen-lockfile
+pnpm build
+
+sudo rsync -av --delete dist/ /usr/share/nginx/html/
+sudo nginx -t
+sudo systemctl reload nginx
+
+# 确认状态
+sudo systemctl status nginx --no-pager
 ```
+# 6.管理
 
-若长度为 0，说明 `.env` 未加载或变量名不一致；请在 **`docker-compose.yml` 所在目录** 执行 `docker compose`，并检查该目录下的 `.env`。
-
-# 5.管理
-
-```
+```bash
 # 启动
 docker compose up -d
 
@@ -118,11 +148,26 @@ docker logs --tail=200 zdmj-backend
 
 ```
 
-# 6.手动部署
+# 7.手动部署
 
-```
+```bash
 cd ..
 cd /opt/zdmj/zdmj
 git pull --ff-only origin main
 ./deploy/deploy.sh
+```
+
+# 附：系统盘满了
+
+```bash
+docker system df
+
+docker buildx du --verbose
+
+docker builder prune --filter "until=240h"
+# 240h = 10天，可改 168h(7天) / 720h(30天)
+
+docker system df -v
+
+docker rmi id
 ```
