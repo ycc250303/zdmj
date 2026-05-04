@@ -125,6 +125,17 @@ public class PromptUtil {
         public static final String JOB_CAREER_GRAPH_AI_AGENT = "job-career-graph/ai-agent";
         /** 岗位关联图谱 默认兜底 */
         public static final String JOB_CAREER_GRAPH_DEFAULT = "job-career-graph/default";
+
+        /** 人岗匹配 Java 后端 */
+        public static final String JOB_STUDENT_MATCH_JAVA_BACKEND = "job-student-match/java-backend";
+        /** 人岗匹配 前端 */
+        public static final String JOB_STUDENT_MATCH_FRONTEND = "job-student-match/frontend";
+        /** 人岗匹配 算法 */
+        public static final String JOB_STUDENT_MATCH_ALGORITHM = "job-student-match/algorithm";
+        /** 人岗匹配 AI/Agent 开发 */
+        public static final String JOB_STUDENT_MATCH_AI_AGENT = "job-student-match/ai-agent";
+        /** 人岗匹配 默认兜底 */
+        public static final String JOB_STUDENT_MATCH_DEFAULT = "job-student-match/default";
     }
 
     public enum JobRole {
@@ -142,7 +153,15 @@ public class PromptUtil {
     }
 
     /**
-     * 将 LLM/配置中的 roleCode 归一化为 JobRole（兼容 java_backend、backend、大小写等）
+     * 将 LLM/配置中的 roleCode 归一化为 JobRole。
+     *
+     * <p>同时兼容三类输入：</p>
+     * <ul>
+     *   <li>LLM 返回的下划线写法：{@code java_backend / ai_agent / big_data}；</li>
+     *   <li>前端/数据库存储的连字符写法（即提示词末段，由 {@link #getPromptDisplayType(String)} 输出）：
+     *       {@code java-backend / ai-agent / big-data / software-test / devops-sre}；</li>
+     *   <li>简短别名：{@code backend / fe / qa / ml / sre / da / de / sec ...}。</li>
+     * </ul>
      */
     public static JobRole getJobRoleByString(String roleCode) {
         if (roleCode == null || roleCode.isBlank()) {
@@ -150,16 +169,16 @@ public class PromptUtil {
         }
         String key = roleCode.trim().toLowerCase();
         return switch (key) {
-            case "java", "java_backend", "backend" -> JobRole.JAVA;
-            case "frontend", "fe", "web_frontend" -> JobRole.FRONTEND;
-            case "cpp", "c++", "c_cpp" -> JobRole.CPP;
-            case "software_test", "test", "qa" -> JobRole.SOFTWARE_TEST;
+            case "java", "java_backend", "java-backend", "backend" -> JobRole.JAVA;
+            case "frontend", "fe", "web_frontend", "web-frontend" -> JobRole.FRONTEND;
+            case "cpp", "c++", "c_cpp", "c-cpp" -> JobRole.CPP;
+            case "software_test", "software-test", "test", "qa" -> JobRole.SOFTWARE_TEST;
             case "ai_agent", "ai-agent", "agent", "ai" -> JobRole.AI_AGENT;
-            case "algorithm", "algo", "ml", "machine_learning" -> JobRole.ALGORITHM;
+            case "algorithm", "algo", "ml", "machine_learning", "machine-learning" -> JobRole.ALGORITHM;
             case "data_analyst", "data-analyst", "analyst", "da" -> JobRole.DATA_ANALYST;
-            case "big_data", "big-data", "data_engineer", "de" -> JobRole.BIG_DATA;
+            case "big_data", "big-data", "data_engineer", "data-engineer", "de" -> JobRole.BIG_DATA;
             case "devops_sre", "devops-sre", "devops", "sre" -> JobRole.DEVOPS_SRE;
-            case "cybersecurity", "security", "sec", "network_security" -> JobRole.CYBERSECURITY;
+            case "cybersecurity", "security", "sec", "network_security", "network-security" -> JobRole.CYBERSECURITY;
             case "unknown", "default" -> JobRole.UNKNOWN;
             default -> JobRole.UNKNOWN;
         };
@@ -246,6 +265,25 @@ public class PromptUtil {
             case FRONTEND -> PromptNames.JOB_CAREER_GRAPH_FRONTEND;
             case AI_AGENT -> PromptNames.JOB_CAREER_GRAPH_AI_AGENT;
             default -> PromptNames.JOB_CAREER_GRAPH_DEFAULT;
+        };
+    }
+
+    /**
+     * 岗位角色 -> 人岗匹配 PromptName 映射。
+     *
+     * <p>仅为核心方向（Java 后端 / 前端 / 算法 / AI）提供专属提示词，其它岗位统一走
+     * {@link PromptNames#JOB_STUDENT_MATCH_DEFAULT}，以保证主流岗位输出质量同时控制提示词数量。</p>
+     */
+    public static String getJobStudentMatchPromptName(JobRole role) {
+        if (role == null) {
+            return PromptNames.JOB_STUDENT_MATCH_DEFAULT;
+        }
+        return switch (role) {
+            case JAVA -> PromptNames.JOB_STUDENT_MATCH_JAVA_BACKEND;
+            case FRONTEND -> PromptNames.JOB_STUDENT_MATCH_FRONTEND;
+            case ALGORITHM -> PromptNames.JOB_STUDENT_MATCH_ALGORITHM;
+            case AI_AGENT -> PromptNames.JOB_STUDENT_MATCH_AI_AGENT;
+            default -> PromptNames.JOB_STUDENT_MATCH_DEFAULT;
         };
     }
 
