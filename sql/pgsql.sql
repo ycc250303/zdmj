@@ -27,6 +27,7 @@ DROP TABLE IF EXISTS resumes;
 DROP TABLE IF EXISTS resume_matches;
 DROP TABLE IF EXISTS jobs;
 DROP TABLE IF EXISTS companies;
+DROP TABLE IF EXISTS job_student_matches;
 DROP TABLE IF EXISTS knowledge_documents;
 DROP TABLE IF EXISTS knowledge_bases;
 DROP TABLE IF EXISTS knowledge_vectors;
@@ -549,6 +550,63 @@ CREATE TABLE IF NOT EXISTS job_capability_profiles (
 );
 CREATE INDEX IF NOT EXISTS idx_job_capability_profiles_job_id ON job_capability_profiles(job_id);
 CREATE INDEX IF NOT EXISTS idx_job_capability_profiles_role_type ON job_capability_profiles(target_role_type);
+-- 3.4 人岗匹配分析表（学生 × 岗位 多维匹配结果）
+CREATE TABLE IF NOT EXISTS job_student_matches (
+    id BIGSERIAL PRIMARY KEY,
+    -- 匹配ID
+    user_id BIGINT NOT NULL,
+    -- 学生用户ID（逻辑外键：users.id）
+    job_id BIGINT NOT NULL,
+    -- 岗位ID（逻辑外键：jobs.id）
+    overall_score INTEGER NOT NULL DEFAULT 0,
+    -- 综合匹配度（0~100，按权重加权后）
+    basic_score INTEGER NOT NULL DEFAULT 0,
+    -- 基础要求维度评分（0~100）
+    professional_skill_score INTEGER NOT NULL DEFAULT 0,
+    -- 职业技能维度评分（0~100）
+    professional_quality_score INTEGER NOT NULL DEFAULT 0,
+    -- 职业素养维度评分（0~100）
+    development_potential_score INTEGER NOT NULL DEFAULT 0,
+    -- 发展潜力维度评分（0~100）
+    weights JSONB NOT NULL DEFAULT '{}'::jsonb,
+    -- 维度权重快照
+    -- weights 示例
+    -- {
+    --   "basic": 0.20,
+    --   "professionalSkill": 0.40,
+    --   "professionalQuality": 0.15,
+    --   "developmentPotential": 0.25
+    -- }
+    dimension_detail JSONB NOT NULL DEFAULT '{}'::jsonb,
+    -- 各维度对比明细：jobSide / studentSide / score / gap / evidence
+    matched_highlights JSONB DEFAULT '[]'::jsonb,
+    -- 命中亮点（命中的关键能力点）
+    critical_gaps JSONB DEFAULT '[]'::jsonb,
+    -- 关键差距
+    matched_keywords JSONB DEFAULT '[]'::jsonb,
+    -- 命中的岗位关键词（用于关键技能匹配率）
+    missing_keywords JSONB DEFAULT '[]'::jsonb,
+    -- 缺失的岗位关键词
+    key_skill_match_rate NUMERIC(5,4) NOT NULL DEFAULT 0.0,
+    -- 关键技能匹配率（命中关键词 / 岗位关键词总数；赛题指标 ≥ 0.80）
+    summary TEXT,
+    -- 总结
+    target_role_type VARCHAR(64) NOT NULL DEFAULT 'default',
+    -- 岗位类型展示值（如 java-backend）
+    prompt_name VARCHAR(128) NOT NULL DEFAULT 'job-student-match/default',
+    -- 实际使用的提示词名称
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- 创建时间
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_job_student_matches_user_job
+    ON job_student_matches(user_id, job_id);
+CREATE INDEX IF NOT EXISTS idx_job_student_matches_user_id
+    ON job_student_matches(user_id);
+CREATE INDEX IF NOT EXISTS idx_job_student_matches_job_id
+    ON job_student_matches(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_student_matches_role_type
+    ON job_student_matches(target_role_type);
 --
 -- ==========================4 知识库模块==========================
 --

@@ -90,7 +90,13 @@ public enum ErrorCode {
     JOB_CAPABILITY_PROFILE_GENERATION_FAILED(8202, "生成岗位能力画像失败"),
     JOB_DETECT_FAILED(8203, "岗位分类失败"),
     JOB_CAREER_GRAPH_GENERATION_FAILED(8204, "生成岗位关联图谱失败"),
-    JOB_CAREER_GRAPH_INVALID(8205, "岗位关联图谱结果不符合要求（晋升路径或换岗路径数量不足）");
+    JOB_CAREER_GRAPH_INVALID(8205, "岗位关联图谱结果不符合要求（晋升路径或换岗路径数量不足）"),
+
+    // ========== 人岗匹配 (83xx) ==========
+    MATCH_GENERATION_FAILED(8301, "生成人岗匹配分析失败，请稍后重试"),
+    MATCH_PRECONDITION_MISSING(8302, "学生能力画像缺失，请先到能力画像页生成画像"),
+    MATCH_NOT_FOUND(8303, "人岗匹配分析不存在"),
+    MATCH_WEIGHTS_INVALID(8304, "权重配置不合法");
 
     private final Integer code;
     private final String message;
