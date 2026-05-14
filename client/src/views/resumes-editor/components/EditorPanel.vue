@@ -79,7 +79,7 @@ async function handleSaveResume() {
           </template>
 
           <div v-else class="py-6 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
-            <div class="i-mdi-text-box-remove-outline text-3xl mb-2 text-slate-300"></div>
+            <span class="text-3xl mb-2 text-slate-300">📝</span>
             <p class="text-sm">暂无教育经历数据</p>
             <p class="text-xs mt-1">请前往左侧菜单的“个人信息管理”中添加</p>
           </div>
@@ -108,7 +108,7 @@ async function handleSaveResume() {
           </template>
 
           <div v-else class="py-6 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
-            <div class="i-mdi-text-box-remove-outline text-3xl mb-2 text-slate-300"></div>
+            <span class="text-3xl mb-2 text-slate-300">📝</span>
             <p class="text-sm">暂无项目经历数据</p>
             <p class="text-xs mt-1">请前往左侧菜单的“个人信息管理”中添加</p>
           </div>
@@ -129,7 +129,7 @@ async function handleSaveResume() {
           </template>
 
           <div v-else class="py-6 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
-            <div class="i-mdi-text-box-remove-outline text-3xl mb-2 text-slate-300"></div>
+            <span class="text-3xl mb-2 text-slate-300">📝</span>
             <p class="text-sm">暂无实习经历数据</p>
             <p class="text-xs mt-1">请前往左侧菜单的“个人信息管理”中添加</p>
           </div>

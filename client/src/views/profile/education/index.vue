@@ -72,7 +72,7 @@ onMounted(() => {
 
       <NSpin :show="loading">
         <div v-if="educationList.length === 0" class="text-center py-20 text-gray-400 bg-white rounded-xl border border-gray-100 shadow-sm">
-          <div class="i-mdi-school-outline text-6xl mb-4 mx-auto opacity-50"></div>
+          <span class="text-6xl mb-4 mx-auto opacity-50">🎓</span>
           <p>{{ $t('page.profile.common.empty') }}</p>
         </div>
 

@@ -145,13 +145,13 @@ const handleExportPdf = () => {
 
       <div class="flex items-center gap-6">
         <div class="flex items-center gap-3 w-48">
-          <div class="i-mdi-magnify-minus text-slate-400 cursor-pointer hover:text-blue-600" @click="zoomLevel -= 0.1"></div>
+          <span class="text-slate-400 cursor-pointer hover:text-blue-600" @click="zoomLevel -= 0.1">🔍-</span>
           <NSlider v-model:value="zoomLevel" :min="0.4" :max="1.5" :step="0.05" :tooltip="false" />
-          <div class="i-mdi-magnify-plus text-slate-400 cursor-pointer hover:text-blue-600" @click="zoomLevel += 0.1"></div>
+          <span class="text-slate-400 cursor-pointer hover:text-blue-600" @click="zoomLevel += 0.1">🔍+</span>
           <span class="text-xs font-bold text-slate-500 w-8">{{ Math.round(zoomLevel * 100) }}%</span>
         </div>
         <NButton type="primary" size="small" @click="handleExportPdf">
-          <template #icon><div class="i-mdi-download"></div></template>
+          <template #icon><span>⬇️</span></template>
           {{ $t('page.resume.exportPdf') }}
         </NButton>
       </div>

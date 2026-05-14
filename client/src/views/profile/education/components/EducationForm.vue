@@ -89,7 +89,7 @@ async function handleSubmit() {
         <p class="text-gray-500 mt-1 text-sm">{{ $t('page.profile.common.requiredDesc') }}</p>
       </div>
       <NButton quaternary circle @click="emit('cancel')">
-        <template #icon><div class="i-mdi-close text-xl"></div></template>
+        <template #icon><span class="text-xl">✕</span></template>
       </NButton>
     </div>
 

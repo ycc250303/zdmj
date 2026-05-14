@@ -109,7 +109,7 @@ onMounted(() => {
       <div class="mb-6 flex justify-between items-center">
         <h1 class="text-2xl font-bold text-slate-800">{{ $t('page.jobs.title') }}</h1>
         <NButton type="primary" @click="handleCreate">
-          <template #icon><div class="i-mdi-plus"></div></template>
+          <template #icon><span>+</span></template>
           {{ $t('page.jobs.create') }}
         </NButton>
       </div>
@@ -133,15 +133,15 @@ onMounted(() => {
 
               <div class="flex items-center gap-4 text-sm text-slate-600 mb-3">
                 <div class="flex items-center gap-1">
-                  <div class="i-mdi-office-building text-base"></div>
+                  <span class="text-base">🏢</span>
                   <span>{{ job.companyName }}</span>
                 </div>
                 <div class="flex items-center gap-1">
-                  <div class="i-mdi-map-marker text-base"></div>
+                  <span class="text-base">📍</span>
                   <span>{{ job.location }}</span>
                 </div>
                 <div class="flex items-center gap-1">
-                  <div class="i-mdi-currency-cny text-base"></div>
+                  <span class="text-base">¥</span>
                   <span class="text-orange-600 font-semibold">{{ formatSalary(job) }}</span>
                 </div>
               </div>
@@ -163,15 +163,15 @@ onMounted(() => {
 
             <div class="flex gap-2 ml-4">
               <NButton size="small" @click="handleViewDetail(job.id)">
-                <template #icon><div class="i-mdi-eye"></div></template>
+                <template #icon><span>👁</span></template>
                 {{ $t('page.jobs.viewDetail') }}
               </NButton>
               <NButton size="small" type="primary" @click="handleEdit(job.id)">
-                <template #icon><div class="i-mdi-pencil"></div></template>
+                <template #icon><span>✏️</span></template>
                 {{ $t('page.jobs.edit') }}
               </NButton>
               <NButton size="small" type="error" @click="handleDelete(job.id)">
-                <template #icon><div class="i-mdi-delete"></div></template>
+                <template #icon><span>🗑</span></template>
                 {{ $t('page.jobs.delete') }}
               </NButton>
             </div>
@@ -184,7 +184,7 @@ onMounted(() => {
         <NEmpty :description="$t('page.jobs.empty')">
           <template #extra>
             <NButton type="primary" size="large" @click="handleCreate">
-              <template #icon><div class="i-mdi-plus-box-outline"></div></template>
+              <template #icon><span>＋</span></template>
               {{ $t('page.jobs.createFirst') }}
             </NButton>
           </template>

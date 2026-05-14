@@ -40,10 +40,10 @@ const knowledgeTypeLabels: Record<number, { label: string; type: 'primary' | 'in
 
 // 向量化状态映射
 const embeddingStatusLabels: Record<string, { text: string; type: 'success' | 'warning' | 'error' | 'default'; icon: string }> = {
-  PENDING: { text: '等待中', type: 'default', icon: 'i-mdi-clock-outline' },
-  RUNNING: { text: '向量化中...', type: 'warning', icon: 'i-mdi-loading' },
-  SUCCESS: { text: '已向量化', type: 'success', icon: 'i-mdi-check-circle' },
-  FAILED: { text: '向量化失败', type: 'error', icon: 'i-mdi-alert-circle' }
+  PENDING: { text: '等待中', type: 'default', icon: '🕐' },
+  RUNNING: { text: '向量化中...', type: 'warning', icon: '⏳' },
+  SUCCESS: { text: '已向量化', type: 'success', icon: '✅' },
+  FAILED: { text: '向量化失败', type: 'error', icon: '⚠️' }
 };
 
 // 获取向量化状态显示
@@ -138,7 +138,7 @@ onMounted(() => {
         <h1 class="text-2xl font-bold text-gray-800">{{ $t('page.knowledge.title') }}</h1>
         <NButton type="primary" @click="handleAddNew">
           <template #icon>
-            <div class="i-mdi-plus"></div>
+            <span>+</span>
           </template>
           {{ $t('page.knowledge.addBtn') }}
         </NButton>
@@ -156,7 +156,7 @@ onMounted(() => {
           />
           <NButton type="primary" @click="handleSearch">
             <template #icon>
-              <div class="i-mdi-magnify"></div>
+              <span>🔍</span>
             </template>
             {{ $t('common.search') }}
           </NButton>
@@ -177,11 +177,11 @@ onMounted(() => {
 
         <!-- 空状态 -->
         <div v-else-if="knowledgeList.length === 0" class="text-center py-20 bg-white rounded-xl border border-gray-100 shadow-sm">
-          <div class="i-mdi-book-open-page-variant-outline text-6xl mb-4 mx-auto text-gray-300"></div>
+          <span class="text-6xl mb-4 mx-auto text-gray-300">📖</span>
           <p class="text-gray-500 mb-6">{{ $t('page.profile.common.empty') }}</p>
           <NButton type="primary" @click="handleAddNew">
             <template #icon>
-              <div class="i-mdi-plus"></div>
+              <span>+</span>
             </template>
             {{ $t('page.knowledge.createFirst') }}
           </NButton>
@@ -192,7 +192,7 @@ onMounted(() => {
             <div class="flex justify-between items-start">
               <div class="flex-1">
                 <div class="flex items-center gap-3 mb-2">
-                  <div class="i-mdi-book-outline text-2xl text-blue-500"></div>
+                  <span class="text-2xl text-blue-500">📘</span>
                   <h3 class="text-lg font-bold text-gray-800">{{ item.title }}</h3>
                   <NTag :type="knowledgeTypeLabels[item.type]?.type" size="small">
                     {{ knowledgeTypeLabels[item.type]?.label || $t('page.knowledge.unknown') }}
@@ -205,11 +205,11 @@ onMounted(() => {
                   </NTag>
                 </div>
                 <div class="text-gray-400 text-xs mb-3 truncate max-w-lg">
-                  <span class="i-mdi-link-variant mr-1"></span>
+                  <span class="mr-1">🔗</span>
                   {{ item.content }}
                 </div>
                 <div v-if="item.lastError" class="text-red-500 text-xs mt-2">
-                  <span class="i-mdi-alert-circle mr-1"></span>
+                  <span class="mr-1">⚠️</span>
                   {{ item.lastError }}
                 </div>
               </div>

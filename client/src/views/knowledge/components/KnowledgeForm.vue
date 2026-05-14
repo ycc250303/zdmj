@@ -225,7 +225,7 @@ onMounted(() => {
       </div>
       <NButton quaternary circle @click="emit('cancel')">
         <template #icon>
-          <div class="i-mdi-close text-xl"></div>
+          <span class="text-xl">✕</span>
         </template>
       </NButton>
     </div>
@@ -268,7 +268,7 @@ onMounted(() => {
               @dragleave="handleDragLeave"
               @drop="handleDrop"
             >
-              <div class="i-mdi-cloud-upload text-4xl mb-2" :class="isDragging ? 'text-blue-500' : 'text-gray-400'"></div>
+              <span class="text-4xl mb-2" :class="isDragging ? 'text-blue-500' : 'text-gray-400'">☁️</span>
               <p class="mb-1" :class="isDragging ? 'text-blue-600 font-medium' : 'text-gray-600'">
                 {{ isDragging ? $t('page.knowledge.dragUploadActive') : $t('page.knowledge.dragUpload') }}
               </p>
@@ -281,7 +281,7 @@ onMounted(() => {
             :placeholder="$t('page.knowledge.inputUrlPlaceholder')"
           >
             <template #prefix>
-              <div class="i-mdi-link text-gray-400"></div>
+              <span class="text-gray-400">🔗</span>
             </template>
           </NInput>
         </div>
@@ -291,7 +291,7 @@ onMounted(() => {
       <NFormItem v-else-if="formData.type === 2" :label="$t('page.knowledge.githubRepoLink')" path="content">
         <NInput v-model:value="formData.content" :placeholder="contentPlaceholder">
           <template #prefix>
-            <div class="i-mdi-github text-gray-400"></div>
+            <span class="text-gray-400">🐙</span>
           </template>
         </NInput>
         <template #feedback>

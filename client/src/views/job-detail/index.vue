@@ -8,6 +8,12 @@ import {
   fetchGenerateJobCapabilityProfile,
   type JobApi
 } from '@/service/api/job';
+import {
+  fetchGetJobStudentMatch,
+  fetchGenerateJobStudentMatch,
+  type MatchApi
+} from '@/service/api/match';
+import CapabilityScoreCard, { type Dimension } from '@/components/common/CapabilityScoreCard.vue';
 
 defineOptions({ name: 'job-detail' });
 
@@ -21,8 +27,10 @@ const jobId = computed(() => {
 
 const jobDetail = ref<JobApi.JobListItem | null>(null);
 const capabilityProfile = ref<JobApi.JobCapabilityProfile | null>(null);
+const matchResult = ref<MatchApi.JobStudentMatch | null>(null);
 const loading = ref(false);
 const generatingProfile = ref(false);
+const generatingMatch = ref(false);
 
 function formatSalary(job: JobApi.JobListItem): string {
   const typeMap = {
@@ -48,6 +56,8 @@ async function loadJobDetail() {
       jobDetail.value = data;
       // 加载能力画像
       loadCapabilityProfile();
+      // 加载人岗匹配结果
+      loadMatchResult();
     } else {
       window.$message?.error($t('page.jobs.loadFailed'));
       router.back();
@@ -73,6 +83,19 @@ async function loadCapabilityProfile() {
   }
 }
 
+async function loadMatchResult() {
+  if (!jobId.value) return;
+  try {
+    const { data, error } = await fetchGetJobStudentMatch(jobId.value);
+    if (!error && data) {
+      matchResult.value = data;
+    }
+  } catch (err) {
+    // 匹配结果可能不存在，静默处理
+    matchResult.value = null;
+  }
+}
+
 async function handleGenerateProfile() {
   if (!jobId.value) return;
 
@@ -94,6 +117,25 @@ async function handleGenerateProfile() {
   }
 }
 
+async function handleGenerateMatch() {
+  if (!jobId.value) return;
+  generatingMatch.value = true;
+  window.$message?.info('正在分析人岗匹配，预计需要 30 秒~1 分钟…', { duration: 5000 });
+  try {
+    const { data, error } = await fetchGenerateJobStudentMatch(jobId.value);
+    if (!error && data) {
+      matchResult.value = data;
+      window.$message?.success('人岗匹配分析完成');
+    } else {
+      window.$message?.error('人岗匹配分析失败');
+    }
+  } catch (err) {
+    window.$message?.error('人岗匹配分析失败，请稍后重试');
+  } finally {
+    generatingMatch.value = false;
+  }
+}
+
 function handleEdit() {
   router.push({ name: 'job-edit', query: { id: String(jobId.value) } });
 }
@@ -101,6 +143,26 @@ function handleEdit() {
 function handleBack() {
   router.back();
 }
+
+// --- 人岗匹配 4 维雷达图数据 ---
+const MATCH_DIMENSION_LABELS: Record<string, string> = {
+  basic: '基础要求',
+  professionalSkill: '职业技能',
+  professionalQuality: '职业素养',
+  developmentPotential: '发展潜力'
+};
+
+const matchDimensions = computed<Dimension[]>(() => {
+  const dims = matchResult.value?.dimensions;
+  if (!dims) return [];
+  return (Object.keys(MATCH_DIMENSION_LABELS) as Array<keyof typeof MATCH_DIMENSION_LABELS>)
+    .map(key => ({
+      key,
+      label: MATCH_DIMENSION_LABELS[key],
+      score: dims[key]?.score || 0,
+      max: 100
+    }));
+});
 
 onMounted(() => {
   if (jobId.value) {
@@ -119,20 +181,38 @@ onMounted(() => {
       <div class="mb-6 flex items-center justify-between">
         <div class="flex items-center gap-3">
           <NButton quaternary circle @click="handleBack">
-            <template #icon><div class="i-mdi-arrow-left"></div></template>
+            <template #icon><span>←</span></template>
           </NButton>
           <h1 class="text-2xl font-bold text-slate-800">{{ $t('page.jobs.viewDetail') }}</h1>
         </div>
         <div class="flex gap-3">
+          <NButton @click="handleGenerateMatch" :loading="generatingMatch">
+            <template #icon><span>🎯</span></template>
+            {{ matchResult ? '重新匹配分析' : '分析人岗匹配' }}
+          </NButton>
           <NButton @click="handleGenerateProfile" :loading="generatingProfile">
-            <template #icon><div class="i-mdi-brain"></div></template>
+            <template #icon><span>🧠</span></template>
             {{ capabilityProfile ? $t('page.jobs.regenerateProfile') : $t('page.jobs.generateProfile') }}
           </NButton>
           <NButton type="primary" @click="handleEdit">
-            <template #icon><div class="i-mdi-pencil"></div></template>
+            <template #icon><span>✏️</span></template>
             {{ $t('page.jobs.edit') }}
           </NButton>
         </div>
+      </div>
+
+      <!-- 人岗匹配评分卡 -->
+      <div v-if="matchResult" class="mb-6">
+        <CapabilityScoreCard
+          :dimensions="matchDimensions"
+          :total-score="matchResult.overallScore || 0"
+          :total-max="100"
+          total-label="综合匹配度"
+          summary-label="匹配总评"
+          :summary="matchResult.summary"
+          strengths-label="命中亮点"
+          :strengths="matchResult.matchedHighlights"
+        />
       </div>
 
       <div v-if="jobDetail" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -217,7 +297,7 @@ onMounted(() => {
                 :loading="generatingProfile"
                 @click="handleGenerateProfile"
               >
-                <template #icon><div class="i-mdi-refresh"></div></template>
+                <template #icon><span>🔄</span></template>
               </NButton>
             </template>
 
@@ -225,7 +305,7 @@ onMounted(() => {
               <!-- 岗位类型 -->
               <div v-if="capabilityProfile.targetRoleType">
                 <h4 class="font-semibold text-slate-800 mb-2 flex items-center gap-2">
-                  <div class="i-mdi-briefcase text-blue-500"></div>
+                  <span class="text-blue-500">💼</span>
                   {{ $t('page.jobs.jobName') + $t('page.jobs.jobType') }}
                 </h4>
                 <p class="text-slate-700">{{ capabilityProfile.targetRoleType }}</p>
@@ -234,7 +314,7 @@ onMounted(() => {
               <!-- 专业技能 -->
               <div v-if="capabilityProfile.professionalSkills">
                 <h4 class="font-semibold text-slate-800 mb-2 flex items-center gap-2">
-                  <div class="i-mdi-code-braces text-blue-500"></div>
+                  <span class="text-blue-500">💻</span>
                   {{ $t('page.jobs.technicalSkills') }}
                 </h4>
                 <p class="text-slate-700 whitespace-pre-wrap">{{ capabilityProfile.professionalSkills }}</p>
@@ -243,7 +323,7 @@ onMounted(() => {
               <!-- 证书 -->
               <div v-if="capabilityProfile.certificates">
                 <h4 class="font-semibold text-slate-800 mb-2 flex items-center gap-2">
-                  <div class="i-mdi-certificate text-purple-500"></div>
+                  <span class="text-purple-500">🎓</span>
                   {{ $t('page.jobs.certificateRequired') }}
                 </h4>
                 <p class="text-slate-700 whitespace-pre-wrap">{{ capabilityProfile.certificates }}</p>
@@ -253,7 +333,7 @@ onMounted(() => {
               <div class="grid grid-cols-1 gap-3">
                 <div v-if="capabilityProfile.innovationAbility" class="bg-blue-50 p-3 rounded-lg">
                   <div class="font-medium text-slate-800 mb-1 flex items-center gap-2">
-                    <div class="i-mdi-lightbulb text-blue-500"></div>
+                    <span class="text-blue-500">💡</span>
                     {{ $t('page.jobs.innovationAbility') }}
                   </div>
                   <p class="text-sm text-slate-700">{{ capabilityProfile.innovationAbility }}</p>
@@ -261,7 +341,7 @@ onMounted(() => {
 
                 <div v-if="capabilityProfile.learningAbility" class="bg-green-50 p-3 rounded-lg">
                   <div class="font-medium text-slate-800 mb-1 flex items-center gap-2">
-                    <div class="i-mdi-school text-green-500"></div>
+                    <span class="text-green-500">🎓</span>
                     {{ $t('page.jobs.learningAbility') }}
                   </div>
                   <p class="text-sm text-slate-700">{{ capabilityProfile.learningAbility }}</p>
@@ -269,7 +349,7 @@ onMounted(() => {
 
                 <div v-if="capabilityProfile.pressureResistance" class="bg-orange-50 p-3 rounded-lg">
                   <div class="font-medium text-slate-800 mb-1 flex items-center gap-2">
-                    <div class="i-mdi-shield-check text-orange-500"></div>
+                    <span class="text-orange-500">🛡️</span>
                     {{ $t('page.jobs.pressureResistance') }}
                   </div>
                   <p class="text-sm text-slate-700">{{ capabilityProfile.pressureResistance }}</p>
@@ -277,7 +357,7 @@ onMounted(() => {
 
                 <div v-if="capabilityProfile.communicationAbility" class="bg-cyan-50 p-3 rounded-lg">
                   <div class="font-medium text-slate-800 mb-1 flex items-center gap-2">
-                    <div class="i-mdi-account-voice text-cyan-500"></div>
+                    <span class="text-cyan-500">🗣️</span>
                     {{ $t('page.jobs.communicationAbility') }}
                   </div>
                   <p class="text-sm text-slate-700">{{ capabilityProfile.communicationAbility }}</p>
@@ -285,7 +365,7 @@ onMounted(() => {
 
                 <div v-if="capabilityProfile.practicalAbility" class="bg-indigo-50 p-3 rounded-lg">
                   <div class="font-medium text-slate-800 mb-1 flex items-center gap-2">
-                    <div class="i-mdi-hammer text-indigo-500"></div>
+                    <span class="text-indigo-500">🔨</span>
                     {{ $t('page.jobs.practicalAbility') }}
                   </div>
                   <p class="text-sm text-slate-700">{{ capabilityProfile.practicalAbility }}</p>
@@ -295,7 +375,7 @@ onMounted(() => {
               <!-- 岗位优势 -->
               <div v-if="capabilityProfile.strengths && capabilityProfile.strengths.length > 0">
                 <h4 class="font-semibold text-slate-800 mb-2 flex items-center gap-2">
-                  <div class="i-mdi-star text-yellow-500"></div>
+                  <span class="text-yellow-500">⭐</span>
                   {{ $t('page.jobs.strengths') }}
                 </h4>
                 <ul class="space-y-1">
@@ -309,7 +389,7 @@ onMounted(() => {
               <!-- 缺失技能 -->
               <div v-if="capabilityProfile.missingSkills && capabilityProfile.missingSkills.length > 0">
                 <h4 class="font-semibold text-slate-800 mb-2 flex items-center gap-2">
-                  <div class="i-mdi-alert-circle text-red-500"></div>
+                  <span class="text-red-500">⚠️</span>
                   {{ $t('page.jobs.missingSkills') }}
                 </h4>
                 <ul class="space-y-1">
@@ -323,7 +403,7 @@ onMounted(() => {
               <!-- 证据不足项 -->
               <div v-if="capabilityProfile.weakEvidenceItems && capabilityProfile.weakEvidenceItems.length > 0">
                 <h4 class="font-semibold text-slate-800 mb-2 flex items-center gap-2">
-                  <div class="i-mdi-help-circle text-orange-500"></div>
+                  <span class="text-orange-500">❓</span>
                   {{ $t('page.jobs.weakEvidenceItems') }}
                 </h4>
                 <ul class="space-y-1">
@@ -337,7 +417,7 @@ onMounted(() => {
               <!-- 总结 -->
               <div v-if="capabilityProfile.summary" class="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
                 <h4 class="font-semibold text-slate-800 mb-2 flex items-center gap-2">
-                  <div class="i-mdi-text-box-outline text-blue-600"></div>
+                  <span class="text-blue-600">📝</span>
                   {{ $t('page.jobs.summary') }}
                 </h4>
                 <p class="text-slate-700 italic">{{ capabilityProfile.summary }}</p>
@@ -347,7 +427,7 @@ onMounted(() => {
             <NEmpty v-else :description="$t('page.jobs.noProfile')" class="py-8">
               <template #extra>
                 <NButton type="primary" :loading="generatingProfile" @click="handleGenerateProfile">
-                  <template #icon><div class="i-mdi-brain"></div></template>
+                  <template #icon><span>🧠</span></template>
                   {{ $t('page.jobs.generateProfile') }}
                 </NButton>
               </template>

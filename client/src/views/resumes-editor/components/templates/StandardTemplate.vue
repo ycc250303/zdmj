@@ -24,15 +24,15 @@ const props = defineProps<Props>();
         <h2 class="theme-section-title">{{ $t('page.resume.contact', 'Contact') }}</h2>
         <div class="flex flex-col gap-3 text-sm text-slate-600 font-medium">
           <div v-if="props.personal?.email" class="flex items-center gap-2">
-            <div class="i-mdi-email text-lg text-slate-400"></div>
+            <span class="text-lg text-slate-400">✉️</span>
             <span class="break-all">{{ props.personal.email }}</span>
           </div>
           <div v-if="props.personal?.phone" class="flex items-center gap-2">
-            <div class="i-mdi-phone text-lg text-slate-400"></div>
+            <span class="text-lg text-slate-400">📞</span>
             <span>{{ props.personal.phone }}</span>
           </div>
           <div v-if="props.personal?.homepageUrl" class="flex items-center gap-2">
-            <div class="i-mdi-link-variant text-lg text-slate-400"></div>
+            <span class="text-lg text-slate-400">🔗</span>
             <a :href="props.personal.homepageUrl" target="_blank" class="break-all hover:text-blue-600 truncate">{{ props.personal.homepageUrl.replace(/^https?:\/\//, '') }}</a>
           </div>
         </div>
@@ -81,7 +81,7 @@ const props = defineProps<Props>();
 
       <section v-if="props.data.careers && props.data.careers.length" class="mb-8">
         <div class="flex items-center gap-2 mb-4">
-          <div class="i-mdi-briefcase text-2xl theme-text"></div>
+          <span class="text-2xl theme-text">💼</span>
           <h2 class="text-xl font-black text-slate-800">{{ $t('page.resume.experience', 'Experience') }}</h2>
         </div>
         
@@ -104,7 +104,7 @@ const props = defineProps<Props>();
 
       <section v-if="props.data.projects && props.data.projects.length">
         <div class="flex items-center gap-2 mb-4">
-          <div class="i-mdi-rocket-launch text-2xl theme-text"></div>
+          <span class="text-2xl theme-text">🚀</span>
           <h2 class="text-xl font-black text-slate-800">{{ $t('page.resume.projects', 'Projects') }}</h2>
         </div>
         
