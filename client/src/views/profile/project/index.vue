@@ -53,7 +53,7 @@ function handleEdit(item: ResumeApi.ProjectUpdate) {
 async function handleDelete(id: number) {
   const { error } = await fetchDeleteProject(id);
   if (!error) {
-    window.$message?.success($t('page.profile.common.delete') + '成功');
+    window.$message?.success($t('page.profile.project.deleteSuccess'));
     loadData();
   }
 }
@@ -69,33 +69,33 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="p-6 h-full overflow-y-auto bg-gray-50">
+  <div class="p-6 h-full overflow-y-auto bg-gray-50 dark:bg-dark-100">
     <div v-if="!isEditing" class="max-w-4xl mx-auto">
       <div class="flex justify-between items-center mb-6">
-        <h1 class="text-2xl font-bold text-gray-800">{{ $t('page.profile.project.title') }}</h1>
+        <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-200">{{ $t('page.profile.project.title') }}</h1>
         <NButton type="primary" @click="handleAddNew">
           {{ $t('page.profile.project.addBtn') }}
         </NButton>
       </div>
 
       <NSpin :show="loading">
-        <div v-if="projectList.length === 0" class="text-center py-20 text-gray-400 bg-white rounded-xl border border-gray-100 shadow-sm">
+        <div v-if="projectList.length === 0" class="text-center py-20 text-gray-400 dark:text-gray-500 bg-white dark:bg-dark-200 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
           <span class="text-6xl mb-4 mx-auto opacity-50">📂</span>
           <p>{{ $t('page.profile.common.empty') }}</p>
         </div>
 
         <div v-else class="flex flex-col gap-4">
-          <NCard v-for="item in projectList" :key="item.id" hoverable class="rounded-lg shadow-sm border-gray-100">
+          <NCard v-for="item in projectList" :key="item.id" hoverable class="rounded-lg shadow-sm border-gray-100 dark:border-gray-700">
             <div class="flex justify-between items-start">
               <div class="flex-1">
                 <div class="flex items-center gap-3">
-                  <h3 class="text-lg font-bold text-gray-800">{{ item.name }}</h3>
+                  <h3 class="text-lg font-bold text-gray-800 dark:text-gray-200">{{ item.name }}</h3>
                   <NTag v-if="!item.visible" size="small" type="warning" round>{{ $t('page.profile.common.hidden') }}</NTag>
                 </div>
-                <p class="text-gray-500 text-sm mt-1">
+                <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">
                   {{ item.role }} | {{ item.startDate }} ~ {{ item.endDate || $t('page.profile.common.present') }}
                 </p>
-                <p class="text-gray-600 mt-3 line-clamp-2">{{ item.description }}</p>
+                <p class="text-gray-600 dark:text-gray-400 mt-3 line-clamp-2">{{ item.description }}</p>
                 <div class="mt-3 flex gap-2 flex-wrap" v-if="item.techStack && item.techStack.length">
                   <NTag v-for="tech in item.techStack" :key="tech" size="small" type="info">{{ tech }}</NTag>
                 </div>

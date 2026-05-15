@@ -461,7 +461,8 @@ const local: App.I18n.Schema = {
         items: '技能详情 (输入后按回车键添加)',
         addCategory: '添加技能分类',
         addSuccess: '技能添加成功',
-        updateSuccess: '技能更新成功'
+        updateSuccess: '技能更新成功',
+        deleteSuccess: '技能删除成功'
       },
       basicInfo: {
         title: '基本信息',
@@ -587,7 +588,31 @@ const local: App.I18n.Schema = {
        "cancel": "取消",
       "getFail": "获取数据失败",
       "pleaseInput": "请填写",
-      "createFail": "创建失败"
+      "createFail": "创建失败",
+      "position": "职位",
+      "addEducation": "添加教育经历",
+      "addProject": "添加项目经历",
+      "addCareer": "添加实习经历",
+      "confirmAdd": "确认添加",
+      "delete": "删除",
+      "confirmDeleteEdu": "确定删除这条教育经历吗？",
+      "confirmDeleteProj": "确定删除这条项目经历吗？",
+      "confirmDeleteCareer": "确定删除这条实习经历吗？",
+      "missingIdParam": "缺少简历 ID 参数",
+      "contentNotFound": "未找到简历内容",
+      "degree": "学历",
+      "schoolLabel": "学校",
+      "majorLabel": "专业",
+      "gpaLabel": "GPA",
+      "projectNameLabel": "项目名称",
+      "roleLabel": "担任角色",
+      "startDateLabel": "开始时间",
+      "endDateLabel": "结束时间",
+      "companyLabel": "公司名称",
+      "positionLabel": "职位",
+      "detailsLabel": "工作内容",
+      "descLabel": "项目描述",
+      "contributionLabel": "个人贡献"
     },
     jobs: {
       title: "岗位信息",
@@ -685,7 +710,22 @@ const local: App.I18n.Schema = {
       weakEvidenceItems: "证据不足项",
       summary: "总结",
       infoSuffix: "信息",
-      industryLabel: "行业："
+      industryLabel: "行业：",
+      matchAnalyzing: "正在分析人岗匹配，预计需要 30 秒~1 分钟…",
+      matchSuccess: "人岗匹配分析完成",
+      matchFailed: "人岗匹配分析失败",
+      matchFailedRetry: "人岗匹配分析失败，请稍后重试",
+      reanalyzeMatch: "重新匹配分析",
+      analyzeMatch: "分析人岗匹配",
+      overallMatchScore: "综合匹配度",
+      matchSummaryLabel: "匹配总评",
+      matchHighlightsLabel: "命中亮点",
+      matchDimensions: {
+        basic: "基础要求",
+        professionalSkill: "职业技能",
+        professionalQuality: "职业素养",
+        developmentPotential: "发展潜力"
+      }
     },
     knowledge: {
       title: '知识库管理',
@@ -743,7 +783,15 @@ const local: App.I18n.Schema = {
         success: '已完成',
         failed: '失败',
         cancelled: '已取消'
-      }
+      },
+      deleteSuccess: '删除成功',
+      typeAll: '全部',
+      typeProjectDoc: '项目文档',
+      typeGithub: 'GitHub 代码',
+      embeddingPending: '等待中',
+      embeddingRunning: '向量化中...',
+      embeddingSuccess: '已向量化',
+      embeddingFailed: '向量化失败'
     }
   },
   form: {

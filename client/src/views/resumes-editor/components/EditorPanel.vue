@@ -38,13 +38,17 @@ const newEduEndTs = computed({
   get: () => dateStrToTs(newEdu.value.endDate),
   set: (v) => { newEdu.value.endDate = tsToDateStr(v) || undefined; }
 });
-const degreeOptions = [
-  { label: '博士', value: 1 }, { label: '硕士', value: 2 }, { label: '本科', value: 3 },
-  { label: '大专', value: 4 }, { label: '高中', value: 5 }, { label: '其他', value: 6 }
-];
+const degreeOptions = computed(() => [
+  { label: $t('page.profile.education.degrees.phd'), value: 1 },
+  { label: $t('page.profile.education.degrees.master'), value: 2 },
+  { label: $t('page.profile.education.degrees.bachelor'), value: 3 },
+  { label: $t('page.profile.education.degrees.associate'), value: 4 },
+  { label: $t('page.profile.education.degrees.highSchool'), value: 5 },
+  { label: $t('page.profile.education.degrees.other'), value: 6 }
+]);
 async function submitAddEdu() {
   if (!newEdu.value.school || !newEdu.value.startDate) {
-    window.$message?.warning('请填写学校和开始时间');
+    window.$message?.warning($t('page.profile.education.school') + ' / ' + $t('page.resume.startDateLabel'));
     return;
   }
   addingEdu.value = true;
@@ -53,7 +57,7 @@ async function submitAddEdu() {
   if (ok) {
     showAddEdu.value = false;
     newEdu.value = { school: '', major: '', degree: 3, startDate: '', visible: true };
-    window.$message?.success('教育经历已添加');
+    window.$message?.success($t('page.profile.education.addSuccess'));
   }
 }
 
@@ -71,7 +75,7 @@ const newProjEndTs = computed({
 });
 async function submitAddProj() {
   if (!newProj.value.name || !newProj.value.startDate) {
-    window.$message?.warning('请填写项目名称和开始时间');
+    window.$message?.warning($t('page.profile.project.name') + ' / ' + $t('page.resume.startDateLabel'));
     return;
   }
   addingProj.value = true;
@@ -80,7 +84,7 @@ async function submitAddProj() {
   if (ok) {
     showAddProj.value = false;
     newProj.value = { name: '', role: '', startDate: '', description: '', contribution: '', visible: true };
-    window.$message?.success('项目经历已添加');
+    window.$message?.success($t('page.profile.project.addSuccess'));
   }
 }
 
@@ -98,7 +102,7 @@ const newCareerEndTs = computed({
 });
 async function submitAddCareer() {
   if (!newCareer.value.company || !newCareer.value.startDate) {
-    window.$message?.warning('请填写公司名称和开始时间');
+    window.$message?.warning($t('page.profile.career.company') + ' / ' + $t('page.resume.startDateLabel'));
     return;
   }
   addingCareer.value = true;
@@ -107,22 +111,22 @@ async function submitAddCareer() {
   if (ok) {
     showAddCareer.value = false;
     newCareer.value = { company: '', position: '', startDate: '', visible: true };
-    window.$message?.success('实习经历已添加');
+    window.$message?.success($t('page.profile.career.addSuccess'));
   }
 }
 
 // ---- 删除确认 ----
 async function handleDeleteEdu(id: number) {
   const ok = await resumeStore.deleteEducation(id);
-  if (ok) window.$message?.success('已删除');
+  if (ok) window.$message?.success($t('page.profile.education.deleteSuccess'));
 }
 async function handleDeleteProj(id: number) {
   const ok = await resumeStore.deleteProject(id);
-  if (ok) window.$message?.success('已删除');
+  if (ok) window.$message?.success($t('page.profile.project.deleteSuccess'));
 }
 async function handleDeleteCareer(id: number) {
   const ok = await resumeStore.deleteCareer(id);
-  if (ok) window.$message?.success('已删除');
+  if (ok) window.$message?.success($t('page.profile.career.deleteSuccess'));
 }
 
 // ---- 现有条目的日期绑定辅助 ----
@@ -165,9 +169,9 @@ function careerEndTs(career: ResumeApi.CareerDTO) {
 </script>
 
 <template>
-  <div class="h-full flex flex-col bg-white">
-    <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 sticky top-0 z-10 shadow-sm">
-      <h2 class="font-bold text-slate-800">{{ $t('page.resume.manageContent') }}</h2>
+  <div class="h-full flex flex-col bg-white dark:bg-dark-200">
+    <div class="p-4 border-b border-slate-200 dark:border-gray-700 flex justify-between items-center bg-slate-50 dark:bg-dark-100 sticky top-0 z-10 shadow-sm">
+      <h2 class="font-bold text-slate-800 dark:text-gray-200">{{ $t('page.resume.manageContent') }}</h2>
       <NButton type="primary" size="medium" :loading="resumeStore.isSaving" @click="handleSaveResume">
         {{ $t('page.resume.saveSync') }}
       </NButton>
@@ -208,16 +212,16 @@ function careerEndTs(career: ResumeApi.CareerDTO) {
         <!-- 教育经历 -->
         <NCollapseItem :title="$t('page.resume.education')" name="educations">
           <template v-if="resumeStore.resumeData.educations && resumeStore.resumeData.educations.length > 0">
-            <div v-for="(edu, index) in resumeStore.resumeData.educations" :key="edu.id" class="mb-6 pb-6 border-b border-slate-100 last:border-0">
+            <div v-for="(edu, index) in resumeStore.resumeData.educations" :key="edu.id" class="mb-6 pb-6 border-b border-slate-100 dark:border-gray-700 last:border-0">
               <div class="flex justify-between items-center mb-4">
-                <span class="font-bold text-slate-700">{{ edu.school || `${$t('page.resume.education')} ${index + 1}` }}</span>
+                <span class="font-bold text-slate-700 dark:text-gray-300">{{ edu.school || `${$t('page.resume.education')} ${index + 1}` }}</span>
                 <div class="flex items-center gap-2">
                   <NSwitch v-model:value="edu.visible" size="small" />
                   <NPopconfirm @positive-click="handleDeleteEdu(edu.id)">
                     <template #trigger>
-                      <NButton size="tiny" quaternary type="error">删除</NButton>
+                      <NButton size="tiny" quaternary type="error">{{ $t('page.resume.delete') }}</NButton>
                     </template>
-                    确定删除这条教育经历吗？
+                    {{ $t('page.resume.confirmDeleteEdu') }}
                   </NPopconfirm>
                 </div>
               </div>
@@ -246,56 +250,56 @@ function careerEndTs(career: ResumeApi.CareerDTO) {
           </template>
 
           <!-- 新增教育经历表单 -->
-          <div v-if="showAddEdu" class="mb-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
-            <p class="font-semibold text-slate-700 mb-3">新增教育经历</p>
+          <div v-if="showAddEdu" class="mb-4 p-4 bg-slate-50 dark:bg-dark-100 rounded-lg border border-slate-200 dark:border-gray-700">
+            <p class="font-semibold text-slate-700 dark:text-gray-300 mb-3">{{ $t('page.resume.addEducation') }}</p>
             <NGrid :x-gap="12" :cols="2">
               <NGridItem>
-                <NFormItem label="学校"><NInput v-model:value="newEdu.school" placeholder="学校名称" /></NFormItem>
+                <NFormItem :label="$t('page.resume.schoolLabel')"><NInput v-model:value="newEdu.school" :placeholder="$t('page.profile.education.schoolPlaceholder')" /></NFormItem>
               </NGridItem>
               <NGridItem>
-                <NFormItem label="专业"><NInput v-model:value="newEdu.major" placeholder="专业名称" /></NFormItem>
+                <NFormItem :label="$t('page.resume.majorLabel')"><NInput v-model:value="newEdu.major" :placeholder="$t('page.profile.education.majorPlaceholder')" /></NFormItem>
               </NGridItem>
               <NGridItem>
-                <NFormItem label="学历">
+                <NFormItem :label="$t('page.resume.degree')">
                   <NSelect v-model:value="newEdu.degree" :options="degreeOptions" />
                 </NFormItem>
               </NGridItem>
               <NGridItem>
-                <NFormItem label="GPA"><NInput v-model:value="newEdu.gpa" placeholder="选填" /></NFormItem>
+                <NFormItem :label="$t('page.resume.gpaLabel')"><NInput v-model:value="newEdu.gpa" :placeholder="$t('page.profile.education.gpaPlaceholder')" /></NFormItem>
               </NGridItem>
               <NGridItem>
-                <NFormItem label="开始时间">
+                <NFormItem :label="$t('page.resume.startDateLabel')">
                   <NDatePicker v-model:value="newEduStartTs" type="date" value-format="yyyy-MM-dd" clearable class="w-full" />
                 </NFormItem>
               </NGridItem>
               <NGridItem>
-                <NFormItem label="结束时间">
+                <NFormItem :label="$t('page.resume.endDateLabel')">
                   <NDatePicker v-model:value="newEduEndTs" type="date" value-format="yyyy-MM-dd" clearable class="w-full" />
                 </NFormItem>
               </NGridItem>
             </NGrid>
             <div class="flex gap-2 mt-2">
-              <NButton size="small" type="primary" :loading="addingEdu" @click="submitAddEdu">确认添加</NButton>
-              <NButton size="small" @click="showAddEdu = false">取消</NButton>
+              <NButton size="small" type="primary" :loading="addingEdu" @click="submitAddEdu">{{ $t('page.resume.confirmAdd') }}</NButton>
+              <NButton size="small" @click="showAddEdu = false">{{ $t('page.resume.cancel') }}</NButton>
             </div>
           </div>
 
-          <NButton v-if="!showAddEdu" dashed size="small" class="w-full mt-2" @click="showAddEdu = true">+ 添加教育经历</NButton>
+          <NButton v-if="!showAddEdu" dashed size="small" class="w-full mt-2" @click="showAddEdu = true">+ {{ $t('page.resume.addEducation') }}</NButton>
         </NCollapseItem>
 
         <!-- 项目经历 -->
         <NCollapseItem :title="$t('page.resume.projects')" name="projects">
           <template v-if="resumeStore.resumeData.projects && resumeStore.resumeData.projects.length > 0">
-            <div v-for="(proj, index) in resumeStore.resumeData.projects" :key="proj.id" class="mb-6 pb-6 border-b border-slate-100 last:border-0">
+            <div v-for="(proj, index) in resumeStore.resumeData.projects" :key="proj.id" class="mb-6 pb-6 border-b border-slate-100 dark:border-gray-700 last:border-0">
               <div class="flex justify-between items-center mb-4">
-                <span class="font-bold text-slate-700">{{ proj.name || `${$t('page.resume.projects')} ${index + 1}` }}</span>
+                <span class="font-bold text-slate-700 dark:text-gray-300">{{ proj.name || `${$t('page.resume.projects')} ${index + 1}` }}</span>
                 <div class="flex items-center gap-2">
                   <NSwitch v-model:value="proj.visible" size="small" />
                   <NPopconfirm @positive-click="handleDeleteProj(proj.id)">
                     <template #trigger>
-                      <NButton size="tiny" quaternary type="error">删除</NButton>
+                      <NButton size="tiny" quaternary type="error">{{ $t('page.resume.delete') }}</NButton>
                     </template>
-                    确定删除这条项目经历吗？
+                    {{ $t('page.resume.confirmDeleteProj') }}
                   </NPopconfirm>
                 </div>
               </div>
@@ -322,53 +326,53 @@ function careerEndTs(career: ResumeApi.CareerDTO) {
           </template>
 
           <!-- 新增项目经历表单 -->
-          <div v-if="showAddProj" class="mb-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
-            <p class="font-semibold text-slate-700 mb-3">新增项目经历</p>
-            <NFormItem label="项目名称"><NInput v-model:value="newProj.name" placeholder="项目名称" /></NFormItem>
-            <NFormItem label="担任角色"><NInput v-model:value="newProj.role" placeholder="如：前端开发、负责人" /></NFormItem>
+          <div v-if="showAddProj" class="mb-4 p-4 bg-slate-50 dark:bg-dark-100 rounded-lg border border-slate-200 dark:border-gray-700">
+            <p class="font-semibold text-slate-700 dark:text-gray-300 mb-3">{{ $t('page.resume.addProject') }}</p>
+            <NFormItem :label="$t('page.resume.projectNameLabel')"><NInput v-model:value="newProj.name" :placeholder="$t('page.profile.project.namePlaceholder')" /></NFormItem>
+            <NFormItem :label="$t('page.resume.roleLabel')"><NInput v-model:value="newProj.role" :placeholder="$t('page.profile.project.rolePlaceholder')" /></NFormItem>
             <NGrid :x-gap="12" :cols="2">
               <NGridItem>
-                <NFormItem label="开始时间">
+                <NFormItem :label="$t('page.resume.startDateLabel')">
                   <NDatePicker v-model:value="newProjStartTs" type="date" value-format="yyyy-MM-dd" clearable class="w-full" />
                 </NFormItem>
               </NGridItem>
               <NGridItem>
-                <NFormItem label="结束时间">
+                <NFormItem :label="$t('page.resume.endDateLabel')">
                   <NDatePicker v-model:value="newProjEndTs" type="date" value-format="yyyy-MM-dd" clearable class="w-full" />
                 </NFormItem>
               </NGridItem>
             </NGrid>
-            <NFormItem label="项目描述"><NInput v-model:value="newProj.description" type="textarea" :autosize="{ minRows: 2 }" placeholder="简要描述项目内容" /></NFormItem>
-            <NFormItem label="个人贡献"><NInput v-model:value="newProj.contribution" type="textarea" :autosize="{ minRows: 2 }" placeholder="你在项目中的贡献" /></NFormItem>
+            <NFormItem :label="$t('page.resume.descLabel')"><NInput v-model:value="newProj.description" type="textarea" :autosize="{ minRows: 2 }" :placeholder="$t('page.profile.project.descPlaceholder')" /></NFormItem>
+            <NFormItem :label="$t('page.resume.contributionLabel')"><NInput v-model:value="newProj.contribution" type="textarea" :autosize="{ minRows: 2 }" :placeholder="$t('page.profile.project.contriPlaceholder')" /></NFormItem>
             <div class="flex gap-2 mt-2">
-              <NButton size="small" type="primary" :loading="addingProj" @click="submitAddProj">确认添加</NButton>
-              <NButton size="small" @click="showAddProj = false">取消</NButton>
+              <NButton size="small" type="primary" :loading="addingProj" @click="submitAddProj">{{ $t('page.resume.confirmAdd') }}</NButton>
+              <NButton size="small" @click="showAddProj = false">{{ $t('page.resume.cancel') }}</NButton>
             </div>
           </div>
 
-          <NButton v-if="!showAddProj" dashed size="small" class="w-full mt-2" @click="showAddProj = true">+ 添加项目经历</NButton>
+          <NButton v-if="!showAddProj" dashed size="small" class="w-full mt-2" @click="showAddProj = true">+ {{ $t('page.resume.addProject') }}</NButton>
         </NCollapseItem>
 
         <!-- 实习经历 -->
         <NCollapseItem :title="$t('page.resume.experience')" name="careers">
           <template v-if="resumeStore.resumeData.careers && resumeStore.resumeData.careers.length > 0">
-            <div v-for="(career, index) in resumeStore.resumeData.careers" :key="career.id" class="mb-6 pb-6 border-b border-slate-100 last:border-0">
+            <div v-for="(career, index) in resumeStore.resumeData.careers" :key="career.id" class="mb-6 pb-6 border-b border-slate-100 dark:border-gray-700 last:border-0">
               <div class="flex justify-between items-center mb-4">
-                <span class="font-bold text-slate-700">{{ career.company || `${$t('page.resume.experience')} ${index + 1}` }}</span>
+                <span class="font-bold text-slate-700 dark:text-gray-300">{{ career.company || `${$t('page.resume.experience')} ${index + 1}` }}</span>
                 <div class="flex items-center gap-2">
                   <NSwitch v-model:value="career.visible" size="small" />
                   <NPopconfirm @positive-click="handleDeleteCareer(career.id)">
                     <template #trigger>
-                      <NButton size="tiny" quaternary type="error">删除</NButton>
+                      <NButton size="tiny" quaternary type="error">{{ $t('page.resume.delete') }}</NButton>
                     </template>
-                    确定删除这条实习经历吗？
+                    {{ $t('page.resume.confirmDeleteCareer') }}
                   </NPopconfirm>
                 </div>
               </div>
               <NFormItem :label="$t('page.resume.company')"><NInput v-model:value="career.company" /></NFormItem>
               <NGrid :x-gap="12" :cols="2">
                 <NGridItem>
-                  <NFormItem label="职位"><NInput v-model:value="career.position" /></NFormItem>
+                  <NFormItem :label="$t('page.resume.position')"><NInput v-model:value="career.position" /></NFormItem>
                 </NGridItem>
                 <NGridItem>
                   <NFormItem :label="$t('page.resume.startDate')">
@@ -388,34 +392,34 @@ function careerEndTs(career: ResumeApi.CareerDTO) {
           </template>
 
           <!-- 新增实习经历表单 -->
-          <div v-if="showAddCareer" class="mb-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
-            <p class="font-semibold text-slate-700 mb-3">新增实习经历</p>
+          <div v-if="showAddCareer" class="mb-4 p-4 bg-slate-50 dark:bg-dark-100 rounded-lg border border-slate-200 dark:border-gray-700">
+            <p class="font-semibold text-slate-700 dark:text-gray-300 mb-3">{{ $t('page.resume.addCareer') }}</p>
             <NGrid :x-gap="12" :cols="2">
               <NGridItem>
-                <NFormItem label="公司名称"><NInput v-model:value="newCareer.company" placeholder="公司名称" /></NFormItem>
+                <NFormItem :label="$t('page.resume.companyLabel')"><NInput v-model:value="newCareer.company" :placeholder="$t('page.profile.career.companyPlaceholder')" /></NFormItem>
               </NGridItem>
               <NGridItem>
-                <NFormItem label="职位"><NInput v-model:value="newCareer.position" placeholder="实习职位" /></NFormItem>
+                <NFormItem :label="$t('page.resume.positionLabel')"><NInput v-model:value="newCareer.position" :placeholder="$t('page.profile.career.positionPlaceholder')" /></NFormItem>
               </NGridItem>
               <NGridItem>
-                <NFormItem label="开始时间">
+                <NFormItem :label="$t('page.resume.startDateLabel')">
                   <NDatePicker v-model:value="newCareerStartTs" type="date" value-format="yyyy-MM-dd" clearable class="w-full" />
                 </NFormItem>
               </NGridItem>
               <NGridItem>
-                <NFormItem label="结束时间">
+                <NFormItem :label="$t('page.resume.endDateLabel')">
                   <NDatePicker v-model:value="newCareerEndTs" type="date" value-format="yyyy-MM-dd" clearable class="w-full" />
                 </NFormItem>
               </NGridItem>
             </NGrid>
-            <NFormItem label="工作内容"><NInput v-model:value="newCareer.details" type="textarea" :autosize="{ minRows: 2 }" placeholder="描述实习内容" /></NFormItem>
+            <NFormItem :label="$t('page.resume.detailsLabel')"><NInput v-model:value="newCareer.details" type="textarea" :autosize="{ minRows: 2 }" :placeholder="$t('page.profile.career.detailsPlaceholder')" /></NFormItem>
             <div class="flex gap-2 mt-2">
-              <NButton size="small" type="primary" :loading="addingCareer" @click="submitAddCareer">确认添加</NButton>
-              <NButton size="small" @click="showAddCareer = false">取消</NButton>
+              <NButton size="small" type="primary" :loading="addingCareer" @click="submitAddCareer">{{ $t('page.resume.confirmAdd') }}</NButton>
+              <NButton size="small" @click="showAddCareer = false">{{ $t('page.resume.cancel') }}</NButton>
             </div>
           </div>
 
-          <NButton v-if="!showAddCareer" dashed size="small" class="w-full mt-2" @click="showAddCareer = true">+ 添加实习经历</NButton>
+          <NButton v-if="!showAddCareer" dashed size="small" class="w-full mt-2" @click="showAddCareer = true">+ {{ $t('page.resume.addCareer') }}</NButton>
         </NCollapseItem>
 
         <!-- 专业技能 -->

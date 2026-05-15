@@ -95,11 +95,11 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <div class="max-w-3xl mx-auto bg-white p-8 rounded-xl border border-gray-100 shadow-sm">
+  <div class="max-w-3xl mx-auto bg-white dark:bg-dark-200 p-8 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
     <div class="flex justify-between items-center mb-8">
       <div>
-        <h2 class="text-2xl font-bold text-gray-800">{{ props.initialData ? $t('page.profile.common.edit') : $t('page.profile.common.add') }}</h2>
-        <p class="text-gray-500 mt-1 text-sm">{{ $t('page.profile.common.requiredDesc') }}</p>
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-200">{{ props.initialData ? $t('page.profile.common.edit') : $t('page.profile.common.add') }}</h2>
+        <p class="text-gray-500 dark:text-gray-400 mt-1 text-sm">{{ $t('page.profile.common.requiredDesc') }}</p>
       </div>
       <NButton quaternary circle @click="emit('cancel')">
         <template #icon><span class="text-xl">✕</span></template>
@@ -153,7 +153,7 @@ async function handleSubmit() {
         </NGridItem>
       </NGrid>
 
-      <div class="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-100">
+      <div class="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
         <NButton size="large" @click="emit('cancel')">{{ $t('page.profile.common.cancel') }}</NButton>
         <NButton size="large" type="primary" :loading="loading" @click="handleSubmit">
           {{ $t('page.profile.common.save') }}

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { $t } from '@/locales';
 
@@ -16,7 +16,7 @@ interface QuickAction {
   positionClass: string;
 }
 
-const quickActions = ref<QuickAction[]>([
+const quickActions = computed<QuickAction[]>(() => [
   {
     id: 1,
     title: $t('page.home.aiChat.title'),
@@ -75,7 +75,7 @@ function navigateTo(route: string) {
     <div class="hero-section">
       <!-- 标题 -->
       <div class="hero-content">
-        <span class="hero-badge">✨ SmartHire · AI 求职助手</span>
+        <span class="hero-badge">{{ $t('page.home.hero.badge') }}</span>
         <h1 class="hero-title">{{ $t('page.home.hero.title') }}</h1>
         <p class="hero-subtitle">{{ $t('page.home.hero.subtitle') }}</p>
       </div>
@@ -110,6 +110,10 @@ function navigateTo(route: string) {
   height: 100%;
   overflow: hidden;
   background: linear-gradient(135deg, #f8fafc 0%, #eef2f7 50%, #f5f7fa 100%);
+}
+
+:global(.dark) .home-container {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
 }
 
 /* ---------------- 背景装饰 ---------------- */
@@ -167,6 +171,14 @@ function navigateTo(route: string) {
   background: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.5) 100%);
 }
 
+:global(.dark) .bg-waves {
+  background: linear-gradient(180deg, transparent 0%, rgba(15, 23, 42, 0.5) 100%);
+}
+
+:global(.dark) .bg-dots {
+  background-image: radial-gradient(circle, #334155 1px, transparent 1px);
+}
+
 @keyframes pulse {
   0%, 100% { transform: scale(1); opacity: 0.7; }
   50% { transform: scale(1.1); opacity: 0.9; }
@@ -214,10 +226,20 @@ function navigateTo(route: string) {
   line-height: 1.2;
 }
 
+:global(.dark) .hero-title {
+  background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
 .hero-subtitle {
   font-size: 18px;
   color: #64748b;
   line-height: 1.7;
+}
+
+:global(.dark) .hero-subtitle {
+  color: #94a3b8;
 }
 
 /* ---------------- 功能卡片网格 ---------------- */
@@ -246,6 +268,16 @@ function navigateTo(route: string) {
               box-shadow 0.35s ease,
               border-color 0.35s ease;
   overflow: hidden;
+}
+
+:global(.dark) .action-card {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(71, 85, 105, 0.5);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+:global(.dark) .action-card:hover {
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .action-card::before {
@@ -303,6 +335,10 @@ function navigateTo(route: string) {
   margin-bottom: 6px;
 }
 
+:global(.dark) .action-title {
+  color: #e2e8f0;
+}
+
 .action-desc {
   font-size: 12.5px;
   color: #64748b;
@@ -311,6 +347,10 @@ function navigateTo(route: string) {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+:global(.dark) .action-desc {
+  color: #94a3b8;
 }
 
 .action-arrow {

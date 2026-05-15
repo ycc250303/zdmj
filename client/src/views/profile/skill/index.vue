@@ -50,8 +50,8 @@ function handleEdit(item: ResumeApi.SkillUpdate) {
 async function handleDelete(id: number) {
   const { error } = await fetchDeleteSkill(id);
   if (!error) {
-    window.$message?.success($t('page.profile.common.delete') + '成功');
-    loadData(); 
+    window.$message?.success($t('page.profile.skill.deleteSuccess'));
+    loadData();
   }
 }
 
@@ -66,25 +66,25 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="p-6 h-full overflow-y-auto bg-gray-50">
+  <div class="p-6 h-full overflow-y-auto bg-gray-50 dark:bg-dark-100">
     <div v-if="!isEditing" class="max-w-4xl mx-auto">
       <div class="flex justify-between items-center mb-6">
-        <h1 class="text-2xl font-bold text-gray-800">{{ $t('page.profile.skill.title') }}</h1>
+        <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-200">{{ $t('page.profile.skill.title') }}</h1>
         <NButton type="primary" @click="handleAddNew">
           {{ $t('page.profile.skill.addBtn') }}
         </NButton>
       </div>
 
       <NSpin :show="loading">
-        <div v-if="skillList.length === 0" class="text-center py-20 text-gray-400 bg-white rounded-xl border border-gray-100 shadow-sm">
+        <div v-if="skillList.length === 0" class="text-center py-20 text-gray-400 dark:text-gray-500 bg-white dark:bg-dark-200 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
           <span class="text-6xl mb-4 mx-auto opacity-50">⚡</span>
           <p>{{ $t('page.profile.common.empty') }}</p>
         </div>
 
         <div v-else class="flex flex-col gap-4">
-          <NCard v-for="item in skillList" :key="item.id" hoverable class="rounded-lg shadow-sm border-gray-100">
+          <NCard v-for="item in skillList" :key="item.id" hoverable class="rounded-lg shadow-sm border-gray-100 dark:border-gray-700">
             <div class="flex justify-between items-start mb-4">
-              <h3 class="text-lg font-bold text-gray-800">{{ item.name }}</h3>
+              <h3 class="text-lg font-bold text-gray-800 dark:text-gray-200">{{ item.name }}</h3>
               <div class="flex gap-2">
                 <NButton size="small" secondary @click="handleEdit(item)">{{ $t('page.profile.common.edit') }}</NButton>
                 <NPopconfirm @positive-click="handleDelete(item.id)">
@@ -95,10 +95,10 @@ onMounted(() => {
                 </NPopconfirm>
               </div>
             </div>
-            
-            <div class="space-y-3 border-t border-gray-50 pt-3">
+
+            <div class="space-y-3 border-t border-gray-50 dark:border-gray-700 pt-3">
               <div v-for="(skillGroup, idx) in item.content" :key="idx">
-                <div class="text-sm font-semibold text-gray-600 mb-1">{{ skillGroup.type }}</div>
+                <div class="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">{{ skillGroup.type }}</div>
                 <div class="flex gap-2 flex-wrap">
                   <NTag v-for="tag in skillGroup.content" :key="tag" type="primary" size="small">{{ tag }}</NTag>
                 </div>
