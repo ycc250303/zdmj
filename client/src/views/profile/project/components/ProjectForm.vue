@@ -30,13 +30,13 @@ const formData = reactive<ResumeApi.ProjectCreate>({
 watch(() => props.initialData, (newVal: any) => {
   if (newVal) {
     Object.assign(formData, newVal);
-    
+
     let parsedTech = newVal.techStack;
     if (typeof parsedTech === 'string') {
       try {
         parsedTech = JSON.parse(parsedTech);
       } catch (e) {
-        parsedTech = parsedTech.replace(/^\[|\]$/g, '').split(',').map((s:string) => s.trim().replace(/^"|"$/g, '')).filter(Boolean);
+        parsedTech = parsedTech.replace(/^\[|\]$/g, '').split(',').map((s: string) => s.trim().replace(/^"|"$/g, '')).filter(Boolean);
       }
     }
     formData.techStack = Array.isArray(parsedTech) ? parsedTech : [];
@@ -53,15 +53,30 @@ watch(() => props.initialData, (newVal: any) => {
   }
 }, { immediate: true });
 
+function dateStrToTs(str: string | undefined): number | null {
+  if (!str) return null;
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d.getTime();
+}
+function tsToDateStr(ts: number | null): string {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+const startDateTs = computed({
+  get: () => dateStrToTs(formData.startDate),
+  set: (v) => { formData.startDate = tsToDateStr(v); }
+});
+const endDateTs = computed({
+  get: () => dateStrToTs(formData.endDate),
+  set: (v) => { formData.endDate = tsToDateStr(v) || ''; }
+});
+
 const rules = computed<FormRules>(() => ({
   name: [{ required: true, message: $t('page.profile.project.name'), trigger: 'blur' }],
   role: [{ required: true, message: $t('page.profile.project.role'), trigger: 'blur' }],
-  startDate: [
-    { required: true, message: $t('page.profile.project.startDate'), trigger: 'blur' },
-    { pattern: /^\d{4}-\d{2}-\d{2}$/, message: $t('page.profile.common.dateFormat'), trigger: 'blur' }
-  ],endDate: [
-    { pattern: /^\d{4}-\d{2}-\d{2}$/, message: $t('page.profile.common.dateFormat'), trigger: 'blur' }
-  ],
+  startDate: [{ required: true, message: $t('page.profile.project.startDate'), trigger: 'change' }],
   description: [{ required: true, message: $t('page.profile.project.description'), trigger: 'blur' }],
   contribution: [{ required: true, message: $t('page.profile.project.contribution'), trigger: 'blur' }]
 }));
@@ -70,7 +85,7 @@ async function handleSubmit() {
   try {
     await formRef.value?.validate();
     loading.value = true;
-    
+
     const payload = { ...formData };
     payload.techStack = [...(formData.techStack || [])];
     if (!payload.endDate) delete payload.endDate;
@@ -115,7 +130,6 @@ async function handleSubmit() {
     </div>
 
     <NForm ref="formRef" :model="formData" :rules="rules" label-placement="top" require-mark-placement="right-hanging">
-      
       <NFormItem :label="$t('page.profile.project.name')" path="name">
         <NInput v-model:value="formData.name" :placeholder="$t('page.profile.project.namePlaceholder')" size="large" />
       </NFormItem>
@@ -127,12 +141,12 @@ async function handleSubmit() {
       <NGrid :x-gap="24" :cols="2">
         <NGridItem>
           <NFormItem :label="$t('page.profile.project.startDate')" path="startDate">
-            <NInput v-model:value="formData.startDate" :placeholder="$t('page.profile.common.dateFormat')" size="large" />
+            <NDatePicker v-model:value="startDateTs" type="date" value-format="yyyy-MM-dd" clearable size="large" class="w-full" />
           </NFormItem>
         </NGridItem>
         <NGridItem>
           <NFormItem :label="$t('page.profile.project.endDate')" path="endDate">
-            <NInput v-model:value="formData.endDate" :placeholder="$t('page.profile.project.endDatePlaceholder')" size="large" />
+            <NDatePicker v-model:value="endDateTs" type="date" value-format="yyyy-MM-dd" clearable size="large" class="w-full" :placeholder="$t('page.profile.project.endDatePlaceholder')" />
           </NFormItem>
         </NGridItem>
       </NGrid>
@@ -175,7 +189,6 @@ async function handleSubmit() {
           {{ $t('page.profile.common.save') }}
         </NButton>
       </div>
-
     </NForm>
   </div>
 </template>

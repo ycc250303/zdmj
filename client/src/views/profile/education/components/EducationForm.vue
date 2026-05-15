@@ -14,7 +14,6 @@ const emit = defineEmits(['success', 'cancel']);
 const formRef = ref<FormInst | null>(null);
 const loading = ref(false);
 
-// 使用 computed 保证语言切换时选项同步
 const degreeOptions = computed(() => [
   { label: $t('page.profile.education.degrees.phd'), value: 1 },
   { label: $t('page.profile.education.degrees.master'), value: 2 },
@@ -27,7 +26,7 @@ const degreeOptions = computed(() => [
 const formData = reactive<ResumeApi.EducationCreate>({
   school: '',
   major: '',
-  degree: 3, 
+  degree: 3,
   startDate: '',
   endDate: '',
   gpa: '',
@@ -38,24 +37,38 @@ watch(() => props.initialData, (newVal) => {
   if (newVal) Object.assign(formData, newVal);
 }, { immediate: true });
 
+function dateStrToTs(str: string | undefined): number | null {
+  if (!str) return null;
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d.getTime();
+}
+function tsToDateStr(ts: number | null): string {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+const startDateTs = computed({
+  get: () => dateStrToTs(formData.startDate),
+  set: (v) => { formData.startDate = tsToDateStr(v); }
+});
+const endDateTs = computed({
+  get: () => dateStrToTs(formData.endDate),
+  set: (v) => { formData.endDate = tsToDateStr(v) || ''; }
+});
+
 const rules = computed<FormRules>(() => ({
   school: [{ required: true, message: $t('page.profile.education.school'), trigger: 'blur' }],
   major: [{ required: true, message: $t('page.profile.education.major'), trigger: 'blur' }],
   degree: [{ required: true, type: 'number', message: $t('page.profile.education.degree'), trigger: 'change' }],
-  startDate: [
-    { required: true, message: $t('page.profile.education.startDate'), trigger: 'blur' },
-    { pattern: /^\d{4}-\d{2}-\d{2}$/, message: $t('page.profile.common.dateFormat'), trigger: 'blur' }
-  ],
-  endDate: [
-    { pattern: /^\d{4}-\d{2}-\d{2}$/, message: $t('page.profile.common.dateFormat'), trigger: 'blur' }
-  ]
+  startDate: [{ required: true, message: $t('page.profile.education.startDate'), trigger: 'change' }]
 }));
 
 async function handleSubmit() {
   try {
     await formRef.value?.validate();
     loading.value = true;
-    
+
     const payload = { ...formData };
     if (!payload.endDate) delete payload.endDate;
     if (!payload.gpa) delete payload.gpa;
@@ -114,12 +127,12 @@ async function handleSubmit() {
       <NGrid :x-gap="24" :cols="2">
         <NGridItem>
           <NFormItem :label="$t('page.profile.education.startDate')" path="startDate">
-            <NInput v-model:value="formData.startDate" :placeholder="$t('page.profile.common.dateFormat')" size="large" />
+            <NDatePicker v-model:value="startDateTs" type="date" value-format="yyyy-MM-dd" clearable size="large" class="w-full" />
           </NFormItem>
         </NGridItem>
         <NGridItem>
           <NFormItem :label="$t('page.profile.education.endDate')" path="endDate">
-            <NInput v-model:value="formData.endDate" :placeholder="$t('page.profile.education.endDatePlaceholder')" size="large" />
+            <NDatePicker v-model:value="endDateTs" type="date" value-format="yyyy-MM-dd" clearable size="large" class="w-full" :placeholder="$t('page.profile.education.endDatePlaceholder')" />
           </NFormItem>
         </NGridItem>
       </NGrid>

@@ -407,7 +407,8 @@ const local: App.I18n.Schema = {
         "url": "项目链接",
         "urlPlaceholder": "选填，例如 GitHub 或线上地址",
         "addSuccess": "项目添加成功",
-        "updateSuccess": "项目更新成功"
+        "updateSuccess": "项目更新成功",
+        "deleteSuccess": "项目删除成功"
       },
       "education": {
         "title": "教育经历管理",
@@ -424,6 +425,7 @@ const local: App.I18n.Schema = {
         "gpaPlaceholder": "选填，例如：3.8/4.0 或 专业前10%",
         "addSuccess": "教育经历添加成功",
         "updateSuccess": "教育经历更新成功",
+        "deleteSuccess": "教育经历删除成功",
         "degrees": {
           "phd": "博士",
           "master": "硕士",
@@ -446,7 +448,8 @@ const local: App.I18n.Schema = {
         details: '工作职责与业绩',
         detailsPlaceholder: '详细描述你的工作内容、使用的技术及取得的成果',
         addSuccess: '工作经历添加成功',
-        updateSuccess: '工作经历更新成功'
+        updateSuccess: '工作经历更新成功',
+        deleteSuccess: '工作经历删除成功'
       },
       skill: {
         title: '专业技能管理',

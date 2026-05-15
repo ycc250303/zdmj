@@ -641,6 +641,7 @@ declare namespace App {
             urlPlaceholder: string;
             addSuccess: string;
             updateSuccess: string;
+            deleteSuccess: string;
           };
           education: {
             title: string;
@@ -657,6 +658,7 @@ declare namespace App {
             gpaPlaceholder: string;
             addSuccess: string;
             updateSuccess: string;
+            deleteSuccess: string;
             degrees: {
               phd: string;
               master: string;
@@ -680,6 +682,7 @@ declare namespace App {
             detailsPlaceholder: string;
             addSuccess: string;
             updateSuccess: string;
+            deleteSuccess: string;
           };
           skill: {
             title: string;
