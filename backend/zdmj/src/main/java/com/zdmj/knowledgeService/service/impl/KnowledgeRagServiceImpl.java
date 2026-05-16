@@ -21,7 +21,7 @@ import com.zdmj.common.config.RagConfig;
 import com.zdmj.common.config.RagConfig.Search;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.util.ChatUtil;
-import com.zdmj.common.util.PromptUtil;
+import com.zdmj.common.util.prompt.PromptNames;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
@@ -54,7 +54,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
     public Flux<String> streamAnswer(Long conversationId, String userMessage) {
         if (!ragConfig.isEnabled()) {
             // 总开关关闭时退回普通对话
-            return chatUtil.chatStreamInConversation(conversationId, userMessage, PromptUtil.PromptNames.SYSTEM, null);
+            return chatUtil.chatStreamInConversation(conversationId, userMessage, PromptNames.SYSTEM, null);
         }
 
         // 1.获取用户ID和知识库ID
@@ -82,7 +82,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         if (retrivals.isEmpty()) {
             log.info("RAG 无有效命中，退回求职导师对话: userId={}, knowledgeId={}, rawStringLen={}",
                     userId, knowledgeId, rawString.length());
-            return chatUtil.chatStreamInConversation(conversationId, rawString, PromptUtil.PromptNames.SYSTEM, null);
+            return chatUtil.chatStreamInConversation(conversationId, rawString, PromptNames.SYSTEM, null);
         }
 
         // 6.输出检索命中明细
@@ -96,7 +96,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         return chatUtil.chatStreamInConversation(
                 conversationId,
                 rawString,
-                PromptUtil.PromptNames.KNOWLEDGEBASE_RAG_SYSTEM,
+                PromptNames.KNOWLEDGEBASE_RAG_SYSTEM,
                 Map.of("context", context));
     }
 
@@ -110,7 +110,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         try {
             String queryText = chatUtil.chatOnce(
                     rawText,
-                    PromptUtil.PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE,
+                    PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE,
                     Map.of("question", rawText));
             if (!StringUtils.hasText(queryText)) {
                 log.info("RAG 查询改写: 模型返回空，沿用原文 | originalQuestion={}", rawText);

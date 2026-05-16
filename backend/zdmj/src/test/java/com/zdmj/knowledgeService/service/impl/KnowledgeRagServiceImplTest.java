@@ -26,7 +26,7 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.ChatUtil;
-import com.zdmj.common.util.PromptUtil;
+import com.zdmj.common.util.prompt.PromptNames;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
@@ -53,13 +53,13 @@ class KnowledgeRagServiceImplTest {
         ragConfig.setEnabled(false);
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
-        when(chatUtil.chatStreamInConversation(11L, " hi ", PromptUtil.PromptNames.SYSTEM, null))
+        when(chatUtil.chatStreamInConversation(11L, " hi ", PromptNames.SYSTEM, null))
                 .thenReturn(Flux.just("fallback"));
 
         List<String> chunks = service.streamAnswer(11L, " hi ").collectList().block();
 
         assertEquals(List.of("fallback"), chunks);
-        verify(chatUtil).chatStreamInConversation(11L, " hi ", PromptUtil.PromptNames.SYSTEM, null);
+        verify(chatUtil).chatStreamInConversation(11L, " hi ", PromptNames.SYSTEM, null);
         verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
     }
 
@@ -83,7 +83,7 @@ class KnowledgeRagServiceImplTest {
         ragConfig.getRewrite().setEnabled(false);
         when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(501L);
         when(embeddingModel.call(Mockito.<EmbeddingRequest>any())).thenThrow(new RuntimeException("embed fail"));
-        when(chatUtil.chatStreamInConversation(13L, "hello", PromptUtil.PromptNames.SYSTEM, null))
+        when(chatUtil.chatStreamInConversation(13L, "hello", PromptNames.SYSTEM, null))
                 .thenReturn(Flux.just("fallback-system"));
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
@@ -91,7 +91,7 @@ class KnowledgeRagServiceImplTest {
         List<String> chunks = service.streamAnswer(13L, "hello").collectList().block();
 
         assertEquals(List.of("fallback-system"), chunks);
-        verify(chatUtil).chatStreamInConversation(13L, "hello", PromptUtil.PromptNames.SYSTEM, null);
+        verify(chatUtil).chatStreamInConversation(13L, "hello", PromptNames.SYSTEM, null);
         verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
     }
 
@@ -122,7 +122,7 @@ class KnowledgeRagServiceImplTest {
         when(knowledgeVectorMapper.selectChunksByDocuments(eq(402L), eq(502L), any()))
                 .thenReturn(List.of(hit));
         when(chatUtil.chatStreamInConversation(eq(14L), eq("hello question"),
-                eq(PromptUtil.PromptNames.KNOWLEDGEBASE_RAG_SYSTEM), any()))
+                eq(PromptNames.KNOWLEDGEBASE_RAG_SYSTEM), any()))
                 .thenReturn(Flux.just("rag-answer"));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
@@ -132,7 +132,7 @@ class KnowledgeRagServiceImplTest {
 
         assertEquals(List.of("rag-answer"), chunks);
         verify(chatUtil).chatStreamInConversation(eq(14L), eq("hello question"),
-                eq(PromptUtil.PromptNames.KNOWLEDGEBASE_RAG_SYSTEM), any());
+                eq(PromptNames.KNOWLEDGEBASE_RAG_SYSTEM), any());
         verify(knowledgeVectorMapper).searchBySimilarity(402L, 502L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium());
     }
 
@@ -143,7 +143,7 @@ class KnowledgeRagServiceImplTest {
         ragConfig.setEnabled(true);
         ragConfig.getRewrite().setEnabled(true);
         when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(503L);
-        when(chatUtil.chatOnce(eq("raw question"), eq(PromptUtil.PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE), any()))
+        when(chatUtil.chatOnce(eq("raw question"), eq(PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE), any()))
                 .thenReturn("rewritten question");
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.3,0.4]");
 
@@ -164,7 +164,7 @@ class KnowledgeRagServiceImplTest {
         when(knowledgeVectorMapper.selectChunksByDocuments(eq(403L), eq(503L), any()))
                 .thenReturn(List.of(hit));
         when(chatUtil.chatStreamInConversation(eq(15L), eq("raw question"),
-                eq(PromptUtil.PromptNames.KNOWLEDGEBASE_RAG_SYSTEM), any()))
+                eq(PromptNames.KNOWLEDGEBASE_RAG_SYSTEM), any()))
                 .thenReturn(Flux.just("rewritten-rag-answer"));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
@@ -173,8 +173,8 @@ class KnowledgeRagServiceImplTest {
         List<String> chunks = service.streamAnswer(15L, "raw question").collectList().block();
 
         assertEquals(List.of("rewritten-rag-answer"), chunks);
-        verify(chatUtil).chatOnce(eq("raw question"), eq(PromptUtil.PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE), any());
+        verify(chatUtil).chatOnce(eq("raw question"), eq(PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE), any());
         verify(chatUtil).chatStreamInConversation(eq(15L), eq("raw question"),
-                eq(PromptUtil.PromptNames.KNOWLEDGEBASE_RAG_SYSTEM), any());
+                eq(PromptNames.KNOWLEDGEBASE_RAG_SYSTEM), any());
     }
 }

@@ -10,7 +10,7 @@ import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.ChatUtil;
-import com.zdmj.common.util.PromptUtil;
+import com.zdmj.common.util.prompt.PromptNames;
 import com.zdmj.conversationService.dto.MessageDTO;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.entity.Message;
@@ -103,7 +103,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         if (newCount == 2) {
             String title = chatUtil.chatOnce(
                     dto.getMessage(),
-                    PromptUtil.PromptNames.GENERATE_CONVERSATION_TITLE,
+                    PromptNames.GENERATE_CONVERSATION_TITLE,
                     null
             );
             // 仅更新标题，避免回写旧的 message_count / last_message_at
@@ -136,7 +136,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
                 : chatUtil.chatStreamInConversation(
                         dto.getConversationId(),
                         dto.getMessage(),
-                        PromptUtil.PromptNames.SYSTEM,
+                        PromptNames.SYSTEM,
                         null);
         chatFlux.doOnNext(chunk -> {
             if (chunk == null || chunk.isEmpty()) {

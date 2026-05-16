@@ -9,6 +9,7 @@ import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.util.ChatUtil;
 import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.common.util.PromptUtil;
+import com.zdmj.common.util.prompt.PromptNames;
 import com.zdmj.common.util.PromptUtil.JobRole;
 import com.zdmj.resumeService.dto.CapabilityProfileGenerateReqDTO;
 import com.zdmj.resumeService.dto.ResumeRoleDetectDTO;
@@ -272,7 +273,7 @@ public class StudentCapabilityProfileServiceImpl
         }
 
         try {
-            RoleDetectLLMResult llmResult = chatUtil.chatStructuredOnce(resumeText, PromptUtil.PromptNames.JOB_DETECT,
+            RoleDetectLLMResult llmResult = chatUtil.chatStructuredOnce(resumeText, PromptNames.JOB_DETECT,
                     null, RoleDetectLLMResult.class);
             JobRole role = PromptUtil.getJobRoleByString(llmResult.getRoleCode());
             if (role == JobRole.UNKNOWN && bestRole != JobRole.UNKNOWN) {
