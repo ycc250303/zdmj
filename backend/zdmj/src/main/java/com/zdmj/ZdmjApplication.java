@@ -12,7 +12,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
         "com.zdmj.knowledgeService.mapper",
         "com.zdmj.jobService.mapper",
         "com.zdmj.conversationService.mapper",
-        "com.zdmj.matchService.mapper"
+        "com.zdmj.matchService.mapper",
+        "com.zdmj.careerReportService.mapper"
 }, annotationClass = Mapper.class)
 public class ZdmjApplication {
     public static void main(String[] args) {

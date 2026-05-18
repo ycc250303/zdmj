@@ -6,7 +6,6 @@ import java.util.Map;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -164,11 +163,28 @@ public class ChatUtil {
         }
         String template = promptUtil.load(promptName);
         Map<String, Object> variables = promptVars == null ? Collections.emptyMap() : promptVars;
-        if (variables.isEmpty()) {
-            return spec.system(template);
+        return spec.system(renderPlaceholders(template, variables));
+    }
+
+    /**
+     * 用变量值替换提示词中的占位符。支持 {@code ${key}} 与 {@code {key}}，仅替换 map 中声明的 key，
+     * 避免 Spring AI {@code PromptTemplate}（StringTemplate）将 JSON 花括号或 {@code default} 等保留字误解析。
+     */
+    static String renderPlaceholders(String template, Map<String, Object> variables) {
+        if (!StringUtils.hasText(template) || variables == null || variables.isEmpty()) {
+            return template;
         }
-        PromptTemplate promptTemplate = new PromptTemplate(template);
-        return spec.system(promptTemplate.render(variables));
+        String rendered = template;
+        for (Map.Entry<String, Object> entry : variables.entrySet()) {
+            String key = entry.getKey();
+            if (!StringUtils.hasText(key)) {
+                continue;
+            }
+            String value = entry.getValue() == null ? "" : String.valueOf(entry.getValue());
+            rendered = rendered.replace("${" + key + "}", value);
+            rendered = rendered.replace("{" + key + "}", value);
+        }
+        return rendered;
     }
 
     /**

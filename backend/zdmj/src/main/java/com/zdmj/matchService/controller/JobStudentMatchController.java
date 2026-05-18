@@ -15,9 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 人岗匹配分析控制器。
- *
- * <p>对应赛题《题目.md》：「职业探索与岗位匹配」「人岗匹配准确性判断」。</p>
+ * 人岗匹配分析控制器
  */
 @Slf4j
 @RestController

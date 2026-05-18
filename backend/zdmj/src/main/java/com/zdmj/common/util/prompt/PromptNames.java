@@ -95,4 +95,11 @@ public final class PromptNames {
     public static final String JOB_STUDENT_MATCH_CYBERSECURITY = "job-student-match/cybersecurity";
     /** 人岗匹配 默认兜底 */
     public static final String JOB_STUDENT_MATCH_DEFAULT = "job-student-match/default";
+
+    /** 职业发展报告 生成 */
+    public static final String CAREER_REPORT_GENERATE = "career-report/generate";
+    /** 职业发展报告 润色 */
+    public static final String CAREER_REPORT_POLISH = "career-report/polish";
+    /** 职业发展报告 完整性检查 */
+    public static final String CAREER_REPORT_INTEGRITY_CHECK = "career-report/integrity-check";
 }

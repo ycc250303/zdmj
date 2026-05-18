@@ -96,7 +96,13 @@ public enum ErrorCode {
     MATCH_GENERATION_FAILED(8301, "生成人岗匹配分析失败，请稍后重试"),
     MATCH_PRECONDITION_MISSING(8302, "学生能力画像缺失，请先到能力画像页生成画像"),
     MATCH_NOT_FOUND(8303, "人岗匹配分析不存在"),
-    MATCH_WEIGHTS_INVALID(8304, "权重配置不合法");
+    MATCH_WEIGHTS_INVALID(8304, "权重配置不合法"),
+
+    // ========== 职业发展报告 (84xx) ==========
+    CAREER_REPORT_NOT_FOUND(8401, "职业发展报告不存在"),
+    CAREER_REPORT_GENERATION_FAILED(8402, "生成职业发展报告失败，请稍后重试"),
+    CAREER_REPORT_POLISH_FAILED(8403, "润色职业发展报告失败，请稍后重试"),
+    CAREER_REPORT_INVALID(8404, "职业发展报告结果不符合要求");
 
     private final Integer code;
     private final String message;
