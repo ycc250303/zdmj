@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(touch \"C:/Users/lenovo/.claude/plans/precious-knitting-cerf-agent-a9e62bff40cea7cfd.md\")"
-    ]
-  }
-}

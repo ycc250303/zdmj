@@ -10,6 +10,7 @@ import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.util.ChatUtil;
 import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.common.util.PromptUtil;
+import com.zdmj.common.util.prompt.PromptNames;
 import com.zdmj.common.util.PromptUtil.JobRole;
 import com.zdmj.resumeService.dto.CapabilityProfileGenerateReqDTO;
 import com.zdmj.resumeService.dto.ResumeRoleDetectDTO;
@@ -82,7 +83,7 @@ class StudentCapabilityProfileServiceImplTest {
     void getCurrentUserProfile_found_shouldReturnDto() {
         StudentCapabilityProfile profile = new StudentCapabilityProfile();
         profile.setUserId(1L);
-        profile.setPromptName(PromptUtil.PromptNames.RESUME_ANALYSIS_JAVA_BACKEND);
+        profile.setPromptName(PromptNames.RESUME_ANALYSIS_JAVA_BACKEND);
         profile.setCompletenessScore(85);
         profile.setCompetitivenessScore(74);
         doReturn(profile).when(service).getOne(any());
@@ -196,7 +197,7 @@ class StudentCapabilityProfileServiceImplTest {
         assertNotNull(out);
         assertEquals(JobRole.JAVA, out.getRole());
         assertNotNull(out.getReason());
-        verify(chatUtil, never()).chatStructuredOnce(anyString(), eq(PromptUtil.PromptNames.JOB_DETECT),
+        verify(chatUtil, never()).chatStructuredOnce(anyString(), eq(PromptNames.JOB_DETECT),
                 any(), any());
     }
 
@@ -204,7 +205,7 @@ class StudentCapabilityProfileServiceImplTest {
     void detect_llmUnknown_shouldFallbackToKeywordWeakHit() throws Exception {
         String resumeText = "java spring 实习经历";
         Object llmResult = buildRoleDetectLlmResult("unknown", 0.93, "不确定");
-        doReturn(llmResult).when(chatUtil).chatStructuredOnce(eq(resumeText), eq(PromptUtil.PromptNames.JOB_DETECT),
+        doReturn(llmResult).when(chatUtil).chatStructuredOnce(eq(resumeText), eq(PromptNames.JOB_DETECT),
                 isNull(), any());
 
         ResumeRoleDetectDTO out = ReflectionTestUtils.invokeMethod(service, "detect", resumeText);
@@ -212,21 +213,21 @@ class StudentCapabilityProfileServiceImplTest {
         assertNotNull(out);
         assertEquals(JobRole.JAVA, out.getRole());
         assertEquals(0.45, out.getConfidence());
-        verify(chatUtil).chatStructuredOnce(eq(resumeText), eq(PromptUtil.PromptNames.JOB_DETECT), isNull(), any());
+        verify(chatUtil).chatStructuredOnce(eq(resumeText), eq(PromptNames.JOB_DETECT), isNull(), any());
     }
 
     @Test
     void detect_llmThrows_shouldFallbackToKeywordWeakHit() {
         String resumeText = "java spring 项目";
         doThrow(new RuntimeException("llm timeout")).when(chatUtil)
-                .chatStructuredOnce(eq(resumeText), eq(PromptUtil.PromptNames.JOB_DETECT), isNull(), any());
+                .chatStructuredOnce(eq(resumeText), eq(PromptNames.JOB_DETECT), isNull(), any());
 
         ResumeRoleDetectDTO out = ReflectionTestUtils.invokeMethod(service, "detect", resumeText);
 
         assertNotNull(out);
         assertEquals(JobRole.JAVA, out.getRole());
         assertEquals(0.35, out.getConfidence());
-        verify(chatUtil).chatStructuredOnce(eq(resumeText), eq(PromptUtil.PromptNames.JOB_DETECT), isNull(), any());
+        verify(chatUtil).chatStructuredOnce(eq(resumeText), eq(PromptNames.JOB_DETECT), isNull(), any());
     }
 
     @Test
@@ -243,7 +244,7 @@ class StudentCapabilityProfileServiceImplTest {
     void detect_llmThrowsAndNoKeyword_shouldReturnUnknownFallback() {
         String resumeText = "golang rust";
         doThrow(new RuntimeException("llm timeout")).when(chatUtil)
-                .chatStructuredOnce(eq(resumeText), eq(PromptUtil.PromptNames.JOB_DETECT), isNull(), any());
+                .chatStructuredOnce(eq(resumeText), eq(PromptNames.JOB_DETECT), isNull(), any());
 
         ResumeRoleDetectDTO out = ReflectionTestUtils.invokeMethod(service, "detect", resumeText);
 
@@ -266,7 +267,7 @@ class StudentCapabilityProfileServiceImplTest {
     void getCurrentUserProfileOrNull_profileExistsAndJsonValid_shouldHydrateNestedFields() {
         StudentCapabilityProfile profile = new StudentCapabilityProfile();
         profile.setUserId(1L);
-        profile.setPromptName(PromptUtil.PromptNames.RESUME_ANALYSIS_JAVA_BACKEND);
+        profile.setPromptName(PromptNames.RESUME_ANALYSIS_JAVA_BACKEND);
         profile.setCompletenessScore(81);
         profile.setCompetitivenessScore(72);
         profile.setScoreDetail("{\"contentCompletenessScore\":8}");
@@ -290,7 +291,7 @@ class StudentCapabilityProfileServiceImplTest {
     void getCurrentUserProfileOrNull_jsonInvalid_shouldNotThrowAndKeepBaseFields() {
         StudentCapabilityProfile profile = new StudentCapabilityProfile();
         profile.setUserId(1L);
-        profile.setPromptName(PromptUtil.PromptNames.RESUME_ANALYSIS_FRONTEND);
+        profile.setPromptName(PromptNames.RESUME_ANALYSIS_FRONTEND);
         profile.setCompletenessScore(59);
         profile.setCompetitivenessScore(61);
         profile.setScoreDetail("{bad-json");

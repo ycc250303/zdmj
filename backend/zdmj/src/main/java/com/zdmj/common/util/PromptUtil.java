@@ -1,5 +1,7 @@
 package com.zdmj.common.util;
 
+import com.zdmj.common.util.prompt.PromptNames;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ConcurrentHashMap;
@@ -55,87 +57,6 @@ public class PromptUtil {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to read prompt: " + location, e);
         }
-    }
-
-    public final class PromptNames {
-        private PromptNames() {
-        }
-
-        /** 通用对话 system */
-        public static final String SYSTEM = "system";
-        /** 生成会话标题 */
-        public static final String GENERATE_CONVERSATION_TITLE = "generate-conversation-title";
-
-        /** 岗位要求画像 Java 后端 */
-        public static final String JOB_REQUIREMENT_JAVA_BACKEND = "job-requirement/java-backend";
-        /** 岗位要求画像 前端 */
-        public static final String JOB_REQUIREMENT_FRONTEND = "job-requirement/frontend";
-        /** 岗位要求画像 C/C++ */
-        public static final String JOB_REQUIREMENT_CPP = "job-requirement/cpp";
-        /** 岗位要求画像 软件测试 */
-        public static final String JOB_REQUIREMENT_SOFTWARE_TEST = "job-requirement/software-test";
-        /** 岗位要求画像 AI/Agent 开发 */
-        public static final String JOB_REQUIREMENT_AI_AGENT = "job-requirement/ai-agent";
-        /** 岗位要求画像 算法 */
-        public static final String JOB_REQUIREMENT_ALGORITHM = "job-requirement/algorithm";
-        /** 岗位要求画像 数据分析 */
-        public static final String JOB_REQUIREMENT_DATA_ANALYST = "job-requirement/data-analyst";
-        /** 岗位要求画像 大数据 */
-        public static final String JOB_REQUIREMENT_BIG_DATA = "job-requirement/big-data";
-        /** 岗位要求画像 DevOps/SRE */
-        public static final String JOB_REQUIREMENT_DEVOPS_SRE = "job-requirement/devops-sre";
-        /** 岗位要求画像 网络安全 */
-        public static final String JOB_REQUIREMENT_CYBERSECURITY = "job-requirement/cybersecurity";
-        /** 岗位要求画像 默认兜底 */
-        public static final String JOB_REQUIREMENT_DEFAULT = "job-requirement/default";
-        /** 知识库 RAG 问答 */
-        public static final String KNOWLEDGEBASE_RAG_SYSTEM = "knowledgebase-rag-system";
-        /** 知识库查询改写 */
-        public static final String KNOWLEDGEBASE_RAG_QUERY_REWRITE = "knowledgebase-query-rewrite";
-        /** 简历分析 Java 后端 */
-        public static final String RESUME_ANALYSIS_JAVA_BACKEND = "resume-analysis/java-backend";
-        /** 简历分析 前端 */
-        public static final String RESUME_ANALYSIS_FRONTEND = "resume-analysis/frontend";
-        /** 简历分析 C/C++ */
-        public static final String RESUME_ANALYSIS_CPP = "resume-analysis/cpp";
-        /** 简历分析 软件测试 */
-        public static final String RESUME_ANALYSIS_SOFTWARE_TEST = "resume-analysis/software-test";
-        /** 简历分析 AI/Agent 开发 */
-        public static final String RESUME_ANALYSIS_AI_AGENT = "resume-analysis/ai-agent";
-        /** 简历分析 算法 */
-        public static final String RESUME_ANALYSIS_ALGORITHM = "resume-analysis/algorithm";
-        /** 简历分析 数据分析 */
-        public static final String RESUME_ANALYSIS_DATA_ANALYST = "resume-analysis/data-analyst";
-        /** 简历分析 默认兜底 */
-        public static final String RESUME_ANALYSIS_DEFAULT = "resume-analysis/default";
-        /** 简历分析 大数据 */
-        public static final String RESUME_ANALYSIS_BIG_DATA = "resume-analysis/big-data";
-        /** 简历分析 DevOps/SRE */
-        public static final String RESUME_ANALYSIS_DEVOPS_SRE = "resume-analysis/devops-sre";
-        /** 简历分析 网络安全 */
-        public static final String RESUME_ANALYSIS_CYBERSECURITY = "resume-analysis/cybersecurity";
-        /** 岗位分类 job-detect */
-        public static final String JOB_DETECT = "job-detect";
-
-        /** 岗位关联图谱 Java 后端 */
-        public static final String JOB_CAREER_GRAPH_JAVA_BACKEND = "job-career-graph/java-backend";
-        /** 岗位关联图谱 前端 */
-        public static final String JOB_CAREER_GRAPH_FRONTEND = "job-career-graph/frontend";
-        /** 岗位关联图谱 AI/Agent 开发 */
-        public static final String JOB_CAREER_GRAPH_AI_AGENT = "job-career-graph/ai-agent";
-        /** 岗位关联图谱 默认兜底 */
-        public static final String JOB_CAREER_GRAPH_DEFAULT = "job-career-graph/default";
-
-        /** 人岗匹配 Java 后端 */
-        public static final String JOB_STUDENT_MATCH_JAVA_BACKEND = "job-student-match/java-backend";
-        /** 人岗匹配 前端 */
-        public static final String JOB_STUDENT_MATCH_FRONTEND = "job-student-match/frontend";
-        /** 人岗匹配 算法 */
-        public static final String JOB_STUDENT_MATCH_ALGORITHM = "job-student-match/algorithm";
-        /** 人岗匹配 AI/Agent 开发 */
-        public static final String JOB_STUDENT_MATCH_AI_AGENT = "job-student-match/ai-agent";
-        /** 人岗匹配 默认兜底 */
-        public static final String JOB_STUDENT_MATCH_DEFAULT = "job-student-match/default";
     }
 
     public enum JobRole {
@@ -254,7 +175,7 @@ public class PromptUtil {
      * 岗位角色 -> 岗位关联图谱 PromptName 映射。
      *
      * <p>仅为核心方向（Java 后端 / 前端 / AI）提供专属图谱提示词，其它角色统一走
-     * {@link PromptNames#JOB_CAREER_GRAPH_DEFAULT}，以控制提示词数量同时保证主流岗位输出质量。</p>
+     * {@link com.zdmj.common.util.prompt.PromptNames#JOB_CAREER_GRAPH_DEFAULT}，以控制提示词数量同时保证主流岗位输出质量。</p>
      */
     public static String getJobCareerGraphPromptName(JobRole role) {
         if (role == null) {
@@ -271,8 +192,8 @@ public class PromptUtil {
     /**
      * 岗位角色 -> 人岗匹配 PromptName 映射。
      *
-     * <p>仅为核心方向（Java 后端 / 前端 / 算法 / AI）提供专属提示词，其它岗位统一走
-     * {@link PromptNames#JOB_STUDENT_MATCH_DEFAULT}，以保证主流岗位输出质量同时控制提示词数量。</p>
+     * <p>与 {@link #getResumeAnalysisPromptName(JobRole)} 的岗位划分对齐：各方向专属提示词；
+     * 未知角色走 {@link com.zdmj.common.util.prompt.PromptNames#JOB_STUDENT_MATCH_DEFAULT}。</p>
      */
     public static String getJobStudentMatchPromptName(JobRole role) {
         if (role == null) {
@@ -283,7 +204,13 @@ public class PromptUtil {
             case FRONTEND -> PromptNames.JOB_STUDENT_MATCH_FRONTEND;
             case ALGORITHM -> PromptNames.JOB_STUDENT_MATCH_ALGORITHM;
             case AI_AGENT -> PromptNames.JOB_STUDENT_MATCH_AI_AGENT;
-            default -> PromptNames.JOB_STUDENT_MATCH_DEFAULT;
+            case CPP -> PromptNames.JOB_STUDENT_MATCH_CPP;
+            case SOFTWARE_TEST -> PromptNames.JOB_STUDENT_MATCH_SOFTWARE_TEST;
+            case DATA_ANALYST -> PromptNames.JOB_STUDENT_MATCH_DATA_ANALYST;
+            case BIG_DATA -> PromptNames.JOB_STUDENT_MATCH_BIG_DATA;
+            case DEVOPS_SRE -> PromptNames.JOB_STUDENT_MATCH_DEVOPS_SRE;
+            case CYBERSECURITY -> PromptNames.JOB_STUDENT_MATCH_CYBERSECURITY;
+            case UNKNOWN -> PromptNames.JOB_STUDENT_MATCH_DEFAULT;
         };
     }
 

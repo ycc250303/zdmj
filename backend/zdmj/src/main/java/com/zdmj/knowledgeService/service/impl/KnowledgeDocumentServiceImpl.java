@@ -3,6 +3,9 @@ package com.zdmj.knowledgeService.service.impl;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
@@ -65,6 +68,7 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
         knowledgeDocument.setType(knowledgeDocumentDTO.getType());
         knowledgeDocument.setContent(knowledgeDocumentDTO.getContent());
         knowledgeDocument.setTitle(knowledgeDocumentDTO.getTitle());
+        knowledgeDocument.setMetadata(buildMetadata(knowledgeDocumentDTO));
         boolean saved = save(knowledgeDocument);
         if (!saved) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_CREATE_FAILED);
@@ -172,6 +176,7 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
         knowledgeDocument.setType(knowledgeDocumentDTO.getType());
         knowledgeDocument.setContent(knowledgeDocumentDTO.getContent());
         knowledgeDocument.setTitle(knowledgeDocumentDTO.getTitle());
+        knowledgeDocument.setMetadata(buildMetadata(knowledgeDocumentDTO));
 
         // 5. 提交异步向量化任务
         Long taskId = null;
@@ -287,6 +292,38 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
             log.error("解析COS URL失败: {}", url, e);
             return null;
         }
+    }
+
+    /**
+     * 构建知识文档元数据：
+     * - docCategory: learning_path / career_planning / industry_trend / general
+     * - roleType: default
+     * - difficulty: basic
+     * - sourcePriority: 1
+     *
+     * 这些字段用于职业发展报告场景下的检索过滤与重排。
+     */
+    private Map<String, Object> buildMetadata(KnowledgeDocumentDTO dto) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        String title = dto == null ? "" : dto.getTitle();
+        String content = dto == null ? "" : dto.getContent();
+        String merged = (title == null ? "" : title) + " " + (content == null ? "" : content);
+        String lower = merged.toLowerCase(Locale.ROOT);
+
+        String category = "general";
+        if (lower.contains("学习路径") || lower.contains("成长路径") || lower.contains("roadmap")) {
+            category = "learning_path";
+        } else if (lower.contains("职业规划") || lower.contains("求职建议") || lower.contains("career")) {
+            category = "career_planning";
+        } else if (lower.contains("行业趋势") || lower.contains("就业趋势") || lower.contains("trend")) {
+            category = "industry_trend";
+        }
+
+        metadata.put("docCategory", category);
+        metadata.put("roleType", "default");
+        metadata.put("difficulty", "basic");
+        metadata.put("sourcePriority", 1);
+        return metadata;
     }
 
     /**

@@ -27,7 +27,9 @@ DROP TABLE IF EXISTS resumes;
 DROP TABLE IF EXISTS resume_matches;
 DROP TABLE IF EXISTS jobs;
 DROP TABLE IF EXISTS companies;
+DROP TABLE IF EXISTS job_career_graphs;
 DROP TABLE IF EXISTS job_student_matches;
+DROP TABLE IF EXISTS career_development_reports;
 DROP TABLE IF EXISTS knowledge_documents;
 DROP TABLE IF EXISTS knowledge_bases;
 DROP TABLE IF EXISTS knowledge_vectors;
@@ -550,7 +552,34 @@ CREATE TABLE IF NOT EXISTS job_capability_profiles (
 );
 CREATE INDEX IF NOT EXISTS idx_job_capability_profiles_job_id ON job_capability_profiles(job_id);
 CREATE INDEX IF NOT EXISTS idx_job_capability_profiles_role_type ON job_capability_profiles(target_role_type);
--- 3.4 人岗匹配分析表（学生 × 岗位 多维匹配结果）
+-- 3.4 岗位关联图谱表
+CREATE TABLE IF NOT EXISTS job_career_graphs (
+    id BIGSERIAL PRIMARY KEY,
+    -- 图谱ID
+    job_id BIGINT NOT NULL,
+    -- 岗位ID（逻辑外键：jobs.id）
+    role_confidence NUMERIC(5,4) NOT NULL DEFAULT 0.0,
+    -- 岗位分类置信度（0~1）
+    prompt_name VARCHAR(128) NOT NULL DEFAULT 'job-career-graph/default',
+    -- 实际使用的图谱提示词名称
+    target_role_type VARCHAR(64) NOT NULL DEFAULT 'default',
+    -- 岗位类型展示值（如 java-backend）
+    current_node JSONB DEFAULT '{}'::jsonb,
+    -- 当前岗位节点
+    vertical_path JSONB DEFAULT '[]'::jsonb,
+    -- 垂直岗位图谱（晋升路径）
+    transition_paths JSONB DEFAULT '[]'::jsonb,
+    -- 换岗路径图谱
+    summary TEXT,
+    -- 一句话总结
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- 创建时间
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_job_career_graphs_job_id ON job_career_graphs(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_career_graphs_role_type ON job_career_graphs(target_role_type);
+
+-- 3.5 人岗匹配分析表（学生 × 岗位 多维匹配结果）
 CREATE TABLE IF NOT EXISTS job_student_matches (
     id BIGSERIAL PRIMARY KEY,
     -- 匹配ID
@@ -607,6 +636,55 @@ CREATE INDEX IF NOT EXISTS idx_job_student_matches_job_id
     ON job_student_matches(job_id);
 CREATE INDEX IF NOT EXISTS idx_job_student_matches_role_type
     ON job_student_matches(target_role_type);
+
+-- 3.6 职业发展报告表（单表 + JSONB 主存）
+CREATE TABLE IF NOT EXISTS career_development_reports (
+    id BIGSERIAL PRIMARY KEY,
+    -- 报告ID
+    user_id BIGINT NOT NULL,
+    -- 用户ID（逻辑外键：users.id）
+    job_id BIGINT NOT NULL,
+    -- 岗位ID（逻辑外键：jobs.id）
+    match_id BIGINT,
+    -- 人岗匹配ID（逻辑外键：job_student_matches.id）
+    career_graph_id BIGINT,
+    -- 岗位图谱ID（逻辑外键：job_career_graphs.id）
+    student_profile_snapshot JSONB DEFAULT '{}'::jsonb,
+    -- 学生画像快照
+    job_profile_snapshot JSONB DEFAULT '{}'::jsonb,
+    -- 岗位画像快照
+    match_snapshot JSONB DEFAULT '{}'::jsonb,
+    -- 匹配结果快照
+    knowledge_sources JSONB DEFAULT '[]'::jsonb,
+    -- RAG命中的知识来源
+    report_content JSONB NOT NULL DEFAULT '{}'::jsonb,
+    -- 报告正文结构
+    quality_flags JSONB DEFAULT '{}'::jsonb,
+    -- 完整性检查与质量标记
+    status SMALLINT NOT NULL DEFAULT 1,
+    -- 状态：1=draft/2=checked/3=published/4=check_failed
+    completeness_score INTEGER NOT NULL DEFAULT 0,
+    -- 完整度评分（0~100）
+    version INTEGER NOT NULL DEFAULT 1,
+    -- 同 user_id + job_id 下的版本号
+    is_latest BOOLEAN NOT NULL DEFAULT true,
+    -- 是否为该岗位的最新版本
+    export_url VARCHAR(1000),
+    -- 导出文件地址（可选）
+    export_type VARCHAR(32),
+    -- 导出类型（pdf/md）
+    prompt_name VARCHAR(128) NOT NULL DEFAULT 'career-report/generate',
+    -- 实际使用的提示词名称
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- 创建时间
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_career_reports_user_job_version
+    ON career_development_reports(user_id, job_id, version);
+CREATE INDEX IF NOT EXISTS idx_career_reports_user_job_latest
+    ON career_development_reports(user_id, job_id, is_latest);
+CREATE INDEX IF NOT EXISTS idx_career_reports_status_updated
+    ON career_development_reports(status, updated_at DESC);
 --
 -- ==========================4 知识库模块==========================
 --

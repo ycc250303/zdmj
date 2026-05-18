@@ -3,6 +3,7 @@ package com.zdmj.jobService.service.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.util.ChatUtil;
 import com.zdmj.common.util.PromptUtil;
+import com.zdmj.common.util.prompt.PromptNames;
 import com.zdmj.common.util.PromptUtil.JobRole;
 import com.zdmj.jobService.dto.JobListItemDTO;
 import java.util.List;
@@ -47,7 +48,7 @@ public final class JobAnalysisSupport {
 
         try {
             RoleDetectLLMResult llmResult = chatUtil.chatStructuredOnce(
-                    text, PromptUtil.PromptNames.JOB_DETECT, null, RoleDetectLLMResult.class);
+                    text, PromptNames.JOB_DETECT, null, RoleDetectLLMResult.class);
             JobRole role = PromptUtil.getJobRoleByString(llmResult.getRoleCode());
             return role == JobRole.UNKNOWN ? bestRole : role;
         } catch (Exception e) {
