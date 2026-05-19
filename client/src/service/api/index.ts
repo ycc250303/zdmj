@@ -30,3 +30,4 @@ export type { CapabilityProfileApi, FileUploadResult } from './profile';
 export * from './conversation';
 export * from './job';
 export * from './match';
+export * from './career-report';

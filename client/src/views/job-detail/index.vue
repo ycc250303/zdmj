@@ -13,6 +13,13 @@ import {
   fetchGenerateJobStudentMatch,
   type MatchApi
 } from '@/service/api/match';
+import {
+  fetchGetLatestCareerReport,
+  fetchGenerateCareerReport,
+  fetchPolishCareerReport,
+  fetchCheckCareerReportIntegrity,
+  type CareerReportApi
+} from '@/service/api/career-report';
 import CapabilityScoreCard, { type Dimension } from '@/components/common/CapabilityScoreCard.vue';
 
 defineOptions({ name: 'job-detail' });
@@ -31,6 +38,37 @@ const matchResult = ref<MatchApi.JobStudentMatch | null>(null);
 const loading = ref(false);
 const generatingProfile = ref(false);
 const generatingMatch = ref(false);
+
+// --- 职业发展报告相关状态 ---
+const careerReport = ref<CareerReportApi.CareerReport | null>(null);
+const loadingCareerReport = ref(false);
+const generatingCareerReport = ref(false);
+const polishingCareerReport = ref(false);
+const checkingCareerReport = ref(false);
+const careerReportDrawerVisible = ref(false);
+const careerReportGenerateForm = ref<CareerReportApi.CareerReportGenerateReq>({
+  userPreference: '',
+  focus: ''
+});
+const careerReportPolishInstruction = ref('');
+const careerReportCheckResult = ref<CareerReportApi.CareerReportCheck | null>(null);
+
+/**
+ * 统一从后端错误对象中抽出 code/msg，避免把 LLM 业务错误吞成无意义提示。
+ * 兼容两种来源：
+ *  1) request 工具返回的 { error } 形态（error 是 AxiosError）
+ *  2) try/catch 抛出的 axios 异常
+ */
+function extractApiError(errLike: any, fallback: string): string {
+  const resp = errLike?.response?.data;
+  const msg: string = resp?.msg || resp?.message || errLike?.message || fallback;
+  const code = resp?.code != null ? `[${resp.code}] ` : '';
+  // 命中 LLM 兜底错误 8301 时，给一段更友好的引导
+  if (resp?.code === 8301) {
+    return `${code}${msg}（请稍后重试，或确认后端 LLM 服务可用、能力画像已生成）`;
+  }
+  return `${code}${msg}`;
+}
 
 function formatSalary(job: JobApi.JobListItem): string {
   const typeMap = {
@@ -58,6 +96,8 @@ async function loadJobDetail() {
       loadCapabilityProfile();
       // 加载人岗匹配结果
       loadMatchResult();
+      // 加载职业发展报告（不存在则为 null，不弹错）
+      loadCareerReport();
     } else {
       window.$message?.error($t('page.jobs.loadFailed'));
       router.back();
@@ -96,6 +136,23 @@ async function loadMatchResult() {
   }
 }
 
+async function loadCareerReport() {
+  if (!jobId.value) return;
+  loadingCareerReport.value = true;
+  try {
+    const { data, error } = await fetchGetLatestCareerReport(jobId.value);
+    if (!error && data) {
+      careerReport.value = data;
+    } else {
+      careerReport.value = null;
+    }
+  } catch (err) {
+    careerReport.value = null;
+  } finally {
+    loadingCareerReport.value = false;
+  }
+}
+
 async function handleGenerateProfile() {
   if (!jobId.value) return;
 
@@ -107,11 +164,17 @@ async function handleGenerateProfile() {
       capabilityProfile.value = data;
       window.$message?.success($t('page.jobs.profileGenerated') as string);
     } else {
-      window.$message?.error($t('page.jobs.createFailed') as string);
+      window.$message?.error(
+        extractApiError(error, $t('page.jobs.createFailed') as string),
+        { duration: 6000 }
+      );
     }
   } catch (err) {
     console.error($t('page.jobs.generateProfileError'), err);
-    window.$message?.error($t('page.jobs.createFailed') + $t('page.jobs.retryLater'));
+    window.$message?.error(
+      extractApiError(err, $t('page.jobs.createFailed') + $t('page.jobs.retryLater')),
+      { duration: 6000 }
+    );
   } finally {
     generatingProfile.value = false;
   }
@@ -127,12 +190,223 @@ async function handleGenerateMatch() {
       matchResult.value = data;
       window.$message?.success($t('page.jobs.matchSuccess') as string);
     } else {
-      window.$message?.error($t('page.jobs.matchFailed') as string);
+      window.$message?.error(
+        extractApiError(error, $t('page.jobs.matchFailed') as string),
+        { duration: 6000 }
+      );
     }
   } catch (err) {
-    window.$message?.error($t('page.jobs.matchFailedRetry') as string);
+    window.$message?.error(
+      extractApiError(err, $t('page.jobs.matchFailedRetry') as string),
+      { duration: 6000 }
+    );
   } finally {
     generatingMatch.value = false;
+  }
+}
+
+// --- 职业发展报告：生成 / 润色 / 完整性检查 ---
+function openCareerReportDrawer() {
+  careerReportDrawerVisible.value = true;
+  // 抽屉打开时刷新一次，避免他端更新
+  loadCareerReport();
+}
+
+/**
+ * 判断是否是网关层 504 超时（Nginx 等掐断了 axios，与业务无关）。
+ * axios 此时 response.status === 504，response.data 通常是 Nginx HTML，不是后端 JSON。
+ */
+function isGatewayTimeout(errLike: any): boolean {
+  const status = errLike?.response?.status ?? errLike?.status;
+  if (status === 504 || status === 502) return true;
+  // axios 自身超时
+  if (errLike?.code === 'ECONNABORTED' || /timeout/i.test(errLike?.message || '')) return true;
+  return false;
+}
+
+/**
+ * 网关 504 时的兜底：后端可能还在跑，跑完会把记录写进数据库，
+ * 这里轮询查最新报告，命中即认为成功。
+ * @param totalMs 总轮询时长（默认 90 秒）
+ * @param intervalMs 间隔（默认 5 秒）
+ * @param baseline 之前已有的报告（用 version/id 做新旧对比，避免拿到旧数据当成新生成）
+ */
+async function pollLatestCareerReport(
+  totalMs = 90_000,
+  intervalMs = 5_000,
+  baseline?: CareerReportApi.CareerReport | null
+): Promise<CareerReportApi.CareerReport | null> {
+  if (!jobId.value) return null;
+  const start = Date.now();
+  // 用 id + version 联合判断"是否是新一份报告"
+  const baselineKey = baseline ? `${baseline.id ?? ''}-${baseline.version ?? ''}` : '';
+  while (Date.now() - start < totalMs) {
+    await new Promise(r => setTimeout(r, intervalMs));
+    try {
+      const { data, error } = await fetchGetLatestCareerReport(jobId.value);
+      if (!error && data) {
+        const currentKey = `${data.id ?? ''}-${data.version ?? ''}`;
+        if (currentKey && currentKey !== baselineKey) {
+          return data;
+        }
+      }
+    } catch {
+      // 单次失败忽略，继续轮询
+    }
+  }
+  return null;
+}
+
+async function handleGenerateCareerReport() {
+  if (!jobId.value) return;
+  generatingCareerReport.value = true;
+  // 记录基线，便于 504 后判断是否产出了新报告
+  const baseline = careerReport.value;
+  window.$message?.info($t('page.jobs.careerReport.generating') as string, { duration: 6000 });
+  try {
+    const payload: CareerReportApi.CareerReportGenerateReq = {
+      userPreference: careerReportGenerateForm.value.userPreference?.trim() || undefined,
+      focus: careerReportGenerateForm.value.focus?.trim() || undefined
+    };
+    const { data, error } = await fetchGenerateCareerReport(jobId.value, payload);
+    if (!error && data) {
+      careerReport.value = data;
+      careerReportDrawerVisible.value = true;
+      window.$message?.success($t('page.jobs.careerReport.generateSuccess') as string);
+      return;
+    }
+    // 后端报错：504 网关超时走兜底轮询；其他直接展示
+    if (isGatewayTimeout(error)) {
+      window.$message?.warning($t('page.jobs.careerReport.gatewayTimeoutFallback') as string, { duration: 6000 });
+      const polled = await pollLatestCareerReport(120_000, 5_000, baseline);
+      if (polled) {
+        careerReport.value = polled;
+        careerReportDrawerVisible.value = true;
+        window.$message?.success($t('page.jobs.careerReport.generateSuccess') as string);
+      } else {
+        window.$message?.error($t('page.jobs.careerReport.gatewayTimeoutHint') as string, { duration: 8000 });
+      }
+    } else {
+      window.$message?.error(
+        extractApiError(error, $t('page.jobs.careerReport.generateFailed') as string),
+        { duration: 6000 }
+      );
+    }
+  } catch (err) {
+    if (isGatewayTimeout(err)) {
+      window.$message?.warning($t('page.jobs.careerReport.gatewayTimeoutFallback') as string, { duration: 6000 });
+      const polled = await pollLatestCareerReport(120_000, 5_000, baseline);
+      if (polled) {
+        careerReport.value = polled;
+        careerReportDrawerVisible.value = true;
+        window.$message?.success($t('page.jobs.careerReport.generateSuccess') as string);
+      } else {
+        window.$message?.error($t('page.jobs.careerReport.gatewayTimeoutHint') as string, { duration: 8000 });
+      }
+    } else {
+      window.$message?.error(
+        extractApiError(err, $t('page.jobs.careerReport.generateFailed') as string),
+        { duration: 6000 }
+      );
+    }
+  } finally {
+    generatingCareerReport.value = false;
+  }
+}
+
+async function handlePolishCareerReport() {
+  if (!careerReport.value?.id) return;
+  polishingCareerReport.value = true;
+  const baseline = careerReport.value;
+  window.$message?.info($t('page.jobs.careerReport.polishing') as string, { duration: 5000 });
+
+  const handleFailure = async (errLike: any, fallback: string) => {
+    if (isGatewayTimeout(errLike)) {
+      window.$message?.warning($t('page.jobs.careerReport.gatewayTimeoutFallback') as string, { duration: 6000 });
+      const polled = await pollLatestCareerReport(120_000, 5_000, baseline);
+      if (polled) {
+        careerReport.value = polled;
+        careerReportPolishInstruction.value = '';
+        window.$message?.success($t('page.jobs.careerReport.polishSuccess') as string);
+      } else {
+        window.$message?.error($t('page.jobs.careerReport.gatewayTimeoutHint') as string, { duration: 8000 });
+      }
+    } else {
+      window.$message?.error(extractApiError(errLike, fallback), { duration: 6000 });
+    }
+  };
+
+  try {
+    const { data, error } = await fetchPolishCareerReport(careerReport.value.id, {
+      instruction: careerReportPolishInstruction.value?.trim() || undefined
+    });
+    if (!error && data) {
+      careerReport.value = data;
+      careerReportPolishInstruction.value = '';
+      window.$message?.success($t('page.jobs.careerReport.polishSuccess') as string);
+    } else {
+      await handleFailure(error, $t('page.jobs.careerReport.polishFailed') as string);
+    }
+  } catch (err) {
+    await handleFailure(err, $t('page.jobs.careerReport.polishFailed') as string);
+  } finally {
+    polishingCareerReport.value = false;
+  }
+}
+
+async function handleCheckCareerReportIntegrity() {
+  if (!careerReport.value?.id) return;
+  checkingCareerReport.value = true;
+  window.$message?.info($t('page.jobs.careerReport.checking') as string, { duration: 4000 });
+  try {
+    const { data, error } = await fetchCheckCareerReportIntegrity(careerReport.value.id);
+    if (!error && data) {
+      careerReportCheckResult.value = data;
+      // 检查后报告记录的 status / completenessScore 会被后端写回，重新拉一次保持一致
+      await loadCareerReport();
+      window.$message?.success($t('page.jobs.careerReport.checkSuccess') as string);
+    } else {
+      window.$message?.error(
+        extractApiError(error, $t('page.jobs.careerReport.checkFailed') as string),
+        { duration: 6000 }
+      );
+    }
+  } catch (err) {
+    window.$message?.error(
+      extractApiError(err, $t('page.jobs.careerReport.checkFailed') as string),
+      { duration: 6000 }
+    );
+  } finally {
+    checkingCareerReport.value = false;
+  }
+}
+
+function getCareerReportStatusLabel(status?: number): string {
+  switch (status) {
+    case 1: return $t('page.jobs.careerReport.status.draft') as string;
+    case 2: return $t('page.jobs.careerReport.status.checked') as string;
+    case 3: return $t('page.jobs.careerReport.status.published') as string;
+    case 4: return $t('page.jobs.careerReport.status.checkFailed') as string;
+    default: return $t('page.jobs.careerReport.status.unknown') as string;
+  }
+}
+
+function getCareerReportStatusType(status?: number): 'default' | 'info' | 'success' | 'warning' | 'error' {
+  switch (status) {
+    case 1: return 'default';
+    case 2: return 'success';
+    case 3: return 'info';
+    case 4: return 'error';
+    default: return 'default';
+  }
+}
+
+function getRiskLabel(level?: string): string {
+  switch ((level || '').toLowerCase()) {
+    case 'low': return $t('page.jobs.careerReport.riskLow') as string;
+    case 'medium': return $t('page.jobs.careerReport.riskMedium') as string;
+    case 'high': return $t('page.jobs.careerReport.riskHigh') as string;
+    default: return level || '-';
   }
 }
 
@@ -163,6 +437,29 @@ const matchDimensions = computed<Dimension[]>(() => {
     }));
 });
 
+// 报告章节渲染：把 reportContent 里的章节键 -> 内容做平铺
+const reportSections = computed<Array<{ key: string; value: any }>>(() => {
+  const content = careerReport.value?.reportContent;
+  if (!content || typeof content !== 'object') return [];
+  return Object.keys(content).map(k => ({ key: k, value: (content as any)[k] }));
+});
+
+function renderSectionValue(value: any): string {
+  if (value == null) return '-';
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    // 数组：如果是字符串数组直接 join，对象数组 JSON 化
+    if (value.every(v => typeof v === 'string' || typeof v === 'number')) {
+      return value.map(String).join('\n');
+    }
+    return JSON.stringify(value, null, 2);
+  }
+  if (typeof value === 'object') {
+    return JSON.stringify(value, null, 2);
+  }
+  return String(value);
+}
+
 onMounted(() => {
   if (jobId.value) {
     loadJobDetail();
@@ -192,6 +489,15 @@ onMounted(() => {
           <NButton @click="handleGenerateProfile" :loading="generatingProfile">
             <template #icon><span>🧠</span></template>
             {{ capabilityProfile ? $t('page.jobs.regenerateProfile') : $t('page.jobs.generateProfile') }}
+          </NButton>
+          <NButton
+            type="info"
+            ghost
+            @click="openCareerReportDrawer"
+            :loading="loadingCareerReport"
+          >
+            <template #icon><span>📑</span></template>
+            {{ careerReport ? $t('page.jobs.careerReport.view') : $t('page.jobs.careerReport.entry') }}
           </NButton>
           <NButton type="primary" @click="handleEdit">
             <template #icon><span>✏️</span></template>
@@ -435,5 +741,202 @@ onMounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- 职业发展报告 抽屉 -->
+    <NDrawer
+      v-model:show="careerReportDrawerVisible"
+      :width="720"
+      :auto-focus="false"
+      placement="right"
+    >
+      <NDrawerContent
+        :title="$t('page.jobs.careerReport.drawerTitle')"
+        closable
+      >
+        <!-- 顶部：状态条 + 操作 -->
+        <div class="mb-4 flex items-center justify-between flex-wrap gap-3">
+          <div class="flex items-center gap-2 flex-wrap">
+            <template v-if="careerReport">
+              <NTag :type="getCareerReportStatusType(careerReport.status)" round size="small">
+                {{ $t('page.jobs.careerReport.statusLabel') }}：{{ getCareerReportStatusLabel(careerReport.status) }}
+              </NTag>
+              <NTag type="info" round size="small">
+                {{ $t('page.jobs.careerReport.version') }} v{{ careerReport.version ?? '-' }}
+              </NTag>
+              <NTag v-if="careerReport.latest" type="success" round size="small">
+                {{ $t('page.jobs.careerReport.latest') }}
+              </NTag>
+              <NTag v-if="careerReport.completenessScore != null" type="warning" round size="small">
+                {{ $t('page.jobs.careerReport.completenessScore') }}：{{ careerReport.completenessScore }}/100
+              </NTag>
+            </template>
+          </div>
+          <div class="flex gap-2">
+            <NButton
+              size="small"
+              type="primary"
+              :loading="generatingCareerReport"
+              @click="handleGenerateCareerReport"
+            >
+              <template #icon><span>{{ careerReport ? '🔄' : '✨' }}</span></template>
+              {{ careerReport ? $t('page.jobs.careerReport.regenerate') : $t('page.jobs.careerReport.generate') }}
+            </NButton>
+            <NButton
+              v-if="careerReport"
+              size="small"
+              :loading="checkingCareerReport"
+              @click="handleCheckCareerReportIntegrity"
+            >
+              <template #icon><span>✅</span></template>
+              {{ $t('page.jobs.careerReport.check') }}
+            </NButton>
+          </div>
+        </div>
+
+        <!-- 生成参数表单 -->
+        <NCard
+          v-if="!careerReport"
+          size="small"
+          :bordered="false"
+          class="mb-4 bg-blue-50/40 dark:bg-blue-900/10 rounded-lg"
+        >
+          <NEmpty :description="$t('page.jobs.careerReport.empty')" class="py-2" />
+        </NCard>
+
+        <!-- 生成偏好（生成 / 重新生成 都可填）-->
+        <NCard
+          size="small"
+          :title="$t('page.jobs.careerReport.userPreferenceLabel') + ' / ' + $t('page.jobs.careerReport.focusLabel')"
+          class="mb-4 rounded-lg"
+        >
+          <div class="space-y-2">
+            <NInput
+              v-model:value="careerReportGenerateForm.userPreference"
+              type="textarea"
+              :placeholder="$t('page.jobs.careerReport.userPreferencePlaceholder') as string"
+              :autosize="{ minRows: 1, maxRows: 3 }"
+            />
+            <NInput
+              v-model:value="careerReportGenerateForm.focus"
+              type="textarea"
+              :placeholder="$t('page.jobs.careerReport.focusPlaceholder') as string"
+              :autosize="{ minRows: 1, maxRows: 3 }"
+            />
+          </div>
+        </NCard>
+
+        <!-- 完整性检查结果（即时显示） -->
+        <NCard
+          v-if="careerReportCheckResult"
+          size="small"
+          :title="$t('page.jobs.careerReport.check')"
+          class="mb-4 rounded-lg"
+        >
+          <div class="space-y-2 text-sm">
+            <div class="flex items-center gap-2 flex-wrap">
+              <NTag
+                :type="careerReportCheckResult.passed ? 'success' : 'error'"
+                size="small"
+              >
+                {{ careerReportCheckResult.passed ? '✅ 通过' : '❌ 未通过' }}
+              </NTag>
+              <NTag v-if="careerReportCheckResult.completenessScore != null" type="warning" size="small">
+                {{ $t('page.jobs.careerReport.completenessScore') }}：{{ careerReportCheckResult.completenessScore }}/100
+              </NTag>
+              <NTag v-if="careerReportCheckResult.riskLevel" size="small">
+                {{ $t('page.jobs.careerReport.riskLevel') }}：{{ getRiskLabel(careerReportCheckResult.riskLevel) }}
+              </NTag>
+            </div>
+            <div v-if="careerReportCheckResult.missingSections && careerReportCheckResult.missingSections.length">
+              <span class="font-medium">{{ $t('page.jobs.careerReport.missingSections') }}：</span>
+              <NTag
+                v-for="s in careerReportCheckResult.missingSections"
+                :key="'miss-' + s"
+                size="small"
+                type="warning"
+                class="ml-1"
+              >
+                {{ s }}
+              </NTag>
+            </div>
+            <div v-if="careerReportCheckResult.nonActionableItems && careerReportCheckResult.nonActionableItems.length">
+              <span class="font-medium">{{ $t('page.jobs.careerReport.nonActionableItems') }}：</span>
+              <ul class="list-disc list-inside text-slate-700 dark:text-gray-300">
+                <li v-for="(it, i) in careerReportCheckResult.nonActionableItems" :key="'nai-' + i">{{ it }}</li>
+              </ul>
+            </div>
+            <div v-if="careerReportCheckResult.weakEvidenceItems && careerReportCheckResult.weakEvidenceItems.length">
+              <span class="font-medium">{{ $t('page.jobs.careerReport.weakEvidenceItems') }}：</span>
+              <ul class="list-disc list-inside text-slate-700 dark:text-gray-300">
+                <li v-for="(it, i) in careerReportCheckResult.weakEvidenceItems" :key="'wei-' + i">{{ it }}</li>
+              </ul>
+            </div>
+          </div>
+        </NCard>
+
+        <!-- 报告正文（按章节键平铺）-->
+        <NCard
+          v-if="careerReport && reportSections.length"
+          size="small"
+          :title="$t('page.jobs.careerReport.reportContent')"
+          class="mb-4 rounded-lg"
+        >
+          <div class="space-y-4">
+            <div v-for="sec in reportSections" :key="sec.key">
+              <h4 class="font-semibold text-slate-800 dark:text-gray-200 mb-1">{{ sec.key }}</h4>
+              <pre class="whitespace-pre-wrap break-words text-sm text-slate-700 dark:text-gray-300 bg-slate-50/60 dark:bg-gray-800/40 p-3 rounded">{{ renderSectionValue(sec.value) }}</pre>
+            </div>
+          </div>
+        </NCard>
+
+        <!-- 知识来源 -->
+        <NCard
+          v-if="careerReport && careerReport.knowledgeSources && careerReport.knowledgeSources.length"
+          size="small"
+          :title="$t('page.jobs.careerReport.knowledgeSources')"
+          class="mb-4 rounded-lg"
+        >
+          <ul class="space-y-1 text-sm">
+            <li
+              v-for="(src, i) in careerReport.knowledgeSources"
+              :key="'ks-' + i"
+              class="text-slate-700 dark:text-gray-300"
+            >
+              <a v-if="src.url" :href="src.url" target="_blank" class="text-blue-500 hover:underline">{{ src.title || src.url }}</a>
+              <span v-else>{{ src.title || '-' }}</span>
+              <span v-if="src.snippet" class="ml-2 text-slate-500 dark:text-gray-400">— {{ src.snippet }}</span>
+            </li>
+          </ul>
+        </NCard>
+
+        <!-- 智能润色 -->
+        <NCard
+          v-if="careerReport"
+          size="small"
+          :title="$t('page.jobs.careerReport.polish')"
+          class="mb-4 rounded-lg"
+        >
+          <div class="space-y-2">
+            <NInput
+              v-model:value="careerReportPolishInstruction"
+              type="textarea"
+              :placeholder="$t('page.jobs.careerReport.polishInstructionPlaceholder') as string"
+              :autosize="{ minRows: 2, maxRows: 4 }"
+            />
+            <div class="flex justify-end">
+              <NButton
+                size="small"
+                type="primary"
+                :loading="polishingCareerReport"
+                @click="handlePolishCareerReport"
+              >
+                <template #icon><span>🪄</span></template>
+                {{ $t('page.jobs.careerReport.confirmPolish') }}
+              </NButton>
+            </div>
+          </div>
+        </NCard>
+      </NDrawerContent>
+    </NDrawer>
   </NSpin>
 </template>

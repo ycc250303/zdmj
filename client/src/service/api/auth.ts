@@ -93,3 +93,40 @@ export function fetchResetPassword(email: string, verificationCode: string, newP
     }
   });
 }
+
+/**
+ * 校验用户名是否已存在（注册/编辑表单实时校验用）
+ * 后端：GET /users/validation/username?username=xxx
+ * @returns true 表示已存在
+ */
+export function fetchValidateUsername(username: string) {
+  return request<boolean>({
+    url: '/users/validation/username',
+    method: 'get',
+    params: { username }
+  });
+}
+
+/**
+ * 校验邮箱是否已存在
+ * 后端：GET /users/validation/email?email=xxx
+ * @returns true 表示已存在
+ */
+export function fetchValidateEmail(email: string) {
+  return request<boolean>({
+    url: '/users/validation/email',
+    method: 'get',
+    params: { email }
+  });
+}
+
+/**
+ * 根据 ID 查询用户信息
+ * 后端：GET /users/{id}
+ */
+export function fetchGetUserById(id: number | string) {
+  return request<Api.Auth.UserInfo>({
+    url: `/users/${id}`,
+    method: 'get'
+  });
+}
