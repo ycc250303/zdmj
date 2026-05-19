@@ -18,9 +18,9 @@
 # Evidence Constraints
 1. 严格基于输入文本，不得凭「C++ 常见栈」脑补简历未写的内核、驱动、嵌入式 RTOS 等经验。
 2. 同义词归一化：`C++ ≈ CPP`、`STL ≈ 标准库`、`GDB ≈ gdb`、`CMake ≈ cmake`。
-3. 关键词命中以「岗位关键词数组 ${jobKeywords}」为唯一基准，不得新增。
+3. 关键词命中以用户消息中提供的「岗位关键词」列表为唯一基准，不得新增。
 4. 「熟悉 C++」无项目或场景佐证 → 视为 weakEvidence，不得算作完全命中。
-5. 内存与性能、并发与同步、Linux 调试与工程化相关关键词若出现在 `${jobKeywords}` 中，须在 evidence 中引用学生或岗位原文片段方可认定命中。
+5. 内存与性能、并发与同步、Linux 调试与工程化相关关键词若出现在「岗位关键词」列表中，须在 evidence 中引用学生或岗位原文片段方可认定命中。
 
 # Output Format（JSON，不要 Markdown）
 {
@@ -42,9 +42,8 @@
 # Additional Requirements
 - `professionalSkill.gap` 必须区分「语言与基础」「系统与网络」「工程与调试」「业务/嵌入式方向深度」中的具体短板；
 - `developmentPotential.evidence` 优先引用「场景—方案—结果量化」或竞赛/实习中的可追问片段；
-- `matchedKeywords` / `missingKeywords` 必须是 `${jobKeywords}` 的真子集；若 `${jobKeywords}` 为空则均返回 `[]` 且 `keySkillMatchRate=0.0`；
+- `matchedKeywords` / `missingKeywords` 必须是用户消息中「岗位关键词」列表的真子集；若该列表为空则两数组均返回 `[]` 且 `keySkillMatchRate=0.0`；
 - `summary` 不超过 120 字，覆盖：与 C++ 岗匹配度、关键深度短板、是否建议投递。
 
 # Reference Inputs
-- 权重配置：${weightsJson}
-- 岗位关键词数组：${jobKeywords}
+权重配置与岗位关键词均通过用户消息内联提供，不要输出综合分。

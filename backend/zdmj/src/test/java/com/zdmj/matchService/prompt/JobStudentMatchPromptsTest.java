@@ -16,6 +16,7 @@ import org.springframework.util.StreamUtils;
 
 import com.zdmj.common.util.ChatUtil;
 import com.zdmj.common.util.PromptUtil;
+import com.zdmj.common.util.prompt.PromptNames;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -47,11 +48,17 @@ import static org.mockito.Mockito.when;
 class JobStudentMatchPromptsTest {
 
     private static final List<String> PROMPT_NAMES = List.of(
-            PromptUtil.PromptNames.JOB_STUDENT_MATCH_DEFAULT,
-            PromptUtil.PromptNames.JOB_STUDENT_MATCH_JAVA_BACKEND,
-            PromptUtil.PromptNames.JOB_STUDENT_MATCH_FRONTEND,
-            PromptUtil.PromptNames.JOB_STUDENT_MATCH_ALGORITHM,
-            PromptUtil.PromptNames.JOB_STUDENT_MATCH_AI_AGENT);
+            PromptNames.JOB_STUDENT_MATCH_DEFAULT,
+            PromptNames.JOB_STUDENT_MATCH_JAVA_BACKEND,
+            PromptNames.JOB_STUDENT_MATCH_FRONTEND,
+            PromptNames.JOB_STUDENT_MATCH_ALGORITHM,
+            PromptNames.JOB_STUDENT_MATCH_AI_AGENT,
+            PromptNames.JOB_STUDENT_MATCH_CPP,
+            PromptNames.JOB_STUDENT_MATCH_SOFTWARE_TEST,
+            PromptNames.JOB_STUDENT_MATCH_DATA_ANALYST,
+            PromptNames.JOB_STUDENT_MATCH_BIG_DATA,
+            PromptNames.JOB_STUDENT_MATCH_DEVOPS_SRE,
+            PromptNames.JOB_STUDENT_MATCH_CYBERSECURITY);
 
     @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     private ChatClient statelessChatClient;
