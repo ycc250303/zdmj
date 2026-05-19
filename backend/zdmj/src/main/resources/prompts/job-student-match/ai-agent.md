@@ -18,7 +18,7 @@
 # Evidence Constraints
 1. 严格基于输入文本，不得编造未提及的框架。
 2. 同义词归一化：`LLM ≈ 大模型`、`RAG ≈ 检索增强生成`、`MCP ≈ Model Context Protocol`、`pgvector ≈ Postgres 向量`。
-3. 关键词命中以 `${jobKeywords}` 为唯一基准。
+3. 关键词命中以用户消息中提供的「岗位关键词」列表为唯一基准。
 4. 「调通了 ChatGPT API」类型的描述属于弱证据；只有完整 RAG 流程或 Agent 工作流才算命中。
 5. 评估能力（命中率、召回、答案准确性人工评估）必须有原文证据。
 
@@ -42,9 +42,8 @@
 # Additional Requirements
 - `professionalSkill.gap` 必须区分「LLM 基础」「RAG/向量检索」「Agent 框架」「评估与可观测性」中的具体短板；
 - `developmentPotential.evidence` 优先引用「项目—评估指标—迭代过程」原文片段；
-- `matchedKeywords` / `missingKeywords` 必须是 `${jobKeywords}` 的真子集；若 `${jobKeywords}` 为空则均返回 `[]` 且 `keySkillMatchRate=0.0`；
+- `matchedKeywords` / `missingKeywords` 必须是用户消息中「岗位关键词」列表的真子集；若该列表为空则两数组均返回 `[]` 且 `keySkillMatchRate=0.0`；
 - `summary` 不超过 120 字，覆盖：方向匹配度、工程化深度、是否建议投递。
 
 # Reference Inputs
-- 权重配置：${weightsJson}
-- 岗位关键词数组：${jobKeywords}
+权重配置与岗位关键词均通过用户消息内联提供，不要输出综合分。

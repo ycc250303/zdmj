@@ -62,9 +62,8 @@
 - 每个维度 `evidence` 至少 2 条、最多 6 条，命中证据与缺失证据可混合。
 - `matchedHighlights` 输出 3~6 条，每条格式建议为「能力点：学生侧证据 ↔ 岗位侧要求依据」。
 - `criticalGaps` 输出 0~6 条，每条格式建议为「短板能力点：缺失/不足的具体形态 + 对录用决策的影响」。
-- `matchedKeywords` / `missingKeywords` 必须是 `${jobKeywords}` 的真子集；若 `${jobKeywords}` 为空，则两数组都返回 `[]`，并把 `keySkillMatchRate` 设置为 0.0（系统会兜底重算，但仍要求模型自报）。
+- `matchedKeywords` / `missingKeywords` 必须是用户消息中「岗位关键词」列表的真子集；若该列表为空，则两数组都返回 `[]`，并把 `keySkillMatchRate` 设置为 0.0（系统会兜底重算，但仍要求模型自报）。
 - `summary` 不超过 120 字，需覆盖：综合判断、关键命中亮点、关键短板、是否建议投递。
 
-# Reference Inputs（动态变量，会在拼装时替换）
-- 权重配置（仅供你了解综合分构成；不要在 JSON 中输出综合分）：${weightsJson}
-- 岗位关键词数组（用于关键技能匹配率计算）：${jobKeywords}
+# Reference Inputs
+权重配置与岗位关键词均通过用户消息内联提供：权重见正文「## 评分要求」段，岗位关键词见正文「## 岗位基础信息」段。请仅以正文为准；**不要在 JSON 中输出综合分**（系统会按权重重算）。
