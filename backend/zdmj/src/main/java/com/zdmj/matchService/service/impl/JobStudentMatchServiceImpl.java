@@ -27,7 +27,6 @@ import com.zdmj.resumeService.service.StudentCapabilityProfileService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -110,19 +109,19 @@ public class JobStudentMatchServiceImpl
         String promptName = PromptUtil.getJobStudentMatchPromptName(role);
         log.info("人岗匹配开始: jobId={}, userId={}, role={}, prompt={}", jobId, userId, role, promptName);
 
-        // 4. 拼装 LLM 上下文
+        // 4. 拼装 LLM 上下文（权重 / 关键词 全部内联进 user message，避免触发 Spring AI
+        //    PromptTemplate 的 StringTemplate 渲染——prompt 体内的 JSON 示例花括号会被 ST
+        //    解析成变量从而抛 STException，详见回归测试 PromptTemplateRenderingTest）
         List<String> jobKeywords = jobDetail.getKeywords() == null
                 ? List.of()
                 : jobDetail.getKeywords().stream().filter(StringUtils::hasText).map(String::trim).toList();
         String userMessage = buildUserMessage(jobDetail, jobProfile, studentProfile, weights, jobKeywords);
-        Map<String, Object> promptVars = new HashMap<>();
-        promptVars.put("weightsJson", toJsonOrEmpty(weights));
-        promptVars.put("jobKeywords", toJsonOrEmpty(jobKeywords));
 
-        // 5. 调用 LLM 结构化输出
+        // 5. 调用 LLM 结构化输出（promptVars 传 null，ChatUtil 会跳过模板渲染，与项目其它
+        //    结构化调用保持一致：resume-analysis / job-requirement / job-career-graph 均传 null）
         JobStudentMatchDTO aiResult;
         try {
-            aiResult = chatUtil.chatStructuredOnce(userMessage, promptName, promptVars, JobStudentMatchDTO.class);
+            aiResult = chatUtil.chatStructuredOnce(userMessage, promptName, null, JobStudentMatchDTO.class);
         } catch (IllegalStateException e) {
             log.error("人岗匹配结构化输出解析失败 jobId={} userId={}", jobId, userId, e);
             throw new BusinessException(ErrorCode.MATCH_GENERATION_FAILED);

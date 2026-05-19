@@ -18,7 +18,7 @@
 # Evidence Constraints
 1. 严格基于输入文本，不得编造比赛名次或论文。
 2. 同义词归一化：`PyTorch ≈ Pytorch`、`LLM ≈ 大模型`、`RAG ≈ 检索增强生成`、`CTR ≈ Click-Through Rate`。
-3. 关键词命中以 `${jobKeywords}` 为唯一基准。
+3. 关键词命中以用户消息中提供的「岗位关键词」列表为唯一基准。
 4. 「Kaggle 银牌」「ACM 区域赛金」需在 evidence 中引用学生原文证据；空泛的「机器学习能力强」不算证据。
 5. 大模型相关岗位需重点考察：是否有 SFT/RLHF/LoRA/RAG 等具体细节，仅 `调用 API 接入` 视为弱证据。
 
@@ -42,9 +42,8 @@
 # Additional Requirements
 - `professionalSkill.gap` 必须区分「数学/统计基础」「建模/特征工程」「训练/评估」「工程落地」中的具体短板；
 - `developmentPotential.evidence` 优先引用「比赛名次 + 队伍角色」「论文 + 个人贡献」「实习 + 上线指标」原文片段；
-- `matchedKeywords` / `missingKeywords` 必须是 `${jobKeywords}` 的真子集；若 `${jobKeywords}` 为空则均返回 `[]` 且 `keySkillMatchRate=0.0`；
+- `matchedKeywords` / `missingKeywords` 必须是用户消息中「岗位关键词」列表的真子集；若该列表为空则两数组均返回 `[]` 且 `keySkillMatchRate=0.0`；
 - `summary` 不超过 120 字，覆盖：方向匹配度、深度短板、是否建议投递。
 
 # Reference Inputs
-- 权重配置：${weightsJson}
-- 岗位关键词数组：${jobKeywords}
+权重配置与岗位关键词均通过用户消息内联提供，不要输出综合分。

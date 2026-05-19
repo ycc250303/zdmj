@@ -18,7 +18,7 @@
 # Evidence Constraints
 1. 严格基于输入文本，不得编造未提及的库或工具。
 2. 同义词归一化：`Vue ≈ Vue.js ≈ Vue 3`、`React ≈ React.js`、`TS ≈ TypeScript`、`CSS3 ≈ CSS`。
-3. 关键词命中以「岗位关键词数组 ${jobKeywords}」为唯一基准。
+3. 关键词命中以用户消息中提供的「岗位关键词」列表为唯一基准。
 4. 「精通 React」无具体场景 → weakEvidence；带性能优化或源码贡献 → 可视为命中。
 5. 移动端/可视化/低代码若是岗位关键词需求，需在 evidence 中找到学生项目原文片段才能命中。
 
@@ -42,9 +42,8 @@
 # Additional Requirements
 - `professionalSkill.gap` 必须明确指出「框架 / 工程化 / 性能 / 跨端」中具体哪一类缺失；
 - `developmentPotential.evidence` 优先引用学生项目中的「优化前后指标对比」「自研组件能力」「开源贡献」原文片段；
-- `matchedKeywords` / `missingKeywords` 必须是 `${jobKeywords}` 的真子集；若 `${jobKeywords}` 为空则均返回 `[]` 且 `keySkillMatchRate=0.0`；
+- `matchedKeywords` / `missingKeywords` 必须是用户消息中「岗位关键词」列表的真子集；若该列表为空则两数组均返回 `[]` 且 `keySkillMatchRate=0.0`；
 - `summary` 不超过 120 字，覆盖：栈匹配度、工程化深度、是否建议投递。
 
 # Reference Inputs
-- 权重配置：${weightsJson}
-- 岗位关键词数组：${jobKeywords}
+权重配置与岗位关键词均通过用户消息内联提供，不要输出综合分。

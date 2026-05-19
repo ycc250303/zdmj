@@ -18,7 +18,7 @@
 # Evidence Constraints
 1. 严格基于输入文本，不得脑补未提及的中间件或框架。
 2. 同义词归一化：`Spring Boot ≈ SpringBoot`、`MySQL ≈ Mysql`、`K8s ≈ Kubernetes`、`MQ ≈ 消息队列`。
-3. 关键词命中必须以「岗位关键词数组 ${jobKeywords}」为唯一基准，不得新增。
+3. 关键词命中必须以用户消息中提供的「岗位关键词」列表为唯一基准，不得新增。
 4. 学生画像中出现「精通」但无具体证据 → 视为 weakEvidence，不得算作完全命中。
 5. 项目类岗位强相关证据（线上事故复盘、性能瓶颈定位、JVM 调优）应在 `evidence` 中显式引用学生原文片段。
 
@@ -42,9 +42,8 @@
 # Additional Requirements
 - `professionalSkill.gap` 必须区分「技术栈缺失」「深度不足」「场景不足」三类；
 - `developmentPotential.evidence` 优先引用学生项目中的「问题—方案—结果量化」三段式片段；
-- `matchedKeywords` / `missingKeywords` 是 `${jobKeywords}` 的真子集；若 `${jobKeywords}` 为空则均返回 `[]` 且 `keySkillMatchRate=0.0`；
+- `matchedKeywords` / `missingKeywords` 是用户消息中「岗位关键词」列表的真子集；若该列表为空则两数组均返回 `[]` 且 `keySkillMatchRate=0.0`；
 - `summary` 不超过 120 字，覆盖：核心栈匹配度、深度短板、是否建议投递。
 
 # Reference Inputs
-- 权重配置（仅供参考，不要输出综合分）：${weightsJson}
-- 岗位关键词数组：${jobKeywords}
+权重配置与岗位关键词均通过用户消息内联提供（详见 `## 评分要求` 与 `## 岗位基础信息`），不要输出综合分。
