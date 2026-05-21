@@ -4,13 +4,13 @@ export const themeSettings: App.Theme.ThemeSetting = {
   grayscale: false,
   colourWeakness: false,
   recommendColor: false,
-  themeColor: '#646cff',
-  themeRadius: 6,
+  themeColor: '#b86b4b',
+  themeRadius: 12,
   otherColor: {
-    info: '#2080f0',
-    success: '#52c41a',
-    warning: '#faad14',
-    error: '#f5222d'
+    info: '#5a8aa6',
+    success: '#3f8a6a',
+    warning: '#d7a13b',
+    error: '#c44536'
   },
   isInfoFollowPrimary: true,
   layout: {
@@ -66,22 +66,22 @@ export const themeSettings: App.Theme.ThemeSetting = {
   tokens: {
     light: {
       colors: {
-        container: 'rgb(255, 255, 255)',
-        layout: 'rgb(247, 250, 252)',
-        inverted: 'rgb(0, 20, 40)',
-        'base-text': 'rgb(31, 31, 31)'
+        container: 'rgb(255, 252, 247)',
+        layout: 'rgb(251, 248, 243)',
+        inverted: 'rgb(38, 28, 22)',
+        'base-text': 'rgb(45, 33, 26)'
       },
       boxShadow: {
-        header: '0 1px 2px rgb(0, 21, 41, 0.08)',
-        sider: '2px 0 8px 0 rgb(29, 35, 41, 0.05)',
-        tab: '0 1px 2px rgb(0, 21, 41, 0.08)'
+        header: '0 1px 0 rgba(120, 80, 50, 0.08)',
+        sider: '1px 0 0 rgba(120, 80, 50, 0.08)',
+        tab: '0 1px 0 rgba(120, 80, 50, 0.08)'
       }
     },
     dark: {
       colors: {
-        container: 'rgb(28, 28, 28)',
-        layout: 'rgb(18, 18, 18)',
-        'base-text': 'rgb(224, 224, 224)'
+        container: 'rgb(34, 28, 24)',
+        layout: 'rgb(24, 20, 18)',
+        'base-text': 'rgb(232, 224, 214)'
       }
     }
   }

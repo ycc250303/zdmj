@@ -2,6 +2,35 @@
 @import './nprogress.css';
 @import './transition.css';
 
+/* ============== 全新主题：暖棕奶油（Warm Mocha / Editorial）============== */
+:root {
+  --brand-cream: #fbf8f3;
+  --brand-paper: #fffcf7;
+  --brand-mocha: #b86b4b;
+  --brand-mocha-deep: #8a4a31;
+  --brand-matcha: #3f8a6a;
+  --brand-ink: #2d211a;
+  --brand-ink-soft: #6b5c52;
+  --brand-line: rgba(120, 80, 50, 0.12);
+  --brand-shadow-sm: 0 1px 2px rgba(120, 80, 50, 0.06);
+  --brand-shadow: 0 6px 24px rgba(120, 80, 50, 0.08);
+  --brand-shadow-lg: 0 18px 48px rgba(120, 80, 50, 0.12);
+
+  --serif-display: 'Fraunces', 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', Georgia, serif;
+  --sans-base: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+html.dark {
+  --brand-cream: #18140f;
+  --brand-paper: #1f1a14;
+  --brand-line: rgba(232, 200, 170, 0.1);
+  --brand-ink: #ece2d4;
+  --brand-ink-soft: #b9a99a;
+  --brand-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --brand-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  --brand-shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.5);
+}
+
 html,
 body,
 #app {
@@ -12,4 +41,85 @@ body,
 html {
   overflow-x: hidden;
   color: rgb(var(--base-text-color));
+  font-family: var(--sans-base);
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+body {
+  background-color: var(--brand-cream);
+  letter-spacing: 0.005em;
+}
+
+/* 衬线标题工具类（视觉风格关键差异点） */
+.font-display,
+.text-display {
+  font-family: var(--serif-display);
+  font-feature-settings: 'ss01', 'liga', 'kern';
+  letter-spacing: -0.01em;
+}
+
+/* 工具类：新版纸卡 */
+.paper-card {
+  background: var(--brand-paper);
+  border: 1px solid var(--brand-line);
+  border-radius: 18px;
+  box-shadow: var(--brand-shadow);
+}
+
+/* 工具类：徽章/胶囊（替代 hero-badge 风格） */
+.brand-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(184, 107, 75, 0.08);
+  color: var(--brand-mocha-deep);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid rgba(184, 107, 75, 0.18);
+}
+
+html.dark .brand-pill {
+  background: rgba(232, 180, 150, 0.1);
+  color: #e8b496;
+  border-color: rgba(232, 180, 150, 0.18);
+}
+
+/* 全局滚动条（更细，奶油色） */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(120, 80, 50, 0.18);
+  border-radius: 8px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 80, 50, 0.32);
+}
+
+html.dark *::-webkit-scrollbar-thumb {
+  background: rgba(232, 200, 170, 0.18);
+}
+
+html.dark *::-webkit-scrollbar-thumb:hover {
+  background: rgba(232, 200, 170, 0.32);
+}
+
+/* 装饰：纸纹纹理（极淡） */
+.paper-grain {
+  background-image:
+    radial-gradient(rgba(120, 80, 50, 0.05) 1px, transparent 1px),
+    radial-gradient(rgba(120, 80, 50, 0.04) 1px, transparent 1px);
+  background-size: 16px 16px, 32px 32px;
+  background-position: 0 0, 8px 8px;
 }
