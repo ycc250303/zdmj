@@ -207,6 +207,12 @@
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
                         </path>
+                        <!-- Lombok 与 MapStruct 协同 -->
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok-mapstruct-binding</artifactId>
+                            <version>0.2.0</version>
+                        </path>
                         <!-- MapStruct 处理器（后处理） -->
                         <path>
                             <groupId>org.mapstruct</groupId>
