@@ -460,6 +460,102 @@ function renderSectionValue(value: any): string {
   return String(value);
 }
 
+// --- 结构化章节数据提取（用于美化渲染）---
+interface ActionTask {
+  task: string;
+  cycle: string;
+  deliverable: string;
+  verification: string;
+}
+
+interface EvaluationMetric {
+  metric: string;
+  target: string;
+  deadline: string;
+}
+
+const evidenceData = computed(() => {
+  const raw = careerReport.value?.reportContent?.evidence;
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    industry: Array.isArray(raw.industryEvidence) ? (raw.industryEvidence as string[]) : [],
+    technical: Array.isArray(raw.technicalEvidence) ? (raw.technicalEvidence as string[]) : [],
+    communication: Array.isArray(raw.communicationEvidence) ? (raw.communicationEvidence as string[]) : [],
+  };
+});
+
+const actionPlanData = computed(() => {
+  const raw = careerReport.value?.reportContent?.actionPlan;
+  if (!raw || typeof raw !== 'object') return null;
+  const mapTasks = (arr: any): ActionTask[] => {
+    if (!Array.isArray(arr)) return [];
+    return arr.map((t: any) => ({
+      task: t?.task || '',
+      cycle: t?.cycle || '',
+      deliverable: t?.deliverable || '',
+      verification: t?.verification || '',
+    }));
+  };
+  return {
+    shortTerm: mapTasks(raw.shortTerm),
+    midTerm: mapTasks(raw.midTerm),
+  };
+});
+
+const careerPathData = computed(() => {
+  const raw = careerReport.value?.reportContent?.careerPath;
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    nextStep: (raw.nextStep as string) || '',
+    entryPoint: (raw.entryPoint as string) || '',
+    transitionLogic: (raw.transitionLogic as string) || '',
+    alternativePaths: Array.isArray(raw.alternativePaths) ? (raw.alternativePaths as string[]) : [],
+  };
+});
+
+const careerGoalsData = computed(() => {
+  const raw = careerReport.value?.reportContent?.careerGoals;
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    shortTerm: (raw.shortTerm as string) || '',
+    midTerm: (raw.midTerm as string) || '',
+    longTerm: (raw.longTerm as string) || '',
+  };
+});
+
+const evaluationPlanData = computed(() => {
+  const raw = careerReport.value?.reportContent?.evaluationPlan;
+  if (!raw || typeof raw !== 'object') return null;
+  const metrics: EvaluationMetric[] = Array.isArray(raw.quantitativeMetrics)
+    ? raw.quantitativeMetrics.map((m: any) => ({
+        metric: m?.metric || '',
+        target: m?.target || '',
+        deadline: m?.deadline || '',
+      }))
+    : [];
+  const cycles: string[] = Array.isArray(raw.evaluationCycle) ? raw.evaluationCycle : [];
+  return { cycles, metrics };
+});
+
+const careerExplorationData = computed(() => {
+  const raw = careerReport.value?.reportContent?.careerExploration;
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    roleClarity: (raw.roleClarity as string) || '',
+    industryInsight: (raw.industryInsight as string) || '',
+    marketPositioning: (raw.marketPositioning as string) || '',
+  };
+});
+
+const KNOWN_SECTION_KEYS = new Set([
+  'evidence', 'actionPlan', 'careerPath', 'careerGoals',
+  'evaluationPlan', 'careerExploration',
+]);
+
+const unknownSections = computed(() => {
+  return reportSections.value.filter(s => !KNOWN_SECTION_KEYS.has(s.key));
+});
+
 onMounted(() => {
   if (jobId.value) {
     loadJobDetail();
@@ -874,20 +970,328 @@ onMounted(() => {
           </div>
         </NCard>
 
-        <!-- 报告正文（按章节键平铺）-->
-        <NCard
-          v-if="careerReport && reportSections.length"
-          size="small"
-          :title="$t('page.jobs.careerReport.reportContent')"
-          class="mb-4 rounded-lg"
-        >
-          <div class="space-y-4">
-            <div v-for="sec in reportSections" :key="sec.key">
-              <h4 class="font-semibold text-slate-800 dark:text-gray-200 mb-1">{{ sec.key }}</h4>
-              <pre class="whitespace-pre-wrap break-words text-sm text-slate-700 dark:text-gray-300 bg-slate-50/60 dark:bg-gray-800/40 p-3 rounded">{{ renderSectionValue(sec.value) }}</pre>
+        <!-- 报告正文（结构化渲染）-->
+        <template v-if="careerReport">
+          <!-- evidence：三列证据卡片 -->
+          <NCard
+            v-if="evidenceData"
+            size="small"
+            title="📋 证据支撑"
+            class="mb-4 rounded-lg"
+          >
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-100 dark:border-blue-800/40">
+                <div class="flex items-center gap-1.5 mb-2 text-blue-700 dark:text-blue-400 font-semibold text-sm">
+                  <span>🏭</span> 行业证据
+                </div>
+                <ul class="space-y-1.5">
+                  <li v-for="(item, i) in evidenceData.industry" :key="'ind-'+i" class="text-xs text-slate-700 dark:text-gray-300 flex items-start gap-1.5">
+                    <span class="text-blue-400 mt-0.5 shrink-0">◆</span>
+                    <span>{{ item }}</span>
+                  </li>
+                </ul>
+              </div>
+              <div class="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-3 border border-emerald-100 dark:border-emerald-800/40">
+                <div class="flex items-center gap-1.5 mb-2 text-emerald-700 dark:text-emerald-400 font-semibold text-sm">
+                  <span>💻</span> 技术证据
+                </div>
+                <ul class="space-y-1.5">
+                  <li v-for="(item, i) in evidenceData.technical" :key="'tec-'+i" class="text-xs text-slate-700 dark:text-gray-300 flex items-start gap-1.5">
+                    <span class="text-emerald-400 mt-0.5 shrink-0">◆</span>
+                    <span>{{ item }}</span>
+                  </li>
+                </ul>
+              </div>
+              <div class="bg-violet-50 dark:bg-violet-900/20 rounded-lg p-3 border border-violet-100 dark:border-violet-800/40">
+                <div class="flex items-center gap-1.5 mb-2 text-violet-700 dark:text-violet-400 font-semibold text-sm">
+                  <span>🗣️</span> 沟通证据
+                </div>
+                <ul class="space-y-1.5">
+                  <li v-for="(item, i) in evidenceData.communication" :key="'com-'+i" class="text-xs text-slate-700 dark:text-gray-300 flex items-start gap-1.5">
+                    <span class="text-violet-400 mt-0.5 shrink-0">◆</span>
+                    <span>{{ item }}</span>
+                  </li>
+                </ul>
+              </div>
             </div>
-          </div>
-        </NCard>
+          </NCard>
+
+          <!-- actionPlan：短期 / 中期行动计划 -->
+          <NCard
+            v-if="actionPlanData"
+            size="small"
+            title="📅 行动计划"
+            class="mb-4 rounded-lg"
+          >
+            <!-- 短期计划 -->
+            <div v-if="actionPlanData.shortTerm.length" class="mb-4">
+              <div class="flex items-center gap-2 mb-3">
+                <span class="text-orange-500 text-base">🎯</span>
+                <span class="font-semibold text-slate-800 dark:text-gray-200">短期计划</span>
+                <NTag size="tiny" type="warning" round>近期执行</NTag>
+              </div>
+              <div class="space-y-3">
+                <div
+                  v-for="(t, i) in actionPlanData.shortTerm"
+                  :key="'st-'+i"
+                  class="bg-orange-50/60 dark:bg-orange-900/10 rounded-lg p-3 border border-orange-100 dark:border-orange-800/30"
+                >
+                  <div class="flex items-start gap-2 mb-2">
+                    <span class="bg-orange-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0 mt-0.5">{{ i + 1 }}</span>
+                    <span class="text-sm font-medium text-slate-800 dark:text-gray-200">{{ t.task }}</span>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 ml-7">
+                    <div class="flex items-center gap-1 text-xs text-slate-600 dark:text-gray-400">
+                      <span class="text-orange-400">⏱️</span>
+                      <span class="font-medium">周期：</span>{{ t.cycle }}
+                    </div>
+                    <div class="flex items-center gap-1 text-xs text-slate-600 dark:text-gray-400">
+                      <span class="text-orange-400">📦</span>
+                      <span class="font-medium">交付物：</span>{{ t.deliverable }}
+                    </div>
+                    <div class="flex items-center gap-1 text-xs text-slate-600 dark:text-gray-400">
+                      <span class="text-orange-400">✅</span>
+                      <span class="font-medium">验证：</span>{{ t.verification }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 中期计划 -->
+            <div v-if="actionPlanData.midTerm.length">
+              <div class="flex items-center gap-2 mb-3">
+                <span class="text-blue-500 text-base">🚀</span>
+                <span class="font-semibold text-slate-800 dark:text-gray-200">中期计划</span>
+                <NTag size="tiny" type="info" round>持续成长</NTag>
+              </div>
+              <div class="space-y-3">
+                <div
+                  v-for="(t, i) in actionPlanData.midTerm"
+                  :key="'mt-'+i"
+                  class="bg-blue-50/60 dark:bg-blue-900/10 rounded-lg p-3 border border-blue-100 dark:border-blue-800/30"
+                >
+                  <div class="flex items-start gap-2 mb-2">
+                    <span class="bg-blue-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0 mt-0.5">{{ i + 1 }}</span>
+                    <span class="text-sm font-medium text-slate-800 dark:text-gray-200">{{ t.task }}</span>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 ml-7">
+                    <div class="flex items-center gap-1 text-xs text-slate-600 dark:text-gray-400">
+                      <span class="text-blue-400">⏱️</span>
+                      <span class="font-medium">周期：</span>{{ t.cycle }}
+                    </div>
+                    <div class="flex items-center gap-1 text-xs text-slate-600 dark:text-gray-400">
+                      <span class="text-blue-400">📦</span>
+                      <span class="font-medium">交付物：</span>{{ t.deliverable }}
+                    </div>
+                    <div class="flex items-center gap-1 text-xs text-slate-600 dark:text-gray-400">
+                      <span class="text-blue-400">✅</span>
+                      <span class="font-medium">验证：</span>{{ t.verification }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </NCard>
+
+          <!-- careerPath：职业路径 -->
+          <NCard
+            v-if="careerPathData"
+            size="small"
+            title="🗺️ 职业路径"
+            class="mb-4 rounded-lg"
+          >
+            <!-- 入口 → 下一步 -->
+            <div class="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 mb-4">
+              <div class="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800/40 rounded-lg px-4 py-2.5 text-center min-w-[140px]">
+                <div class="text-xs text-indigo-500 dark:text-indigo-400 font-medium mb-0.5">🏭 入职起点</div>
+                <div class="text-sm font-semibold text-slate-800 dark:text-gray-200">{{ careerPathData.entryPoint }}</div>
+              </div>
+              <div class="text-indigo-400 text-xl transform sm:rotate-0 rotate-90">→</div>
+              <div class="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800/40 rounded-lg px-4 py-2.5 text-center min-w-[140px]">
+                <div class="text-xs text-indigo-500 dark:text-indigo-400 font-medium mb-0.5">🚀 下一步发展</div>
+                <div class="text-sm font-semibold text-slate-800 dark:text-gray-200">{{ careerPathData.nextStep }}</div>
+              </div>
+            </div>
+
+            <!-- 过渡逻辑 -->
+            <div class="bg-slate-50 dark:bg-gray-800/40 rounded-lg p-3 mb-3">
+              <div class="flex items-center gap-1.5 mb-1.5 text-slate-600 dark:text-gray-400 text-xs font-semibold">
+                <span>💡</span> 过渡逻辑
+              </div>
+              <p class="text-sm text-slate-700 dark:text-gray-300 leading-relaxed">{{ careerPathData.transitionLogic }}</p>
+            </div>
+
+            <!-- 备选路径 -->
+            <div v-if="careerPathData.alternativePaths.length">
+              <div class="flex items-center gap-1.5 mb-2 text-slate-600 dark:text-gray-400 text-xs font-semibold">
+                <span>🔄</span> 备选路径
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <NTag
+                  v-for="(alt, i) in careerPathData.alternativePaths"
+                  :key="'alt-'+i"
+                  type="default"
+                  round
+                  size="small"
+                >
+                  {{ alt }}
+                </NTag>
+              </div>
+            </div>
+          </NCard>
+
+          <!-- careerGoals：职业目标（时间线） -->
+          <NCard
+            v-if="careerGoalsData"
+            size="small"
+            title="🎯 职业目标"
+            class="mb-4 rounded-lg"
+          >
+            <div class="relative">
+              <!-- 时间线竖线 -->
+              <div class="absolute left-[11px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-amber-400 via-rose-400 to-violet-500"></div>
+              <div class="space-y-4">
+                <!-- 短期 -->
+                <div v-if="careerGoalsData.shortTerm" class="flex items-start gap-3 relative">
+                  <span class="bg-amber-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shrink-0 relative z-10 shadow">1</span>
+                  <div class="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/30 rounded-lg p-3 flex-1">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="font-semibold text-sm text-slate-800 dark:text-gray-200">短期目标</span>
+                      <NTag size="tiny" type="warning" round>6个月内</NTag>
+                    </div>
+                    <p class="text-sm text-slate-700 dark:text-gray-300 leading-relaxed">{{ careerGoalsData.shortTerm }}</p>
+                  </div>
+                </div>
+                <!-- 中期 -->
+                <div v-if="careerGoalsData.midTerm" class="flex items-start gap-3 relative">
+                  <span class="bg-rose-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shrink-0 relative z-10 shadow">2</span>
+                  <div class="bg-rose-50 dark:bg-rose-900/10 border border-rose-100 dark:border-rose-800/30 rounded-lg p-3 flex-1">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="font-semibold text-sm text-slate-800 dark:text-gray-200">中期目标</span>
+                      <NTag size="tiny" type="error" round>2年内</NTag>
+                    </div>
+                    <p class="text-sm text-slate-700 dark:text-gray-300 leading-relaxed">{{ careerGoalsData.midTerm }}</p>
+                  </div>
+                </div>
+                <!-- 长期 -->
+                <div v-if="careerGoalsData.longTerm" class="flex items-start gap-3 relative">
+                  <span class="bg-violet-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shrink-0 relative z-10 shadow">3</span>
+                  <div class="bg-violet-50 dark:bg-violet-900/10 border border-violet-100 dark:border-violet-800/30 rounded-lg p-3 flex-1">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="font-semibold text-sm text-slate-800 dark:text-gray-200">长期目标</span>
+                      <NTag size="tiny" type="info" round>5年内</NTag>
+                    </div>
+                    <p class="text-sm text-slate-700 dark:text-gray-300 leading-relaxed">{{ careerGoalsData.longTerm }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </NCard>
+
+          <!-- evaluationPlan：评估计划 -->
+          <NCard
+            v-if="evaluationPlanData"
+            size="small"
+            title="📊 评估计划"
+            class="mb-4 rounded-lg"
+          >
+            <!-- 评估周期 -->
+            <div v-if="evaluationPlanData.cycles.length" class="mb-4">
+              <div class="text-xs font-semibold text-slate-600 dark:text-gray-400 mb-2 flex items-center gap-1.5">
+                <span>📅</span> 评估周期
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <NTag
+                  v-for="(c, i) in evaluationPlanData.cycles"
+                  :key="'cyc-'+i"
+                  type="success"
+                  round
+                  size="small"
+                >
+                  {{ c }}
+                </NTag>
+              </div>
+            </div>
+
+            <!-- 量化指标表 -->
+            <div v-if="evaluationPlanData.metrics.length">
+              <div class="text-xs font-semibold text-slate-600 dark:text-gray-400 mb-2 flex items-center gap-1.5">
+                <span>📈</span> 量化指标
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-xs border-collapse">
+                  <thead>
+                    <tr class="bg-slate-100 dark:bg-gray-800/60">
+                      <th class="text-left p-2.5 rounded-l-lg font-semibold text-slate-700 dark:text-gray-300 w-[50%]">指标</th>
+                      <th class="text-center p-2.5 font-semibold text-slate-700 dark:text-gray-300 w-[20%]">目标值</th>
+                      <th class="text-right p-2.5 rounded-r-lg font-semibold text-slate-700 dark:text-gray-300 w-[30%]">截止时间</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="(m, i) in evaluationPlanData.metrics"
+                      :key="'met-'+i"
+                      class="border-b border-slate-100 dark:border-gray-700/50 last:border-none"
+                    >
+                      <td class="p-2.5 text-slate-700 dark:text-gray-300">{{ m.metric }}</td>
+                      <td class="p-2.5 text-center">
+                        <NTag size="tiny" :type="m.target === '100%' || m.target === '达成' ? 'success' : 'warning'" round>
+                          {{ m.target }}
+                        </NTag>
+                      </td>
+                      <td class="p-2.5 text-right text-slate-600 dark:text-gray-400">{{ m.deadline }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </NCard>
+
+          <!-- careerExploration：职业探索洞察 -->
+          <NCard
+            v-if="careerExplorationData"
+            size="small"
+            title="🔍 职业探索"
+            class="mb-4 rounded-lg"
+          >
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div class="bg-cyan-50 dark:bg-cyan-900/20 rounded-lg p-3 border border-cyan-100 dark:border-cyan-800/40">
+                <div class="flex items-center gap-1.5 mb-2 text-cyan-700 dark:text-cyan-400 font-semibold text-sm">
+                  <span>💼</span> 角色定位
+                </div>
+                <p class="text-xs text-slate-700 dark:text-gray-300 leading-relaxed">{{ careerExplorationData.roleClarity }}</p>
+              </div>
+              <div class="bg-teal-50 dark:bg-teal-900/20 rounded-lg p-3 border border-teal-100 dark:border-teal-800/40">
+                <div class="flex items-center gap-1.5 mb-2 text-teal-700 dark:text-teal-400 font-semibold text-sm">
+                  <span>🏭</span> 行业洞察
+                </div>
+                <p class="text-xs text-slate-700 dark:text-gray-300 leading-relaxed">{{ careerExplorationData.industryInsight }}</p>
+              </div>
+              <div class="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 border border-purple-100 dark:border-purple-800/40">
+                <div class="flex items-center gap-1.5 mb-2 text-purple-700 dark:text-purple-400 font-semibold text-sm">
+                  <span>📈</span> 市场定位
+                </div>
+                <p class="text-xs text-slate-700 dark:text-gray-300 leading-relaxed">{{ careerExplorationData.marketPositioning }}</p>
+              </div>
+            </div>
+          </NCard>
+
+          <!-- 未知章节（回退到 pre/JSON 渲染）-->
+          <NCard
+            v-if="unknownSections.length"
+            size="small"
+            :title="$t('page.jobs.careerReport.reportContent')"
+            class="mb-4 rounded-lg"
+          >
+            <div class="space-y-4">
+              <div v-for="sec in unknownSections" :key="sec.key">
+                <h4 class="font-semibold text-slate-800 dark:text-gray-200 mb-1">{{ sec.key }}</h4>
+                <pre class="whitespace-pre-wrap break-words text-sm text-slate-700 dark:text-gray-300 bg-slate-50/60 dark:bg-gray-800/40 p-3 rounded">{{ renderSectionValue(sec.value) }}</pre>
+              </div>
+            </div>
+          </NCard>
+        </template>
 
         <!-- 知识来源 -->
         <NCard
