@@ -22,6 +22,7 @@ public enum ErrorCode {
     URL_FORMAT_ERROR(1007, "URL格式不正确"),
     SYSTEM_EXCEPTION(1008, "系统异常，请联系管理员"),
     FILE_EMPTY(1009, "上传文件不能为空"),
+    FILE_SIZE_EXCEEDED(1010, "上传文件大小超出限制"),
 
     // ========== 用户相关 (2xxx) ==========
     USER_ALREADY_EXISTS(2001, "用户名已存在"),
@@ -77,6 +78,7 @@ public enum ErrorCode {
     KNOWLEDGE_DOCUMENT_CREATE_FAILED(8011, "创建知识文档失败"),
     KNOWLEDGE_DOCUMENT_NOT_FOUND(8012, "知识文档不存在"),
     KNOWLEDGE_DOCUMENT_UPDATE_FAILED(8013, "更新知识文档失败"),
+    KNOWLEDGE_DOCUMENT_CONTENT_EXISTS(8014, "该知识文档已存在，请勿重复添加"),
 
     // ========== 对话相关 (9xxx) ==========
     CONVERSATION_CREATE_FAILED(9001, "创建会话失败"),
