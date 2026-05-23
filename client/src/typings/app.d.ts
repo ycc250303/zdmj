@@ -641,6 +641,7 @@ declare namespace App {
             urlPlaceholder: string;
             addSuccess: string;
             updateSuccess: string;
+            deleteSuccess: string;
           };
           education: {
             title: string;
@@ -657,6 +658,7 @@ declare namespace App {
             gpaPlaceholder: string;
             addSuccess: string;
             updateSuccess: string;
+            deleteSuccess: string;
             degrees: {
               phd: string;
               master: string;
@@ -680,6 +682,7 @@ declare namespace App {
             detailsPlaceholder: string;
             addSuccess: string;
             updateSuccess: string;
+            deleteSuccess: string;
           };
           skill: {
             title: string;
@@ -692,6 +695,7 @@ declare namespace App {
             addCategory: string;
             addSuccess: string;
             updateSuccess: string;
+            deleteSuccess: string;
           };
           basicInfo: {
             title: string;
@@ -789,6 +793,7 @@ declare namespace App {
           "duration": string;
           "projectDesc": string;
           "company": string;
+          "position": string;
           "jobDetails":string;
           "skillListName": string;
           "skillTip":string;
@@ -818,6 +823,29 @@ declare namespace App {
           "getFail":string;
           "pleaseInput": string;
           "createFail": string;
+          "addEducation": string;
+          "addProject": string;
+          "addCareer": string;
+          "confirmAdd": string;
+          "delete": string;
+          "confirmDeleteEdu": string;
+          "confirmDeleteProj": string;
+          "confirmDeleteCareer": string;
+          "missingIdParam": string;
+          "contentNotFound": string;
+          "degree": string;
+          "schoolLabel": string;
+          "majorLabel": string;
+          "gpaLabel": string;
+          "projectNameLabel": string;
+          "roleLabel": string;
+          "startDateLabel": string;
+          "endDateLabel": string;
+          "companyLabel": string;
+          "positionLabel": string;
+          "detailsLabel": string;
+          "descLabel": string;
+          "contributionLabel": string;
         };
         knowledge: {
           title: string;
@@ -876,6 +904,14 @@ declare namespace App {
             failed: string;
             cancelled: string;
           };
+          deleteSuccess: string;
+          typeAll: string;
+          typeProjectDoc: string;
+          typeGithub: string;
+          embeddingPending: string;
+          embeddingRunning: string;
+          embeddingSuccess: string;
+          embeddingFailed: string;
         };
         jobs: {
           title: string;
@@ -974,6 +1010,21 @@ declare namespace App {
           summary: string;
           infoSuffix: string;
           industryLabel: string;
+          matchAnalyzing: string;
+          matchSuccess: string;
+          matchFailed: string;
+          matchFailedRetry: string;
+          reanalyzeMatch: string;
+          analyzeMatch: string;
+          overallMatchScore: string;
+          matchSummaryLabel: string;
+          matchHighlightsLabel: string;
+          matchDimensions: {
+            basic: string;
+            professionalSkill: string;
+            professionalQuality: string;
+            developmentPotential: string;
+          };
         };
       };
       form: {

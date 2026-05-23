@@ -129,29 +129,29 @@ const handleExportPdf = () => {
 </script>
 
 <template>
-  <div class="w-full h-full flex flex-col items-center bg-slate-100">
-    
-    <div class="w-full bg-white border-b border-slate-200 p-3 flex justify-between items-center sticky top-0 z-20 shadow-sm px-6">
+  <div class="w-full h-full flex flex-col items-center bg-slate-100 dark:bg-dark-100">
+
+    <div class="w-full bg-white dark:bg-dark-200 border-b border-slate-200 dark:border-gray-700 p-3 flex justify-between items-center sticky top-0 z-20 shadow-sm px-6">
       <div class="flex items-center gap-6">
         <div class="flex items-center gap-2">
-          <span class="text-sm font-bold text-slate-600">{{ $t('page.resume.template') }}:</span>
+          <span class="text-sm font-bold text-slate-600 dark:text-gray-400">{{ $t('page.resume.template') }}:</span>
           <NSelect v-model:value="activeTemplate" :options="templateOptions" size="small" class="w-56" />
         </div>
         <div class="flex items-center gap-2">
-          <span class="text-sm font-bold text-slate-600">{{ $t('page.resume.color') }}:</span>
+          <span class="text-sm font-bold text-slate-600 dark:text-gray-400">{{ $t('page.resume.color') }}:</span>
           <NColorPicker v-model:value="themeColor" :swatches="predefineColors" size="small" class="w-24" :show-alpha="false" />
         </div>
       </div>
 
       <div class="flex items-center gap-6">
         <div class="flex items-center gap-3 w-48">
-          <div class="i-mdi-magnify-minus text-slate-400 cursor-pointer hover:text-blue-600" @click="zoomLevel -= 0.1"></div>
+          <span class="text-slate-400 dark:text-gray-500 cursor-pointer hover:text-blue-600" @click="zoomLevel -= 0.1">🔍-</span>
           <NSlider v-model:value="zoomLevel" :min="0.4" :max="1.5" :step="0.05" :tooltip="false" />
-          <div class="i-mdi-magnify-plus text-slate-400 cursor-pointer hover:text-blue-600" @click="zoomLevel += 0.1"></div>
-          <span class="text-xs font-bold text-slate-500 w-8">{{ Math.round(zoomLevel * 100) }}%</span>
+          <span class="text-slate-400 dark:text-gray-500 cursor-pointer hover:text-blue-600" @click="zoomLevel += 0.1">🔍+</span>
+          <span class="text-xs font-bold text-slate-500 dark:text-gray-400 w-8">{{ Math.round(zoomLevel * 100) }}%</span>
         </div>
         <NButton type="primary" size="small" @click="handleExportPdf">
-          <template #icon><div class="i-mdi-download"></div></template>
+          <template #icon><span>⬇️</span></template>
           {{ $t('page.resume.exportPdf') }}
         </NButton>
       </div>

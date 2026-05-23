@@ -203,7 +203,7 @@ onMounted(() => {
       <!-- 头部 -->
       <div class="mb-6 flex items-center gap-3">
         <NButton quaternary circle @click="handleCancel">
-          <template #icon><div class="i-mdi-arrow-left"></div></template>
+          <template #icon><span>←</span></template>
         </NButton>
         <h1 class="text-2xl font-bold text-slate-800">{{ isEdit ? $t('page.jobs.edit') : $t('page.jobs.create') }}</h1>
       </div>

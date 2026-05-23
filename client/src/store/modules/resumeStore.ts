@@ -1,18 +1,24 @@
 // src/store/modules/resumeStore.ts
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { 
+import {
   fetchGetResumeDetail,        // 只拉取简历的外壳（名称、绑定的技能ID）
   fetchUpdateResume,
   fetchGetEducationList,       // 拉取全局教育经历池
-  fetchUpdateEducation, 
+  fetchAddEducation,
+  fetchUpdateEducation,
+  fetchDeleteEducation,
   fetchGetProjectList,         // 拉取全局项目经历池
-  fetchUpdateProject, 
+  fetchAddProject,
+  fetchUpdateProject,
+  fetchDeleteProject,
   fetchGetCareerList,          // 拉取全局实习经历池
-  fetchUpdateCareer, 
+  fetchAddCareer,
+  fetchUpdateCareer,
+  fetchDeleteCareer,
   fetchGetSkillList,           // 拉取技能池
-  fetchUpdateUserInfo, 
-  ResumeApi 
+  fetchUpdateUserInfo,
+  ResumeApi
 } from '@/service/api/resume';
 import { useAuthStore } from '@/store/modules/auth';
 import { $t } from '@/locales';
@@ -119,12 +125,66 @@ export const useResumeStore = defineStore('resume-editor', () => {
     }
   }
 
+  async function addEducation(data: ResumeApi.EducationCreate) {
+    const { data: created, error } = await fetchAddEducation(data);
+    if (!error && created && resumeData.value) {
+      resumeData.value.educations.push(created as ResumeApi.EducationDTO);
+    }
+    return !error;
+  }
+
+  async function deleteEducation(id: number) {
+    const { error } = await fetchDeleteEducation(id);
+    if (!error && resumeData.value) {
+      resumeData.value.educations = resumeData.value.educations.filter(e => e.id !== id);
+    }
+    return !error;
+  }
+
+  async function addProject(data: ResumeApi.ProjectCreate) {
+    const { data: created, error } = await fetchAddProject(data);
+    if (!error && created && resumeData.value) {
+      resumeData.value.projects.push(created as ResumeApi.ProjectDTO);
+    }
+    return !error;
+  }
+
+  async function deleteProject(id: number) {
+    const { error } = await fetchDeleteProject(id);
+    if (!error && resumeData.value) {
+      resumeData.value.projects = resumeData.value.projects.filter(p => p.id !== id);
+    }
+    return !error;
+  }
+
+  async function addCareer(data: ResumeApi.CareerCreate) {
+    const { data: created, error } = await fetchAddCareer(data);
+    if (!error && created && resumeData.value) {
+      resumeData.value.careers.push(created as ResumeApi.CareerDTO);
+    }
+    return !error;
+  }
+
+  async function deleteCareer(id: number) {
+    const { error } = await fetchDeleteCareer(id);
+    if (!error && resumeData.value) {
+      resumeData.value.careers = resumeData.value.careers.filter(c => c.id !== id);
+    }
+    return !error;
+  }
+
   return {
     resumeData,
     personalInfo,
     isLoading,
     isSaving,
     initResumeData,
-    saveAllData
+    saveAllData,
+    addEducation,
+    deleteEducation,
+    addProject,
+    deleteProject,
+    addCareer,
+    deleteCareer
   };
 });

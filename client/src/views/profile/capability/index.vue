@@ -7,6 +7,7 @@ import { fetchGetResumeFullContentList } from '@/service/api/resume';
 import type { ResumeApi } from '@/service/api/resume';
 import { $t } from '@/locales';
 import { useAuthStore } from '@/store/modules/auth';
+import CapabilityScoreCard, { type Dimension } from '@/components/common/CapabilityScoreCard.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -324,6 +325,19 @@ function getScoreColor(score: number): string {
   return '#f5222d';
 }
 
+// --- 雷达图维度（参考五项评分） ---
+const scoreDimensions = computed<Dimension[]>(() => {
+  const sd = profile.value?.scoreDetail;
+  if (!sd) return [];
+  return [
+    { key: 'jobMatchTechDepthScore', label: '技术深度', score: sd.jobMatchTechDepthScore || 0, max: 40 },
+    { key: 'projectPracticeScore', label: '项目实践', score: sd.projectPracticeScore || 0, max: 20 },
+    { key: 'contentCompletenessScore', label: '内容完整度', score: sd.contentCompletenessScore || 0, max: 15 },
+    { key: 'structureExpressionScore', label: '结构表达', score: sd.structureExpressionScore || 0, max: 15 },
+    { key: 'professionalPotentialScore', label: '职业素养', score: sd.professionalPotentialScore || 0, max: 10 }
+  ];
+});
+
 onMounted(() => {
   loadData();
 });
@@ -333,7 +347,7 @@ onMounted(() => {
   <div class="p-6 h-full overflow-y-auto bg-gray-50">
     <!-- 未登录提示 -->
     <div v-if="!isLogin" class="max-w-4xl mx-auto text-center py-20 bg-white rounded-xl border border-gray-100 shadow-sm">
-      <div class="i-mdi-lock-outline text-6xl mb-4 mx-auto opacity-50 text-gray-400"></div>
+      <span class="text-6xl mb-4 mx-auto opacity-50 text-gray-400">🔒</span>
       <p class="text-gray-500 mb-4">{{ $t('page.profile.capability.loginToView') }}</p>
       <NButton type="primary" @click="router.push('/login')">
         {{ $t('page.profile.capability.goToLogin') }}
@@ -351,7 +365,7 @@ onMounted(() => {
           </div>
           <NButton type="primary" size="large" :loading="generating" @click="handleGenerate">
             <template #icon>
-              <div class="i-mdi-refresh"></div>
+              <span>🔄</span>
             </template>
             {{ $t('page.profile.capability.regenerate') }}
           </NButton>
@@ -374,7 +388,7 @@ onMounted(() => {
                 <p class="text-gray-600 text-sm">{{ $t('page.profile.capability.fileUploadDesc') }}</p>
                 <NAlert type="info" :bordered="false" class="text-sm">
                   <template #icon>
-                    <div class="i-mdi-information"></div>
+                    <span>ℹ️</span>
                   </template>
                   <div class="space-y-1">
                     <p>• {{ $t('page.profile.capability.uploadTips.useEnglishName') }}</p>
@@ -390,7 +404,7 @@ onMounted(() => {
                 >
                   <NButton :loading="uploading">
                     <template #icon>
-                      <div class="i-mdi-upload"></div>
+                      <span>⬆️</span>
                     </template>
                     {{ $t('page.profile.capability.selectFile') }}
                   </NButton>
@@ -400,7 +414,7 @@ onMounted(() => {
                 </NButton>
                 <NTag v-if="uploadedFileUrl" type="success" class="ml-2">
                   <template #icon>
-                    <div class="i-mdi-check-circle"></div>
+                    <span>✅</span>
                   </template>
                   {{ $t('page.profile.capability.uploadSuccess') }}
                 </NTag>
@@ -424,171 +438,124 @@ onMounted(() => {
           </NTabs>
         </div>
 
-        <!-- 一句话总结 -->
-        <div v-if="profile.summary" class="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-100">
-          <div class="flex items-start gap-3">
-            <div class="i-mdi-lightbulb text-2xl text-blue-600 mt-1"></div>
-            <div>
-              <h3 class="font-semibold text-gray-800 mb-2">{{ $t('page.profile.capability.summary') }}</h3>
-              <p class="text-gray-700">{{ profile.summary }}</p>
-            </div>
-          </div>
-        </div>
+        <!-- 评分概览：核心评价 + 雷达图 + 维度进度条 -->
+        <CapabilityScoreCard
+          :dimensions="scoreDimensions"
+          :total-score="profile.competitivenessScore || totalScore"
+          :total-max="100"
+          total-label="综合竞争力"
+          :summary="profile.summary"
+          :strengths="profile.strengths"
+        />
 
-        <!-- 评分概览 -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <!-- 综合竞争力 -->
-          <div class="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-            <div class="flex items-center justify-between mb-4">
-              <span class="text-gray-600 font-medium">{{ $t('page.profile.capability.competitiveness') }}</span>
-              <div class="i-mdi-trophy text-2xl text-yellow-500"></div>
-            </div>
-            <div class="text-center">
-              <div class="text-4xl font-bold" :style="{ color: getScoreColor(profile.competitivenessScore || 0) }">
-                {{ profile.competitivenessScore || 0 }}
-              </div>
-              <div class="text-sm text-gray-500 mt-1">综合竞争力评分</div>
-            </div>
+        <!-- 能力详情（七维）：2 列卡片网格 -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="flex items-center gap-2 mb-5">
+            <span class="text-xl">🧩</span>
+            <h3 class="text-lg font-bold text-slate-800">{{ $t('page.profile.capability.abilityDetail') }}</h3>
           </div>
-
-          <!-- 简历完整度 -->
-          <div class="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-            <div class="flex items-center justify-between mb-4">
-              <span class="text-gray-600 font-medium">{{ $t('page.profile.capability.completeness') }}</span>
-              <div class="i-mdi-file-check-outline text-2xl text-green-500"></div>
-            </div>
-            <div class="text-center">
-              <div class="text-4xl font-bold" :style="{ color: getScoreColor(profile.completenessScore || 0) }">
-                {{ profile.completenessScore || 0 }}
-              </div>
-              <div class="text-sm text-gray-500 mt-1">简历完整度评分</div>
-            </div>
-          </div>
-
-          <!-- 总分 -->
-          <div class="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-            <div class="flex items-center justify-between mb-4">
-              <span class="text-gray-600 font-medium">{{ $t('page.profile.capability.totalScore') }}</span>
-              <div class="i-mdi-chart-line text-2xl text-blue-500"></div>
-            </div>
-            <div class="text-center">
-              <div class="text-4xl font-bold" :style="{ color: getScoreColor(totalScore) }">
-                {{ totalScore }}
-              </div>
-              <div class="text-sm text-gray-500 mt-1">五项总分</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 岗位专项评估分项 -->
-        <div v-if="profile.scoreDetail" class="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-          <h3 class="text-lg font-bold text-gray-800 mb-4">{{ $t('page.profile.capability.scoreDetail') }}</h3>
-          <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div v-for="(value, key) in profile.scoreDetail" :key="key" class="text-center p-4 bg-gray-50 rounded-lg">
-              <div class="text-2xl font-bold mb-1" :style="{ color: getScoreColor(value as number || 0) }">
-                {{ value || 0 }}
-              </div>
-              <div class="text-xs text-gray-500">
-                {{
-                  key === 'jobMatchTechDepthScore'
-                    ? '技术深度'
-                    : key === 'projectPracticeScore'
-                      ? '项目实践'
-                      : key === 'contentCompletenessScore'
-                        ? '内容完整度'
-                        : key === 'structureExpressionScore'
-                          ? '结构表达'
-                          : '职业素养'
-                }}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 能力详情 -->
-        <div class="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-          <h3 class="text-lg font-bold text-gray-800 mb-4">{{ $t('page.profile.capability.abilityDetail') }}</h3>
-          <div class="space-y-4">
-            <div v-for="item in abilityItems" :key="item.key" class="border-l-4 border-blue-500 pl-4 py-2">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div
+              v-for="item in abilityItems"
+              :key="item.key"
+              class="group bg-gradient-to-br from-slate-50 to-white border border-slate-200 hover:border-blue-300 hover:shadow-md transition rounded-xl p-4"
+            >
               <div class="flex items-center gap-2 mb-2">
-                <div :class="item.icon + ' text-xl text-blue-600'"></div>
-                <h4 class="font-semibold text-gray-800">{{ item.label }}</h4>
+                <span class="w-2 h-2 rounded-full bg-blue-500 group-hover:scale-125 transition"></span>
+                <h4 class="font-semibold text-slate-800 text-sm">{{ item.label }}</h4>
               </div>
-              <p v-if="item.value" class="text-gray-600 text-sm leading-relaxed pl-7">{{ item.value }}</p>
-              <p v-else class="text-gray-400 text-sm pl-7">暂无相关信息</p>
+              <p v-if="item.value" class="text-slate-600 text-xs leading-relaxed">{{ item.value }}</p>
+              <p v-else class="text-slate-300 text-xs italic">暂无相关信息</p>
             </div>
           </div>
         </div>
 
-        <!-- 优势、不足和建议 -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <!-- 优势 -->
-          <div v-if="profile.strengths && profile.strengths.length > 0" class="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-            <div class="flex items-center gap-2 mb-4">
-              <div class="i-mdi-thumb-up-outline text-xl text-green-500"></div>
-              <h3 class="font-bold text-gray-800">{{ $t('page.profile.capability.strengths') }}</h3>
-            </div>
-            <div class="space-y-2">
-              <div v-for="(item, index) in profile.strengths" :key="index" class="flex items-start gap-2 text-sm">
-                <div class="i-mdi-check-circle text-green-500 mt-0.5 flex-shrink-0"></div>
-                <span class="text-gray-700">{{ item }}</span>
-              </div>
-            </div>
-          </div>
-
+        <!-- 缺失技能 + 证据不足：双列对比 -->
+        <div
+          v-if="(profile.missingSkills && profile.missingSkills.length > 0) || (profile.weakEvidenceItems && profile.weakEvidenceItems.length > 0)"
+          class="grid grid-cols-1 md:grid-cols-2 gap-6"
+        >
           <!-- 缺失技能 -->
-          <div v-if="profile.missingSkills && profile.missingSkills.length > 0" class="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+          <div v-if="profile.missingSkills && profile.missingSkills.length > 0"
+               class="bg-gradient-to-br from-orange-50 to-white border border-orange-100 rounded-2xl p-6">
             <div class="flex items-center gap-2 mb-4">
-              <div class="i-mdi-alert-circle-outline text-xl text-orange-500"></div>
-              <h3 class="font-bold text-gray-800">{{ $t('page.profile.capability.missingSkills') }}</h3>
+              <span class="text-lg">⚠️</span>
+              <h3 class="font-bold text-slate-800">{{ $t('page.profile.capability.missingSkills') }}</h3>
+              <span class="ml-auto text-xs text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full">
+                {{ profile.missingSkills.length }}
+              </span>
             </div>
-            <div class="space-y-2">
-              <div v-for="(item, index) in profile.missingSkills" :key="index" class="flex items-start gap-2 text-sm">
-                <div class="i-mdi-minus-circle text-orange-500 mt-0.5 flex-shrink-0"></div>
-                <span class="text-gray-700">{{ item }}</span>
-              </div>
-            </div>
+            <ul class="space-y-2.5">
+              <li v-for="(item, index) in profile.missingSkills" :key="index"
+                  class="flex items-start gap-2 text-sm bg-white/60 rounded-lg px-3 py-2 border border-orange-100">
+                <span class="text-orange-500 mt-0.5 flex-shrink-0">⊖</span>
+                <span class="text-slate-700">{{ item }}</span>
+              </li>
+            </ul>
           </div>
 
-          <!-- 证据不足项 -->
-          <div v-if="profile.weakEvidenceItems && profile.weakEvidenceItems.length > 0" class="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+          <!-- 证据不足 -->
+          <div v-if="profile.weakEvidenceItems && profile.weakEvidenceItems.length > 0"
+               class="bg-gradient-to-br from-rose-50 to-white border border-rose-100 rounded-2xl p-6">
             <div class="flex items-center gap-2 mb-4">
-              <div class="i-mdi-help-circle-outline text-xl text-red-500"></div>
-              <h3 class="font-bold text-gray-800">{{ $t('page.profile.capability.weakEvidence') }}</h3>
+              <span class="text-lg">❓</span>
+              <h3 class="font-bold text-slate-800">{{ $t('page.profile.capability.weakEvidence') }}</h3>
+              <span class="ml-auto text-xs text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full">
+                {{ profile.weakEvidenceItems.length }}
+              </span>
             </div>
-            <div class="space-y-2">
-              <div v-for="(item, index) in profile.weakEvidenceItems" :key="index" class="flex items-start gap-2 text-sm">
-                <div class="i-mdi-alert text-red-500 mt-0.5 flex-shrink-0"></div>
-                <span class="text-gray-700">{{ item }}</span>
-              </div>
-            </div>
+            <ul class="space-y-2.5">
+              <li v-for="(item, index) in profile.weakEvidenceItems" :key="index"
+                  class="flex items-start gap-2 text-sm bg-white/60 rounded-lg px-3 py-2 border border-rose-100">
+                <span class="text-rose-500 mt-0.5 flex-shrink-0">!</span>
+                <span class="text-slate-700">{{ item }}</span>
+              </li>
+            </ul>
           </div>
         </div>
 
-        <!-- 改进建议 -->
-        <div v-if="profile.suggestions && profile.suggestions.length > 0" class="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-          <div class="flex items-center gap-2 mb-4">
-            <div class="i-mdi-lightbulb-on-outline text-xl text-yellow-500"></div>
-            <h3 class="font-bold text-gray-800">{{ $t('page.profile.capability.suggestions') }}</h3>
+        <!-- 改进建议：带优先级色条 -->
+        <div v-if="profile.suggestions && profile.suggestions.length > 0"
+             class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="flex items-center gap-2 mb-5">
+            <span class="text-xl">💡</span>
+            <h3 class="text-lg font-bold text-slate-800">{{ $t('page.profile.capability.suggestions') }}</h3>
+            <span class="ml-auto text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+              {{ profile.suggestions.length }} 条
+            </span>
           </div>
-          <div class="space-y-4">
-            <div v-for="(item, index) in profile.suggestions" :key="index" class="border border-gray-200 rounded-lg p-4">
-              <div class="flex items-start justify-between mb-2">
-                <div class="flex items-center gap-2">
-                  <span class="px-2 py-1 text-xs rounded" :class="{
-                    'bg-red-100 text-red-700': item.priority === '高',
-                    'bg-yellow-100 text-yellow-700': item.priority === '中',
-                    'bg-green-100 text-green-700': item.priority === '低'
-                  }">
-                    {{ item.priority }}优先级
-                  </span>
-                  <span class="text-sm font-medium text-gray-700">{{ item.category }}</span>
-                </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div
+              v-for="(item, index) in profile.suggestions"
+              :key="index"
+              class="relative bg-gradient-to-br from-slate-50 to-white border border-slate-200 rounded-xl p-4 pl-5 hover:shadow-md transition"
+            >
+              <!-- 左侧优先级色条 -->
+              <div
+                class="absolute left-0 top-3 bottom-3 w-1 rounded-r"
+                :class="{
+                  'bg-rose-500': item.priority === '高',
+                  'bg-amber-500': item.priority === '中',
+                  'bg-emerald-500': item.priority === '低'
+                }"
+              ></div>
+              <div class="flex items-center gap-2 mb-2">
+                <span
+                  class="px-2 py-0.5 text-xs rounded-full font-medium"
+                  :class="{
+                    'bg-rose-100 text-rose-700': item.priority === '高',
+                    'bg-amber-100 text-amber-700': item.priority === '中',
+                    'bg-emerald-100 text-emerald-700': item.priority === '低'
+                  }"
+                >
+                  {{ item.priority }}优先级
+                </span>
+                <span class="text-sm font-semibold text-slate-700">{{ item.category }}</span>
               </div>
-              <div class="text-sm text-gray-600 mb-2">
-                <span class="font-medium">问题：</span>{{ item.issue }}
+              <div class="text-xs text-slate-600 mb-1.5 leading-relaxed">
+                <span class="font-medium text-slate-700">问题：</span>{{ item.issue }}
               </div>
-              <div class="text-sm text-gray-700">
+              <div class="text-xs text-slate-700 leading-relaxed">
                 <span class="font-medium">建议：</span>{{ item.recommendation }}
               </div>
             </div>
@@ -598,7 +565,7 @@ onMounted(() => {
 
       <!-- 空状态 -->
       <div v-else class="max-w-4xl mx-auto text-center py-20 bg-white rounded-xl border border-gray-100 shadow-sm">
-        <div class="i-mdi-file-document-outline text-6xl mb-4 mx-auto opacity-50 text-gray-400"></div>
+        <span class="text-6xl mb-4 mx-auto opacity-50 text-gray-400">📄</span>
         <p class="text-gray-400 mb-4">{{ $t('page.profile.capability.empty') }}</p>
 
         <!-- 生成方式选择 -->
@@ -619,7 +586,7 @@ onMounted(() => {
                 >
                   <NButton :loading="uploading">
                     <template #icon>
-                      <div class="i-mdi-upload"></div>
+                      <span>⬆️</span>
                     </template>
                     {{ $t('page.profile.capability.selectFile') }}
                   </NButton>
@@ -629,7 +596,7 @@ onMounted(() => {
                 </NButton>
                 <NTag v-if="uploadedFileUrl" type="success">
                   <template #icon>
-                    <div class="i-mdi-check-circle"></div>
+                    <span>✅</span>
                   </template>
                   {{ $t('page.profile.capability.uploadSuccess') }}
                 </NTag>
@@ -653,7 +620,7 @@ onMounted(() => {
 
           <NButton type="primary" size="large" :loading="generating" @click="handleGenerate">
             <template #icon>
-              <div class="i-mdi-auto-fix"></div>
+              <span>✨</span>
             </template>
             {{ $t('page.profile.capability.generate') }}
           </NButton>

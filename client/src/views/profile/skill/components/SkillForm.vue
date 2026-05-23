@@ -83,7 +83,7 @@ async function handleSubmit() {
         <p class="text-gray-500 mt-1 text-sm">{{ $t('page.profile.common.requiredDesc') }}</p>
       </div>
       <NButton quaternary circle @click="emit('cancel')">
-        <template #icon><div class="i-mdi-close text-xl"></div></template>
+        <template #icon><span class="text-xl">✕</span></template>
       </NButton>
     </div>
 
@@ -101,7 +101,7 @@ async function handleSubmit() {
             class="absolute right-2 top-2" 
             @click="handleRemoveCategory(index)"
           >
-            <div class="i-mdi-close-circle text-red-500 text-2xl hover:text-red-600 transition-colors"></div>
+            <span class="text-red-500 text-2xl hover:text-red-600 transition-colors">✕</span>
           </NButton>
           
           <NFormItem :label="$t('page.profile.skill.category')" :path="`content[${index}].type`">
@@ -114,7 +114,7 @@ async function handleSubmit() {
         </div>
 
         <NButton dashed block @click="handleAddCategory">
-          <template #icon><div class="i-mdi-plus"></div></template>
+          <template #icon><span>+</span></template>
           {{ $t('page.profile.skill.addCategory') }}
         </NButton>
       </div>

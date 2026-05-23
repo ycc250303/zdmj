@@ -30,12 +30,6 @@ export const request = createFlatRequest(
       const Authorization = getAuthorization();
       Object.assign(config.headers, { Authorization });
 
-      // 支持GET请求带body（后端使用 @GetMapping + @RequestBody）
-      if (config.method?.toLowerCase() === 'get' && config.data) {
-        // @ts-ignore - axios默认不支持GET带body，需要强制设置
-        config.headers['Content-Type'] = 'application/json';
-      }
-
       return config;
     },
     isBackendSuccess(response) {
