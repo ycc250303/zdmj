@@ -7,7 +7,7 @@ import type { KnowledgeApi } from '@/service/api/knowledge';
 const route = useRoute();
 const router = useRouter();
 const loading = ref(true);
-const detail = ref<KnowledgeApi.KnowledgeDTO | null>(null);
+const detail = ref<KnowledgeApi.KnowledgeDocumentDTO | null>(null);
 
 const knowledgeId = computed(() => Number(route.query.id));
 
@@ -43,17 +43,17 @@ onMounted(() => {
     <div class="bg-gray-800 text-white p-3 flex items-center gap-3 border-b border-gray-700">
       <NButton quaternary circle @click="goBack" class="text-white">
         <template #icon>
-          <div class="i-mdi-arrow-left text-xl"></div>
+          <span class="text-xl">←</span>
         </template>
       </NButton>
       <div class="flex-1 truncate">
-        <span v-if="detail">{{ detail.name }}</span>
+        <span v-if="detail">{{ detail.title }}</span>
         <span v-else>加载中...</span>
       </div>
       <a v-if="detail" :href="detail.content" target="_blank" class="text-white hover:text-blue-400">
         <NButton size="small" secondary>
           <template #icon>
-            <div class="i-mdi-download"></div>
+            <span>⬇️</span>
           </template>
           下载文件
         </NButton>

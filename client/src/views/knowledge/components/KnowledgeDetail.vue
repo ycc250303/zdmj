@@ -28,10 +28,10 @@ const showModal = computed({
 
 // 向量化状态映射
 const embeddingStatusLabels: Record<string, { text: string; type: 'success' | 'warning' | 'error' | 'default'; icon: string }> = {
-  PENDING: { text: '等待中', type: 'default', icon: 'i-mdi-clock-outline' },
-  RUNNING: { text: '向量化中...', type: 'warning', icon: 'i-mdi-loading' },
-  SUCCESS: { text: '已向量化', type: 'success', icon: 'i-mdi-check-circle' },
-  FAILED: { text: '向量化失败', type: 'error', icon: 'i-mdi-alert-circle' }
+  PENDING: { text: '等待中', type: 'default', icon: '🕐' },
+  RUNNING: { text: '向量化中...', type: 'warning', icon: '⏳' },
+  SUCCESS: { text: '已向量化', type: 'success', icon: '✅' },
+  FAILED: { text: '向量化失败', type: 'error', icon: '⚠️' }
 };
 
 async function loadDetail() {
@@ -73,10 +73,10 @@ const buttonText = computed(() => {
 });
 
 const buttonIcon = computed(() => {
-  if (!detail.value?.content) return 'i-mdi-open-in-new';
-  if (isGitHubUrl(detail.value.content)) return 'i-mdi-github';
-  if (isPdfUrl(detail.value.content)) return 'i-mdi-download';
-  return 'i-mdi-open-in-new';
+  if (!detail.value?.content) return '↗';
+  if (isGitHubUrl(detail.value.content)) return '🐙';
+  if (isPdfUrl(detail.value.content)) return '⬇️';
+  return '↗';
 });
 
 // 向量化状态信息
@@ -120,7 +120,7 @@ watch(
         <!-- 基本信息 -->
         <div>
           <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <div class="i-mdi-information-outline text-blue-500"></div>
+            <span class="text-blue-500">ℹ️</span>
             {{ $t('page.knowledge.basicInfo') }}
           </h3>
           <NDescriptions :column="1" bordered label-placement="left" label-style="width: 120px">
@@ -149,7 +149,7 @@ watch(
         <!-- 向量化信息 -->
         <div v-if="embeddingInfo">
           <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <div class="i-mdi-vector-square text-purple-500"></div>
+            <span class="text-purple-500">⬚</span>
             {{ $t('page.knowledge.vectorInfo') }}
           </h3>
           <NDescriptions :column="1" bordered label-placement="left" label-style="width: 120px">

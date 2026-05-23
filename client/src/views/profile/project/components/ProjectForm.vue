@@ -30,13 +30,13 @@ const formData = reactive<ResumeApi.ProjectCreate>({
 watch(() => props.initialData, (newVal: any) => {
   if (newVal) {
     Object.assign(formData, newVal);
-    
+
     let parsedTech = newVal.techStack;
     if (typeof parsedTech === 'string') {
       try {
         parsedTech = JSON.parse(parsedTech);
       } catch (e) {
-        parsedTech = parsedTech.replace(/^\[|\]$/g, '').split(',').map((s:string) => s.trim().replace(/^"|"$/g, '')).filter(Boolean);
+        parsedTech = parsedTech.replace(/^\[|\]$/g, '').split(',').map((s: string) => s.trim().replace(/^"|"$/g, '')).filter(Boolean);
       }
     }
     formData.techStack = Array.isArray(parsedTech) ? parsedTech : [];
@@ -53,15 +53,30 @@ watch(() => props.initialData, (newVal: any) => {
   }
 }, { immediate: true });
 
+function dateStrToTs(str: string | undefined): number | null {
+  if (!str) return null;
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d.getTime();
+}
+function tsToDateStr(ts: number | null): string {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+const startDateTs = computed({
+  get: () => dateStrToTs(formData.startDate),
+  set: (v) => { formData.startDate = tsToDateStr(v); }
+});
+const endDateTs = computed({
+  get: () => dateStrToTs(formData.endDate),
+  set: (v) => { formData.endDate = tsToDateStr(v) || ''; }
+});
+
 const rules = computed<FormRules>(() => ({
   name: [{ required: true, message: $t('page.profile.project.name'), trigger: 'blur' }],
   role: [{ required: true, message: $t('page.profile.project.role'), trigger: 'blur' }],
-  startDate: [
-    { required: true, message: $t('page.profile.project.startDate'), trigger: 'blur' },
-    { pattern: /^\d{4}-\d{2}-\d{2}$/, message: $t('page.profile.common.dateFormat'), trigger: 'blur' }
-  ],endDate: [
-    { pattern: /^\d{4}-\d{2}-\d{2}$/, message: $t('page.profile.common.dateFormat'), trigger: 'blur' }
-  ],
+  startDate: [{ required: true, message: $t('page.profile.project.startDate'), trigger: 'change' }],
   description: [{ required: true, message: $t('page.profile.project.description'), trigger: 'blur' }],
   contribution: [{ required: true, message: $t('page.profile.project.contribution'), trigger: 'blur' }]
 }));
@@ -70,7 +85,7 @@ async function handleSubmit() {
   try {
     await formRef.value?.validate();
     loading.value = true;
-    
+
     const payload = { ...formData };
     payload.techStack = [...(formData.techStack || [])];
     if (!payload.endDate) delete payload.endDate;
@@ -103,19 +118,18 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <div class="max-w-3xl mx-auto bg-white p-8 rounded-xl border border-gray-100 shadow-sm">
+  <div class="max-w-3xl mx-auto bg-white dark:bg-dark-200 p-8 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
     <div class="flex justify-between items-center mb-8">
       <div>
-        <h2 class="text-2xl font-bold text-gray-800">{{ props.initialData ? $t('page.profile.common.edit') : $t('page.profile.common.add') }}</h2>
-        <p class="text-gray-500 mt-1 text-sm">{{ $t('page.profile.common.requiredDesc') }}</p>
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-200">{{ props.initialData ? $t('page.profile.common.edit') : $t('page.profile.common.add') }}</h2>
+        <p class="text-gray-500 dark:text-gray-400 mt-1 text-sm">{{ $t('page.profile.common.requiredDesc') }}</p>
       </div>
       <NButton quaternary circle @click="emit('cancel')">
-        <template #icon><div class="i-mdi-close text-xl"></div></template>
+        <template #icon><span class="text-xl">✕</span></template>
       </NButton>
     </div>
 
     <NForm ref="formRef" :model="formData" :rules="rules" label-placement="top" require-mark-placement="right-hanging">
-      
       <NFormItem :label="$t('page.profile.project.name')" path="name">
         <NInput v-model:value="formData.name" :placeholder="$t('page.profile.project.namePlaceholder')" size="large" />
       </NFormItem>
@@ -127,12 +141,12 @@ async function handleSubmit() {
       <NGrid :x-gap="24" :cols="2">
         <NGridItem>
           <NFormItem :label="$t('page.profile.project.startDate')" path="startDate">
-            <NInput v-model:value="formData.startDate" :placeholder="$t('page.profile.common.dateFormat')" size="large" />
+            <NDatePicker v-model:value="startDateTs" type="date" value-format="yyyy-MM-dd" clearable size="large" class="w-full" />
           </NFormItem>
         </NGridItem>
         <NGridItem>
           <NFormItem :label="$t('page.profile.project.endDate')" path="endDate">
-            <NInput v-model:value="formData.endDate" :placeholder="$t('page.profile.project.endDatePlaceholder')" size="large" />
+            <NDatePicker v-model:value="endDateTs" type="date" value-format="yyyy-MM-dd" clearable size="large" class="w-full" :placeholder="$t('page.profile.project.endDatePlaceholder')" />
           </NFormItem>
         </NGridItem>
       </NGrid>
@@ -169,13 +183,12 @@ async function handleSubmit() {
         </NGridItem>
       </NGrid>
 
-      <div class="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-100">
+      <div class="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
         <NButton size="large" @click="emit('cancel')">{{ $t('page.profile.common.cancel') }}</NButton>
         <NButton size="large" type="primary" :loading="loading" @click="handleSubmit">
           {{ $t('page.profile.common.save') }}
         </NButton>
       </div>
-
     </NForm>
   </div>
 </template>

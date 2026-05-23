@@ -9,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 
 import jakarta.validation.ConstraintViolation;
@@ -180,6 +181,16 @@ public class GlobalExceptionHandler {
         log.warn("JSON解析失败: {}", message);
         return Result.error(ErrorCode.BAD_REQUEST.getCode(),
                 ErrorCode.BAD_REQUEST.getMessage() + ": " + (message != null ? message : "未知错误"));
+    }
+
+    /**
+     * 处理上传文件大小超限异常
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Result<?> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException e) {
+        log.warn("上传文件大小超限: {}", e.getMessage());
+        return Result.error(ErrorCode.FILE_SIZE_EXCEEDED.getCode(), ErrorCode.FILE_SIZE_EXCEEDED.getMessage());
     }
 
     /**

@@ -18,7 +18,7 @@
 # Evidence Constraints
 1. 严格基于输入文本，不得臆测学生未提及的集群规模或组件深度。
 2. 同义词归一化：`K8s ≈ Kubernetes`、`MQ ≈ 消息队列`、`Hive ≈ hive`。
-3. 关键词命中以 `${jobKeywords}` 为唯一基准。
+3. 关键词命中以用户消息中提供的「岗位关键词」列表为唯一基准。
 4. 「熟悉 Spark」无作业或优化场景 → weakEvidence。
 5. 分层、Checkpoint、数据质量等关键词若在必填维度中，evidence 须引用原文。
 
@@ -42,9 +42,8 @@
 # Additional Requirements
 - `professionalSkill.gap` 必须区分「SQL/ETL」「计算存储组件」「数仓建模」「调度治理」「性能与质量」中的具体短板；
 - `developmentPotential.evidence` 优先引用「数据来源—处理流程—建模/优化—业务或稳定性结果」原文片段；
-- `matchedKeywords` / `missingKeywords` 必须是 `${jobKeywords}` 的真子集；若 `${jobKeywords}` 为空则均返回 `[]` 且 `keySkillMatchRate=0.0`；
+- `matchedKeywords` / `missingKeywords` 必须是用户消息中「岗位关键词」列表的真子集；若该列表为空则两数组均返回 `[]` 且 `keySkillMatchRate=0.0`；
 - `summary` 不超过 120 字，覆盖：大数据栈匹配度、链路深度短板、是否建议投递。
 
 # Reference Inputs
-- 权重配置：${weightsJson}
-- 岗位关键词数组：${jobKeywords}
+权重配置与岗位关键词均通过用户消息内联提供，不要输出综合分。

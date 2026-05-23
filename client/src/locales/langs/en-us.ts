@@ -410,7 +410,8 @@ const local: App.I18n.Schema = {
         "url": "Project Link",
         "urlPlaceholder": "Optional, e.g., GitHub or live demo URL",
         "addSuccess": "Project added successfully",
-        "updateSuccess": "Project updated successfully"
+        "updateSuccess": "Project updated successfully",
+        "deleteSuccess": "Project deleted successfully"
       },
       "education": {
         "title": "Education Experience Management",
@@ -427,6 +428,7 @@ const local: App.I18n.Schema = {
         "gpaPlaceholder": "Optional, e.g., 3.8/4.0 or Top 10%",
         "addSuccess": "Education added successfully",
         "updateSuccess": "Education updated successfully",
+        "deleteSuccess": "Education deleted successfully",
         "degrees": {
           "phd": "PhD",
           "master": "Master's",
@@ -449,7 +451,8 @@ const local: App.I18n.Schema = {
         details: "Responsibilities & Achievements",
         detailsPlaceholder: "Detail your tasks, technologies used, and outcomes",
         addSuccess: "Career experience added successfully",
-        updateSuccess: "Career experience updated successfully"
+        updateSuccess: "Career experience updated successfully",
+        deleteSuccess: "Career experience deleted successfully"
       },
       skill: {
         title: "Professional Skills Management",
@@ -461,7 +464,8 @@ const local: App.I18n.Schema = {
         items: "Skill Details (Press Enter to add)",
         addCategory: "Add Skill Category",
         addSuccess: "Skill added successfully",
-        updateSuccess: "Skill updated successfully"
+        updateSuccess: "Skill updated successfully",
+        deleteSuccess: "Skill deleted successfully"
       },
       basicInfo: {
         title: "Basic Information",
@@ -587,7 +591,31 @@ const local: App.I18n.Schema = {
           "cancel": "Cancel",
           "getFail": "Failed to fetch data",
           "pleaseInput": "Please input",
-          "createFail": "Creation failed"
+          "createFail": "Creation failed",
+          "position": "Position",
+          "addEducation": "Add Education",
+          "addProject": "Add Project",
+          "addCareer": "Add Internship",
+          "confirmAdd": "Confirm Add",
+          "delete": "Delete",
+          "confirmDeleteEdu": "Are you sure you want to delete this education record?",
+          "confirmDeleteProj": "Are you sure you want to delete this project record?",
+          "confirmDeleteCareer": "Are you sure you want to delete this internship record?",
+          "missingIdParam": "Missing resume ID parameter",
+          "contentNotFound": "Resume content not found",
+          "degree": "Degree",
+          "schoolLabel": "School",
+          "majorLabel": "Major",
+          "gpaLabel": "GPA",
+          "projectNameLabel": "Project Name",
+          "roleLabel": "Role",
+          "startDateLabel": "Start Date",
+          "endDateLabel": "End Date",
+          "companyLabel": "Company",
+          "positionLabel": "Position",
+          "detailsLabel": "Job Details",
+          "descLabel": "Description",
+          "contributionLabel": "Contribution"
         },
     knowledge: {
       title: 'Knowledge Base Management',
@@ -645,7 +673,15 @@ const local: App.I18n.Schema = {
         success: 'Completed',
         failed: 'Failed',
         cancelled: 'Cancelled'
-      }
+      },
+      deleteSuccess: 'Deleted successfully',
+      typeAll: 'All',
+      typeProjectDoc: 'Project Doc',
+      typeGithub: 'GitHub Code',
+      embeddingPending: 'Pending',
+      embeddingRunning: 'Vectorizing...',
+      embeddingSuccess: 'Vectorized',
+      embeddingFailed: 'Vectorization Failed'
     },
     jobs: {
       title: "Job Information",
@@ -743,7 +779,72 @@ const local: App.I18n.Schema = {
       weakEvidenceItems: "Weak Evidence Items",
       summary: "Summary",
       infoSuffix: " Information",
-      industryLabel: "Industry: "
+      industryLabel: "Industry: ",
+      matchAnalyzing: "Analyzing job-candidate match, estimated 30s~1min…",
+      matchSuccess: "Job-candidate match analysis complete",
+      matchFailed: "Job-candidate match analysis failed",
+      matchFailedRetry: "Job-candidate match analysis failed, please try again later",
+      reanalyzeMatch: "Re-analyze Match",
+      analyzeMatch: "Analyze Match",
+      overallMatchScore: "Overall Match",
+      matchSummaryLabel: "Match Summary",
+      matchHighlightsLabel: "Matched Highlights",
+      matchDimensions: {
+        basic: "Basic Requirements",
+        professionalSkill: "Professional Skills",
+        professionalQuality: "Professional Quality",
+        developmentPotential: "Development Potential"
+      },
+      careerReport: {
+        entry: "Career Report",
+        generate: "Generate Career Report",
+        regenerate: "Regenerate Report",
+        view: "View Report",
+        drawerTitle: "Career Development Report",
+        empty: "No career report yet. Click to generate.",
+        generating: "Generating career report, this may take 1-3 minutes…",
+        generateSuccess: "Career report generated",
+        generateFailed: "Failed to generate career report",
+        gatewayTimeoutFallback: "Gateway dropped the request (504); the backend may still be working. Polling latest version…",
+        gatewayTimeoutHint: "Gateway timeout (504). Ask backend to raise Nginx proxy_read_timeout for /api/zdmj/career-reports/ to 600s.",
+        polish: "Polish",
+        polishing: "Polishing report…",
+        polishSuccess: "Polished (new version saved)",
+        polishFailed: "Polish failed",
+        check: "Integrity Check",
+        checking: "Checking integrity…",
+        checkSuccess: "Integrity check completed",
+        checkFailed: "Integrity check failed",
+        version: "Version",
+        latest: "Latest",
+        completenessScore: "Completeness",
+        statusLabel: "Status",
+        status: {
+          draft: "Draft",
+          checked: "Checked",
+          published: "Published",
+          checkFailed: "Check Failed",
+          unknown: "Unknown"
+        },
+        riskLevel: "Risk Level",
+        riskLow: "Low",
+        riskMedium: "Medium",
+        riskHigh: "High",
+        missingSections: "Missing Sections",
+        nonActionableItems: "Non-actionable Items",
+        weakEvidenceItems: "Weak Evidence Items",
+        knowledgeSources: "Knowledge Sources",
+        reportContent: "Report Content",
+        userPreferenceLabel: "Preference",
+        userPreferencePlaceholder: "Optional: city / industry / role tendency",
+        focusLabel: "Focus",
+        focusPlaceholder: "Optional: e.g. \"strengthen algorithm side\"",
+        polishInstructionLabel: "Polish Instruction",
+        polishInstructionPlaceholder: "Optional: e.g. \"more concise\" / \"more actionable\"",
+        confirmGenerate: "Generate",
+        confirmPolish: "Polish",
+        cancel: "Cancel"
+      }
     }
   },
   form: {

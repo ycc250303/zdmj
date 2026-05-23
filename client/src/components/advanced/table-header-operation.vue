@@ -62,7 +62,7 @@ function refresh() {
     </slot>
     <NButton size="small" @click="refresh">
       <template #icon>
-        <icon-mdi-refresh class="text-icon" :class="{ 'animate-spin': loading }" />
+        <span class="text-icon">🔄</span>
       </template>
       {{ $t('common.refresh') }}
     </NButton>

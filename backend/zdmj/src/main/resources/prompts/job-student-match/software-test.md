@@ -18,7 +18,7 @@
 # Evidence Constraints
 1. 严格基于输入文本，不得臆测未提及的性能测试、安全测试、专项框架深度。
 2. 同义词归一化：`API ≈ 接口`、`Test Case ≈ 测试用例`、`Pytest ≈ pytest`。
-3. 关键词命中以 `${jobKeywords}` 为唯一基准。
+3. 关键词命中以用户消息中提供的「岗位关键词」列表为唯一基准。
 4. Postman/JMeter/框架名称若出现在学生画像但缺场景与结果 → weakEvidence。
 5. 岗位关键词若强调自动化或专项测试，evidence 须引用学生原文中的策略、数据或缺陷样例类描述。
 
@@ -42,9 +42,8 @@
 # Additional Requirements
 - `professionalSkill.gap` 必须区分「测试设计」「接口/工具」「自动化」「数据与日志分析」中的具体短板；
 - `developmentPotential.evidence` 优先引用「测试对象—策略—缺陷/效率结果」原文片段；
-- `matchedKeywords` / `missingKeywords` 必须是 `${jobKeywords}` 的真子集；若 `${jobKeywords}` 为空则均返回 `[]` 且 `keySkillMatchRate=0.0`；
+- `matchedKeywords` / `missingKeywords` 必须是用户消息中「岗位关键词」列表的真子集；若该列表为空则两数组均返回 `[]` 且 `keySkillMatchRate=0.0`；
 - `summary` 不超过 120 字，覆盖：测试能力匹配度、质量闭环证据、是否建议投递。
 
 # Reference Inputs
-- 权重配置：${weightsJson}
-- 岗位关键词数组：${jobKeywords}
+权重配置与岗位关键词均通过用户消息内联提供，不要输出综合分。

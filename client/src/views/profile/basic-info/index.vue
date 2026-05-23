@@ -95,7 +95,7 @@ async function handleSubmit() {
             <NFormItem :label="$t('page.profile.basicInfo.name')" path="name">
               <NInput v-model:value="formData.name" :placeholder="$t('page.profile.basicInfo.namePlaceholder')" size="large">
                 <template #prefix>
-                  <div class="i-mdi-account-outline text-gray-400 text-lg"></div>
+                  <span class="text-gray-400 text-lg">👤</span>
                 </template>
               </NInput>
             </NFormItem>
@@ -105,7 +105,7 @@ async function handleSubmit() {
             <NFormItem :label="$t('page.profile.basicInfo.phone')" path="phone">
               <NInput v-model:value="formData.phone" :placeholder="$t('page.profile.basicInfo.phonePlaceholder')" size="large">
                 <template #prefix>
-                  <div class="i-mdi-phone-outline text-gray-400 text-lg"></div>
+                  <span class="text-gray-400 text-lg">📞</span>
                 </template>
               </NInput>
             </NFormItem>
@@ -115,7 +115,7 @@ async function handleSubmit() {
         <NFormItem :label="$t('page.profile.basicInfo.homepageUrl')" path="homepageUrl">
           <NInput v-model:value="formData.homepageUrl" :placeholder="$t('page.profile.basicInfo.homepageUrlPlaceholder')" size="large">
             <template #prefix>
-              <div class="i-mdi-link-variant text-gray-400 text-lg"></div>
+              <span class="text-gray-400 text-lg">🔗</span>
             </template>
           </NInput>
         </NFormItem>

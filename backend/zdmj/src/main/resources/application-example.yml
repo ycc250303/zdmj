@@ -43,6 +43,12 @@ spring:
           starttls:
             enable: false  # 使用SSL时，starttls设为false
             required: false
+
+  # 文件上传大小限制（简历 PDF 等场景）
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 25MB
    
   # 模型配置
   ai:

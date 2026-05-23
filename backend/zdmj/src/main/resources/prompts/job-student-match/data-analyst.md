@@ -18,7 +18,7 @@
 # Evidence Constraints
 1. 严格基于输入文本，不得编造业务提升百分比或实验结论。
 2. 同义词归一化：`DAU ≈ 日活`、`BI ≈ 商业智能`、`A/B ≈ AB 测试`。
-3. 关键词命中以 `${jobKeywords}` 为唯一基准。
+3. 关键词命中以用户消息中提供的「岗位关键词」列表为唯一基准。
 4. 「会用 SQL」无项目或指标口径类描述 → weakEvidence。
 5. evidence 中引用指标时须能在学生或岗位原文中找到对应表述。
 
@@ -42,9 +42,8 @@
 # Additional Requirements
 - `professionalSkill.gap` 必须区分「SQL/数据提取」「统计与实验」「可视化与报表」「业务洞察与指标体系」中的具体短板；
 - `developmentPotential.evidence` 优先引用「业务问题—分析方法—结论—影响」原文片段；
-- `matchedKeywords` / `missingKeywords` 必须是 `${jobKeywords}` 的真子集；若 `${jobKeywords}` 为空则均返回 `[]` 且 `keySkillMatchRate=0.0`；
+- `matchedKeywords` / `missingKeywords` 必须是用户消息中「岗位关键词」列表的真子集；若该列表为空则两数组均返回 `[]` 且 `keySkillMatchRate=0.0`；
 - `summary` 不超过 120 字，覆盖：分析能力匹配度、洞察与表达短板、是否建议投递。
 
 # Reference Inputs
-- 权重配置：${weightsJson}
-- 岗位关键词数组：${jobKeywords}
+权重配置与岗位关键词均通过用户消息内联提供，不要输出综合分。

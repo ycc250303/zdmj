@@ -18,7 +18,7 @@
 # Evidence Constraints
 1. 严格基于输入文本，不得编造 CVE、漏洞等级或未提及的攻防结果。
 2. 同义词归一化：`WAF ≈ Web 应用防火墙`、`SOC ≈ 安全运营`、`渗透 ≈ Penetration`。
-3. 关键词命中以 `${jobKeywords}` 为唯一基准。
+3. 关键词命中以用户消息中提供的「岗位关键词」列表为唯一基准。
 4. 工具名称无场景与结果 → weakEvidence。
 5. 合规、基线、权限治理等岗位要求须在 evidence 中有对应原文。
 
@@ -42,9 +42,8 @@
 # Additional Requirements
 - `professionalSkill.gap` 必须区分「安全基础」「漏洞/测试」「监控与日志」「应急与溯源」「工具与自动化」中的具体短板；
 - `developmentPotential.evidence` 优先引用「风险场景—验证或处置—结果」原文片段；
-- `matchedKeywords` / `missingKeywords` 必须是 `${jobKeywords}` 的真子集；若 `${jobKeywords}` 为空则均返回 `[]` 且 `keySkillMatchRate=0.0`；
+- `matchedKeywords` / `missingKeywords` 必须是用户消息中「岗位关键词」列表的真子集；若该列表为空则两数组均返回 `[]` 且 `keySkillMatchRate=0.0`；
 - `summary` 不超过 120 字，覆盖：安全方向匹配度、关键短板、是否建议投递。
 
 # Reference Inputs
-- 权重配置：${weightsJson}
-- 岗位关键词数组：${jobKeywords}
+权重配置与岗位关键词均通过用户消息内联提供，不要输出综合分。

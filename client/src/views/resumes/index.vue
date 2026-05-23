@@ -154,14 +154,14 @@ function handleDelete() {
     <div v-if="hasResume" class="max-w-3xl">
       <NCard hoverable class="rounded-2xl border-slate-200" content-style="padding: 0;">
         <div class="h-40 bg-gradient-to-br from-blue-50 to-indigo-50 p-6 flex flex-col justify-between border-b border-slate-100 relative overflow-hidden group">
-          <div class="absolute -right-10 -bottom-10 i-mdi-card-text text-[150px] text-blue-100 opacity-50 transition-transform group-hover:scale-110"></div>
+          <span class="absolute -right-10 -bottom-10 text-[150px] text-blue-100 opacity-50 transition-transform group-hover:scale-110">📇</span>
           
           <div class="flex justify-between items-start relative z-10">
             <div class="bg-white/80 text-blue-600 text-sm font-bold px-4 py-1.5 rounded-full shadow-sm backdrop-blur-sm">
               {{ $t('page.resume.tagSmart') }}
             </div>
             <NButton quaternary circle type="error" @click.stop="handleDelete">
-              <template #icon><div class="i-mdi-delete-outline"></div></template>
+              <template #icon><span>🗑</span></template>
             </NButton>
           </div>
           <h2 class="text-2xl font-bold text-slate-800 relative z-10">{{ myResume.name }}</h2>
@@ -169,11 +169,11 @@ function handleDelete() {
         
         <div class="p-5 flex items-center justify-between bg-white">
           <div class="text-sm text-slate-500 flex items-center gap-1.5">
-            <div class="i-mdi-check-circle-outline text-emerald-500 text-base"></div> {{ $t('page.resume.statusReady') }}
+            <span class="text-emerald-500 text-base">✅</span> {{ $t('page.resume.statusReady') }}
           </div>
           <NButton type="primary" size="large" @click="handleEdit">
             {{ $t('page.resume.editResume') }}
-            <template #icon><div class="i-mdi-arrow-right"></div></template>
+            <template #icon><span>→</span></template>
           </NButton>
         </div>
       </NCard>
@@ -184,7 +184,7 @@ function handleDelete() {
         <NEmpty :description="$t('page.resume.emptyDesc')">
           <template #extra>
             <NButton type="primary" size="large" @click="handleInitCreateResume">
-              <template #icon><div class="i-mdi-plus-box-outline"></div></template>
+              <template #icon><span>＋</span></template>
               {{ $t('page.resume.createBtn') }}
             </NButton>
           </template>

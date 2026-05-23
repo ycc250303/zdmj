@@ -18,7 +18,7 @@
 # Evidence Constraints
 1. 严格基于输入文本，不得臆测未提及的集群权限或线上事故处理细节。
 2. 同义词归一化：`K8s ≈ Kubernetes`、`CI/CD ≈ 持续集成`、`Prometheus ≈ prom`。
-3. 关键词命中以 `${jobKeywords}` 为唯一基准。
+3. 关键词命中以用户消息中提供的「岗位关键词」列表为唯一基准。
 4. 「了解 K8s」无部署或排障场景 → weakEvidence。
 5. SLO、MTTR、告警降噪等需在 evidence 中有学生或岗位原文支撑。
 
@@ -42,9 +42,8 @@
 # Additional Requirements
 - `professionalSkill.gap` 必须区分「CI/CD」「容器编排」「可观测性」「自动化/IaC」「网络与 Linux 基础」中的具体短板；
 - `developmentPotential.evidence` 优先引用「故障/发布场景—处置或优化—结果指标」原文片段；
-- `matchedKeywords` / `missingKeywords` 必须是 `${jobKeywords}` 的真子集；若 `${jobKeywords}` 为空则均返回 `[]` 且 `keySkillMatchRate=0.0`；
+- `matchedKeywords` / `missingKeywords` 必须是用户消息中「岗位关键词」列表的真子集；若该列表为空则两数组均返回 `[]` 且 `keySkillMatchRate=0.0`；
 - `summary` 不超过 120 字，覆盖：稳定性工程匹配度、关键短板、是否建议投递。
 
 # Reference Inputs
-- 权重配置：${weightsJson}
-- 岗位关键词数组：${jobKeywords}
+权重配置与岗位关键词均通过用户消息内联提供，不要输出综合分。

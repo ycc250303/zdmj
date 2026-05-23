@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -69,7 +70,16 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
         knowledgeDocument.setContent(knowledgeDocumentDTO.getContent());
         knowledgeDocument.setTitle(knowledgeDocumentDTO.getTitle());
         knowledgeDocument.setMetadata(buildMetadata(knowledgeDocumentDTO));
-        boolean saved = save(knowledgeDocument);
+        assertContentNotExists(knowledgeId, knowledgeDocumentDTO.getContent());
+        boolean saved;
+        try {
+            saved = save(knowledgeDocument);
+        } catch (DataIntegrityViolationException e) {
+            if (isDuplicateContent(e)) {
+                throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_CONTENT_EXISTS);
+            }
+            throw e;
+        }
         if (!saved) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_CREATE_FAILED);
         }
@@ -214,6 +224,21 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
                 .eq(KnowledgeVectorTask::getDocumentId, id));
         knowledgeDocumentMapper.deleteById(id);
         log.info("删除知识文档，documentId={}, knowledgeId={}", id, kd.getKnowledgeId());
+    }
+
+    private void assertContentNotExists(Long knowledgeId, String content) {
+        Long count = knowledgeDocumentMapper.selectCount(new LambdaQueryWrapper<KnowledgeDocument>()
+                .eq(KnowledgeDocument::getKnowledgeId, knowledgeId)
+                .eq(KnowledgeDocument::getContent, content));
+        if (count != null && count > 0) {
+            throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_CONTENT_EXISTS);
+        }
+    }
+
+    private static boolean isDuplicateContent(DataIntegrityViolationException e) {
+        Throwable cause = e.getMostSpecificCause();
+        String message = cause != null ? cause.getMessage() : e.getMessage();
+        return message != null && message.contains("uk_knowledge_documents_kid");
     }
 
     /**

@@ -54,6 +54,7 @@ class KnowledgeDocumentServiceImplTest {
         TransactionSynchronizationManager.initSynchronization();
         when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(501L);
         when(knowledgeEmbeddingService.submitVectorizeTask(301L)).thenReturn(701L);
+        when(knowledgeDocumentMapper.selectCount(any())).thenReturn(0L);
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
                 knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
         doAnswer(invocation -> {
@@ -77,6 +78,24 @@ class KnowledgeDocumentServiceImplTest {
     }
 
     @Test
+    void createDuplicateContent_shouldThrowKnowledgeDocumentContentExists() {
+        UserHolder.set(UserContext.of(217L, "u"));
+        when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(530L);
+        when(knowledgeDocumentMapper.selectCount(any())).thenReturn(1L);
+        KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
+                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
+        KnowledgeDocumentDTO dto = new KnowledgeDocumentDTO();
+        dto.setType(KnowledgeTypeEnum.GITHUB_REPO.getCode());
+        dto.setContent("https://github.com/acme/repo");
+        dto.setTitle("repo");
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
+
+        assertEquals(ErrorCode.KNOWLEDGE_DOCUMENT_CONTENT_EXISTS.getCode(), ex.getCode());
+        verify(service, never()).save(any(KnowledgeDocument.class));
+    }
+
+    @Test
     void createInvalidUrl_shouldThrowUrlFormatError() {
         UserHolder.set(UserContext.of(202L, "u"));
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
@@ -97,6 +116,7 @@ class KnowledgeDocumentServiceImplTest {
     void createSaveFail_shouldThrowKnowledgeDocumentCreateFailed() {
         UserHolder.set(UserContext.of(210L, "u"));
         when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(520L);
+        when(knowledgeDocumentMapper.selectCount(any())).thenReturn(0L);
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
                 knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
         doReturn(false).when(service).save(any(KnowledgeDocument.class));
@@ -117,6 +137,7 @@ class KnowledgeDocumentServiceImplTest {
         UserHolder.set(UserContext.of(211L, "u"));
         when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(521L);
         when(knowledgeEmbeddingService.submitVectorizeTask(311L)).thenReturn(711L);
+        when(knowledgeDocumentMapper.selectCount(any())).thenReturn(0L);
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
                 knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
         doAnswer(invocation -> {
