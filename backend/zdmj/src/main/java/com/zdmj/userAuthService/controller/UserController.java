@@ -9,6 +9,7 @@ import com.zdmj.userAuthService.dto.UserLoginResponseDTO;
 import com.zdmj.userAuthService.dto.UserRegisterDTO;
 import com.zdmj.userAuthService.dto.UserResetPasswordDTO;
 import com.zdmj.userAuthService.dto.UserUpdateDTO;
+import com.zdmj.userAuthService.enums.VerificationCodeScene;
 import com.zdmj.userAuthService.service.UserService;
 import com.zdmj.userAuthService.service.VerificationCodeService;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -82,7 +83,10 @@ public class UserController {
     public Result<Void> sendVerificationCode(
             @RequestParam @NotBlank(message = "邮箱不能为空") @Email(message = "邮箱格式不正确") String email) {
         log.info("发送验证码请求: {}", email);
-        boolean success = verificationCodeService.sendVerificationCode(email);
+        VerificationCodeScene scene = userService.existsByEmail(email)
+                ? VerificationCodeScene.RESET_PASSWORD
+                : VerificationCodeScene.REGISTER;
+        boolean success = verificationCodeService.sendVerificationCode(email, scene);
         if (success) {
             return Result.success("验证码已发送到邮箱", null);
         } else {

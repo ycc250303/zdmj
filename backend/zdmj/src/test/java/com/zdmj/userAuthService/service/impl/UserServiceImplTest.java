@@ -17,6 +17,7 @@ import com.zdmj.userAuthService.dto.UserRegisterDTO;
 import com.zdmj.userAuthService.dto.UserResetPasswordDTO;
 import com.zdmj.userAuthService.dto.UserUpdateDTO;
 import com.zdmj.userAuthService.entity.User;
+import com.zdmj.userAuthService.enums.VerificationCodeScene;
 import com.zdmj.userAuthService.service.VerificationCodeService;
 import com.zdmj.userAuthService.util.PasswordUtil;
 import org.junit.jupiter.api.AfterEach;
@@ -99,12 +100,14 @@ class UserServiceImplTest {
         UserRegisterDTO dto = buildRegisterDTO();
         doReturn(false).when(userService).existsByUsername(dto.getUsername());
         doReturn(false).when(userService).existsByEmail(dto.getEmail());
-        doReturn(false).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode());
+        doReturn(false).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode(),
+                VerificationCodeScene.REGISTER);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.register(dto));
 
         assertEquals(ErrorCode.CAPTCHA_ERROR.getCode(), ex.getCode());
-        verify(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode());
+        verify(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode(),
+                VerificationCodeScene.REGISTER);
         verify(userService, never()).save(any(User.class));
     }
 
@@ -113,7 +116,8 @@ class UserServiceImplTest {
         UserRegisterDTO dto = buildRegisterDTO();
         doReturn(false).when(userService).existsByUsername(dto.getUsername());
         doReturn(false).when(userService).existsByEmail(dto.getEmail());
-        doReturn(true).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode());
+        doReturn(true).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode(),
+                VerificationCodeScene.REGISTER);
         doReturn(false).when(userService).save(any(User.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.register(dto));
@@ -127,7 +131,8 @@ class UserServiceImplTest {
         UserRegisterDTO dto = buildRegisterDTO();
         doReturn(false).when(userService).existsByUsername(dto.getUsername());
         doReturn(false).when(userService).existsByEmail(dto.getEmail());
-        doReturn(true).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode());
+        doReturn(true).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode(),
+                VerificationCodeScene.REGISTER);
         doReturn(true).when(userService).save(any(User.class));
 
         UserDTO result = userService.register(dto);
@@ -270,12 +275,14 @@ class UserServiceImplTest {
         User user = new User();
         user.setId(99L);
         doReturn(user).when(userService).getUserByEmail(dto.getEmail());
-        doReturn(false).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode());
+        doReturn(false).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode(),
+                VerificationCodeScene.RESET_PASSWORD);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.resetPassword(dto));
 
         assertEquals(ErrorCode.CAPTCHA_ERROR.getCode(), ex.getCode());
-        verify(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode());
+        verify(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode(),
+                VerificationCodeScene.RESET_PASSWORD);
         verify(userService, never()).update(any(LambdaUpdateWrapper.class));
     }
 
@@ -285,7 +292,8 @@ class UserServiceImplTest {
         User user = new User();
         user.setId(88L);
         doReturn(user).when(userService).getUserByEmail(dto.getEmail());
-        doReturn(true).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode());
+        doReturn(true).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode(),
+                VerificationCodeScene.RESET_PASSWORD);
         doReturn(false).when(userService).update(any(LambdaUpdateWrapper.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.resetPassword(dto));
@@ -300,13 +308,15 @@ class UserServiceImplTest {
         User user = new User();
         user.setId(88L);
         doReturn(user).when(userService).getUserByEmail(dto.getEmail());
-        doReturn(true).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode());
+        doReturn(true).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode(),
+                VerificationCodeScene.RESET_PASSWORD);
         doReturn(true).when(userService).update(any(LambdaUpdateWrapper.class));
 
         userService.resetPassword(dto);
 
         verify(userService).getUserByEmail(dto.getEmail());
-        verify(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode());
+        verify(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode(),
+                VerificationCodeScene.RESET_PASSWORD);
         verify(userService).update(any(LambdaUpdateWrapper.class));
     }
 
