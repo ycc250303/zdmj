@@ -17,6 +17,7 @@ import com.zdmj.conversationService.dto.ConversationDTO;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.service.ConversationService;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -25,6 +26,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/conversations")
+@Tag(name = "会话管理", description = "对话会话的创建、查询与删除")
 public class ConversationController {
 
     private final ConversationService conversationService;

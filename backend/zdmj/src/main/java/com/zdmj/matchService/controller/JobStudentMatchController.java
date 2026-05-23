@@ -5,6 +5,7 @@ import com.zdmj.matchService.dto.JobStudentMatchDTO;
 import com.zdmj.matchService.dto.JobStudentMatchGenerateReqDTO;
 import com.zdmj.matchService.dto.MatchWeightConfigDTO;
 import com.zdmj.matchService.service.JobStudentMatchService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/matches")
+@Tag(name = "人岗匹配", description = "匹配分析、权重配置与结果查询")
 public class JobStudentMatchController {
 
     private final JobStudentMatchService matchService;

@@ -15,6 +15,7 @@ import com.zdmj.conversationService.dto.MessageDTO;
 import com.zdmj.conversationService.entity.Message;
 import com.zdmj.conversationService.service.MessageService;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
 
@@ -24,6 +25,7 @@ import reactor.core.publisher.Flux;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/messages")
+@Tag(name = "对话消息", description = "消息发送、流式回复与历史查询")
 public class MessageController {
 
     private final MessageService messageService;

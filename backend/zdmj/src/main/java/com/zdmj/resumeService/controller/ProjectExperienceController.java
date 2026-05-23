@@ -6,6 +6,7 @@ import com.zdmj.common.model.UpdateGroup;
 import com.zdmj.resumeService.dto.ProjectExperienceDTO;
 import com.zdmj.resumeService.entity.ProjectExperience;
 import com.zdmj.resumeService.service.ProjectExperienceService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
@@ -20,6 +21,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/projects")
+@Tag(name = "项目经历", description = "项目经历的增删改查")
 public class ProjectExperienceController {
     private final ProjectExperienceService projectExperienceService;
 

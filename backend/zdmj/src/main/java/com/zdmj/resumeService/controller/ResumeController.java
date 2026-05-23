@@ -21,6 +21,7 @@ import com.zdmj.common.model.UpdateGroup;
 import com.zdmj.resumeService.dto.ResumeDTO;
 import com.zdmj.resumeService.entity.Resume;
 import com.zdmj.resumeService.service.ResumeService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -30,6 +31,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/resumes")
+@Tag(name = "简历管理", description = "简历 CRUD 与内容查询")
 public class ResumeController {
     private final ResumeService resumeService;
 

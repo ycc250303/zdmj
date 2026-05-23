@@ -10,6 +10,7 @@ import com.zdmj.common.model.Result;
 import com.zdmj.knowledgeService.entity.KnowledgeBases;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -20,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/knowledge")
+@Tag(name = "知识库", description = "个人知识库的创建与查询")
 public class KnowledgeBasesController {
 
     private final KnowledgeBasesService knowledgeBasesService;

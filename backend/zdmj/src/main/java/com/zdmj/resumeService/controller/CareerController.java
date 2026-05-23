@@ -15,6 +15,7 @@ import com.zdmj.resumeService.entity.Career;
 import com.zdmj.resumeService.service.CareerService;
 
 import java.util.List;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -24,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/career")
+@Tag(name = "工作经历", description = "工作/实习经历的增删改查")
 public class CareerController {
     private final CareerService careerService;
 
