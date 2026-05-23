@@ -159,7 +159,7 @@ class StudentCapabilityProfileServiceImplTest {
 
         assertNotNull(out);
         assertEquals(70, out.getCompletenessScore());
-        assertEquals(0, out.getCompetitivenessScore());
+        assertEquals(7, out.getCompetitivenessScore());
         assertEquals("可投递初级 Java 岗位", out.getSummary());
         assertEquals(1, out.getStrengths().size());
         verify(service).save(any(StudentCapabilityProfile.class));
@@ -330,9 +330,31 @@ class StudentCapabilityProfileServiceImplTest {
 
         assertNotNull(out);
         assertEquals(88, out.getCompletenessScore());
-        assertEquals(77, out.getCompetitivenessScore());
+        assertEquals(3, out.getCompetitivenessScore());
         verify(service).updateById(any(StudentCapabilityProfile.class));
         verify(service, never()).save(any(StudentCapabilityProfile.class));
+    }
+
+    @Test
+    void normalizeProfileScores_scoreDetailOutOfRange_shouldClampAndRecomputeTotal() {
+        StudentCapabilityProfileDTO dto = new StudentCapabilityProfileDTO();
+        dto.setCompetitivenessScore(999);
+        StudentCapabilityProfileDTO.ScoreDetail detail = new StudentCapabilityProfileDTO.ScoreDetail();
+        detail.setJobMatchTechDepthScore(50);
+        detail.setProjectPracticeScore(25);
+        detail.setContentCompletenessScore(20);
+        detail.setStructureExpressionScore(18);
+        detail.setProfessionalPotentialScore(15);
+        dto.setScoreDetail(detail);
+
+        ReflectionTestUtils.invokeMethod(service, "normalizeProfileScores", dto);
+
+        assertEquals(40, dto.getScoreDetail().getJobMatchTechDepthScore());
+        assertEquals(20, dto.getScoreDetail().getProjectPracticeScore());
+        assertEquals(15, dto.getScoreDetail().getContentCompletenessScore());
+        assertEquals(15, dto.getScoreDetail().getStructureExpressionScore());
+        assertEquals(10, dto.getScoreDetail().getProfessionalPotentialScore());
+        assertEquals(100, dto.getCompetitivenessScore());
     }
 
     @Test

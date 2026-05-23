@@ -37,6 +37,16 @@ public class StudentCapabilityProfileServiceImpl
     /** 关键词命中达到该分数则直接采用规则结果，不调 LLM */
     private static final int KEYWORD_DIRECT_HIT_THRESHOLD = 4;
 
+    /** scoreDetail 五项上限，与 resume-analysis 评分标准（40-20-15-15-10）一致 */
+    private static final int MAX_JOB_MATCH_TECH_DEPTH_SCORE = 40;
+    private static final int MAX_PROJECT_PRACTICE_SCORE = 20;
+    private static final int MAX_CONTENT_COMPLETENESS_SCORE = 15;
+    private static final int MAX_STRUCTURE_EXPRESSION_SCORE = 15;
+    private static final int MAX_PROFESSIONAL_POTENTIAL_SCORE = 10;
+
+    private static final int MAX_COMPETITIVENESS_SCORE = MAX_JOB_MATCH_TECH_DEPTH_SCORE + MAX_PROJECT_PRACTICE_SCORE
+            + MAX_CONTENT_COMPLETENESS_SCORE + MAX_STRUCTURE_EXPRESSION_SCORE + MAX_PROFESSIONAL_POTENTIAL_SCORE;
+
     private final ChatUtil chatUtil;
     private final ObjectMapper objectMapper;
 
@@ -44,7 +54,13 @@ public class StudentCapabilityProfileServiceImpl
         JobRole.JAVA, List.of("java", "spring", "spring boot", "mybatis", "mysql", "redis", "jvm"),
         JobRole.FRONTEND, List.of("react", "vue", "typescript", "javascript", "webpack", "vite", "css", "html"),
         JobRole.CPP, List.of("c++", "cpp", "stl", "cmake", "gdb", "linux", "多线程", "内存管理"),
-        JobRole.SOFTWARE_TEST, List.of("测试", "test case", "pytest", "selenium", "jmeter", "postman", "缺陷"));
+        JobRole.SOFTWARE_TEST, List.of("测试", "test case", "pytest", "selenium", "jmeter", "postman", "缺陷"),
+        JobRole.AI_AGENT, List.of("llm", "大模型", "agent", "rag", "langchain", "prompt", "embedding"),
+        JobRole.ALGORITHM, List.of("算法", "machine learning", "深度学习", "pytorch", "tensorflow"),
+        JobRole.DATA_ANALYST, List.of("数据分析", "sql", "tableau", "powerbi", "excel", "指标"),
+        JobRole.BIG_DATA, List.of("hadoop", "spark", "flink", "hive", "数仓", "kafka"),
+        JobRole.DEVOPS_SRE, List.of("devops", "sre", "k8s", "kubernetes", "docker", "ci/cd", "ansible"),
+        JobRole.CYBERSECURITY, List.of("安全", "渗透", "漏洞", "owasp", "攻防", "合规"));
 
     @Override
     public StudentCapabilityProfileDTO getCurrentUserProfile() {
@@ -69,6 +85,11 @@ public class StudentCapabilityProfileServiceImpl
         return dto;
     }
 
+    /**
+     * 生成能力画像
+     * @param reqDTO 简历生成请求DTO
+     * @return 能力画像DTO
+     */
     @Override
     public StudentCapabilityProfileDTO generateProfile(CapabilityProfileGenerateReqDTO reqDTO) {
         Long userId = UserHolder.requireUserId();
@@ -223,20 +244,107 @@ public class StudentCapabilityProfileServiceImpl
     }
 
     /**
-     * 补全分数：完整度优先用模型输出，缺失时用分项粗算兜底。
+     * 补全并校验分数：校验 scoreDetail 分项区间，必要时钳制并记录告警；补全完整度/竞争力总分。
      */
     private void normalizeProfileScores(StudentCapabilityProfileDTO dto) {
         if (dto == null) {
             return;
         }
+        validateAndNormalizeScoreDetail(dto);
         if (dto.getCompletenessScore() == null && dto.getScoreDetail() != null
                 && dto.getScoreDetail().getContentCompletenessScore() != null) {
             int c = dto.getScoreDetail().getContentCompletenessScore();
             dto.setCompletenessScore(Math.min(100, Math.max(0, c * 10)));
         }
+        if (dto.getCompletenessScore() != null) {
+            int normalized = clampScore(dto.getCompletenessScore(), 0, 100, "completenessScore");
+            if (!Integer.valueOf(normalized).equals(dto.getCompletenessScore())) {
+                log.warn("能力画像 completenessScore 超出 0~100，已修正: {} -> {}", dto.getCompletenessScore(), normalized);
+            }
+            dto.setCompletenessScore(normalized);
+        }
         if (dto.getCompetitivenessScore() == null) {
             dto.setCompetitivenessScore(0);
+        } else {
+            int normalized = clampScore(dto.getCompetitivenessScore(), 0, MAX_COMPETITIVENESS_SCORE, "competitivenessScore");
+            if (!Integer.valueOf(normalized).equals(dto.getCompetitivenessScore())) {
+                log.warn("能力画像 competitivenessScore 超出 0~{}，已修正: {} -> {}",
+                        MAX_COMPETITIVENESS_SCORE, dto.getCompetitivenessScore(), normalized);
+            }
+            dto.setCompetitivenessScore(normalized);
         }
+    }
+
+    /**
+     * 校验 scoreDetail 各分项是否落在 40-20-15-15-10 合理区间；越界则钳制并打告警日志。
+     * 若存在分项，则按五项之和重算 competitivenessScore。
+     */
+    private void validateAndNormalizeScoreDetail(StudentCapabilityProfileDTO dto) {
+        StudentCapabilityProfileDTO.ScoreDetail detail = dto.getScoreDetail();
+        if (detail == null) {
+            return;
+        }
+        boolean adjusted = false;
+        adjusted |= normalizeScoreField(detail.getJobMatchTechDepthScore(), MAX_JOB_MATCH_TECH_DEPTH_SCORE,
+                "jobMatchTechDepthScore", detail::setJobMatchTechDepthScore);
+        adjusted |= normalizeScoreField(detail.getProjectPracticeScore(), MAX_PROJECT_PRACTICE_SCORE,
+                "projectPracticeScore", detail::setProjectPracticeScore);
+        adjusted |= normalizeScoreField(detail.getContentCompletenessScore(), MAX_CONTENT_COMPLETENESS_SCORE,
+                "contentCompletenessScore", detail::setContentCompletenessScore);
+        adjusted |= normalizeScoreField(detail.getStructureExpressionScore(), MAX_STRUCTURE_EXPRESSION_SCORE,
+                "structureExpressionScore", detail::setStructureExpressionScore);
+        adjusted |= normalizeScoreField(detail.getProfessionalPotentialScore(), MAX_PROFESSIONAL_POTENTIAL_SCORE,
+                "professionalPotentialScore", detail::setProfessionalPotentialScore);
+
+        if (hasAnyScoreDetailValue(detail)) {
+            int sum = safeScore(detail.getJobMatchTechDepthScore())
+                    + safeScore(detail.getProjectPracticeScore())
+                    + safeScore(detail.getContentCompletenessScore())
+                    + safeScore(detail.getStructureExpressionScore())
+                    + safeScore(detail.getProfessionalPotentialScore());
+            if (!Integer.valueOf(sum).equals(dto.getCompetitivenessScore())) {
+                if (dto.getCompetitivenessScore() != null) {
+                    log.info("能力画像 competitivenessScore 与 scoreDetail 五项之和不一致，已按分项重算: {} -> {}",
+                            dto.getCompetitivenessScore(), sum);
+                }
+                dto.setCompetitivenessScore(sum);
+            }
+        } else if (adjusted) {
+            log.warn("能力画像 scoreDetail 分项经钳制后仍无有效分值");
+        }
+    }
+
+    private boolean normalizeScoreField(Integer raw, int max, String fieldName,
+                                      java.util.function.IntConsumer setter) {
+        if (raw == null) {
+            return false;
+        }
+        int normalized = clampScore(raw, 0, max, fieldName);
+        if (raw != normalized) {
+            log.warn("能力画像 scoreDetail.{} 超出 0~{}，已修正: {} -> {}", fieldName, max, raw, normalized);
+            setter.accept(normalized);
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean hasAnyScoreDetailValue(StudentCapabilityProfileDTO.ScoreDetail detail) {
+        return detail.getJobMatchTechDepthScore() != null
+                || detail.getProjectPracticeScore() != null
+                || detail.getContentCompletenessScore() != null
+                || detail.getStructureExpressionScore() != null
+                || detail.getProfessionalPotentialScore() != null;
+    }
+
+    private static int safeScore(Integer value) {
+        return value == null ? 0 : value;
+    }
+
+    private static int clampScore(int value, int min, int max, String fieldName) {
+        if (value < min || value > max) {
+            return Math.min(max, Math.max(min, value));
+        }
+        return value;
     }
 
     /**
