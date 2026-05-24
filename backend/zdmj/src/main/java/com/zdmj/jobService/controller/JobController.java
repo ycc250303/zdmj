@@ -21,6 +21,7 @@ import com.zdmj.jobService.dto.JobCareerGraphDTO;
 import com.zdmj.jobService.dto.JobDTO;
 import com.zdmj.jobService.dto.JobPageQueryDTO;
 import com.zdmj.jobService.entity.Job;
+import com.zdmj.jobService.enums.JobEmploymentEnum;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobCareerGraphService;
 import com.zdmj.jobService.service.JobService;
@@ -56,7 +57,7 @@ public class JobController {
      * <p>请求示例：</p>
      * <pre>{@code
      * GET /jobs?page=1&limit=20&companySizes=[1,2,3]&fundingTypes=[1,2]&industries=["互联网","企业服务"]
-     *     &companyName=某科技公司&employment=INTERN&filterSalaryMin=200&filterSalaryMax=500&jobName=后端
+     *     &companyName=某科技公司&employment=INTERN&salaryType=2&filterSalaryMin=200&filterSalaryMax=500&jobName=后端
      * }</pre>
      */
     @GetMapping
@@ -68,6 +69,7 @@ public class JobController {
             @RequestParam(required = false) String industries,
             @RequestParam(required = false) String companyName,
             @RequestParam(required = false) String employment,
+            @RequestParam(required = false) String salaryType,
             @RequestParam(required = false) String filterSalaryMin,
             @RequestParam(required = false) String filterSalaryMax,
             @RequestParam(required = false) String jobName) {
@@ -78,7 +80,8 @@ public class JobController {
         query.setFundingTypes(fundingTypes);
         query.setIndustries(industries);
         query.setCompanyName(companyName);
-        query.setEmployment(employment == null || employment.isBlank() ? null : com.zdmj.jobService.enums.JobEmploymentFilter.valueOf(employment));
+        query.setEmployment(JobEmploymentEnum.parse(employment));
+        query.setSalaryType(salaryType);
         query.setFilterSalaryMin(filterSalaryMin);
         query.setFilterSalaryMax(filterSalaryMax);
         query.setJobName(jobName);

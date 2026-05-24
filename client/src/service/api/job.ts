@@ -40,7 +40,10 @@ export namespace JobApi {
     fundingTypes?: number[];
     industries?: string[];
     companyName?: string;
-    employment?: 'INTERN' | 'FULLTIME';
+    /** 实习=INTERN，全职=FULL_TIME（月薪+年薪） */
+    employment?: 'INTERN' | 'FULL_TIME';
+    /** 薪资类型 1=日薪/2=月薪/3=年薪；与 employment 二选一，用于薪资区间筛选 */
+    salaryType?: number;
     filterSalaryMin?: number;
     filterSalaryMax?: number;
     jobName?: string;
@@ -129,6 +132,7 @@ export function fetchGetJobPage(query: JobApi.JobPageQuery) {
   if (query.limit !== undefined) params.limit = query.limit;
   if (query.companyName) params.companyName = query.companyName;
   if (query.employment) params.employment = query.employment;
+  if (query.salaryType !== undefined) params.salaryType = query.salaryType;
   if (query.filterSalaryMin !== undefined) params.filterSalaryMin = query.filterSalaryMin;
   if (query.filterSalaryMax !== undefined) params.filterSalaryMax = query.filterSalaryMax;
   if (query.jobName) params.jobName = query.jobName;

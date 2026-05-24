@@ -368,7 +368,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     salary_type SMALLINT NOT NULL,
     -- 薪资类型
     -- 1=日薪/2=月薪/3=年薪
-   keywords JSONB DEFAULT '[]'::jsonb,
+    keywords JSONB DEFAULT '[]'::jsonb,
     -- 岗位关键词（字符串数组，用于检索/向量化等）
     -- ["Java","MySQL"]
     content  JSONB DEFAULT '[]'::jsonb,
@@ -388,12 +388,9 @@ CREATE TABLE IF NOT EXISTS jobs (
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
 );
-CREATE INDEX IF NOT EXISTS idx_jobs_location ON jobs(location);
 CREATE INDEX IF NOT EXISTS idx_jobs_company_id ON jobs(company_id);
-CREATE INDEX IF NOT EXISTS idx_jobs_company_name ON jobs(company_name);
-CREATE INDEX IF NOT EXISTS idx_jobs_content_embedding ON jobs USING HNSW (content_embedding vector_cosine_ops) WITH (M = 16, ef_construction = 100);
-CREATE INDEX IF NOT EXISTS idx_jobs_critical_skills_embedding ON jobs USING HNSW (critical_skills_embedding vector_cosine_ops) WITH (M = 16, ef_construction = 100);
-CREATE INDEX IF NOT EXISTS idx_jobs_requirements_embedding ON jobs USING HNSW (requirements_embedding vector_cosine_ops) WITH (M = 16, ef_construction = 100);
+CREATE INDEX IF NOT EXISTS idx_jobs_updated_at ON jobs(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_jobs_job_name_trgm ON jobs USING GIN (job_name gin_trgm_ops);
 -- 3.2 公司表
 CREATE TABLE IF NOT EXISTS companies (
     id BIGSERIAL PRIMARY KEY,
@@ -417,6 +414,7 @@ CREATE TABLE IF NOT EXISTS companies (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
 );
 CREATE INDEX IF NOT EXISTS idx_companies_name ON companies(name);
+-- 公司名称模糊搜索（jobs 冗余字段 + companies 主表）
 CREATE INDEX IF NOT EXISTS idx_jobs_company_name_trgm ON jobs USING GIN (company_name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_companies_name_trgm ON companies USING GIN (name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_companies_size ON companies(size);

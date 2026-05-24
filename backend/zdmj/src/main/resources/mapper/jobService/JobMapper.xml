@@ -70,10 +70,11 @@
                 collection="q.industries" item="ind" separator=" OR "> (c.industries IS NOT NULL AND
         c.industries::jsonb @> jsonb_build_array(CAST(#{ind} AS TEXT))) </foreach> ) </if>
         <if test="q.companyName != null and q.companyName != ''"> AND (j.company_name LIKE '%' || CAST(#{q.companyName} AS TEXT) || '%' OR c.name LIKE '%' || CAST(#{q.companyName} AS TEXT) || '%') </if>
-        <if test="q.employment == @com.zdmj.jobService.enums.JobEmploymentFilter@INTERN"> AND j.salary_type = 1 </if>
-        <if test="q.employment == @com.zdmj.jobService.enums.JobEmploymentFilter@FULL_TIME"> AND j.salary_type = 2 </if>
-        <if test="q.filterSalaryMin != null"> AND j.salary_max &gt;= #{q.filterSalaryMin} </if>
-        <if test="q.filterSalaryMax != null"> AND j.salary_min &lt;= #{q.filterSalaryMax} </if>
+        <if test="q.employment == @com.zdmj.jobService.enums.JobEmploymentEnum@INTERN"> AND j.salary_type = 1 </if>
+        <if test="q.employment == @com.zdmj.jobService.enums.JobEmploymentEnum@FULL_TIME"> AND j.salary_type IN (2, 3) </if>
+        <if test="q.resolvedSalaryType != null"> AND j.salary_type = #{q.resolvedSalaryType} </if>
+        <if test="q.filterSalaryMin != null and (q.employment != null or q.resolvedSalaryType != null)"> AND j.salary_max &gt;= #{q.filterSalaryMin} </if>
+        <if test="q.filterSalaryMax != null and (q.employment != null or q.resolvedSalaryType != null)"> AND j.salary_min &lt;= #{q.filterSalaryMax} </if>
         <if test="q.jobName != null and q.jobName != ''"> AND j.job_name LIKE '%' || CAST(#{q.jobName} AS TEXT) || '%' </if>
     </sql>
 
