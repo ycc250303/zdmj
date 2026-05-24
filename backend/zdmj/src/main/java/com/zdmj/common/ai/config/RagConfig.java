@@ -1,4 +1,4 @@
-package com.zdmj.common.config;
+package com.zdmj.common.ai.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;

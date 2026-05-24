@@ -1,4 +1,4 @@
-package com.zdmj.common.util;
+package com.zdmj.common.ai;
 
 import java.util.Collections;
 import java.util.Map;

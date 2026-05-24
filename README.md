@@ -24,7 +24,7 @@
 
 - Java 21
 - Spring Boot 3.5
-- Spring AI 
+- Spring AI（`spring-ai-starter-model-openai`，DashScope 兼容模式接入通义）
 - MyBatis-Plus
 - Spring Security + JWT
 - Maven

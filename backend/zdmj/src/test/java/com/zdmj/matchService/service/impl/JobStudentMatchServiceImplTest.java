@@ -6,7 +6,7 @@ import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.util.ChatUtil;
+import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.jobService.dto.JobCapabilityProfileDTO;
 import com.zdmj.jobService.dto.JobListItemDTO;
 import com.zdmj.jobService.service.JobCapabilityProfileService;

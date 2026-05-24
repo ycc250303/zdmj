@@ -1,7 +1,5 @@
 package com.zdmj.careerReportService.service.impl;
 
-import com.alibaba.cloud.ai.dashscope.embedding.DashScopeEmbeddingOptions;
-import com.alibaba.cloud.ai.dashscope.spec.DashScopeModel;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -14,11 +12,12 @@ import com.zdmj.careerReportService.dto.CareerReportUpdateReqDTO;
 import com.zdmj.careerReportService.entity.CareerDevelopmentReport;
 import com.zdmj.careerReportService.mapper.CareerDevelopmentReportMapper;
 import com.zdmj.careerReportService.service.CareerDevelopmentReportService;
+import com.zdmj.common.ai.EmbeddingQuerySupport;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.util.ChatUtil;
-import com.zdmj.common.util.prompt.PromptNames;
+import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.common.ai.prompt.PromptNames;
 import com.zdmj.jobService.dto.JobCapabilityProfileDTO;
 import com.zdmj.jobService.dto.JobCareerGraphDTO;
 import com.zdmj.jobService.dto.JobListItemDTO;
@@ -48,8 +47,6 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.ai.embedding.EmbeddingRequest;
-import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -415,22 +412,7 @@ public class CareerDevelopmentReportServiceImpl
     }
 
     private float[] embedQueryText(String queryText) {
-        if (!StringUtils.hasText(queryText)) {
-            return null;
-        }
-        try {
-            DashScopeEmbeddingOptions options = DashScopeEmbeddingOptions.builder()
-                    .textType(DashScopeModel.EmbeddingTextType.QUERY.getValue())
-                    .build();
-            EmbeddingResponse response = embeddingModel.call(new EmbeddingRequest(List.of(queryText), options));
-            if (response == null || response.getResults() == null || response.getResults().isEmpty()) {
-                return null;
-            }
-            return response.getResults().get(0).getOutput();
-        } catch (Exception e) {
-            log.warn("职业报告检索向量生成失败：{}", e.getMessage());
-            return null;
-        }
+        return EmbeddingQuerySupport.embedQuery(embeddingModel, queryText);
     }
 
     private String buildKnowledgeQuery(JobListItemDTO jobDetail, CareerReportGenerateReqDTO req) {

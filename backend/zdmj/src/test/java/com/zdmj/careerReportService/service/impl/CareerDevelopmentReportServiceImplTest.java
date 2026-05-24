@@ -9,7 +9,7 @@ import com.zdmj.careerReportService.dto.CareerReportUpdateReqDTO;
 import com.zdmj.careerReportService.entity.CareerDevelopmentReport;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.util.ChatUtil;
+import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.jobService.dto.JobCapabilityProfileDTO;
 import com.zdmj.jobService.dto.JobCareerGraphDTO;
 import com.zdmj.jobService.dto.JobListItemDTO;
@@ -107,8 +107,6 @@ class CareerDevelopmentReportServiceImplTest {
         doReturn(buildMatch()).when(jobStudentMatchService).getOrNull(jobId);
         doReturn(buildGraph()).when(jobCareerGraphService).getOrNull(jobId);
         doReturn(100L).when(knowledgeBasesService).getOrCreateKnowledgeBaseId();
-        doThrow(new RuntimeException("no embed")).when(embeddingModel)
-                .call(org.mockito.ArgumentMatchers.<org.springframework.ai.embedding.EmbeddingRequest>any());
 
         JobStudentMatch matchEntity = new JobStudentMatch();
         matchEntity.setId(300L);

@@ -10,18 +10,15 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.ai.embedding.EmbeddingRequest;
-import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import com.alibaba.cloud.ai.dashscope.embedding.DashScopeEmbeddingOptions;
-import com.alibaba.cloud.ai.dashscope.spec.DashScopeModel;
-import com.zdmj.common.config.RagConfig;
-import com.zdmj.common.config.RagConfig.Search;
+import com.zdmj.common.ai.EmbeddingQuerySupport;
+import com.zdmj.common.ai.config.RagConfig;
+import com.zdmj.common.ai.config.RagConfig.Search;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.util.ChatUtil;
-import com.zdmj.common.util.prompt.PromptNames;
+import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.common.ai.prompt.PromptNames;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
@@ -131,24 +128,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
      * @return 查询向量
      */
     private float[] embedQueryText(String queryText) {
-        if (queryText == null || queryText.isEmpty()) {
-            return null;
-        }
-        try {
-            var options = DashScopeEmbeddingOptions.builder()
-                    .textType(DashScopeModel.EmbeddingTextType.QUERY.getValue())
-                    .build();
-
-            EmbeddingResponse response = embeddingModel.call(
-                    new EmbeddingRequest(List.of(queryText), options));
-            if (response == null || response.getResults() == null || response.getResults().isEmpty()) {
-                return null;
-            }
-            return response.getResults().get(0).getOutput();
-        } catch (Exception e) {
-            log.warn("查询向量生成失败，将降级为无检索: {}", e.getMessage());
-            return null;
-        }
+        return EmbeddingQuerySupport.embedQuery(embeddingModel, queryText);
     }
 
     /**

@@ -1,13 +1,13 @@
 package com.zdmj.conversationService.service.impl;
 
 import com.zdmj.common.cache.RedisUtil;
-import com.zdmj.common.config.RagConfig;
+import com.zdmj.common.ai.config.RagConfig;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.model.PageDTO;
-import com.zdmj.common.util.ChatUtil;
+import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.conversationService.dto.MessageDTO;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.entity.Message;

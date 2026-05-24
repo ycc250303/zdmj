@@ -1,6 +1,6 @@
-package com.zdmj.common.util;
+package com.zdmj.common.ai;
 
-import com.zdmj.common.util.prompt.PromptNames;
+import com.zdmj.common.ai.prompt.PromptNames;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -175,7 +175,7 @@ public class PromptUtil {
      * 岗位角色 -> 岗位关联图谱 PromptName 映射。
      *
      * <p>仅为核心方向（Java 后端 / 前端 / AI）提供专属图谱提示词，其它角色统一走
-     * {@link com.zdmj.common.util.prompt.PromptNames#JOB_CAREER_GRAPH_DEFAULT}，以控制提示词数量同时保证主流岗位输出质量。</p>
+     * {@link PromptNames#JOB_CAREER_GRAPH_DEFAULT}，以控制提示词数量同时保证主流岗位输出质量。</p>
      */
     public static String getJobCareerGraphPromptName(JobRole role) {
         if (role == null) {
@@ -193,7 +193,7 @@ public class PromptUtil {
      * 岗位角色 -> 人岗匹配 PromptName 映射。
      *
      * <p>与 {@link #getResumeAnalysisPromptName(JobRole)} 的岗位划分对齐：各方向专属提示词；
-     * 未知角色走 {@link com.zdmj.common.util.prompt.PromptNames#JOB_STUDENT_MATCH_DEFAULT}。</p>
+     * 未知角色走 {@link PromptNames#JOB_STUDENT_MATCH_DEFAULT}。</p>
      */
     public static String getJobStudentMatchPromptName(JobRole role) {
         if (role == null) {

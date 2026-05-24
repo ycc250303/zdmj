@@ -1,6 +1,6 @@
 package com.zdmj.resumeService.dto;
 
-import com.zdmj.common.util.PromptUtil.JobRole;
+import com.zdmj.common.ai.PromptUtil.JobRole;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
