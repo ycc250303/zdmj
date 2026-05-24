@@ -1113,6 +1113,17 @@ declare namespace App {
       data: T;
     };
 
+    /** RFC 9457 error response (application/problem+json) */
+    type ProblemDetail = {
+      type?: string;
+      title?: string;
+      status?: number;
+      detail?: string;
+      instance?: string;
+      /** Business error code (unwrapped from properties) */
+      code?: number;
+    };
+
     /** The demo backend service response data */
     type DemoResponse<T = unknown> = {
       /** The backend service response code */

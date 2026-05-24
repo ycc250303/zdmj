@@ -78,7 +78,7 @@ class StudentCapabilityProfileServiceImplTest {
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.getCurrentUserProfile());
 
-        assertEquals(404, ex.getCode());
+        assertEquals(ErrorCode.CAPABILITY_PROFILE_NOT_FOUND.getCode(), ex.getCode());
         verify(service).getOne(any());
     }
 
@@ -102,7 +102,7 @@ class StudentCapabilityProfileServiceImplTest {
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
 
-        assertEquals(400, ex.getCode());
+        assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
         verify(chatUtil, never()).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileDTO.class));
     }
 
@@ -115,7 +115,7 @@ class StudentCapabilityProfileServiceImplTest {
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
 
-        assertEquals(500, ex.getCode());
+        assertEquals(ErrorCode.CAPABILITY_PROFILE_GENERATION_FAILED.getCode(), ex.getCode());
         assertEquals("能力画像生成失败，请稍后重试", ex.getMessage());
         verify(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileDTO.class));
     }
@@ -129,7 +129,7 @@ class StudentCapabilityProfileServiceImplTest {
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
 
-        assertEquals(500, ex.getCode());
+        assertEquals(ErrorCode.CAPABILITY_PROFILE_GENERATION_FAILED.getCode(), ex.getCode());
         assertEquals("大模型生成能力画像失败，请稍后重试", ex.getMessage());
         verify(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileDTO.class));
     }
@@ -445,7 +445,7 @@ class StudentCapabilityProfileServiceImplTest {
 
             BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
 
-            assertEquals(400, ex.getCode());
+            assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
             verify(chatUtil, never()).chatStructuredOnce(anyString(), anyString(), any(), any());
             verify(fileUploadUtil, never()).deleteProfileUploadByUrl(anyString());
         }

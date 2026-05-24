@@ -69,7 +69,7 @@ public class StudentCapabilityProfileServiceImpl
     public StudentCapabilityProfileDTO getCurrentUserProfile() {
         StudentCapabilityProfileDTO dto = getCurrentUserProfileOrNull();
         if (dto == null) {
-            throw new BusinessException(404, "当前用户尚未生成能力画像");
+            throw new BusinessException(ErrorCode.CAPABILITY_PROFILE_NOT_FOUND);
         }
         return dto;
     }
@@ -115,10 +115,12 @@ public class StudentCapabilityProfileServiceImpl
             throw e;
         } catch (IllegalStateException e) {
             log.error("能力画像结构化输出失败", e);
-            throw new BusinessException(500, "能力画像生成失败，请稍后重试");
+            throw new BusinessException(ErrorCode.CAPABILITY_PROFILE_GENERATION_FAILED);
         } catch (Exception e) {
             log.error("大模型生成能力画像失败", e);
-            throw new BusinessException(500, "大模型生成能力画像失败，请稍后重试");
+            throw new BusinessException(
+                    ErrorCode.CAPABILITY_PROFILE_GENERATION_FAILED.getCode(),
+                    "大模型生成能力画像失败，请稍后重试");
         }
 
         // 3. 落库保存或更新
@@ -240,16 +242,16 @@ public class StudentCapabilityProfileServiceImpl
                 sourceText = PdfParserUtil.extractTextFromUrl(reqDTO.getPdfUrl());
             } catch (Exception e) {
                 log.error("PDF 解析失败", e);
-                throw new BusinessException(400, "PDF 解析失败，请检查文件是否合法");
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "PDF 解析失败，请检查文件是否合法");
             }
         } else if (StringUtils.hasText(reqDTO.getRawText())) {
             log.info("从纯文本解析内容");
             sourceText = reqDTO.getRawText();
         } else {
-            throw new BusinessException(400, "必须提供 pdfUrl 或 rawText");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "必须提供 pdfUrl 或 rawText");
         }
         if (!StringUtils.hasText(sourceText)) {
-            throw new BusinessException(400, "提取到的文本为空，无法生成画像");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "提取到的文本为空，无法生成画像");
         }
         return sourceText;
     }

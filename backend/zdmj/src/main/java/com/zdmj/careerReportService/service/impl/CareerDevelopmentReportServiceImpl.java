@@ -95,7 +95,7 @@ public class CareerDevelopmentReportServiceImpl
     public CareerReportDTO getLatestOrNull(Long jobId) {
         Long userId = UserHolder.requireUserId();
         if (jobId == null) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST);
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "jobId不能为空");
         }
         CareerDevelopmentReport entity = getOne(new LambdaQueryWrapper<CareerDevelopmentReport>()
                 .eq(CareerDevelopmentReport::getUserId, userId)
@@ -110,7 +110,7 @@ public class CareerDevelopmentReportServiceImpl
     public CareerReportDTO generate(Long jobId, CareerReportGenerateReqDTO req) {
         Long userId = UserHolder.requireUserId();
         if (jobId == null) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST);
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "jobId不能为空");
         }
         // 1. 校验岗位与学生画像前置条件
         JobListItemDTO jobDetail = jobService.getDetail(jobId);
@@ -221,7 +221,7 @@ public class CareerDevelopmentReportServiceImpl
     public CareerReportDTO saveManualEdit(Long reportId, CareerReportUpdateReqDTO req) {
         CareerDevelopmentReport current = requireOwnedReport(reportId);
         if (req == null || req.getReportContent() == null || req.getReportContent().isEmpty()) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST);
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "报告内容不能为空");
         }
         CareerReportCheckDTO check = localIntegrityCheck(req.getReportContent());
         CareerDevelopmentReport created = createNewVersion(
@@ -323,7 +323,7 @@ public class CareerDevelopmentReportServiceImpl
     private CareerDevelopmentReport requireOwnedReport(Long reportId) {
         Long userId = UserHolder.requireUserId();
         if (reportId == null) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST);
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "reportId不能为空");
         }
         CareerDevelopmentReport report = getOne(new LambdaQueryWrapper<CareerDevelopmentReport>()
                 .eq(CareerDevelopmentReport::getId, reportId)

@@ -22,7 +22,7 @@ import {
 } from '@/service/api/career-report';
 import CapabilityScoreCard, { type Dimension } from '@/components/common/CapabilityScoreCard.vue';
 
-defineOptions({ name: 'job-detail' });
+import { parseApiErrorBody } from '@/service/request/api-error';
 
 const router = useRouter();
 const route = useRoute();
@@ -61,10 +61,10 @@ const careerReportCheckResult = ref<CareerReportApi.CareerReportCheck | null>(nu
  */
 function extractApiError(errLike: any, fallback: string): string {
   const resp = errLike?.response?.data;
-  const msg: string = resp?.msg || resp?.message || errLike?.message || fallback;
-  const code = resp?.code != null ? `[${resp.code}] ` : '';
-  // 命中 LLM 兜底错误 8301 时，给一段更友好的引导
-  if (resp?.code === 8301) {
+  const parsed = parseApiErrorBody(resp);
+  const msg: string = parsed.msg || errLike?.message || fallback;
+  const code = parsed.code ? `[${parsed.code}] ` : '';
+  if (Number(parsed.code) === 8301) {
     return `${code}${msg}（请稍后重试，或确认后端 LLM 服务可用、能力画像已生成）`;
   }
   return `${code}${msg}`;

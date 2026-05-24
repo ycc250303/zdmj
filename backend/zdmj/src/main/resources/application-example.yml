@@ -1,6 +1,11 @@
 spring:
   application:
     name: zdmj
+
+  # RFC 9457 Problem Details（与 GlobalExceptionHandler 配合；成功响应仍使用 Result）
+  mvc:
+    problemdetails:
+      enabled: true
   
   # PostgreSQL 数据库配置
   datasource:

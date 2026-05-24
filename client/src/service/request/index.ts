@@ -5,6 +5,7 @@ import { localStg } from '@/utils/storage';
 import { getServiceBaseURL } from '@/utils/service';
 import { $t } from '@/locales';
 import { getAuthorization, handleExpiredRequest, showErrorMsg } from './shared';
+import { normalizeErrorResponse, parseApiErrorBody, type ApiErrorBody } from './api-error';
 import type { RequestInstanceState } from './type';
 
 const isHttpProxy = import.meta.env.DEV && import.meta.env.VITE_HTTP_PROXY === 'Y';
@@ -48,7 +49,8 @@ export const request = createFlatRequest(
     },
     async onBackendFail(response, instance) {
       const authStore = useAuthStore();
-      const responseCode = String(response.data.code);
+      const errorBody = normalizeErrorResponse(response.data as ApiErrorBody);
+      const responseCode = errorBody.code;
 
       function handleLogout() {
         authStore.resetStore();
@@ -58,7 +60,7 @@ export const request = createFlatRequest(
         handleLogout();
         window.removeEventListener('beforeunload', handleLogout);
 
-        request.state.errMsgStack = request.state.errMsgStack.filter(msg => msg !== response.data.msg);
+        request.state.errMsgStack = request.state.errMsgStack.filter(msg => msg !== errorBody.msg);
       }
 
       // when the backend response code is in `logoutCodes`, it means the user will be logged out and redirected to login page
@@ -70,15 +72,15 @@ export const request = createFlatRequest(
 
       // when the backend response code is in `modalLogoutCodes`, it means the user will be logged out by displaying a modal
       const modalLogoutCodes = import.meta.env.VITE_SERVICE_MODAL_LOGOUT_CODES?.split(',') || [];
-      if (modalLogoutCodes.includes(responseCode) && !request.state.errMsgStack?.includes(response.data.msg)) {
-        request.state.errMsgStack = [...(request.state.errMsgStack || []), response.data.msg];
+      if (modalLogoutCodes.includes(responseCode) && !request.state.errMsgStack?.includes(errorBody.msg)) {
+        request.state.errMsgStack = [...(request.state.errMsgStack || []), errorBody.msg];
 
         // prevent the user from refreshing the page
         window.addEventListener('beforeunload', handleLogout);
 
         window.$dialog?.error({
           title: $t('common.error'),
-          content: response.data.msg,
+          content: errorBody.msg,
           positiveText: $t('common.confirm'),
           maskClosable: false,
           closeOnEsc: false,
@@ -114,10 +116,11 @@ export const request = createFlatRequest(
       let message = error.message;
       let backendErrorCode = '';
 
-      // get backend error message and code
+      // get backend error message and code (RFC 9457 Problem Details or legacy Result)
       if (error.code === BACKEND_ERROR_CODE) {
-        message = error.response?.data?.msg || message;
-        backendErrorCode = String(error.response?.data?.code || '');
+        const parsed = parseApiErrorBody(error.response?.data as ApiErrorBody);
+        message = parsed.msg || message;
+        backendErrorCode = parsed.code;
       }
 
       // the error message is displayed in the modal

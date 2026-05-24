@@ -271,7 +271,10 @@ async function handleGenerate() {
       profile.value = data;
       window.$message?.success($t('page.profile.capability.generateSuccess'));
     } else {
-      const backendMsg = (error as { response?: { data?: { msg?: string } } })?.response?.data?.msg;
+      const backendMsg = (() => {
+        const data = (error as { response?: { data?: { detail?: string; msg?: string } } })?.response?.data;
+        return data?.detail || data?.msg;
+      })();
       let errorMessage = $t('page.profile.capability.generateFailed');
       if (generateMethod.value === '1') {
         if (backendMsg?.includes('PDF')) {
