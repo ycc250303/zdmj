@@ -1,27 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ROOT="/opt/zdmj/zdmj"
-COMPOSE_FILE="$PROJECT_ROOT/deploy/docker-compose.yml"
+APP_DIR="/opt/zdmj/zdmj"
+COMPOSE_DIR="$APP_DIR/deploy"
+
+cd "$APP_DIR"
 
 echo "== 1) 更新代码 =="
-cd "$PROJECT_ROOT"
-git fetch origin
+git fetch --prune origin
 git checkout main
-git pull --ff-only origin main
+git reset --hard origin/main
 
-echo "== 2) 更新基础服务 =="
-docker compose -f "$COMPOSE_FILE" up -d postgres redis
+echo "== 2) 构建并部署 backend =="
+cd "$COMPOSE_DIR"
+docker compose build backend
+docker compose up -d --no-deps --force-recreate backend
+docker compose ps backend
 
-echo "== 3) 迁移到 compose 管理（首次执行需要） =="
-docker stop zdmj-backend || true
-docker rm zdmj-backend || true
+echo "== 3) 健康检查 =="
+sleep 10
+docker compose ps backend
+docker logs --tail 50 zdmj-backend
 
-echo "== 4) 一键构建并部署所有服务 =="
-docker compose -f "$COMPOSE_FILE" up -d --build
-
-echo "== 5) 健康检查 =="
-docker ps | grep -E "zdmj-backend|pgsql|redis"
-docker logs --tail 30 zdmj-backend || true
-
-echo "Deploy done."
+echo "Backend deploy done."

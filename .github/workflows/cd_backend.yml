@@ -1,38 +1,31 @@
 # CD工作流：统一自动化部署
-# 当代码推送到main分支时，GitHub Actions仅负责下发命令
-# 实际的 git 拉取、镜像构建与服务重启全部在腾讯云服务器本地执行
+# GitHub Actions 负责编排与 SSH 下发；实际部署逻辑见 deploy/deploy_backend.sh
 # 前置要求：
-# 1. 在GitHub仓库的Settings > Secrets and variables > Actions中配置SSH_PRIVATE_KEY
-# 2. SSH密钥格式要求：
-#    - 包含完整的私钥内容（包括 -----BEGIN OPENSSH PRIVATE KEY----- 和 -----END OPENSSH PRIVATE KEY-----）
-#    - 或者包含 -----BEGIN RSA PRIVATE KEY----- 和 -----END RSA PRIVATE KEY-----
-#    - 确保密钥有访问服务器的权限（公钥已添加到服务器的 ~/.ssh/authorized_keys）
-# 3. 生成SSH密钥对（如果还没有）：
-#    ssh-keygen -t rsa -b 4096 -C "github-actions"
-#    然后将私钥添加到GitHub Secrets，公钥添加到服务器
+# 1. 在 GitHub 仓库 Settings > Secrets and variables > Actions 中配置 SSH_PRIVATE_KEY
+# 2. SSH 私钥需包含完整 BEGIN/END 行，且对应公钥已写入服务器 ~/.ssh/authorized_keys
 
 name: CD - Deploy Backend Services
 
-# 触发条件配置
 on:
-  # 当代码推送到main分支时触发（通常是合并PR后）
   push:
     branches:
       - main
-  # 允许在GitHub Actions页面手动触发此工作流
+    paths:
+      - 'backend/zdmj/**'
+      - 'deploy/deploy_backend.sh'
+      - 'deploy/docker-compose.yml'
+      - '.github/workflows/cd_backend.yml'
   workflow_dispatch:
 
-# 防止同一分支的重复部署任务堆积
 concurrency:
   group: cd-deploy-${{ github.ref }}
   cancel-in-progress: true
 
-# 全局环境变量配置
 env:
-  SERVER_HOST: 111.229.81.45       # 部署服务器IP地址
-  SERVER_USER: root                # 服务器SSH登录用户名
-  APP_DIR: /opt/zdmj/zdmj          # 服务器项目目录
-  DEPLOY_BRANCH: main              # 服务器部署分支
+  SERVER_HOST: 111.229.81.45
+  SERVER_USER: root
+  APP_DIR: /opt/zdmj/zdmj
+  DEPLOY_BRANCH: main
 
 jobs:
   detect-changes:
@@ -52,7 +45,9 @@ jobs:
           filters: |
             java:
               - 'backend/zdmj/**'
-              - '.github/workflows/cd.yml'
+              - 'deploy/deploy_backend.sh'
+              - 'deploy/docker-compose.yml'
+              - '.github/workflows/cd_backend.yml'
 
   sync-server-code:
     name: Sync Code on Server
@@ -77,18 +72,16 @@ jobs:
             git checkout "${{ env.DEPLOY_BRANCH }}"
             git reset --hard "origin/${{ env.DEPLOY_BRANCH }}"
             git rev-parse --short HEAD
+            ls -lah deploy
 
-  # Java服务构建和部署任务
   deploy-java:
     name: Deploy Java Service on Server
     runs-on: ubuntu-latest
     needs: [detect-changes, sync-server-code]
     timeout-minutes: 30
     if: needs.detect-changes.outputs.java == 'true' || github.event_name == 'workflow_dispatch'
-    
     steps:
-      # 统一使用 docker compose 管理服务生命周期，避免与 docker run 混用
-      - name: Deploy to server
+      - name: Deploy backend
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ env.SERVER_HOST }}
@@ -99,22 +92,10 @@ jobs:
           command_timeout: 30m
           script: |
             set -euo pipefail
-            cd "${{ env.APP_DIR }}/deploy"
-            docker compose build backend
-            docker compose up -d --no-deps --force-recreate backend
-            docker compose ps backend
-
-      # 验证部署
-      - name: Verify deployment
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ env.SERVER_HOST }}
-          username: ${{ env.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          timeout: 60s
-          command_timeout: 10m
-          script: |
-            sleep 10
-            docker compose -f "${{ env.APP_DIR }}/deploy/docker-compose.yml" ps backend
-            docker logs --tail 50 zdmj-backend
+            echo "whoami=$(whoami)"
+            echo "hostname=$(hostname)"
+            cd "${{ env.APP_DIR }}"
+            pwd
+            ls -lah deploy
+            chmod +x "${{ env.APP_DIR }}/deploy/deploy_backend.sh"
+            "${{ env.APP_DIR }}/deploy/deploy_backend.sh"
