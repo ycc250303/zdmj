@@ -61,8 +61,30 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
         q.setIndustries(emptyToNull(q.getIndustries()));
         q.setCompanyName(StringUtils.hasText(q.getCompanyName()) ? q.getCompanyName().trim() : null);
         q.setJobName(StringUtils.hasText(q.getJobName()) ? q.getJobName().trim() : null);
-    
+        resolveSalaryQuery(q);
+
         return PageDTO.from(baseMapper.selectJobPage(PageRequests.toPage(paging), q));
+    }
+
+    /**
+     * 用工类型与 salaryType 互斥；薪资区间仅在已明确薪资单位时生效。
+     */
+    private static void resolveSalaryQuery(JobPageQueryDTO q) {
+        if (q.getEmployment() != null) {
+            q.setResolvedSalaryType(null);
+        } else if (q.getSalaryType() != null) {
+            int type = q.getSalaryType();
+            if (type < 1 || type > 3) {
+                throw new IllegalArgumentException("salaryType 必须为 1、2 或 3");
+            }
+            q.setResolvedSalaryType(type);
+        } else {
+            q.setResolvedSalaryType(null);
+        }
+        if (q.getEmployment() == null && q.getResolvedSalaryType() == null) {
+            q.setFilterSalaryMin(null);
+            q.setFilterSalaryMax(null);
+        }
     }
 
     private static <T> List<T> emptyToNull(List<T> list) {

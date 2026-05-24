@@ -6,7 +6,7 @@ import java.util.stream.Collectors;
 
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.zdmj.common.typehandler.JsonbListTypeHandler;
-import com.zdmj.jobService.enums.JobEmploymentFilter;
+import com.zdmj.jobService.enums.JobEmploymentEnum;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -63,10 +63,21 @@ public class JobPageQueryDTO {
     /**
      * 实习 / 全职；不传表示不限制
      */
-    private JobEmploymentFilter employment;
+    private JobEmploymentEnum employment;
 
     /**
-     * 期望薪资下限（元）
+     * 薪资类型（1=日薪/2=月薪/3=年薪）；与 employment 二选一，用于薪资区间筛选时指定单位
+     */
+    @Setter(AccessLevel.NONE)
+    private Integer salaryType;
+
+    /**
+     * 解析后的薪资类型（Service 写入，供 Mapper 统一按 salary_type 筛选）
+     */
+    private Integer resolvedSalaryType;
+
+    /**
+     * 期望薪资下限（元，须与 resolvedSalaryType 同一单位）
      */
     @Setter(AccessLevel.NONE)
     private Integer filterSalaryMin;
@@ -96,6 +107,10 @@ public class JobPageQueryDTO {
 
     public void setFilterSalaryMax(Object filterSalaryMax) {
         this.filterSalaryMax = parseInteger(filterSalaryMax, "filterSalaryMax");
+    }
+
+    public void setSalaryType(Object salaryType) {
+        this.salaryType = parseInteger(salaryType, "salaryType");
     }
 
     public void setCompanySizes(Object companySizes) {

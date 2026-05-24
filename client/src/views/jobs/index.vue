@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { $t } from '@/locales';
 import {
@@ -12,43 +12,117 @@ defineOptions({ name: 'jobs' });
 
 const router = useRouter();
 
-// --- 基础状态 ---
 const jobList = ref<JobApi.JobListItem[]>([]);
 const loading = ref(false);
+const showFilters = ref(false);
 const pagination = reactive({
   page: 1,
   limit: 20,
   total: 0
 });
 
-// --- 查询条件 ---
-const searchForm = reactive<JobApi.JobPageQuery>({
-  page: 1,
-  limit: 20
+const filterForm = reactive({
+  jobName: '',
+  companyName: '',
+  employment: null as JobApi.JobPageQuery['employment'] | null,
+  salaryType: null as number | null,
+  filterSalaryMin: null as number | null,
+  filterSalaryMax: null as number | null,
+  industriesText: ''
 });
 
-// --- 计算属性 ---
-const hasJobs = computed(() => jobList.value.length > 0);
+const employmentOptions = computed(() => [
+  { label: $t('page.jobs.filterAll'), value: null },
+  { label: $t('page.jobs.intern'), value: 'INTERN' as const },
+  { label: $t('page.jobs.fulltime'), value: 'FULL_TIME' as const }
+]);
 
-// --- 方法 ---
+const salaryTypeOptions = computed(() => [
+  { label: $t('page.jobs.daily'), value: 1 },
+  { label: $t('page.jobs.monthly'), value: 2 },
+  { label: $t('page.jobs.yearly'), value: 3 }
+]);
+
+const hasJobs = computed(() => jobList.value.length > 0);
+const salaryFilterEnabled = computed(() => Boolean(filterForm.employment || filterForm.salaryType));
+
+watch(
+  () => filterForm.employment,
+  value => {
+    if (value) {
+      filterForm.salaryType = null;
+    }
+  }
+);
+
+watch(
+  () => filterForm.salaryType,
+  value => {
+    if (value != null) {
+      filterForm.employment = null;
+    }
+  }
+);
+
+function buildQuery(): JobApi.JobPageQuery {
+  const query: JobApi.JobPageQuery = {
+    page: pagination.page,
+    limit: pagination.limit
+  };
+
+  const jobName = filterForm.jobName.trim();
+  const companyName = filterForm.companyName.trim();
+  if (jobName) query.jobName = jobName;
+  if (companyName) query.companyName = companyName;
+  if (filterForm.employment) query.employment = filterForm.employment;
+  if (filterForm.salaryType != null) query.salaryType = filterForm.salaryType;
+  if (salaryFilterEnabled.value && filterForm.filterSalaryMin != null) {
+    query.filterSalaryMin = filterForm.filterSalaryMin;
+  }
+  if (salaryFilterEnabled.value && filterForm.filterSalaryMax != null) {
+    query.filterSalaryMax = filterForm.filterSalaryMax;
+  }
+
+  const industries = filterForm.industriesText
+    .split(/[\n,，]/)
+    .map(item => item.trim())
+    .filter(Boolean);
+  if (industries.length > 0) query.industries = industries;
+
+  return query;
+}
+
 async function loadJobData() {
   loading.value = true;
   try {
-    searchForm.page = pagination.page;
-    searchForm.limit = pagination.limit;
-
-    const { data, error } = await fetchGetJobPage(searchForm);
+    const { data, error } = await fetchGetJobPage(buildQuery());
 
     if (!error && data) {
-      // 后端返回的是 list 字段，不是 records
       jobList.value = data.list || [];
       pagination.total = data.total || 0;
     }
-  } catch (err) {
+  } catch {
     window.$message?.error($t('common.requestFailed'));
   } finally {
     loading.value = false;
   }
+}
+
+function handleSearch() {
+  pagination.page = 1;
+  loadJobData();
+}
+
+function handleResetFilters() {
+  filterForm.jobName = '';
+  filterForm.companyName = '';
+  filterForm.employment = null;
+  filterForm.salaryType = null;
+  filterForm.filterSalaryMin = null;
+  filterForm.filterSalaryMax = null;
+  filterForm.industriesText = '';
+  pagination.page = 1;
+  loadJobData();
 }
 
 function handlePageChange(page: number) {
@@ -105,50 +179,119 @@ onMounted(() => {
 
 <template>
   <NSpin :show="loading">
-    <div class="h-full p-6 bg-slate-50/50 dark:bg-dark-100 min-h-[500px]">
+    <motion.div
+      class="h-full p-6 bg-slate-50/50 dark:bg-dark-100 min-h-[500px]"
+      :initial="{ opacity: 0 }"
+      :animate="{ opacity: 1 }"
+      :transition="{ duration: 0.3 }"
+    >
       <div class="mb-6 flex justify-between items-center">
         <h1 class="text-2xl font-bold text-slate-800 dark:text-gray-200">{{ $t('page.jobs.title') }}</h1>
-        <NButton type="primary" @click="handleCreate">
-          <template #icon><span>+</span></template>
-          {{ $t('page.jobs.create') }}
-        </NButton>
+        <div class="flex gap-2">
+          <NButton quaternary @click="showFilters = !showFilters">
+            {{ $t('page.jobs.toggleFilters') }}
+          </NButton>
+          <NButton type="primary" @click="handleCreate">
+            <template #icon><span>+</span></template>
+            {{ $t('page.jobs.create') }}
+          </NButton>
+        </div>
       </div>
 
-      <!-- 岗位列表 -->
-      <div v-if="hasJobs" class="space-y-4">
+      <NCard v-show="showFilters" class="mb-6 rounded-xl" :title="$t('page.jobs.filterTitle')">
+        <NGrid :cols="24" :x-gap="16" :y-gap="12">
+          <NGridItem :span="8">
+            <motion.div class="text-sm mb-1 text-slate-600 dark:text-gray-400">{{ $t('page.jobs.searchJobName') }}</motion.div>
+            <NInput v-model:value="filterForm.jobName" clearable :placeholder="$t('page.jobs.searchJobName')" />
+          </NGridItem>
+          <NGridItem :span="8">
+            <motion.div class="text-sm mb-1 text-slate-600 dark:text-gray-400">{{ $t('page.jobs.searchCompanyName') }}</motion.div>
+            <NInput v-model:value="filterForm.companyName" clearable :placeholder="$t('page.jobs.searchCompanyName')" />
+          </NGridItem>
+          <NGridItem :span="8">
+            <motion.div class="text-sm mb-1 text-slate-600 dark:text-gray-400">{{ $t('page.jobs.companyIndustry') }}</motion.div>
+            <NInput
+              v-model:value="filterForm.industriesText"
+              clearable
+              :placeholder="$t('page.jobs.placeholders.industries')"
+            />
+          </NGridItem>
+          <NGridItem :span="8">
+            <motion.div class="text-sm mb-1 text-slate-600 dark:text-gray-400">{{ $t('page.jobs.employmentType') }}</motion.div>
+            <NSelect v-model:value="filterForm.employment" :options="employmentOptions" clearable />
+          </NGridItem>
+          <NGridItem :span="8">
+            <motion.div class="text-sm mb-1 text-slate-600 dark:text-gray-400">{{ $t('page.jobs.salaryType') }}</motion.div>
+            <NSelect
+              v-model:value="filterForm.salaryType"
+              :options="salaryTypeOptions"
+              clearable
+              :disabled="Boolean(filterForm.employment)"
+              :placeholder="$t('page.jobs.salaryTypePlaceholder')"
+            />
+          </NGridItem>
+          <NGridItem :span="8">
+            <motion.div class="text-sm mb-1 text-slate-600 dark:text-gray-400">{{ $t('page.jobs.salaryMin') }}</motion.div>
+            <NInputNumber
+              v-model:value="filterForm.filterSalaryMin"
+              class="w-full"
+              :min="0"
+              :disabled="!salaryFilterEnabled"
+              :placeholder="$t('page.jobs.salaryMin')"
+            />
+          </NGridItem>
+          <NGridItem :span="8">
+            <motion.div class="text-sm mb-1 text-slate-600 dark:text-gray-400">{{ $t('page.jobs.salaryMax') }}</motion.div>
+            <NInputNumber
+              v-model:value="filterForm.filterSalaryMax"
+              class="w-full"
+              :min="0"
+              :disabled="!salaryFilterEnabled"
+              :placeholder="$t('page.jobs.salaryMax')"
+            />
+          </NGridItem>
+        </NGrid>
+        <motion.div class="mt-2 text-xs text-slate-500 dark:text-gray-500">{{ $t('page.jobs.salaryFilterHint') }}</motion.div>
+        <motion.div class="mt-4 flex gap-2">
+          <NButton type="primary" @click="handleSearch">{{ $t('common.search') }}</NButton>
+          <NButton @click="handleResetFilters">{{ $t('common.reset') }}</NButton>
+        </motion.div>
+      </NCard>
+
+      <motion.div v-if="hasJobs" class="space-y-4">
         <NCard
           v-for="job in jobList"
           :key="job.id"
           hoverable
           class="rounded-xl border-slate-200 dark:border-gray-700 transition-all hover:shadow-md"
         >
-          <div class="flex justify-between items-start">
-            <div class="flex-1">
-              <div class="flex items-center gap-3 mb-2">
+          <motion.div class="flex justify-between items-start">
+            <motion.div class="flex-1">
+              <motion.div class="flex items-center gap-3 mb-2">
                 <h3 class="text-xl font-bold text-slate-800 dark:text-gray-200">{{ job.jobName }}</h3>
                 <NTag v-if="job.companyIndustries && job.companyIndustries.length > 0" type="info" size="small">
                   {{ job.companyIndustries[0] }}
                 </NTag>
-              </div>
+              </motion.div>
 
-              <div class="flex items-center gap-4 text-sm text-slate-600 dark:text-gray-400 mb-3">
-                <div class="flex items-center gap-1">
+              <motion.div class="flex items-center gap-4 text-sm text-slate-600 dark:text-gray-400 mb-3">
+                <motion.div class="flex items-center gap-1">
                   <span class="text-base">🏢</span>
                   <span>{{ job.companyName }}</span>
-                </div>
-                <div class="flex items-center gap-1">
+                </motion.div>
+                <motion.div class="flex items-center gap-1">
                   <span class="text-base">📍</span>
                   <span>{{ job.location }}</span>
-                </div>
-                <div class="flex items-center gap-1">
+                </motion.div>
+                <motion.div class="flex items-center gap-1">
                   <span class="text-base">¥</span>
                   <span class="text-orange-600 font-semibold">{{ formatSalary(job) }}</span>
-                </div>
-              </div>
+                </motion.div>
+              </motion.div>
 
               <p class="text-slate-600 dark:text-gray-400 text-sm line-clamp-2 mb-3">{{ job.description }}</p>
 
-              <div v-if="job.keywords && job.keywords.length > 0" class="flex items-center gap-2">
+              <motion.div v-if="job.keywords && job.keywords.length > 0" class="flex items-center gap-2">
                 <NTag
                   v-for="keyword in job.keywords.slice(0, 5)"
                   :key="keyword"
@@ -158,10 +301,10 @@ onMounted(() => {
                 >
                   {{ keyword }}
                 </NTag>
-              </div>
-            </div>
+              </motion.div>
+            </motion.div>
 
-            <div class="flex gap-2 ml-4">
+            <motion.div class="flex gap-2 ml-4">
               <NButton size="small" @click="handleViewDetail(job.id)">
                 <template #icon><span>👁</span></template>
                 {{ $t('page.jobs.viewDetail') }}
@@ -174,13 +317,12 @@ onMounted(() => {
                 <template #icon><span>🗑</span></template>
                 {{ $t('page.jobs.delete') }}
               </NButton>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         </NCard>
-      </div>
+      </motion.div>
 
-      <!-- 空状态 -->
-      <div v-else-if="!loading" class="flex flex-col items-center justify-center py-16">
+      <motion.div v-else-if="!loading" class="flex flex-col items-center justify-center py-16">
         <NEmpty :description="$t('page.jobs.empty')">
           <template #extra>
             <NButton type="primary" size="large" @click="handleCreate">
@@ -189,10 +331,9 @@ onMounted(() => {
             </NButton>
           </template>
         </NEmpty>
-      </div>
+      </motion.div>
 
-      <!-- 分页 -->
-      <div v-if="hasJobs" class="mt-6 flex justify-center">
+      <motion.div v-if="hasJobs" class="mt-6 flex justify-center">
         <NPagination
           v-model:page="pagination.page"
           :page-size="pagination.limit"
@@ -200,10 +341,10 @@ onMounted(() => {
           show-size-picker
           :page-sizes="[10, 20, 50, 100]"
           @update:page="handlePageChange"
-          @update:page-size="(size: number) => { pagination.limit = size; loadJobData(); }"
+          @update:page-size="(size: number) => { pagination.limit = size; handleSearch(); }"
         />
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   </NSpin>
 </template>
 

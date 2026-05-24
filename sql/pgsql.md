@@ -5,7 +5,7 @@
 
 ### 脚本约定（与 `pgsql.sql` 一致）
 
-- **扩展**：`vector`（pgvector）；`hnsw` 在部分环境不存在独立扩展，若初始化失败可注释 `CREATE EXTENSION hnsw`。
+- **扩展**：`vector`（pgvector）；`pg_trgm`（岗位/公司名称模糊搜索 GIN 索引）；`hnsw` 在部分环境不存在独立扩展，若初始化失败可注释 `CREATE EXTENSION hnsw`。
 - **删表顺序**（与脚本 `DROP TABLE` 自上而下一致）：`users` → `user_profiles` → `user_behavior_logs` → `educations` → `skills` → `careers` → `project_experiences` → `resumes` → `resume_matches` → `jobs` → `companies` → `knowledge_documents` → `knowledge_bases` → `knowledge_vectors` → `knowledge_vector_tasks` → `conversations` → `messages` → `SPRING_AI_CHAT_MEMORY`。
 - **知识库模型（当前）**：每用户**一个** `scope=1` 的用户私有库；全系统**一个** `scope=2` 的系统默认库。`knowledge_bases` **仅存标识**（`user_id`、`scope`）；向量化状态、分块数等均在 **`knowledge_documents`**。
 - **系统库占位**：`knowledge_bases` / `knowledge_documents` / `knowledge_vectors` 在系统场景下 `user_id` 约定为 `0`（与真实用户 ID 区分）。
@@ -148,6 +148,30 @@
 | `created_at` | `TIMESTAMP` | 创建时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
 | `updated_at` | `TIMESTAMP` | 更新时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
 
+### 2.7 表 `student_capability_profiles`
+
+| 字段名称 | 字段类型 | 字段含义 | 约束 | 枚举/JSON字段含义 |
+| --- | --- | --- | --- | --- |
+| `id` | `BIGSERIAL` | 画像ID | `PK` | - |
+| `user_id` | `BIGINT` | 关联用户ID | `UNIQUE, NOT NULL`，逻辑外键 `users.id` | - |
+| `professional_skills` | `TEXT` | 专业技能 | 可空 | - |
+| `honors_and_awards` | `TEXT` | 获奖经历 | 可空 | - |
+| `innovation_ability` | `TEXT` | 创新能力 | 可空 | - |
+| `learning_ability` | `TEXT` | 学习能力 | 可空 | - |
+| `pressure_resistance` | `TEXT` | 抗压能力 | 可空 | - |
+| `communication_ability` | `TEXT` | 沟通能力 | 可空 | - |
+| `practical_ability` | `TEXT` | 实习能力 | 可空 | - |
+| `competitiveness_score` | `INTEGER` | 竞争力评分 | `NOT NULL, DEFAULT 0` | `0-100`，由 `score_detail` 五项之和计算 |
+| `role_confidence` | `NUMERIC(5,4)` | 岗位识别置信度 | `NOT NULL, DEFAULT 0.0` | `0~1` |
+| `prompt_name` | `VARCHAR(128)` | 提示词名称 | `NOT NULL, DEFAULT 'generate-capability-profile'` | - |
+| `target_role_type` | `VARCHAR(64)` | 岗位类型展示值 | `NOT NULL, DEFAULT 'default'` | 如 `software-test` |
+| `score_detail` | `JSONB` | 分项评分明细 | `DEFAULT '{}'::jsonb` | 键：`projectExperienceScore`、`skillMatchScore`、`contentCompletenessScore`、`structureClarityScore`、`expressionProfessionalismScore` |
+| `suggestions` | `JSONB` | 改进建议 | `DEFAULT '[]'::jsonb` | 结构化数组 |
+| `created_at` | `TIMESTAMP` | 创建时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
+| `updated_at` | `TIMESTAMP` | 更新时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
+
+**索引**：`idx_student_capability_profiles_user_id`、`idx_student_capability_profiles_target_role`。
+
 ## 3 岗位模块
 
 ### 3.1 表 `jobs`
@@ -157,19 +181,30 @@
 | `id` | `BIGSERIAL` | 岗位ID | `PK` | - |
 | `job_name` | `VARCHAR(255)` | 岗位名称 | `NOT NULL` | - |
 | `company_id` | `BIGINT` | 公司ID | `NOT NULL`，逻辑外键 `companies.id` | - |
-| `company_name` | `VARCHAR(255)` | 公司名称（冗余） | `NOT NULL` | - |
+| `company_name` | `VARCHAR(255)` | 公司名称（冗余） | `NOT NULL` | 用于列表筛选与展示 |
 | `description` | `TEXT` | 岗位描述 | `NOT NULL` | - |
-| `embedding` | `VECTOR(1024)` | 岗位描述向量 | 可空 | 向量维度 `1024`，用于语义检索 |
 | `location` | `VARCHAR(255)` | 工作地点 | `NOT NULL` | - |
-| `salary` | `VARCHAR(100)` | 薪资范围 | `NOT NULL` | - |
+| `salary_min` | `INTEGER` | 薪资下限 | `NOT NULL` | 单位见 `salary_type` |
+| `salary_max` | `INTEGER` | 薪资上限 | `NOT NULL` | 单位见 `salary_type` |
+| `salary_type` | `SMALLINT` | 薪资类型 | `NOT NULL` | `1=日薪, 2=月薪, 3=年薪` |
+| `keywords` | `JSONB` | 岗位关键词 | `DEFAULT '[]'::jsonb` | 示例：`["Java","MySQL"]` |
+| `content` | `JSONB` | 工作内容 | `DEFAULT '[]'::jsonb` | 字符串数组 |
+| `requirements` | `JSONB` | 岗位要求 | `DEFAULT '[]'::jsonb` | 字符串数组 |
+| `content_embedding` | `VECTOR(1024)` | 工作内容向量 | 可空 | HNSW 语义检索 |
+| `critical_skills_embedding` | `VECTOR(1024)` | 关键技能向量 | 可空 | HNSW 语义检索 |
+| `requirements_embedding` | `VECTOR(1024)` | 岗位要求向量 | 可空 | HNSW 语义检索 |
 | `link` | `VARCHAR(500)` | 岗位链接 | `NOT NULL` | - |
-| `content` | `TEXT` | 工作内容 | 可空 | - |
-| `requirements` | `TEXT` | 岗位要求 | 可空 | - |
-| `recall` | `JSONB` | 简历召回记录 | 可空 | 示例：`[{"resumeId":1,"reason":"匹配原因"}]` |
 | `created_at` | `TIMESTAMP` | 创建时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
 | `updated_at` | `TIMESTAMP` | 更新时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
 
-**索引**：`idx_jobs_location`、`idx_jobs_company_id`、`idx_jobs_company_name`；`idx_jobs_embedding` — `HNSW (embedding vector_cosine_ops) WITH (M = 16, ef_construction = 100)`。
+**API 用工类型筛选**（`GET /jobs?employment=`，须严格传枚举名）：
+
+| 参数值 | 数据库条件 | 含义 |
+| --- | --- | --- |
+| `INTERN` | `salary_type = 1` | 实习（日薪） |
+| `FULL_TIME` | `salary_type IN (2, 3)` | 全职（月薪+年薪） |
+
+**索引**：`idx_jobs_company_id`；`idx_jobs_updated_at`（`updated_at DESC`，列表排序）；`idx_jobs_job_name_trgm`、`idx_jobs_company_name_trgm` — `GIN (… gin_trgm_ops)`（岗位名/公司名模糊搜索）。向量字段暂不设 HNSW 索引，待语义检索上线后再加。
 
 ### 3.2 表 `companies`
 
@@ -184,7 +219,7 @@
 | `created_at` | `TIMESTAMP` | 创建时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
 | `updated_at` | `TIMESTAMP` | 更新时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
 
-**索引**：`idx_companies_name`、`idx_companies_size`、`idx_companies_type`、`idx_companies_industries`。
+**索引**：`idx_companies_name`、`idx_companies_name_trgm` — `GIN (name gin_trgm_ops)`；`idx_jobs_company_name_trgm` — `GIN (company_name gin_trgm_ops)`（jobs 冗余字段）；`idx_companies_size`、`idx_companies_type`、`idx_companies_industries`。
 
 ## 4 知识库模块
 

@@ -923,6 +923,11 @@ declare namespace App {
           regenerateProfile: string;
           searchJobName: string;
           searchCompanyName: string;
+          filterTitle: string;
+          toggleFilters: string;
+          filterAll: string;
+          salaryTypePlaceholder: string;
+          salaryFilterHint: string;
           employmentType: string;
           intern: string;
           fulltime: string;

@@ -13,6 +13,7 @@ import com.zdmj.jobService.dto.JobListItemDTO;
 import com.zdmj.jobService.dto.JobPageQueryDTO;
 import com.zdmj.jobService.entity.Company;
 import com.zdmj.jobService.entity.Job;
+import com.zdmj.jobService.enums.JobEmploymentEnum;
 import com.zdmj.jobService.mapper.CompanyMapper;
 import com.zdmj.jobService.mapper.JobMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -318,6 +319,72 @@ class JobServiceImplTest {
         assertEquals(5L, page.getTotal());
         assertEquals(1, page.getTotalPages());
         verify(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
+    }
+
+    @Test
+    void getPage_whenSalaryTypeWithoutEmployment_shouldSetResolvedSalaryType() {
+        JobPageQueryDTO query = new JobPageQueryDTO();
+        query.setSalaryType(3);
+        query.setFilterSalaryMin(200000);
+        query.setFilterSalaryMax(500000);
+        Page<JobListItemDTO> mpPage = new Page<>(1, 20);
+        mpPage.setRecords(List.of());
+        mpPage.setTotal(0);
+        doReturn(mpPage).when(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
+
+        jobService.getPage(query);
+
+        ArgumentCaptor<JobPageQueryDTO> captor = ArgumentCaptor.forClass(JobPageQueryDTO.class);
+        verify(jobMapper).selectJobPage(any(Page.class), captor.capture());
+        JobPageQueryDTO normalized = captor.getValue();
+        assertNull(normalized.getEmployment());
+        assertEquals(3, normalized.getResolvedSalaryType());
+        assertEquals(200000, normalized.getFilterSalaryMin());
+        assertEquals(500000, normalized.getFilterSalaryMax());
+    }
+
+    @Test
+    void getPage_whenEmploymentSet_shouldClearResolvedSalaryTypeAndKeepSalaryRange() {
+        JobPageQueryDTO query = new JobPageQueryDTO();
+        query.setEmployment(JobEmploymentEnum.FULL_TIME);
+        query.setSalaryType(2);
+        query.setFilterSalaryMin(15000);
+        query.setFilterSalaryMax(30000);
+        Page<JobListItemDTO> mpPage = new Page<>(1, 20);
+        mpPage.setRecords(List.of());
+        mpPage.setTotal(0);
+        doReturn(mpPage).when(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
+
+        jobService.getPage(query);
+
+        ArgumentCaptor<JobPageQueryDTO> captor = ArgumentCaptor.forClass(JobPageQueryDTO.class);
+        verify(jobMapper).selectJobPage(any(Page.class), captor.capture());
+        JobPageQueryDTO normalized = captor.getValue();
+        assertEquals(JobEmploymentEnum.FULL_TIME, normalized.getEmployment());
+        assertNull(normalized.getResolvedSalaryType());
+        assertEquals(15000, normalized.getFilterSalaryMin());
+        assertEquals(30000, normalized.getFilterSalaryMax());
+    }
+
+    @Test
+    void getPage_whenSalaryRangeWithoutType_shouldStripSalaryFilters() {
+        JobPageQueryDTO query = new JobPageQueryDTO();
+        query.setFilterSalaryMin(10000);
+        query.setFilterSalaryMax(20000);
+        Page<JobListItemDTO> mpPage = new Page<>(1, 20);
+        mpPage.setRecords(List.of());
+        mpPage.setTotal(0);
+        doReturn(mpPage).when(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
+
+        jobService.getPage(query);
+
+        ArgumentCaptor<JobPageQueryDTO> captor = ArgumentCaptor.forClass(JobPageQueryDTO.class);
+        verify(jobMapper).selectJobPage(any(Page.class), captor.capture());
+        JobPageQueryDTO normalized = captor.getValue();
+        assertNull(normalized.getEmployment());
+        assertNull(normalized.getResolvedSalaryType());
+        assertNull(normalized.getFilterSalaryMin());
+        assertNull(normalized.getFilterSalaryMax());
     }
 
     private static void initMybatisPlusLambdaCache() {
