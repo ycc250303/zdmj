@@ -15,21 +15,19 @@ echo "== 2) 安装依赖 =="
 cd client
 
 # SSH Action 默认是非交互 shell，nvm 可能不会自动加载
-if ! command -v node >/dev/null 2>&1; then
-  if [ -s "/root/.nvm/nvm.sh" ]; then
-    # shellcheck disable=SC1091
-    . "/root/.nvm/nvm.sh"
-    nvm use 20 || true
-  fi
+PNPM_VERSION="10"
+if [ -s "/root/.nvm/nvm.sh" ]; then
+  # shellcheck disable=SC1091
+  . "/root/.nvm/nvm.sh"
+  nvm use 20
 fi
 
 if command -v corepack >/dev/null 2>&1; then
   corepack enable
-  corepack prepare pnpm@latest --activate
-fi
-
-if ! command -v pnpm >/dev/null 2>&1; then
-  npm install -g pnpm@10
+  # pnpm 11+ 需要 Node >= 22.13（依赖 node:sqlite），服务器当前为 Node 20
+  corepack prepare "pnpm@${PNPM_VERSION}" --activate
+elif ! command -v pnpm >/dev/null 2>&1; then
+  npm install -g "pnpm@${PNPM_VERSION}"
   hash -r
 fi
 
