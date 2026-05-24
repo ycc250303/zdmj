@@ -7,16 +7,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.util.ChatUtil;
-import com.zdmj.common.util.PromptUtil;
-import com.zdmj.common.util.PromptUtil.JobRole;
+import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.common.ai.PromptUtil;
+import com.zdmj.common.ai.PromptUtil.JobRole;
 import com.zdmj.jobService.dto.JobCapabilityProfileDTO;
 import com.zdmj.jobService.dto.JobListItemDTO;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobService;
 import com.zdmj.matchService.dto.DimensionMatchDTO;
 import com.zdmj.matchService.dto.JobStudentMatchDTO;
-import com.zdmj.matchService.dto.JobStudentMatchGenerateReqDTO;
+import com.zdmj.matchService.dto.JobStudentMatchGenerateRequest;
 import com.zdmj.matchService.dto.MatchWeightConfigDTO;
 import com.zdmj.matchService.entity.JobStudentMatch;
 import com.zdmj.matchService.enums.MatchDimension;
@@ -67,7 +67,7 @@ public class JobStudentMatchServiceImpl
     public JobStudentMatchDTO getOrNull(Long jobId) {
         Long userId = UserHolder.requireUserId();
         if (jobId == null) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST);
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "jobId不能为空");
         }
         JobStudentMatch match = getOne(new LambdaQueryWrapper<JobStudentMatch>()
                 .eq(JobStudentMatch::getUserId, userId)
@@ -79,10 +79,10 @@ public class JobStudentMatchServiceImpl
     }
 
     @Override
-    public JobStudentMatchDTO generate(Long jobId, JobStudentMatchGenerateReqDTO req) {
+    public JobStudentMatchDTO generate(Long jobId, JobStudentMatchGenerateRequest req) {
         Long userId = UserHolder.requireUserId();
         if (jobId == null) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST);
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "jobId不能为空");
         }
 
         // 1. 岗位详情 + 岗位画像（缺失则自动生成）
@@ -206,7 +206,7 @@ public class JobStudentMatchServiceImpl
 
         sb.append("## 学生就业能力画像（七维）\n");
         appendCapabilityRow(sb, "专业技能", studentProfile.getProfessionalSkills());
-        appendCapabilityRow(sb, "证书", studentProfile.getCertificates());
+        appendCapabilityRow(sb, "获奖经历", studentProfile.getHonorsAndAwards());
         appendCapabilityRow(sb, "创新能力", studentProfile.getInnovationAbility());
         appendCapabilityRow(sb, "学习能力", studentProfile.getLearningAbility());
         appendCapabilityRow(sb, "抗压能力", studentProfile.getPressureResistance());
@@ -215,8 +215,19 @@ public class JobStudentMatchServiceImpl
         if (studentProfile.getStrengths() != null && !studentProfile.getStrengths().isEmpty()) {
             sb.append("- 学生优势点：").append(String.join("；", studentProfile.getStrengths())).append('\n');
         }
-        if (studentProfile.getMissingSkills() != null && !studentProfile.getMissingSkills().isEmpty()) {
-            sb.append("- 学生缺失技能项：").append(String.join("；", studentProfile.getMissingSkills())).append('\n');
+        if (studentProfile.getSuggestions() != null && !studentProfile.getSuggestions().isEmpty()) {
+            String gapSummary = studentProfile.getSuggestions().stream()
+                    .filter(s -> s != null && StringUtils.hasText(s.getIssue()))
+                    .limit(6)
+                    .map(s -> {
+                        String cat = StringUtils.hasText(s.getCategory()) ? s.getCategory() + "：" : "";
+                        return cat + s.getIssue().trim();
+                    })
+                    .reduce((a, b) -> a + "；" + b)
+                    .orElse("");
+            if (StringUtils.hasText(gapSummary)) {
+                sb.append("- 学生改进建议摘要：").append(gapSummary).append('\n');
+            }
         }
         if (StringUtils.hasText(studentProfile.getSummary())) {
             sb.append("- 学生画像总结：").append(studentProfile.getSummary()).append('\n');
@@ -344,7 +355,7 @@ public class JobStudentMatchServiceImpl
         }
         return String.join(" ", Arrays.asList(
                 Objects.toString(p.getProfessionalSkills(), ""),
-                Objects.toString(p.getCertificates(), ""),
+                Objects.toString(p.getHonorsAndAwards(), ""),
                 Objects.toString(p.getInnovationAbility(), ""),
                 Objects.toString(p.getLearningAbility(), ""),
                 Objects.toString(p.getPressureResistance(), ""),

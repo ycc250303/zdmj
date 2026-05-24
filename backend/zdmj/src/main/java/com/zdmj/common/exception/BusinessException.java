@@ -9,7 +9,7 @@ import lombok.Getter;
 public class BusinessException extends RuntimeException {
 
     /**
-     * HTTP状态码
+     * 业务错误码（与 HTTP 状态码分离，见 {@link ErrorCode}）
      */
     private final Integer code;
 
@@ -25,14 +25,14 @@ public class BusinessException extends RuntimeException {
      */
     public BusinessException(String message) {
         super(message);
-        this.code = 500;
+        this.code = ErrorCode.SYSTEM_EXCEPTION.getCode();
         this.message = message;
     }
 
     /**
      * 构造函数
      * 
-     * @param code    HTTP状态码
+     * @param code    业务错误码
      * @param message 错误消息
      */
     public BusinessException(Integer code, String message) {
@@ -49,14 +49,14 @@ public class BusinessException extends RuntimeException {
      */
     public BusinessException(String message, Throwable cause) {
         super(message, cause);
-        this.code = 500;
+        this.code = ErrorCode.SYSTEM_EXCEPTION.getCode();
         this.message = message;
     }
 
     /**
      * 构造函数
      * 
-     * @param code    HTTP状态码
+     * @param code    业务错误码
      * @param message 错误消息
      * @param cause   异常原因
      */

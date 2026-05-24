@@ -1,10 +1,12 @@
 package com.zdmj.common.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zdmj.common.model.Result;
+import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.common.exception.ProblemDetailSupport;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -87,10 +89,10 @@ public class SecurityConfig {
                                 return;
                             }
                             try {
+                                ProblemDetail problem = ProblemDetailSupport.of(ErrorCode.USER_NOT_LOGIN);
                                 response.setStatus(HttpStatus.UNAUTHORIZED.value());
-                                response.setContentType("application/json;charset=UTF-8");
-                                response.getWriter()
-                                        .write(objectMapper.writeValueAsString(Result.error(401, "Unauthorized")));
+                                response.setContentType(ProblemDetailSupport.PROBLEM_JSON.toString());
+                                response.getWriter().write(objectMapper.writeValueAsString(problem));
                             } catch (Exception e) {
                                 // 如果响应在检查后提交，忽略异常
                                 log.debug("无法发送认证错误响应: {}", e.getMessage());
@@ -103,10 +105,10 @@ public class SecurityConfig {
                                 return;
                             }
                             try {
+                                ProblemDetail problem = ProblemDetailSupport.of(ErrorCode.NO_PERMISSION);
                                 response.setStatus(HttpStatus.FORBIDDEN.value());
-                                response.setContentType("application/json;charset=UTF-8");
-                                response.getWriter()
-                                        .write(objectMapper.writeValueAsString(Result.error(403, "Access Denied")));
+                                response.setContentType(ProblemDetailSupport.PROBLEM_JSON.toString());
+                                response.getWriter().write(objectMapper.writeValueAsString(problem));
                             } catch (Exception e) {
                                 // 如果响应在检查后提交，忽略异常
                                 log.debug("无法发送授权错误响应: {}", e.getMessage());

@@ -1,9 +1,10 @@
 package com.zdmj.resumeService.controller;
 
 import com.zdmj.common.model.Result;
-import com.zdmj.resumeService.dto.CapabilityProfileGenerateReqDTO;
+import com.zdmj.resumeService.dto.CapabilityProfileGenerateRequest;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileDTO;
 import com.zdmj.resumeService.service.StudentCapabilityProfileService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/capability-profile")
+@Tag(name = "能力画像", description = "学生就业能力画像生成与查询")
 public class StudentCapabilityProfileController {
 
     private final StudentCapabilityProfileService profileService;
@@ -47,7 +49,7 @@ public class StudentCapabilityProfileController {
      * @return 生成的能力画像
      */
     @PostMapping("/generate")
-    public Result<StudentCapabilityProfileDTO> generateProfile(@Validated @RequestBody CapabilityProfileGenerateReqDTO reqDTO) {
+    public Result<StudentCapabilityProfileDTO> generateProfile(@Validated @RequestBody CapabilityProfileGenerateRequest reqDTO) {
         log.info("开始生成学生能力画像");
         StudentCapabilityProfileDTO profileDTO = profileService.generateProfile(reqDTO);
         return Result.success("生成能力画像成功", profileDTO);

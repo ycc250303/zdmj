@@ -7,6 +7,7 @@ import com.zdmj.resumeService.dto.EducationDTO;
 import com.zdmj.resumeService.entity.Education;
 import com.zdmj.resumeService.service.EducationService;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
@@ -21,6 +22,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/educations")
+@Tag(name = "教育经历", description = "教育经历的增删改查")
 public class EducationController {
 
     private final EducationService educationService;

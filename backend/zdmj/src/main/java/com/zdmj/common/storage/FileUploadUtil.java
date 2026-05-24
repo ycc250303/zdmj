@@ -41,6 +41,26 @@ public class FileUploadUtil {
     }
 
     /**
+     * 删除当前用户在 profile 业务域下上传的临时简历（能力画像文件上传专用）。
+     */
+    public void deleteProfileUploadByUrl(String fileUrl) {
+        if (fileUrl == null || fileUrl.isBlank()) {
+            return;
+        }
+        Long userId = UserHolder.requireUserId();
+        String key = CosUtil.extractKeyFromUrl(fileUrl);
+        if (key.isBlank()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "无效的文件 URL");
+        }
+        String expectedPrefix = String.format("user-%d/profile/", userId);
+        if (!key.startsWith(expectedPrefix)) {
+            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(), "无权删除该文件");
+        }
+        CosUtil.deleteFile(key);
+        log.info("能力画像临时简历已清理，key={}", key);
+    }
+
+    /**
      * 删除文件
      * 
      * @param key COS对象键

@@ -24,6 +24,7 @@ import com.zdmj.jobService.entity.Job;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobCareerGraphService;
 import com.zdmj.jobService.service.JobService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -32,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/jobs")
+@Tag(name = "岗位管理", description = "岗位信息、能力画像与职业图谱")
 public class JobController {
 
     private final JobService jobService;

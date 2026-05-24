@@ -6,12 +6,14 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
-import com.zdmj.common.util.ChatUtil;
+import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.common.storage.FileUploadUtil;
 import com.zdmj.common.util.PdfParserUtil;
-import com.zdmj.common.util.PromptUtil;
-import com.zdmj.common.util.prompt.PromptNames;
-import com.zdmj.common.util.PromptUtil.JobRole;
-import com.zdmj.resumeService.dto.CapabilityProfileGenerateReqDTO;
+import com.zdmj.common.ai.PromptUtil;
+import com.zdmj.common.ai.prompt.PromptNames;
+import com.zdmj.common.ai.PromptUtil.JobRole;
+import com.zdmj.resumeService.dto.CapabilityProfileGenerateRequest;
 import com.zdmj.resumeService.dto.ResumeRoleDetectDTO;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileDTO;
 import com.zdmj.resumeService.entity.StudentCapabilityProfile;
@@ -37,20 +39,37 @@ public class StudentCapabilityProfileServiceImpl
     /** 关键词命中达到该分数则直接采用规则结果，不调 LLM */
     private static final int KEYWORD_DIRECT_HIT_THRESHOLD = 4;
 
+    /** scoreDetail 五项上限，与 resume-analysis 评分标准（40-20-15-15-10）一致 */
+    private static final int MAX_PROJECT_EXPERIENCE_SCORE = 40;
+    private static final int MAX_SKILL_MATCH_SCORE = 20;
+    private static final int MAX_CONTENT_COMPLETENESS_SCORE = 15;
+    private static final int MAX_STRUCTURE_CLARITY_SCORE = 15;
+    private static final int MAX_EXPRESSION_PROFESSIONALISM_SCORE = 10;
+
+    private static final int MAX_COMPETITIVENESS_SCORE = MAX_PROJECT_EXPERIENCE_SCORE + MAX_SKILL_MATCH_SCORE
+            + MAX_CONTENT_COMPLETENESS_SCORE + MAX_STRUCTURE_CLARITY_SCORE + MAX_EXPRESSION_PROFESSIONALISM_SCORE;
+
     private final ChatUtil chatUtil;
     private final ObjectMapper objectMapper;
+    private final FileUploadUtil fileUploadUtil;
 
     private static final Map<JobRole, List<String>> KEYWORDS = Map.of(
         JobRole.JAVA, List.of("java", "spring", "spring boot", "mybatis", "mysql", "redis", "jvm"),
         JobRole.FRONTEND, List.of("react", "vue", "typescript", "javascript", "webpack", "vite", "css", "html"),
         JobRole.CPP, List.of("c++", "cpp", "stl", "cmake", "gdb", "linux", "多线程", "内存管理"),
-        JobRole.SOFTWARE_TEST, List.of("测试", "test case", "pytest", "selenium", "jmeter", "postman", "缺陷"));
+        JobRole.SOFTWARE_TEST, List.of("测试", "test case", "pytest", "selenium", "jmeter", "postman", "缺陷"),
+        JobRole.AI_AGENT, List.of("llm", "大模型", "agent", "rag", "langchain", "prompt", "embedding"),
+        JobRole.ALGORITHM, List.of("算法", "machine learning", "深度学习", "pytorch", "tensorflow"),
+        JobRole.DATA_ANALYST, List.of("数据分析", "sql", "tableau", "powerbi", "excel", "指标"),
+        JobRole.BIG_DATA, List.of("hadoop", "spark", "flink", "hive", "数仓", "kafka"),
+        JobRole.DEVOPS_SRE, List.of("devops", "sre", "k8s", "kubernetes", "docker", "ci/cd", "ansible"),
+        JobRole.CYBERSECURITY, List.of("安全", "渗透", "漏洞", "owasp", "攻防", "合规"));
 
     @Override
     public StudentCapabilityProfileDTO getCurrentUserProfile() {
         StudentCapabilityProfileDTO dto = getCurrentUserProfileOrNull();
         if (dto == null) {
-            throw new BusinessException(404, "当前用户尚未生成能力画像");
+            throw new BusinessException(ErrorCode.CAPABILITY_PROFILE_NOT_FOUND);
         }
         return dto;
     }
@@ -69,9 +88,15 @@ public class StudentCapabilityProfileServiceImpl
         return dto;
     }
 
+    /**
+     * 生成能力画像
+     * @param reqDTO 简历生成请求DTO
+     * @return 能力画像DTO
+     */
     @Override
-    public StudentCapabilityProfileDTO generateProfile(CapabilityProfileGenerateReqDTO reqDTO) {
+    public StudentCapabilityProfileDTO generateProfile(CapabilityProfileGenerateRequest reqDTO) {
         Long userId = UserHolder.requireUserId();
+        String pdfUrl = StringUtils.hasText(reqDTO.getPdfUrl()) ? reqDTO.getPdfUrl().trim() : null;
         String sourceText = resolveSourceText(reqDTO);
 
         ResumeRoleDetectDTO resumeRole = detect(sourceText);
@@ -86,12 +111,16 @@ public class StudentCapabilityProfileServiceImpl
             aiResult = chatUtil.chatStructuredOnce(sourceText, promptName, null,
                     StudentCapabilityProfileDTO.class);
             normalizeProfileScores(aiResult);
+        } catch (BusinessException e) {
+            throw e;
         } catch (IllegalStateException e) {
             log.error("能力画像结构化输出失败", e);
-            throw new BusinessException(500, "能力画像生成失败，请稍后重试");
+            throw new BusinessException(ErrorCode.CAPABILITY_PROFILE_GENERATION_FAILED);
         } catch (Exception e) {
             log.error("大模型生成能力画像失败", e);
-            throw new BusinessException(500, "大模型生成能力画像失败，请稍后重试");
+            throw new BusinessException(
+                    ErrorCode.CAPABILITY_PROFILE_GENERATION_FAILED.getCode(),
+                    "大模型生成能力画像失败，请稍后重试");
         }
 
         // 3. 落库保存或更新
@@ -106,8 +135,6 @@ public class StudentCapabilityProfileServiceImpl
         newProfile.setPromptName(promptName);
         newProfile.setTargetRoleType(PromptUtil.getPromptDisplayType(promptName));
         newProfile.setScoreDetail(toJson(aiResult.getScoreDetail()));
-        newProfile.setMissingSkills(toJson(aiResult.getMissingSkills()));
-        newProfile.setWeakEvidenceItems(toJson(aiResult.getWeakEvidenceItems()));
         newProfile.setSuggestions(toJson(aiResult.getSuggestions()));
 
         if (existingProfile != null) {
@@ -120,7 +147,22 @@ public class StudentCapabilityProfileServiceImpl
         StudentCapabilityProfileDTO responseDto = toDto(newProfile);
         hydrateDtoFromEntity(newProfile, responseDto);
         mergeAiTransientFields(aiResult, responseDto);
+        cleanupUploadedResumeAfterAnalysis(pdfUrl);
         return responseDto;
+    }
+
+    /**
+     * 能力画像分析完成后删除 COS 临时简历；清理失败不影响主流程。
+     */
+    private void cleanupUploadedResumeAfterAnalysis(String pdfUrl) {
+        if (!StringUtils.hasText(pdfUrl)) {
+            return;
+        }
+        try {
+            fileUploadUtil.deleteProfileUploadByUrl(pdfUrl);
+        } catch (Exception e) {
+            log.warn("能力画像生成成功但清理 COS 简历失败: url={}, err={}", pdfUrl, e.getMessage());
+        }
     }
 
     private static StudentCapabilityProfileDTO toDto(StudentCapabilityProfile entity) {
@@ -131,13 +173,12 @@ public class StudentCapabilityProfileServiceImpl
         dto.setTargetRoleType(StringUtils.hasText(entity.getTargetRoleType()) ? entity.getTargetRoleType()
                 : PromptUtil.getPromptDisplayType(entity.getPromptName()));
         dto.setProfessionalSkills(entity.getProfessionalSkills());
-        dto.setCertificates(entity.getCertificates());
+        dto.setHonorsAndAwards(entity.getHonorsAndAwards());
         dto.setInnovationAbility(entity.getInnovationAbility());
         dto.setLearningAbility(entity.getLearningAbility());
         dto.setPressureResistance(entity.getPressureResistance());
         dto.setCommunicationAbility(entity.getCommunicationAbility());
         dto.setPracticalAbility(entity.getPracticalAbility());
-        dto.setCompletenessScore(entity.getCompletenessScore());
         dto.setCompetitivenessScore(entity.getCompetitivenessScore());
         return dto;
     }
@@ -148,13 +189,12 @@ public class StudentCapabilityProfileServiceImpl
         }
         StudentCapabilityProfile entity = new StudentCapabilityProfile();
         entity.setProfessionalSkills(dto.getProfessionalSkills());
-        entity.setCertificates(dto.getCertificates());
+        entity.setHonorsAndAwards(dto.getHonorsAndAwards());
         entity.setInnovationAbility(dto.getInnovationAbility());
         entity.setLearningAbility(dto.getLearningAbility());
         entity.setPressureResistance(dto.getPressureResistance());
         entity.setCommunicationAbility(dto.getCommunicationAbility());
         entity.setPracticalAbility(dto.getPracticalAbility());
-        entity.setCompletenessScore(dto.getCompletenessScore());
         entity.setCompetitivenessScore(dto.getCompetitivenessScore());
         return entity;
     }
@@ -169,12 +209,6 @@ public class StudentCapabilityProfileServiceImpl
         try {
             if (StringUtils.hasText(entity.getScoreDetail())) {
                 dto.setScoreDetail(objectMapper.readValue(entity.getScoreDetail(), StudentCapabilityProfileDTO.ScoreDetail.class));
-            }
-            if (StringUtils.hasText(entity.getMissingSkills())) {
-                dto.setMissingSkills(objectMapper.readValue(entity.getMissingSkills(), new TypeReference<List<String>>() {}));
-            }
-            if (StringUtils.hasText(entity.getWeakEvidenceItems())) {
-                dto.setWeakEvidenceItems(objectMapper.readValue(entity.getWeakEvidenceItems(), new TypeReference<List<String>>() {}));
             }
             if (StringUtils.hasText(entity.getSuggestions())) {
                 dto.setSuggestions(objectMapper.readValue(entity.getSuggestions(), new TypeReference<List<StudentCapabilityProfileDTO.Suggestion>>() {}));
@@ -200,7 +234,7 @@ public class StudentCapabilityProfileServiceImpl
      * @param reqDTO 简历生成请求DTO
      * @return 简历文本
      */
-    private String resolveSourceText(CapabilityProfileGenerateReqDTO reqDTO) {
+    private String resolveSourceText(CapabilityProfileGenerateRequest reqDTO) {
         String sourceText;
         if (StringUtils.hasText(reqDTO.getPdfUrl())) {
             log.info("从 PDF 解析内容: {}", reqDTO.getPdfUrl());
@@ -208,35 +242,110 @@ public class StudentCapabilityProfileServiceImpl
                 sourceText = PdfParserUtil.extractTextFromUrl(reqDTO.getPdfUrl());
             } catch (Exception e) {
                 log.error("PDF 解析失败", e);
-                throw new BusinessException(400, "PDF 解析失败，请检查文件是否合法");
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "PDF 解析失败，请检查文件是否合法");
             }
         } else if (StringUtils.hasText(reqDTO.getRawText())) {
             log.info("从纯文本解析内容");
             sourceText = reqDTO.getRawText();
         } else {
-            throw new BusinessException(400, "必须提供 pdfUrl 或 rawText");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "必须提供 pdfUrl 或 rawText");
         }
         if (!StringUtils.hasText(sourceText)) {
-            throw new BusinessException(400, "提取到的文本为空，无法生成画像");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "提取到的文本为空，无法生成画像");
         }
         return sourceText;
     }
 
     /**
-     * 补全分数：完整度优先用模型输出，缺失时用分项粗算兜底。
+     * 校验 scoreDetail 分项区间并计算 competitivenessScore。
      */
     private void normalizeProfileScores(StudentCapabilityProfileDTO dto) {
         if (dto == null) {
             return;
         }
-        if (dto.getCompletenessScore() == null && dto.getScoreDetail() != null
-                && dto.getScoreDetail().getContentCompletenessScore() != null) {
-            int c = dto.getScoreDetail().getContentCompletenessScore();
-            dto.setCompletenessScore(Math.min(100, Math.max(0, c * 10)));
+        validateScoreDetail(dto);
+        computeCompetitivenessScore(dto);
+        if (dto.getCompetitivenessScore() != null) {
+            int normalized = clampScore(dto.getCompetitivenessScore(), 0, MAX_COMPETITIVENESS_SCORE, "competitivenessScore");
+            if (!Integer.valueOf(normalized).equals(dto.getCompetitivenessScore())) {
+                log.warn("能力画像 competitivenessScore 超出 0~{}，已修正: {} -> {}",
+                        MAX_COMPETITIVENESS_SCORE, dto.getCompetitivenessScore(), normalized);
+            }
+            dto.setCompetitivenessScore(normalized);
         }
-        if (dto.getCompetitivenessScore() == null) {
-            dto.setCompetitivenessScore(0);
+    }
+
+    /**
+     * 校验 scoreDetail 各分项是否落在 40-20-15-15-10 合法区间；越界则抛出业务异常。
+     */
+    private void validateScoreDetail(StudentCapabilityProfileDTO dto) {
+        StudentCapabilityProfileDTO.ScoreDetail detail = dto.getScoreDetail();
+        if (detail == null) {
+            return;
         }
+        assertScoreInRange(detail.getProjectExperienceScore(), MAX_PROJECT_EXPERIENCE_SCORE, "projectExperienceScore");
+        assertScoreInRange(detail.getSkillMatchScore(), MAX_SKILL_MATCH_SCORE, "skillMatchScore");
+        assertScoreInRange(detail.getContentCompletenessScore(), MAX_CONTENT_COMPLETENESS_SCORE, "contentCompletenessScore");
+        assertScoreInRange(detail.getStructureClarityScore(), MAX_STRUCTURE_CLARITY_SCORE, "structureClarityScore");
+        assertScoreInRange(detail.getExpressionProfessionalismScore(), MAX_EXPRESSION_PROFESSIONALISM_SCORE,
+                "expressionProfessionalismScore");
+    }
+
+    private void assertScoreInRange(Integer score, int max, String fieldName) {
+        if (score == null) {
+            return;
+        }
+        if (score < 0 || score > max) {
+            throw new BusinessException(
+                    ErrorCode.CAPABILITY_PROFILE_SCORE_INVALID.getCode(),
+                    String.format("scoreDetail.%s 超出合法范围 0~%d，实际值 %d", fieldName, max, score));
+        }
+    }
+
+    /**
+     * 根据 scoreDetail 五项之和计算 competitivenessScore，忽略模型直接返回的总分。
+     */
+    private void computeCompetitivenessScore(StudentCapabilityProfileDTO dto) {
+        if (dto == null) {
+            return;
+        }
+        StudentCapabilityProfileDTO.ScoreDetail detail = dto.getScoreDetail();
+        if (detail != null && hasAnyScoreDetailValue(detail)) {
+            int sum = safeScore(detail.getProjectExperienceScore())
+                    + safeScore(detail.getSkillMatchScore())
+                    + safeScore(detail.getContentCompletenessScore())
+                    + safeScore(detail.getStructureClarityScore())
+                    + safeScore(detail.getExpressionProfessionalismScore());
+            if (dto.getCompetitivenessScore() != null && dto.getCompetitivenessScore() != sum) {
+                log.debug("忽略模型返回的 competitivenessScore={}，已按 scoreDetail 重算为 {}",
+                        dto.getCompetitivenessScore(), sum);
+            }
+            dto.setCompetitivenessScore(sum);
+            return;
+        }
+        if (dto.getCompetitivenessScore() != null && dto.getCompetitivenessScore() != 0) {
+            log.debug("scoreDetail 为空，忽略模型返回的 competitivenessScore={}", dto.getCompetitivenessScore());
+        }
+        dto.setCompetitivenessScore(0);
+    }
+
+    private static boolean hasAnyScoreDetailValue(StudentCapabilityProfileDTO.ScoreDetail detail) {
+        return detail.getProjectExperienceScore() != null
+                || detail.getSkillMatchScore() != null
+                || detail.getContentCompletenessScore() != null
+                || detail.getStructureClarityScore() != null
+                || detail.getExpressionProfessionalismScore() != null;
+    }
+
+    private static int safeScore(Integer value) {
+        return value == null ? 0 : value;
+    }
+
+    private static int clampScore(int value, int min, int max, String fieldName) {
+        if (value < min || value > max) {
+            return Math.min(max, Math.max(min, value));
+        }
+        return value;
     }
 
     /**

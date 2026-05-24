@@ -2,9 +2,9 @@ package com.zdmj.careerReportService.controller;
 
 import com.zdmj.careerReportService.dto.CareerReportCheckDTO;
 import com.zdmj.careerReportService.dto.CareerReportDTO;
-import com.zdmj.careerReportService.dto.CareerReportGenerateReqDTO;
-import com.zdmj.careerReportService.dto.CareerReportPolishReqDTO;
-import com.zdmj.careerReportService.dto.CareerReportUpdateReqDTO;
+import com.zdmj.careerReportService.dto.CareerReportGenerateRequest;
+import com.zdmj.careerReportService.dto.CareerReportPolishRequest;
+import com.zdmj.careerReportService.dto.CareerReportUpdateRequest;
 import com.zdmj.careerReportService.service.CareerDevelopmentReportService;
 import com.zdmj.common.model.Result;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -54,7 +54,7 @@ public class CareerDevelopmentReportController {
      */
     @PostMapping("/jobs/{jobId}")
     public Result<CareerReportDTO> generate(@PathVariable Long jobId,
-                                            @RequestBody(required = false) CareerReportGenerateReqDTO req) {
+                                            @RequestBody(required = false) CareerReportGenerateRequest req) {
         log.info("生成职业发展报告: jobId={}", jobId);
         return Result.success("生成职业发展报告成功", reportService.generate(jobId, req));
     }
@@ -68,7 +68,7 @@ public class CareerDevelopmentReportController {
      */
     @PostMapping("/{id}/polish")
     public Result<CareerReportDTO> polish(@PathVariable Long id,
-                                          @RequestBody(required = false) CareerReportPolishReqDTO req) {
+                                          @RequestBody(required = false) CareerReportPolishRequest req) {
         log.info("润色职业发展报告: reportId={}", id);
         return Result.success("润色职业发展报告成功", reportService.polish(id, req));
     }
@@ -94,7 +94,7 @@ public class CareerDevelopmentReportController {
      */
     @PutMapping("/{id}")
     public Result<CareerReportDTO> saveManualEdit(@PathVariable Long id,
-                                                  @RequestBody CareerReportUpdateReqDTO req) {
+                                                  @RequestBody CareerReportUpdateRequest req) {
         log.info("保存职业发展报告手动编辑: reportId={}", id);
         return Result.success("保存职业发展报告成功", reportService.saveManualEdit(id, req));
     }

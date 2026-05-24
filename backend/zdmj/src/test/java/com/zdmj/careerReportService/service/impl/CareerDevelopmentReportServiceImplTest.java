@@ -4,12 +4,12 @@ import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.careerReportService.dto.CareerReportCheckDTO;
 import com.zdmj.careerReportService.dto.CareerReportDTO;
-import com.zdmj.careerReportService.dto.CareerReportGenerateReqDTO;
-import com.zdmj.careerReportService.dto.CareerReportUpdateReqDTO;
+import com.zdmj.careerReportService.dto.CareerReportGenerateRequest;
+import com.zdmj.careerReportService.dto.CareerReportUpdateRequest;
 import com.zdmj.careerReportService.entity.CareerDevelopmentReport;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.util.ChatUtil;
+import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.jobService.dto.JobCapabilityProfileDTO;
 import com.zdmj.jobService.dto.JobCareerGraphDTO;
 import com.zdmj.jobService.dto.JobListItemDTO;
@@ -107,8 +107,6 @@ class CareerDevelopmentReportServiceImplTest {
         doReturn(buildMatch()).when(jobStudentMatchService).getOrNull(jobId);
         doReturn(buildGraph()).when(jobCareerGraphService).getOrNull(jobId);
         doReturn(100L).when(knowledgeBasesService).getOrCreateKnowledgeBaseId();
-        doThrow(new RuntimeException("no embed")).when(embeddingModel)
-                .call(org.mockito.ArgumentMatchers.<org.springframework.ai.embedding.EmbeddingRequest>any());
 
         JobStudentMatch matchEntity = new JobStudentMatch();
         matchEntity.setId(300L);
@@ -145,7 +143,7 @@ class CareerDevelopmentReportServiceImplTest {
             return payload;
         }).when(chatUtil).chatStructuredOnce(any(), any(), any(), any());
 
-        CareerReportDTO dto = service.generate(jobId, new CareerReportGenerateReqDTO());
+        CareerReportDTO dto = service.generate(jobId, new CareerReportGenerateRequest());
 
         assertNotNull(dto);
         assertEquals(999L, dto.getId());
@@ -191,7 +189,7 @@ class CareerDevelopmentReportServiceImplTest {
             return true;
         }).when(service).save(any(CareerDevelopmentReport.class));
 
-        CareerReportUpdateReqDTO req = new CareerReportUpdateReqDTO();
+        CareerReportUpdateRequest req = new CareerReportUpdateRequest();
         req.setReportContent(Map.of(
                 "careerExploration", "new",
                 "careerGoals", List.of("g1"),

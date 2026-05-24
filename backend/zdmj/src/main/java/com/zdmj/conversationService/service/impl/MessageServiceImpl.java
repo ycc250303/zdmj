@@ -4,13 +4,14 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.cache.RedisUtil;
-import com.zdmj.common.config.RagConfig;
+import com.zdmj.common.ai.config.RagConfig;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.model.PageDTO;
+import com.zdmj.common.model.PageRequests;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.util.ChatUtil;
-import com.zdmj.common.util.prompt.PromptNames;
+import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.common.ai.prompt.PromptNames;
 import com.zdmj.conversationService.dto.MessageDTO;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.entity.Message;
@@ -21,7 +22,6 @@ import com.zdmj.conversationService.service.ConversationService;
 import com.zdmj.conversationService.service.MessageService;
 import com.zdmj.knowledgeService.service.KnowledgeRagService;
 
-import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
@@ -58,9 +58,6 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     private static final int STREAM_TTL_SECONDS = 3600;
     // 流式消息 sink 映射
     private final ConcurrentHashMap<Long, Sinks.Many<String>> streamSinkMap = new ConcurrentHashMap<>();
-
-    // 最大消息页大小
-    private static final int MAX_MESSAGE_PAGE_SIZE = 100;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -267,13 +264,8 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     @Override
     public PageDTO<Message> getMessagesByConversationId(Long conversationId, Integer page, Integer limit) {
         requireConversationAccess(conversationId);
-        int p = (page == null || page < 1) ? 1 : page;
-        int l = (limit == null || limit < 1) ? 20 : Math.min(limit, MAX_MESSAGE_PAGE_SIZE);
-        int offset = (p - 1) * l;
-        Integer totalInt = messageMapper.selectMessageCountByConversationId(conversationId);
-        long total = totalInt == null ? 0L : totalInt.longValue();
-        List<Message> data = messageMapper.selectPageByConversationId(conversationId, offset, l);
-        return PageDTO.of(data, total, p, l);
+        PageRequests.Normalized paging = PageRequests.normalize(page, limit);
+        return PageDTO.from(messageMapper.selectPageByConversationId(PageRequests.toPage(paging), conversationId));
     }
 
     /**
@@ -288,18 +280,6 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
             throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
         }
         return conversation;
-    }
-
-    @Data
-    public class ChatStreamRequest {
-        private Long conversationId; // 会话ID
-        private String message; // 消息
-    }
-
-    @Data
-    public class ChatResumeRequest {
-        private Long streamId; // 流式消息ID 建议=assistantMessageId
-        private Integer offset; // 前端已接收字符数
     }
 
     /**

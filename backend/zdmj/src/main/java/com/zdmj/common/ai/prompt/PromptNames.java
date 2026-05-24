@@ -1,4 +1,4 @@
-package com.zdmj.common.util.prompt;
+package com.zdmj.common.ai.prompt;
 
 /**
  * 各业务场景下 {@code classpath:prompts/{name}.md} 的 {@code name} 常量（不含 {@code .md} 后缀）。

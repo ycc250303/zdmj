@@ -14,9 +14,9 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.util.StreamUtils;
 
-import com.zdmj.common.util.ChatUtil;
-import com.zdmj.common.util.PromptUtil;
-import com.zdmj.common.util.prompt.PromptNames;
+import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.common.ai.PromptUtil;
+import com.zdmj.common.ai.prompt.PromptNames;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;

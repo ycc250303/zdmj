@@ -20,6 +20,7 @@ import com.zdmj.knowledgeService.dto.KnowledgeDocumentPublicDTO;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
 import com.zdmj.knowledgeService.service.KnowledgeDocumentService;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -30,6 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/knowledge-document")
+@Tag(name = "知识库文档", description = "文档上传、检索与管理")
 public class KnowledgeDocumentController {
 
     private final KnowledgeDocumentService knowledgeDocumentService;

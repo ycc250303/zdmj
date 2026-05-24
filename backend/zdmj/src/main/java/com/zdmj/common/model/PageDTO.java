@@ -1,5 +1,7 @@
 package com.zdmj.common.model;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+
 import java.util.List;
 
 import lombok.AllArgsConstructor;
@@ -39,5 +41,15 @@ public class PageDTO<T> {
     public static <T> PageDTO<T> of(List<T> list, long total, int page, int limit) {
         int totalPages = limit > 0 ? (int) ((total + limit - 1) / limit) : 0;
         return new PageDTO<>(list, total, page, limit, totalPages);
+    }
+
+    /** 由 MyBatis-Plus {@link IPage} 构建（records 与 page 元素类型一致） */
+    public static <T> PageDTO<T> from(IPage<T> page) {
+        return of(page.getRecords(), page.getTotal(), (int) page.getCurrent(), (int) page.getSize());
+    }
+
+    /** 由 MyBatis-Plus {@link IPage} 构建（records 经映射后传入） */
+    public static <T> PageDTO<T> from(IPage<?> page, List<T> list) {
+        return of(list, page.getTotal(), (int) page.getCurrent(), (int) page.getSize());
     }
 }

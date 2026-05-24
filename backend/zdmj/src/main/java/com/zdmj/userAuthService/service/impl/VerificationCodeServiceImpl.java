@@ -1,6 +1,7 @@
 package com.zdmj.userAuthService.service.impl;
 
 import com.zdmj.common.cache.RedisConstants;
+import com.zdmj.userAuthService.enums.VerificationCodeScene;
 import com.zdmj.userAuthService.service.EmailService;
 import com.zdmj.userAuthService.service.VerificationCodeService;
 import lombok.RequiredArgsConstructor;
@@ -35,48 +36,53 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
     }
 
     @Override
-    public boolean sendVerificationCode(String email) {
+    public boolean sendVerificationCode(String email, VerificationCodeScene scene) {
         try {
-            // 生成验证码
             String code = generateCode();
-
-            // 存储到Redis，设置过期时间
-            String key = RedisConstants.VERIFICATION_CODE_KEY + email;
+            String key = RedisConstants.verificationCodeKey(scene, email);
             redisTemplate.opsForValue().set(key, code, RedisConstants.CODE_EXPIRE_TTL, TimeUnit.SECONDS);
 
-            // 发送邮件
-            String subject = "注册验证码";
-            String content = String.format(
-                    "您的注册验证码是：%s，有效期%d分钟，请勿泄露给他人。",
-                    code, RedisConstants.CODE_EXPIRE_TTL / 60);
+            String subject;
+            String content;
+            if (scene == VerificationCodeScene.RESET_PASSWORD) {
+                subject = "重置密码验证码";
+                content = String.format(
+                        "您的重置密码验证码是：%s，有效期%d分钟，请勿泄露给他人。",
+                        code, RedisConstants.CODE_EXPIRE_TTL / 60);
+            } else {
+                subject = "注册验证码";
+                content = String.format(
+                        "您的注册验证码是：%s，有效期%d分钟，请勿泄露给他人。",
+                        code, RedisConstants.CODE_EXPIRE_TTL / 60);
+            }
 
             emailService.sendEmail(email, subject, content);
 
-            log.info("验证码已发送到邮箱: {}", email);
+            log.info("验证码已发送到邮箱: {}, scene={}", email, scene);
             return true;
         } catch (Exception e) {
-            log.error("发送验证码失败: {}", email, e);
+            log.error("发送验证码失败: {}, scene={}", email, scene, e);
             return false;
         }
     }
 
     @Override
-    public boolean verifyCode(String email, String code) {
+    public boolean verifyCode(String email, String code, VerificationCodeScene scene) {
         try {
-            String key = RedisConstants.VERIFICATION_CODE_KEY + email;
+            String key = RedisConstants.verificationCodeKey(scene, email);
             Long result = redisTemplate.execute(VERIFY_AND_DELETE_SCRIPT, Collections.singletonList(key), code);
             if (Long.valueOf(1L).equals(result)) {
-                log.info("验证码验证成功: {}", email);
+                log.info("验证码验证成功: {}, scene={}", email, scene);
                 return true;
             }
             if (Long.valueOf(-1L).equals(result)) {
-                log.warn("验证码错误: {}", email);
+                log.warn("验证码错误: {}, scene={}", email, scene);
                 return false;
             }
-            log.warn("验证码已过期或不存在: {}", email);
+            log.warn("验证码已过期或不存在: {}, scene={}", email, scene);
             return false;
         } catch (Exception e) {
-            log.error("验证验证码失败: {}", email, e);
+            log.error("验证验证码失败: {}, scene={}", email, scene, e);
             return false;
         }
     }
@@ -84,7 +90,7 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
     @Override
     public String generateCode() {
         Random random = new Random();
-        int code = 100000 + random.nextInt(900000); // 生成100000-999999之间的6位数字
+        int code = 100000 + random.nextInt(900000);
         return String.valueOf(code);
     }
 }

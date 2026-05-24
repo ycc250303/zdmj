@@ -91,7 +91,7 @@
         WHERE j.id = #{id}
     </select>
 
-    <select id="selectPage" resultMap="JobListItemDTOMap">
+    <select id="selectJobPage" resultMap="JobListItemDTOMap">
         SELECT j.id, j.job_name, j.company_id, j.company_name, j.description, j.location,
             j.salary_min, j.salary_max, j.salary_type,
             <include refid="Job_Salary_Label_Expr" /> AS salary,
@@ -101,11 +101,6 @@
             j.keywords AS job_keywords,
             c.industries AS company_industries, c.size AS company_size, c.type AS company_funding_type
         <include refid="Job_Company_From_Where" />
-        ORDER BY j.updated_at DESC LIMIT #{limit} OFFSET #{offset}
-    </select>
-
-    <select id="countPage" resultType="java.lang.Long">
-        SELECT COUNT(*)
-        <include refid="Job_Company_From_Where" />
+        ORDER BY j.updated_at DESC
     </select>
 </mapper>

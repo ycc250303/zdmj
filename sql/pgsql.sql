@@ -62,93 +62,10 @@ CREATE TABLE IF NOT EXISTS users (
 );
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
--- 1.2 用户画像表
-CREATE TABLE IF NOT EXISTS user_profiles (
-    id BIGSERIAL PRIMARY KEY,
-    -- 画像ID
-    user_id BIGINT UNIQUE NOT NULL,
-    -- 关联用户ID（逻辑外键：users.id）
-    basic_info JSONB NOT NULL,
-    -- 基础信息（专业、年级、学校等）
-    -- basic_info 示例
-    -- {
-    --   "major": "软件工程",
-    --   "grade": "大三",
-    --   "school": "XX大学"
-    -- }
-    skills JSONB NOT NULL,
-    -- 技能画像（语言、框架、水平等）
-    -- skills 示例
-    -- {
-    --   "languages": ["Java", "Python"],
-    --   "frameworks": ["Spring Boot", "FastAPI"],
-    --   "level": "中级"
-    -- }
-    job_intention JSONB NOT NULL,
-    -- 求职意向（目标岗位、城市、薪资等）
-    -- job_intention 示例
-    -- {
-    --   "position": "后端开发",
-    --   "city": "北京",
-    --   "salary_min": 15,
-    --   "salary_max": 25
-    -- }
-    stage SMALLINT NOT NULL,
-    -- 求职阶段（枚举：1=基础积累/2=项目强化/3=投递准备/4=面试冲刺）
-    constraints JSONB,
-    -- 约束条件（类型：日常实习/暑期实习/校招、准备时间等）
-    -- constraints 示例
-    -- {
-    --   "type": "日常实习/暑期实习/校招",
-    --   "prepare_time": "3"
-    -- }
-    preferences JSONB,
-    -- 偏好（公司类型、行业、学习方式等）
-    -- preferences 示例
-    -- {
-    --   "company_type": ["互联网", "金融"],
-    --   "industry": ["科技", "教育"],
-    --   "learning_style": "在线学习"
-    -- }
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    -- 创建时间
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
-);
-CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_profiles_stage ON user_profiles(stage);
--- 1.3 用户行为日志表
-CREATE TABLE IF NOT EXISTS user_behavior_logs (
-    id BIGSERIAL PRIMARY KEY,
-    -- 行为日志ID
-    user_id BIGINT NOT NULL,
-    -- 关联用户ID（逻辑外键：users.id）
-    type SMALLINT NOT NULL,
-    -- 行为类型（枚举：1=learn学习/2=project项目/3=resume简历/4=job岗位等）
-    detail JSONB NOT NULL,
-    -- 行为详情（操作对象、前后数据快照等）
-    -- detail 示例
-    -- {
-    --   "action": "创建项目",
-    --   "object_id": 123,
-    --   "object_type": "project",
-    --   "before": {},
-    --   "after": {
-    --     "name": "项目名称"
-    --   }
-    -- }
-    result JSONB,
-    -- 行为结果（通过/未通过/评分/反馈等）
-    -- result 示例
-    -- {
-    --   "status": "success",
-    --   "score": 85,
-    --   "feedback": "项目分析完成",
-    --   "passed": true
-    -- }
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 行为发生时间
-);
-CREATE INDEX IF NOT EXISTS idx_user_behavior_logs_user_id_type ON user_behavior_logs(user_id, type);
-CREATE INDEX IF NOT EXISTS idx_user_behavior_logs_created_at ON user_behavior_logs(created_at);
+-- 1.2 用户大模型配置表
+
+
+
 --
 -- ==========================2 简历模块==========================
 --
@@ -393,8 +310,8 @@ CREATE TABLE IF NOT EXISTS student_capability_profiles (
     -- 关联用户ID（逻辑外键：users.id）
     professional_skills TEXT,
     -- 专业技能
-    certificates TEXT,
-    -- 证书
+    honors_and_awards TEXT,
+    -- 获奖经历（在校荣誉、竞赛获奖等）
     innovation_ability TEXT,
     -- 创新能力
     learning_ability TEXT,
@@ -405,12 +322,8 @@ CREATE TABLE IF NOT EXISTS student_capability_profiles (
     -- 沟通能力
     practical_ability TEXT,
     -- 实习能力
-    completeness_score INTEGER NOT NULL DEFAULT 0,
-    -- 完整度评分 (0-100)
     competitiveness_score INTEGER NOT NULL DEFAULT 0,
-    -- 竞争力评分 (0-100)
-    overall_score INTEGER,
-    -- 岗位专项评估总分（可选）
+    -- 竞争力评分 (0-100)，由 score_detail 五项之和计算
     role_confidence NUMERIC(5,4) NOT NULL DEFAULT 0.0,
     -- 岗位识别置信度（0~1）
     prompt_name VARCHAR(128) NOT NULL DEFAULT 'generate-capability-profile',
@@ -418,11 +331,8 @@ CREATE TABLE IF NOT EXISTS student_capability_profiles (
     target_role_type VARCHAR(64) NOT NULL DEFAULT 'default',
     -- 岗位类型展示值（如 software-test）
     score_detail JSONB DEFAULT '{}'::jsonb,
+    -- scoreDetail JSON 键：projectExperienceScore, skillMatchScore, contentCompletenessScore, structureClarityScore, expressionProfessionalismScore
     -- 分项评分明细（结构化输出）
-    missing_skills JSONB DEFAULT '[]'::jsonb,
-    -- 缺失技能项
-    weak_evidence_items JSONB DEFAULT '[]'::jsonb,
-    -- 证据不足项
     suggestions JSONB DEFAULT '[]'::jsonb,
     -- 改进建议（结构化）
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

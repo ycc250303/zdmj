@@ -4,10 +4,10 @@ import java.util.Map;
 import lombok.Data;
 
 /**
- * 手动编辑报告请求 DTO
+ * 手动编辑报告请求体
  */
 @Data
-public class CareerReportUpdateReqDTO {
+public class CareerReportUpdateRequest {
 
     /**
      * 手动编辑后的结构化正文。

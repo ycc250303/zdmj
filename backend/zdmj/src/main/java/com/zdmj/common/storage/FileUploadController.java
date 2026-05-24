@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.zdmj.common.model.Result;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.Map;
 
@@ -23,6 +24,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/files")
 @RequiredArgsConstructor
+@Tag(name = "文件上传", description = "通用文件上传、下载与删除")
 public class FileUploadController {
 
     private final FileUploadUtil fileUploadService;

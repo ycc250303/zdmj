@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -15,18 +16,15 @@ import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-import org.springframework.ai.embedding.Embedding;
-import org.springframework.ai.embedding.EmbeddingRequest;
 import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.ai.embedding.EmbeddingResponse;
 
-import com.zdmj.common.config.RagConfig;
+import com.zdmj.common.ai.config.RagConfig;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.util.ChatUtil;
-import com.zdmj.common.util.prompt.PromptNames;
+import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.common.ai.prompt.PromptNames;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
@@ -82,7 +80,7 @@ class KnowledgeRagServiceImplTest {
         ragConfig.setEnabled(true);
         ragConfig.getRewrite().setEnabled(false);
         when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(501L);
-        when(embeddingModel.call(Mockito.<EmbeddingRequest>any())).thenThrow(new RuntimeException("embed fail"));
+        when(embeddingModel.embed(anyString())).thenThrow(new RuntimeException("embed fail"));
         when(chatUtil.chatStreamInConversation(13L, "hello", PromptNames.SYSTEM, null))
                 .thenReturn(Flux.just("fallback-system"));
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
@@ -104,11 +102,7 @@ class KnowledgeRagServiceImplTest {
         when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(502L);
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.1,0.2]");
 
-        EmbeddingResponse response = Mockito.mock(EmbeddingResponse.class);
-        Embedding embedding = Mockito.mock(Embedding.class);
-        when(embedding.getOutput()).thenReturn(new float[] {0.1f, 0.2f});
-        when(response.getResults()).thenReturn(List.of(embedding));
-        when(embeddingModel.call(Mockito.<EmbeddingRequest>any())).thenReturn(response);
+        when(embeddingModel.embed(anyString())).thenReturn(new float[] {0.1f, 0.2f});
 
         KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO();
         hit.setId(1L);
@@ -147,11 +141,7 @@ class KnowledgeRagServiceImplTest {
                 .thenReturn("rewritten question");
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.3,0.4]");
 
-        EmbeddingResponse response = Mockito.mock(EmbeddingResponse.class);
-        Embedding embedding = Mockito.mock(Embedding.class);
-        when(embedding.getOutput()).thenReturn(new float[] {0.3f, 0.4f});
-        when(response.getResults()).thenReturn(List.of(embedding));
-        when(embeddingModel.call(Mockito.<EmbeddingRequest>any())).thenReturn(response);
+        when(embeddingModel.embed(anyString())).thenReturn(new float[] {0.3f, 0.4f});
 
         KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO();
         hit.setId(2L);

@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 public class Result<T> {
 
     /**
-     * HTTP状态码
+     * 响应码（0 成功，非 0 为业务错误码）
      */
     private Integer code;
 
@@ -81,7 +81,7 @@ public class Result<T> {
     /**
      * 失败响应（自定义状态码和消息）
      * 
-     * @param code HTTP状态码
+     * @param code 业务错误码
      * @param msg  错误消息
      * @return Result对象
      */

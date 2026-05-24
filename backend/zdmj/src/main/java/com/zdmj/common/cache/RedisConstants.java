@@ -1,8 +1,19 @@
 package com.zdmj.common.cache;
 
+import com.zdmj.userAuthService.enums.VerificationCodeScene;
+
 public class RedisConstants {
-    // 验证码前缀
-    public static final String VERIFICATION_CODE_KEY = "verification:code:";
+    // 注册验证码前缀
+    public static final String VERIFICATION_CODE_REGISTER_KEY = "verification:code:register:";
+    // 重置密码验证码前缀
+    public static final String VERIFICATION_CODE_RESET_KEY = "verification:code:reset:";
+
+    public static String verificationCodeKey(VerificationCodeScene scene, String email) {
+        return switch (scene) {
+            case REGISTER -> VERIFICATION_CODE_REGISTER_KEY + email;
+            case RESET_PASSWORD -> VERIFICATION_CODE_RESET_KEY + email;
+        };
+    }
     // 验证码过期时间（分钟）
     public static final int CODE_EXPIRE_TTL = 10 * 60;
 

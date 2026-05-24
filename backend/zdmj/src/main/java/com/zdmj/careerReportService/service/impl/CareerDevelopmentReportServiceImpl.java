@@ -1,24 +1,23 @@
 package com.zdmj.careerReportService.service.impl;
 
-import com.alibaba.cloud.ai.dashscope.embedding.DashScopeEmbeddingOptions;
-import com.alibaba.cloud.ai.dashscope.spec.DashScopeModel;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.careerReportService.dto.CareerReportCheckDTO;
 import com.zdmj.careerReportService.dto.CareerReportDTO;
-import com.zdmj.careerReportService.dto.CareerReportGenerateReqDTO;
-import com.zdmj.careerReportService.dto.CareerReportPolishReqDTO;
-import com.zdmj.careerReportService.dto.CareerReportUpdateReqDTO;
+import com.zdmj.careerReportService.dto.CareerReportGenerateRequest;
+import com.zdmj.careerReportService.dto.CareerReportPolishRequest;
+import com.zdmj.careerReportService.dto.CareerReportUpdateRequest;
 import com.zdmj.careerReportService.entity.CareerDevelopmentReport;
 import com.zdmj.careerReportService.mapper.CareerDevelopmentReportMapper;
 import com.zdmj.careerReportService.service.CareerDevelopmentReportService;
+import com.zdmj.common.ai.EmbeddingQuerySupport;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.util.ChatUtil;
-import com.zdmj.common.util.prompt.PromptNames;
+import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.common.ai.prompt.PromptNames;
 import com.zdmj.jobService.dto.JobCapabilityProfileDTO;
 import com.zdmj.jobService.dto.JobCareerGraphDTO;
 import com.zdmj.jobService.dto.JobListItemDTO;
@@ -48,8 +47,6 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.ai.embedding.EmbeddingRequest;
-import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -98,7 +95,7 @@ public class CareerDevelopmentReportServiceImpl
     public CareerReportDTO getLatestOrNull(Long jobId) {
         Long userId = UserHolder.requireUserId();
         if (jobId == null) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST);
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "jobId不能为空");
         }
         CareerDevelopmentReport entity = getOne(new LambdaQueryWrapper<CareerDevelopmentReport>()
                 .eq(CareerDevelopmentReport::getUserId, userId)
@@ -110,10 +107,10 @@ public class CareerDevelopmentReportServiceImpl
     }
 
     @Override
-    public CareerReportDTO generate(Long jobId, CareerReportGenerateReqDTO req) {
+    public CareerReportDTO generate(Long jobId, CareerReportGenerateRequest req) {
         Long userId = UserHolder.requireUserId();
         if (jobId == null) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST);
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "jobId不能为空");
         }
         // 1. 校验岗位与学生画像前置条件
         JobListItemDTO jobDetail = jobService.getDetail(jobId);
@@ -156,7 +153,7 @@ public class CareerDevelopmentReportServiceImpl
     }
 
     @Override
-    public CareerReportDTO polish(Long reportId, CareerReportPolishReqDTO req) {
+    public CareerReportDTO polish(Long reportId, CareerReportPolishRequest req) {
         CareerDevelopmentReport current = requireOwnedReport(reportId);
         Map<String, Object> currentContent = readMap(current.getReportContent());
 
@@ -221,10 +218,10 @@ public class CareerDevelopmentReportServiceImpl
     }
 
     @Override
-    public CareerReportDTO saveManualEdit(Long reportId, CareerReportUpdateReqDTO req) {
+    public CareerReportDTO saveManualEdit(Long reportId, CareerReportUpdateRequest req) {
         CareerDevelopmentReport current = requireOwnedReport(reportId);
         if (req == null || req.getReportContent() == null || req.getReportContent().isEmpty()) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST);
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "报告内容不能为空");
         }
         CareerReportCheckDTO check = localIntegrityCheck(req.getReportContent());
         CareerDevelopmentReport created = createNewVersion(
@@ -262,7 +259,7 @@ public class CareerDevelopmentReportServiceImpl
     /**
      * 从系统知识库检索与岗位/偏好相关的学习路径片段（向量相似度 + 文档分类过滤）。
      */
-    private List<KnowledgeRetrivalDTO> retrieveLearningPathHits(JobListItemDTO jobDetail, CareerReportGenerateReqDTO req) {
+    private List<KnowledgeRetrivalDTO> retrieveLearningPathHits(JobListItemDTO jobDetail, CareerReportGenerateRequest req) {
         Long userId = UserHolder.requireUserId();
         Long knowledgeId = knowledgeBasesService.getOrCreateKnowledgeBaseId();
         String query = buildKnowledgeQuery(jobDetail, req);
@@ -291,7 +288,7 @@ public class CareerDevelopmentReportServiceImpl
                                                          JobStudentMatchDTO match,
                                                          JobCareerGraphDTO graph,
                                                          List<KnowledgeRetrivalDTO> ragHits,
-                                                         CareerReportGenerateReqDTO req) {
+                                                         CareerReportGenerateRequest req) {
         Map<String, Object> vars = new LinkedHashMap<>();
         vars.put("userPreference", req == null ? "" : safe(req.getUserPreference()));
         vars.put("focus", req == null ? "" : safe(req.getFocus()));
@@ -326,7 +323,7 @@ public class CareerDevelopmentReportServiceImpl
     private CareerDevelopmentReport requireOwnedReport(Long reportId) {
         Long userId = UserHolder.requireUserId();
         if (reportId == null) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST);
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "reportId不能为空");
         }
         CareerDevelopmentReport report = getOne(new LambdaQueryWrapper<CareerDevelopmentReport>()
                 .eq(CareerDevelopmentReport::getId, reportId)
@@ -415,25 +412,10 @@ public class CareerDevelopmentReportServiceImpl
     }
 
     private float[] embedQueryText(String queryText) {
-        if (!StringUtils.hasText(queryText)) {
-            return null;
-        }
-        try {
-            DashScopeEmbeddingOptions options = DashScopeEmbeddingOptions.builder()
-                    .textType(DashScopeModel.EmbeddingTextType.QUERY.getValue())
-                    .build();
-            EmbeddingResponse response = embeddingModel.call(new EmbeddingRequest(List.of(queryText), options));
-            if (response == null || response.getResults() == null || response.getResults().isEmpty()) {
-                return null;
-            }
-            return response.getResults().get(0).getOutput();
-        } catch (Exception e) {
-            log.warn("职业报告检索向量生成失败：{}", e.getMessage());
-            return null;
-        }
+        return EmbeddingQuerySupport.embedQuery(embeddingModel, queryText);
     }
 
-    private String buildKnowledgeQuery(JobListItemDTO jobDetail, CareerReportGenerateReqDTO req) {
+    private String buildKnowledgeQuery(JobListItemDTO jobDetail, CareerReportGenerateRequest req) {
         StringBuilder sb = new StringBuilder();
         sb.append("生成职业发展学习路径 ");
         sb.append(safe(jobDetail.getJobName())).append(" ");

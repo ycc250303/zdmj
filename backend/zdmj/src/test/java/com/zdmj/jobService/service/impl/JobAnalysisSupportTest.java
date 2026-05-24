@@ -1,7 +1,7 @@
 package com.zdmj.jobService.service.impl;
 
-import com.zdmj.common.util.ChatUtil;
-import com.zdmj.common.util.PromptUtil.JobRole;
+import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.common.ai.PromptUtil.JobRole;
 import com.zdmj.jobService.dto.JobListItemDTO;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;

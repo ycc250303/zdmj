@@ -1,5 +1,6 @@
 package com.zdmj.resumeService.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
@@ -23,9 +24,10 @@ public class StudentCapabilityProfileDTO {
     private String professionalSkills;
 
     /**
-     * 证书：说明有无证书、名称与含金量；无则写「无」并简述是否影响岗位判断。
+     * 获奖经历：在校荣誉、竞赛获奖、奖学金等；无则写「无」或「简历未体现」。
      */
-    private String certificates;
+    @JsonAlias("certificates")
+    private String honorsAndAwards;
 
     /**
      * 创新能力：结合竞赛/课题/项目中的创新点、个人角色与可验证结果（勿空洞套话）。
@@ -53,12 +55,7 @@ public class StudentCapabilityProfileDTO {
     private String practicalAbility;
 
     /**
-     * 简历完整度总评（0～100）：教育/技能/项目/实习等是否齐全、能否支撑评估；须由模型显式打分，勿默认 0。
-     */
-    private Integer completenessScore;
-
-    /**
-     * 综合竞争力（0～100），与 scoreDetail 五项之和及对外主分一致；API 中作为主分数展示。
+     * 综合竞争力（0～100），由后端根据 scoreDetail 五项之和计算；API 中作为主分数展示。
      */
     private Integer competitivenessScore;
 
@@ -68,22 +65,12 @@ public class StudentCapabilityProfileDTO {
     private ScoreDetail scoreDetail;
 
     /**
-     * 简历优势点
+     * 优势亮点：每条须为「概括 + 简历具体证据（项目名/技术栈/方案/指标）」，禁止空泛套话。
      */
     private List<String> strengths;
 
     /**
-     * 缺失技能项
-     */
-    private List<String> missingSkills;
-
-    /**
-     * 证据不足项
-     */
-    private List<String> weakEvidenceItems;
-
-    /**
-     * 改进建议
+     * 改进建议（含技能缺失、证据不足、项目/表达/结构等，见 resume-analysis 提示词）
      */
     private List<Suggestion> suggestions;
 
@@ -101,7 +88,8 @@ public class StudentCapabilityProfileDTO {
             return;
         }
         this.professionalSkills = capabilityProfile.get("professionalSkills");
-        this.certificates = capabilityProfile.get("certificates");
+        String honors = capabilityProfile.get("honorsAndAwards");
+        this.honorsAndAwards = honors != null ? honors : capabilityProfile.get("certificates");
         this.innovationAbility = capabilityProfile.get("innovationAbility");
         this.learningAbility = capabilityProfile.get("learningAbility");
         this.pressureResistance = capabilityProfile.get("pressureResistance");
@@ -113,33 +101,40 @@ public class StudentCapabilityProfileDTO {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ScoreDetail {
         /**
-         * 岗位匹配技术深度评分
-         */ 
-        private Integer jobMatchTechDepthScore;
-        /**
-         * 项目实践评分
+         * 项目经验（0-40）
          */
-        private Integer projectPracticeScore;
+        @JsonAlias("jobMatchTechDepthScore")
+        private Integer projectExperienceScore;
         /**
-         * 内容完整度评分
+         * 技能匹配（0-20）
+         */
+        @JsonAlias("projectPracticeScore")
+        private Integer skillMatchScore;
+        /**
+         * 内容完整性（0-15）
          */
         private Integer contentCompletenessScore;
         /**
-         * 结构表达评分
+         * 结构清晰度（0-15）
          */
-        private Integer structureExpressionScore;
+        @JsonAlias("structureExpressionScore")
+        private Integer structureClarityScore;
         /**
-         * 职业素养评分
+         * 表达专业性（0-10）
          */
-        private Integer professionalPotentialScore;
+        @JsonAlias("professionalPotentialScore")
+        private Integer expressionProfessionalismScore;
     }
 
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Suggestion {
+        /** 技能缺失 | 证据不足 | 项目 | 表达 | 结构 | 职业素养 */
         private String category;
         private String priority;
+        /** 问题描述：缺什么 / 哪里薄弱 / 与简历哪处相关 */
         private String issue;
+        /** 可执行的改进动作 */
         private String recommendation;
     }
 }

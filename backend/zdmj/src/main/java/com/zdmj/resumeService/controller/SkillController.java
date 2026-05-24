@@ -22,6 +22,7 @@ import com.zdmj.common.model.UpdateGroup;
 import com.zdmj.resumeService.dto.SkillDTO;
 import com.zdmj.resumeService.entity.Skill;
 import com.zdmj.resumeService.service.SkillService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -31,6 +32,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/skills")
+@Tag(name = "技能管理", description = "简历技能的增删改查")
 public class SkillController {
     private final SkillService skillService;
 

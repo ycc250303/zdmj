@@ -500,6 +500,7 @@ const local: App.I18n.Schema = {
         fileUpload: "File Upload",
         fileUploadDesc: "Upload resume file (supports PDF, Word, TXT), AI will automatically analyze the file content",
         selectFile: "Select File",
+        uploadOnGenerateHint: "File selected. It will be uploaded automatically when you generate or regenerate the profile.",
         uploadFile: "Upload File",
         uploadSuccess: "File uploaded successfully",
         textInput: "Text Input",

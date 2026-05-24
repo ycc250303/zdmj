@@ -19,6 +19,7 @@ import com.zdmj.userAuthService.dto.UserResetPasswordDTO;
 import com.zdmj.userAuthService.dto.UserUpdateDTO;
 import com.zdmj.userAuthService.entity.User;
 import com.zdmj.userAuthService.mapper.UserMapper;
+import com.zdmj.userAuthService.enums.VerificationCodeScene;
 import com.zdmj.userAuthService.service.UserService;
 import com.zdmj.userAuthService.service.VerificationCodeService;
 import lombok.RequiredArgsConstructor;
@@ -52,7 +53,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
 
         // 3. 验证验证码
-        if (!verificationCodeService.verifyCode(registerDTO.getEmail(), registerDTO.getVerificationCode())) {
+        if (!verificationCodeService.verifyCode(registerDTO.getEmail(), registerDTO.getVerificationCode(),
+                VerificationCodeScene.REGISTER)) {
             throw new BusinessException(ErrorCode.CAPTCHA_ERROR);
         }
 
@@ -164,7 +166,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
 
         // 2. 验证验证码
-        if (!verificationCodeService.verifyCode(resetPasswordDTO.getEmail(), resetPasswordDTO.getVerificationCode())) {
+        if (!verificationCodeService.verifyCode(resetPasswordDTO.getEmail(), resetPasswordDTO.getVerificationCode(),
+                VerificationCodeScene.RESET_PASSWORD)) {
             throw new BusinessException(ErrorCode.CAPTCHA_ERROR);
         }
 

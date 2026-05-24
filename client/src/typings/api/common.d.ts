@@ -5,6 +5,21 @@
  */
 declare namespace Api {
   namespace Common {
+    /** 分页查询公共参数（page 从 1 开始） */
+    interface PageQueryParams {
+      page?: number;
+      limit?: number;
+    }
+
+    /** 分页响应（对应后端 PageDTO） */
+    interface PageDTO<T> {
+      list: T[];
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    }
+
     /** common params of paginating */
     interface PaginatingCommonParams {
       /** current page number */
