@@ -15,6 +15,7 @@ import com.zdmj.jobService.mapper.JobMapper;
 import com.zdmj.jobService.service.JobService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zdmj.common.model.PageDTO;
+import com.zdmj.common.model.PageRequests;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,8 +28,6 @@ import java.util.Objects;
 @Service
 @RequiredArgsConstructor
 public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobService {
-
-    private static final int MAX_PAGE_SIZE = 100;
 
     private final CompanyMapper companyMapper;
     private final RedisUtil redisCacheUtil;
@@ -55,19 +54,15 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
     @Override
     public PageDTO<JobListItemDTO> getPage(JobPageQueryDTO query) {
         JobPageQueryDTO q = query != null ? query : new JobPageQueryDTO();
-        int p = (q.getPage() == null || q.getPage() < 1) ? 1 : q.getPage();
-        int l = (q.getLimit() == null || q.getLimit() < 1) ? 20 : Math.min(q.getLimit(), MAX_PAGE_SIZE);
-        int offset = (p - 1) * l;
+        PageRequests.Normalized paging = PageRequests.normalize(q.getPage(), q.getLimit());
 
         q.setCompanySizes(emptyToNull(q.getCompanySizes()));
         q.setFundingTypes(emptyToNull(q.getFundingTypes()));
         q.setIndustries(emptyToNull(q.getIndustries()));
         q.setCompanyName(StringUtils.hasText(q.getCompanyName()) ? q.getCompanyName().trim() : null);
         q.setJobName(StringUtils.hasText(q.getJobName()) ? q.getJobName().trim() : null);
-
-        List<JobListItemDTO> data = baseMapper.selectPage(q, offset, l);
-        Long total = baseMapper.countPage(q);
-        return PageDTO.of(data, total == null ? 0L : total, p, l);
+    
+        return PageDTO.from(baseMapper.selectJobPage(PageRequests.toPage(paging), q));
     }
 
     private static <T> List<T> emptyToNull(List<T> list) {

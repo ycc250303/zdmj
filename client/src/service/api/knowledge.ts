@@ -50,19 +50,10 @@ export namespace KnowledgeApi {
   }
 
   /** 分页查询参数 */
-  export interface KnowledgeQueryParams {
-    page?: number;
-    limit?: number;
-  }
+  export type KnowledgeQueryParams = Api.Common.PageQueryParams;
 
-  /** 分页结果 (后端 PageDTO 结构) */
-  export interface PageResult<T> {
-    list: T[];       // 后端字段名：list
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  }
+  /** 分页结果 */
+  export type PageResult<T> = Api.Common.PageDTO<T>;
 
   /** 文件上传结果 */
   export interface FileUploadResult {

@@ -43,19 +43,12 @@ export namespace ConversationApi {
   }
 
   /** 分页查询参数 */
-  export interface MessageQueryParams {
+  export type MessageQueryParams = Api.Common.PageQueryParams & {
     conversationId: number;
-    page?: number;
-    limit?: number;
-  }
+  };
 
   /** 分页结果 */
-  export interface PageResult<T> {
-    list: T[]; 
-    total: number;
-    page: number;
-    limit: number;
-  }
+  export type PageResult<T> = Api.Common.PageDTO<T>;
 }
 
 /**

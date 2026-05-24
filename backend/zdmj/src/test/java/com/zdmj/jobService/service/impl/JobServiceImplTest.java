@@ -2,6 +2,7 @@ package com.zdmj.jobService.service.impl;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zdmj.common.cache.RedisConstants;
 import com.zdmj.common.cache.RedisUtil;
 import com.zdmj.common.exception.BusinessException;
@@ -238,8 +239,10 @@ class JobServiceImplTest {
         query.setFundingTypes(List.of());
         JobListItemDTO row = new JobListItemDTO();
         row.setJobName("Java工程师");
-        doReturn(List.of(row)).when(jobMapper).selectPage(any(JobPageQueryDTO.class), eq(0), eq(100));
-        doReturn(1L).when(jobMapper).countPage(any(JobPageQueryDTO.class));
+        Page<JobListItemDTO> mpPage = new Page<>(1, 100);
+        mpPage.setRecords(List.of(row));
+        mpPage.setTotal(1);
+        doReturn(mpPage).when(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
 
         PageDTO<JobListItemDTO> page = jobService.getPage(query);
 
@@ -247,16 +250,17 @@ class JobServiceImplTest {
         assertEquals(100, page.getLimit());
         assertEquals(1L, page.getTotal());
         assertEquals("Java工程师", page.getList().get(0).getJobName());
-        verify(jobMapper).selectPage(any(JobPageQueryDTO.class), eq(0), eq(100));
-        verify(jobMapper).countPage(any(JobPageQueryDTO.class));
+        verify(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
     }
 
     @Test
     void getDetail_getPage_whenQueryNull_shouldUseDefaultPageAndLimit() {
         JobListItemDTO row = new JobListItemDTO();
         row.setJobName("默认分页岗位");
-        doReturn(List.of(row)).when(jobMapper).selectPage(any(JobPageQueryDTO.class), eq(0), eq(20));
-        doReturn(null).when(jobMapper).countPage(any(JobPageQueryDTO.class));
+        Page<JobListItemDTO> mpPage = new Page<>(1, 20);
+        mpPage.setRecords(List.of(row));
+        mpPage.setTotal(0);
+        doReturn(mpPage).when(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
 
         PageDTO<JobListItemDTO> page = jobService.getPage(null);
 
@@ -264,8 +268,7 @@ class JobServiceImplTest {
         assertEquals(20, page.getLimit());
         assertEquals(0L, page.getTotal());
         assertEquals("默认分页岗位", page.getList().get(0).getJobName());
-        verify(jobMapper).selectPage(any(JobPageQueryDTO.class), eq(0), eq(20));
-        verify(jobMapper).countPage(any(JobPageQueryDTO.class));
+        verify(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
     }
 
     @Test
@@ -278,13 +281,18 @@ class JobServiceImplTest {
         query.setCompanySizes(List.of());
         query.setIndustries(List.of());
         query.setFundingTypes(List.of());
-        doReturn(List.of()).when(jobMapper).selectPage(any(JobPageQueryDTO.class), eq(10), eq(10));
-        doReturn(0L).when(jobMapper).countPage(any(JobPageQueryDTO.class));
+        Page<JobListItemDTO> mpPage = new Page<>(2, 10);
+        mpPage.setRecords(List.of());
+        mpPage.setTotal(0);
+        doReturn(mpPage).when(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
 
         jobService.getPage(query);
 
         ArgumentCaptor<JobPageQueryDTO> captor = ArgumentCaptor.forClass(JobPageQueryDTO.class);
-        verify(jobMapper).selectPage(captor.capture(), eq(10), eq(10));
+        ArgumentCaptor<Page> pageCaptor = ArgumentCaptor.forClass(Page.class);
+        verify(jobMapper).selectJobPage(pageCaptor.capture(), captor.capture());
+        assertEquals(2, pageCaptor.getValue().getCurrent());
+        assertEquals(10, pageCaptor.getValue().getSize());
         JobPageQueryDTO normalized = captor.getValue();
         assertEquals("ACME", normalized.getCompanyName());
         assertEquals("Java", normalized.getJobName());
@@ -298,8 +306,10 @@ class JobServiceImplTest {
         JobPageQueryDTO query = new JobPageQueryDTO();
         query.setPage(-3);
         query.setLimit(-8);
-        doReturn(List.of()).when(jobMapper).selectPage(any(JobPageQueryDTO.class), eq(0), eq(20));
-        doReturn(5L).when(jobMapper).countPage(any(JobPageQueryDTO.class));
+        Page<JobListItemDTO> mpPage = new Page<>(1, 20);
+        mpPage.setRecords(List.of());
+        mpPage.setTotal(5);
+        doReturn(mpPage).when(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
 
         PageDTO<JobListItemDTO> page = jobService.getPage(query);
 
@@ -307,8 +317,7 @@ class JobServiceImplTest {
         assertEquals(20, page.getLimit());
         assertEquals(5L, page.getTotal());
         assertEquals(1, page.getTotalPages());
-        verify(jobMapper).selectPage(any(JobPageQueryDTO.class), eq(0), eq(20));
-        verify(jobMapper).countPage(any(JobPageQueryDTO.class));
+        verify(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
     }
 
     private static void initMybatisPlusLambdaCache() {

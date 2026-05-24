@@ -11,8 +11,10 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.model.PageDTO;
+import com.zdmj.common.model.PageRequests;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -139,29 +141,16 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
      */
     public PageDTO<KnowledgeDocumentPublicDTO> getByPage(Integer page, Integer limit) {
         Long userId = UserHolder.requireUserId();
-        if (page == null || page < 1) {
-            page = 1;
-        }
-        if (limit == null || limit < 1) {
-            limit = 20;
-        }
-        if (limit > 100) {
-            limit = 100;
-        }
-        int offset = (page - 1) * limit;
+        PageRequests.Normalized paging = PageRequests.normalize(page, limit);
         LambdaQueryWrapper<KnowledgeDocument> queryWrapper = new LambdaQueryWrapper<KnowledgeDocument>()
                 .eq(KnowledgeDocument::getUserId, userId)
                 .orderByDesc(KnowledgeDocument::getCreatedAt);
-        List<KnowledgeDocument> records = knowledgeDocumentMapper
-                .selectList(queryWrapper.last("LIMIT " + limit + " OFFSET " + offset));
-        Long total = knowledgeDocumentMapper.selectCount(new LambdaQueryWrapper<KnowledgeDocument>()
-                .eq(KnowledgeDocument::getUserId, userId));
-        long totalCount = total == null ? 0 : total;
-        List<KnowledgeDocumentPublicDTO> list = new ArrayList<>(records.size());
-        for (KnowledgeDocument kd : records) {
+        Page<KnowledgeDocument> result = knowledgeDocumentMapper.selectPage(PageRequests.toPage(paging), queryWrapper);
+        List<KnowledgeDocumentPublicDTO> list = new ArrayList<>(result.getRecords().size());
+        for (KnowledgeDocument kd : result.getRecords()) {
             list.add(toPublicDto(kd));
         }
-        return PageDTO.of(list, totalCount, page, limit);
+        return PageDTO.from(result, list);
     }
 
     /**

@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
@@ -337,8 +338,10 @@ class KnowledgeDocumentServiceImplTest {
         kd.setType(KnowledgeTypeEnum.GITHUB_REPO.getCode());
         kd.setContent("https://github.com/acme/repo");
         kd.setTitle("repo");
-        when(knowledgeDocumentMapper.selectList(any())).thenReturn(java.util.List.of(kd));
-        when(knowledgeDocumentMapper.selectCount(any())).thenReturn(null);
+        Page<KnowledgeDocument> mpPage = new Page<>(1, 100);
+        mpPage.setRecords(java.util.List.of(kd));
+        mpPage.setTotal(0);
+        when(knowledgeDocumentMapper.selectPage(any(Page.class), any())).thenReturn(mpPage);
         KnowledgeDocumentServiceImpl service = new KnowledgeDocumentServiceImpl(
                 knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService);
 
@@ -347,15 +350,16 @@ class KnowledgeDocumentServiceImplTest {
         assertEquals(1, page.getList().size());
         assertEquals(100, page.getLimit());
         assertEquals(0, page.getTotal());
-        verify(knowledgeDocumentMapper).selectList(any());
-        verify(knowledgeDocumentMapper).selectCount(any());
+        verify(knowledgeDocumentMapper).selectPage(any(Page.class), any());
     }
 
     @Test
     void getByPageWithInvalidPageAndLimit_shouldApplyDefaults() {
         UserHolder.set(UserContext.of(216L, "u"));
-        when(knowledgeDocumentMapper.selectList(any())).thenReturn(java.util.List.of());
-        when(knowledgeDocumentMapper.selectCount(any())).thenReturn(3L);
+        Page<KnowledgeDocument> mpPage = new Page<>(1, 20);
+        mpPage.setRecords(java.util.List.of());
+        mpPage.setTotal(3);
+        when(knowledgeDocumentMapper.selectPage(any(Page.class), any())).thenReturn(mpPage);
         KnowledgeDocumentServiceImpl service = new KnowledgeDocumentServiceImpl(
                 knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService);
 

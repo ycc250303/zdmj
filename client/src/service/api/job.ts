@@ -35,11 +35,7 @@ export namespace JobApi {
   export type Job = JobListItem;
 
   // 岗位分页查询条件（对应后端 JobPageQueryDTO）
-  // 注意：数组类参数后端要求是 JSON 字符串形式（如 "[1,2,3]"），
-  // 序列化已在 fetchGetJobPage 内部处理，调用方仍使用原生数组即可。
-  export interface JobPageQuery {
-    page?: number;
-    limit?: number;
+  export interface JobPageQuery extends Api.Common.PageQueryParams {
     companySizes?: number[];
     fundingTypes?: number[];
     industries?: string[];
@@ -75,13 +71,7 @@ export namespace JobApi {
   }
 
   // 分页响应（对应后端 PageDTO）
-  export interface PageResponse<T> {
-    list: T[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages?: number;
-  }
+  export type PageResponse<T> = Api.Common.PageDTO<T>;
 
   // 岗位能力画像（对应后端 JobCapabilityProfileDTO）
   export interface JobCapabilityProfile {

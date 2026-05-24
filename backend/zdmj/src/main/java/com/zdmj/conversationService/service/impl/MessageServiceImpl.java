@@ -7,6 +7,7 @@ import com.zdmj.common.cache.RedisUtil;
 import com.zdmj.common.ai.config.RagConfig;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.model.PageDTO;
+import com.zdmj.common.model.PageRequests;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
@@ -57,9 +58,6 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     private static final int STREAM_TTL_SECONDS = 3600;
     // 流式消息 sink 映射
     private final ConcurrentHashMap<Long, Sinks.Many<String>> streamSinkMap = new ConcurrentHashMap<>();
-
-    // 最大消息页大小
-    private static final int MAX_MESSAGE_PAGE_SIZE = 100;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -266,13 +264,8 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     @Override
     public PageDTO<Message> getMessagesByConversationId(Long conversationId, Integer page, Integer limit) {
         requireConversationAccess(conversationId);
-        int p = (page == null || page < 1) ? 1 : page;
-        int l = (limit == null || limit < 1) ? 20 : Math.min(limit, MAX_MESSAGE_PAGE_SIZE);
-        int offset = (p - 1) * l;
-        Integer totalInt = messageMapper.selectMessageCountByConversationId(conversationId);
-        long total = totalInt == null ? 0L : totalInt.longValue();
-        List<Message> data = messageMapper.selectPageByConversationId(conversationId, offset, l);
-        return PageDTO.of(data, total, p, l);
+        PageRequests.Normalized paging = PageRequests.normalize(page, limit);
+        return PageDTO.from(messageMapper.selectPageByConversationId(PageRequests.toPage(paging), conversationId));
     }
 
     /**

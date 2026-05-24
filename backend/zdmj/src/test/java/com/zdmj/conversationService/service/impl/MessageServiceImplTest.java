@@ -1,5 +1,6 @@
 package com.zdmj.conversationService.service.impl;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zdmj.common.cache.RedisUtil;
 import com.zdmj.common.ai.config.RagConfig;
 import com.zdmj.common.context.UserContext;
@@ -190,8 +191,10 @@ class MessageServiceImplTest {
         Conversation conversation = new Conversation();
         conversation.setId(201L);
         doReturn(conversation).when(conversationService).getById(201L);
-        doReturn(5).when(messageMapper).selectMessageCountByConversationId(201L);
-        doReturn(List.of(new Message())).when(messageMapper).selectPageByConversationId(201L, 0, 100);
+        Page<Message> mpPage = new Page<>(1, 100);
+        mpPage.setRecords(List.of(new Message()));
+        mpPage.setTotal(5);
+        doReturn(mpPage).when(messageMapper).selectPageByConversationId(any(Page.class), eq(201L));
 
         PageDTO<Message> page = messageService.getMessagesByConversationId(201L, 1, 500);
 
@@ -199,7 +202,7 @@ class MessageServiceImplTest {
         assertEquals(1, page.getPage());
         assertEquals(5L, page.getTotal());
         assertEquals(1, page.getList().size());
-        verify(messageMapper).selectPageByConversationId(201L, 0, 100);
+        verify(messageMapper).selectPageByConversationId(any(Page.class), eq(201L));
     }
 
     @Test
@@ -211,7 +214,7 @@ class MessageServiceImplTest {
 
         assertEquals(ErrorCode.CONVERSATION_NOT_FOUND.getCode(), ex.getCode());
         assertEquals(ErrorCode.CONVERSATION_NOT_FOUND.getMessage(), ex.getMessage());
-        verify(messageMapper, never()).selectPageByConversationId(anyLong(), anyInt(), anyInt());
+        verify(messageMapper, never()).selectPageByConversationId(any(), anyLong());
     }
 
     @Test

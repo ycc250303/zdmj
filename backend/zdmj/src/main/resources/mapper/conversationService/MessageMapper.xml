@@ -6,9 +6,5 @@
         FROM messages
         WHERE conversation_id = #{conversationId}
         ORDER BY sequence ASC NULLS LAST, id ASC
-        LIMIT #{limit} OFFSET #{offset}
-    </select>
-    <select id="selectMessageCountByConversationId" resultType="java.lang.Integer">
-        SELECT COUNT(*) FROM messages WHERE conversation_id = #{conversationId}
     </select>
 </mapper>
