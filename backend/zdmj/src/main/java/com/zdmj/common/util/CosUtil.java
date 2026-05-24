@@ -337,13 +337,14 @@ public class CosUtil {
     }
 
     /**
-     * 提取 URL path 最后一段文件名；若不是完整 URL，则按 key 处理。
+     * 从 COS 访问 URL 或对象 key 中提取完整对象键（不含 leading slash）。
+     * 示例：https://bucket.cos.region.myqcloud.com/user-1/profile/a.pdf -> user-1/profile/a.pdf
      */
-    private static String extractObjectNameFromUrl(String sourceUri) {
+    public static String extractKeyFromUrl(String sourceUri) {
         if (isBlank(sourceUri)) {
             return "";
         }
-        String rawPath = sourceUri;
+        String rawPath = sourceUri.trim();
         try {
             URI uri = URI.create(sourceUri.trim());
             if (!isBlank(uri.getPath())) {
@@ -353,16 +354,33 @@ public class CosUtil {
             // 非标准 URI 时按原字符串兜底处理
         }
         rawPath = rawPath.replace('\\', '/');
-        int slash = rawPath.lastIndexOf('/');
-        String fileName = slash >= 0 ? rawPath.substring(slash + 1) : rawPath;
-        if (isBlank(fileName)) {
+        while (rawPath.startsWith("/")) {
+            rawPath = rawPath.substring(1);
+        }
+        if (isBlank(rawPath)) {
             return "";
         }
         try {
-            return URLDecoder.decode(fileName, StandardCharsets.UTF_8);
+            return URLDecoder.decode(rawPath, StandardCharsets.UTF_8);
         } catch (Exception ignore) {
-            return fileName;
+            return rawPath;
         }
+    }
+
+    /**
+     * 提取 URL path 最后一段文件名；若不是完整 URL，则按 key 处理。
+     */
+    private static String extractObjectNameFromUrl(String sourceUri) {
+        String key = extractKeyFromUrl(sourceUri);
+        if (isBlank(key)) {
+            return "";
+        }
+        int slash = key.lastIndexOf('/');
+        String fileName = slash >= 0 ? key.substring(slash + 1) : key;
+        if (isBlank(fileName)) {
+            return "";
+        }
+        return fileName;
     }
 
     /**

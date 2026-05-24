@@ -8,6 +8,7 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.common.storage.FileUploadUtil;
 import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.ai.prompt.PromptNames;
@@ -51,6 +52,8 @@ class StudentCapabilityProfileServiceImplTest {
     @Mock
     private ChatUtil chatUtil;
     @Mock
+    private FileUploadUtil fileUploadUtil;
+    @Mock
     private StudentCapabilityProfileMapper studentCapabilityProfileMapper;
 
     private StudentCapabilityProfileServiceImpl service;
@@ -59,7 +62,7 @@ class StudentCapabilityProfileServiceImplTest {
     @BeforeEach
     void setUp() {
         initMybatisPlusLambdaCache();
-        service = spy(new StudentCapabilityProfileServiceImpl(chatUtil, new ObjectMapper()));
+        service = spy(new StudentCapabilityProfileServiceImpl(chatUtil, new ObjectMapper(), fileUploadUtil));
         ReflectionTestUtils.setField(service, "baseMapper", studentCapabilityProfileMapper);
         UserHolder.set(UserContext.of(1L, "u1"));
     }
@@ -159,6 +162,59 @@ class StudentCapabilityProfileServiceImplTest {
         assertEquals(1, out.getStrengths().size());
         verify(service).save(any(StudentCapabilityProfile.class));
         verify(service, never()).updateById(any(StudentCapabilityProfile.class));
+        verify(fileUploadUtil, never()).deleteProfileUploadByUrl(anyString());
+    }
+
+    @Test
+    void generateProfile_withPdfUrl_shouldDeleteCosFileAfterSuccess() {
+        String pdfUrl = "https://bucket.cos.ap-shanghai.myqcloud.com/user-1/profile/resume-abc.pdf";
+        CapabilityProfileGenerateReqDTO req = new CapabilityProfileGenerateReqDTO();
+        req.setPdfUrl(pdfUrl);
+
+        try (MockedStatic<PdfParserUtil> mocked = mockStatic(PdfParserUtil.class)) {
+            mocked.when(() -> PdfParserUtil.extractTextFromUrl(pdfUrl))
+                    .thenReturn("java spring boot redis mysql project experience");
+
+            StudentCapabilityProfileDTO ai = new StudentCapabilityProfileDTO();
+            StudentCapabilityProfileDTO.ScoreDetail detail = new StudentCapabilityProfileDTO.ScoreDetail();
+            detail.setProjectExperienceScore(20);
+            ai.setScoreDetail(detail);
+            doReturn(ai).when(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileDTO.class));
+            doReturn(null).when(service).getOne(any());
+            doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
+
+            StudentCapabilityProfileDTO out = service.generateProfile(req);
+
+            assertNotNull(out);
+            verify(fileUploadUtil).deleteProfileUploadByUrl(pdfUrl);
+        }
+    }
+
+    @Test
+    void generateProfile_withPdfUrl_whenDeleteFails_shouldStillReturnResult() {
+        String pdfUrl = "https://bucket.cos.ap-shanghai.myqcloud.com/user-1/profile/resume-abc.pdf";
+        CapabilityProfileGenerateReqDTO req = new CapabilityProfileGenerateReqDTO();
+        req.setPdfUrl(pdfUrl);
+
+        try (MockedStatic<PdfParserUtil> mocked = mockStatic(PdfParserUtil.class)) {
+            mocked.when(() -> PdfParserUtil.extractTextFromUrl(pdfUrl))
+                    .thenReturn("java spring boot redis mysql project experience");
+
+            StudentCapabilityProfileDTO ai = new StudentCapabilityProfileDTO();
+            StudentCapabilityProfileDTO.ScoreDetail detail = new StudentCapabilityProfileDTO.ScoreDetail();
+            detail.setSkillMatchScore(10);
+            ai.setScoreDetail(detail);
+            doReturn(ai).when(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileDTO.class));
+            doReturn(null).when(service).getOne(any());
+            doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
+            doThrow(new RuntimeException("cos delete failed")).when(fileUploadUtil).deleteProfileUploadByUrl(pdfUrl);
+
+            StudentCapabilityProfileDTO out = service.generateProfile(req);
+
+            assertNotNull(out);
+            assertEquals(10, out.getCompetitivenessScore());
+            verify(fileUploadUtil).deleteProfileUploadByUrl(pdfUrl);
+        }
     }
 
     @Test
@@ -391,6 +447,7 @@ class StudentCapabilityProfileServiceImplTest {
 
             assertEquals(400, ex.getCode());
             verify(chatUtil, never()).chatStructuredOnce(anyString(), anyString(), any(), any());
+            verify(fileUploadUtil, never()).deleteProfileUploadByUrl(anyString());
         }
     }
 

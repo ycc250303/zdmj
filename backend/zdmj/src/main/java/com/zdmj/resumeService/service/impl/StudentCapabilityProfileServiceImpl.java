@@ -8,6 +8,7 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.common.storage.FileUploadUtil;
 import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.ai.prompt.PromptNames;
@@ -50,6 +51,7 @@ public class StudentCapabilityProfileServiceImpl
 
     private final ChatUtil chatUtil;
     private final ObjectMapper objectMapper;
+    private final FileUploadUtil fileUploadUtil;
 
     private static final Map<JobRole, List<String>> KEYWORDS = Map.of(
         JobRole.JAVA, List.of("java", "spring", "spring boot", "mybatis", "mysql", "redis", "jvm"),
@@ -94,6 +96,7 @@ public class StudentCapabilityProfileServiceImpl
     @Override
     public StudentCapabilityProfileDTO generateProfile(CapabilityProfileGenerateReqDTO reqDTO) {
         Long userId = UserHolder.requireUserId();
+        String pdfUrl = StringUtils.hasText(reqDTO.getPdfUrl()) ? reqDTO.getPdfUrl().trim() : null;
         String sourceText = resolveSourceText(reqDTO);
 
         ResumeRoleDetectDTO resumeRole = detect(sourceText);
@@ -142,7 +145,22 @@ public class StudentCapabilityProfileServiceImpl
         StudentCapabilityProfileDTO responseDto = toDto(newProfile);
         hydrateDtoFromEntity(newProfile, responseDto);
         mergeAiTransientFields(aiResult, responseDto);
+        cleanupUploadedResumeAfterAnalysis(pdfUrl);
         return responseDto;
+    }
+
+    /**
+     * 能力画像分析完成后删除 COS 临时简历；清理失败不影响主流程。
+     */
+    private void cleanupUploadedResumeAfterAnalysis(String pdfUrl) {
+        if (!StringUtils.hasText(pdfUrl)) {
+            return;
+        }
+        try {
+            fileUploadUtil.deleteProfileUploadByUrl(pdfUrl);
+        } catch (Exception e) {
+            log.warn("能力画像生成成功但清理 COS 简历失败: url={}, err={}", pdfUrl, e.getMessage());
+        }
     }
 
     private static StudentCapabilityProfileDTO toDto(StudentCapabilityProfile entity) {
