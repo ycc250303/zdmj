@@ -13,7 +13,7 @@ import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.ai.prompt.PromptNames;
 import com.zdmj.common.ai.PromptUtil.JobRole;
-import com.zdmj.resumeService.dto.CapabilityProfileGenerateReqDTO;
+import com.zdmj.resumeService.dto.CapabilityProfileGenerateRequest;
 import com.zdmj.resumeService.dto.ResumeRoleDetectDTO;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileDTO;
 import com.zdmj.resumeService.entity.StudentCapabilityProfile;
@@ -98,7 +98,7 @@ class StudentCapabilityProfileServiceImplTest {
 
     @Test
     void generateProfile_missingInput_shouldThrow400AndSkipLlm() {
-        CapabilityProfileGenerateReqDTO req = new CapabilityProfileGenerateReqDTO();
+        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
 
@@ -108,7 +108,7 @@ class StudentCapabilityProfileServiceImplTest {
 
     @Test
     void generateProfile_llmIllegalState_shouldThrow500() {
-        CapabilityProfileGenerateReqDTO req = new CapabilityProfileGenerateReqDTO();
+        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setRawText("java spring boot redis mysql");
         doThrow(new IllegalStateException("bad schema")).when(chatUtil)
                 .chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileDTO.class));
@@ -122,7 +122,7 @@ class StudentCapabilityProfileServiceImplTest {
 
     @Test
     void generateProfile_llmRuntime_shouldThrow500() {
-        CapabilityProfileGenerateReqDTO req = new CapabilityProfileGenerateReqDTO();
+        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setRawText("java spring boot redis mysql");
         doThrow(new RuntimeException("timeout")).when(chatUtil)
                 .chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileDTO.class));
@@ -136,7 +136,7 @@ class StudentCapabilityProfileServiceImplTest {
 
     @Test
     void generateProfile_newProfile_shouldNormalizeAndSave() {
-        CapabilityProfileGenerateReqDTO req = new CapabilityProfileGenerateReqDTO();
+        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setRawText("java spring boot redis mysql");
 
         StudentCapabilityProfileDTO ai = new StudentCapabilityProfileDTO();
@@ -168,7 +168,7 @@ class StudentCapabilityProfileServiceImplTest {
     @Test
     void generateProfile_withPdfUrl_shouldDeleteCosFileAfterSuccess() {
         String pdfUrl = "https://bucket.cos.ap-shanghai.myqcloud.com/user-1/profile/resume-abc.pdf";
-        CapabilityProfileGenerateReqDTO req = new CapabilityProfileGenerateReqDTO();
+        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setPdfUrl(pdfUrl);
 
         try (MockedStatic<PdfParserUtil> mocked = mockStatic(PdfParserUtil.class)) {
@@ -193,7 +193,7 @@ class StudentCapabilityProfileServiceImplTest {
     @Test
     void generateProfile_withPdfUrl_whenDeleteFails_shouldStillReturnResult() {
         String pdfUrl = "https://bucket.cos.ap-shanghai.myqcloud.com/user-1/profile/resume-abc.pdf";
-        CapabilityProfileGenerateReqDTO req = new CapabilityProfileGenerateReqDTO();
+        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setPdfUrl(pdfUrl);
 
         try (MockedStatic<PdfParserUtil> mocked = mockStatic(PdfParserUtil.class)) {
@@ -219,7 +219,7 @@ class StudentCapabilityProfileServiceImplTest {
 
     @Test
     void generateProfile_existingProfile_shouldUpdateById() {
-        CapabilityProfileGenerateReqDTO req = new CapabilityProfileGenerateReqDTO();
+        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setRawText("java spring boot redis mysql");
 
         StudentCapabilityProfileDTO ai = new StudentCapabilityProfileDTO();
@@ -425,7 +425,7 @@ class StudentCapabilityProfileServiceImplTest {
     @Test
     void generateProfile_userNotLogin_shouldThrowAndSkipLlm() {
         UserHolder.clear();
-        CapabilityProfileGenerateReqDTO req = new CapabilityProfileGenerateReqDTO();
+        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setRawText("java spring");
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
@@ -436,7 +436,7 @@ class StudentCapabilityProfileServiceImplTest {
 
     @Test
     void generateProfile_pdfParseFailed_shouldThrow400() {
-        CapabilityProfileGenerateReqDTO req = new CapabilityProfileGenerateReqDTO();
+        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setPdfUrl("https://invalid.example.com/resume.pdf");
 
         try (MockedStatic<PdfParserUtil> mocked = mockStatic(PdfParserUtil.class)) {

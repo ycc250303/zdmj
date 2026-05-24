@@ -2,7 +2,7 @@ package com.zdmj.matchService.controller;
 
 import com.zdmj.common.model.Result;
 import com.zdmj.matchService.dto.JobStudentMatchDTO;
-import com.zdmj.matchService.dto.JobStudentMatchGenerateReqDTO;
+import com.zdmj.matchService.dto.JobStudentMatchGenerateRequest;
 import com.zdmj.matchService.dto.MatchWeightConfigDTO;
 import com.zdmj.matchService.service.JobStudentMatchService;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -50,7 +50,7 @@ public class JobStudentMatchController {
      */
     @PostMapping("/jobs/{jobId}")
     public Result<JobStudentMatchDTO> generate(@PathVariable Long jobId,
-                                               @RequestBody(required = false) JobStudentMatchGenerateReqDTO req) {
+                                               @RequestBody(required = false) JobStudentMatchGenerateRequest req) {
         log.info("生成人岗匹配分析: jobId={}", jobId);
         return Result.success("生成人岗匹配成功", matchService.generate(jobId, req));
     }

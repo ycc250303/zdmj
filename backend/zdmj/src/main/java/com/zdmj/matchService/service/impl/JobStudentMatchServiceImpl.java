@@ -16,7 +16,7 @@ import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobService;
 import com.zdmj.matchService.dto.DimensionMatchDTO;
 import com.zdmj.matchService.dto.JobStudentMatchDTO;
-import com.zdmj.matchService.dto.JobStudentMatchGenerateReqDTO;
+import com.zdmj.matchService.dto.JobStudentMatchGenerateRequest;
 import com.zdmj.matchService.dto.MatchWeightConfigDTO;
 import com.zdmj.matchService.entity.JobStudentMatch;
 import com.zdmj.matchService.enums.MatchDimension;
@@ -79,7 +79,7 @@ public class JobStudentMatchServiceImpl
     }
 
     @Override
-    public JobStudentMatchDTO generate(Long jobId, JobStudentMatchGenerateReqDTO req) {
+    public JobStudentMatchDTO generate(Long jobId, JobStudentMatchGenerateRequest req) {
         Long userId = UserHolder.requireUserId();
         if (jobId == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "jobId不能为空");

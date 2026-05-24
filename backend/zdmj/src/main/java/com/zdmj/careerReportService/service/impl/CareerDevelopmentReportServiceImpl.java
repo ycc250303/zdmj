@@ -6,9 +6,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.careerReportService.dto.CareerReportCheckDTO;
 import com.zdmj.careerReportService.dto.CareerReportDTO;
-import com.zdmj.careerReportService.dto.CareerReportGenerateReqDTO;
-import com.zdmj.careerReportService.dto.CareerReportPolishReqDTO;
-import com.zdmj.careerReportService.dto.CareerReportUpdateReqDTO;
+import com.zdmj.careerReportService.dto.CareerReportGenerateRequest;
+import com.zdmj.careerReportService.dto.CareerReportPolishRequest;
+import com.zdmj.careerReportService.dto.CareerReportUpdateRequest;
 import com.zdmj.careerReportService.entity.CareerDevelopmentReport;
 import com.zdmj.careerReportService.mapper.CareerDevelopmentReportMapper;
 import com.zdmj.careerReportService.service.CareerDevelopmentReportService;
@@ -107,7 +107,7 @@ public class CareerDevelopmentReportServiceImpl
     }
 
     @Override
-    public CareerReportDTO generate(Long jobId, CareerReportGenerateReqDTO req) {
+    public CareerReportDTO generate(Long jobId, CareerReportGenerateRequest req) {
         Long userId = UserHolder.requireUserId();
         if (jobId == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "jobId不能为空");
@@ -153,7 +153,7 @@ public class CareerDevelopmentReportServiceImpl
     }
 
     @Override
-    public CareerReportDTO polish(Long reportId, CareerReportPolishReqDTO req) {
+    public CareerReportDTO polish(Long reportId, CareerReportPolishRequest req) {
         CareerDevelopmentReport current = requireOwnedReport(reportId);
         Map<String, Object> currentContent = readMap(current.getReportContent());
 
@@ -218,7 +218,7 @@ public class CareerDevelopmentReportServiceImpl
     }
 
     @Override
-    public CareerReportDTO saveManualEdit(Long reportId, CareerReportUpdateReqDTO req) {
+    public CareerReportDTO saveManualEdit(Long reportId, CareerReportUpdateRequest req) {
         CareerDevelopmentReport current = requireOwnedReport(reportId);
         if (req == null || req.getReportContent() == null || req.getReportContent().isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "报告内容不能为空");
@@ -259,7 +259,7 @@ public class CareerDevelopmentReportServiceImpl
     /**
      * 从系统知识库检索与岗位/偏好相关的学习路径片段（向量相似度 + 文档分类过滤）。
      */
-    private List<KnowledgeRetrivalDTO> retrieveLearningPathHits(JobListItemDTO jobDetail, CareerReportGenerateReqDTO req) {
+    private List<KnowledgeRetrivalDTO> retrieveLearningPathHits(JobListItemDTO jobDetail, CareerReportGenerateRequest req) {
         Long userId = UserHolder.requireUserId();
         Long knowledgeId = knowledgeBasesService.getOrCreateKnowledgeBaseId();
         String query = buildKnowledgeQuery(jobDetail, req);
@@ -288,7 +288,7 @@ public class CareerDevelopmentReportServiceImpl
                                                          JobStudentMatchDTO match,
                                                          JobCareerGraphDTO graph,
                                                          List<KnowledgeRetrivalDTO> ragHits,
-                                                         CareerReportGenerateReqDTO req) {
+                                                         CareerReportGenerateRequest req) {
         Map<String, Object> vars = new LinkedHashMap<>();
         vars.put("userPreference", req == null ? "" : safe(req.getUserPreference()));
         vars.put("focus", req == null ? "" : safe(req.getFocus()));
@@ -415,7 +415,7 @@ public class CareerDevelopmentReportServiceImpl
         return EmbeddingQuerySupport.embedQuery(embeddingModel, queryText);
     }
 
-    private String buildKnowledgeQuery(JobListItemDTO jobDetail, CareerReportGenerateReqDTO req) {
+    private String buildKnowledgeQuery(JobListItemDTO jobDetail, CareerReportGenerateRequest req) {
         StringBuilder sb = new StringBuilder();
         sb.append("生成职业发展学习路径 ");
         sb.append(safe(jobDetail.getJobName())).append(" ");

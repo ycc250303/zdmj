@@ -3,9 +3,9 @@ package com.zdmj.careerReportService.service;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.zdmj.careerReportService.dto.CareerReportCheckDTO;
 import com.zdmj.careerReportService.dto.CareerReportDTO;
-import com.zdmj.careerReportService.dto.CareerReportGenerateReqDTO;
-import com.zdmj.careerReportService.dto.CareerReportPolishReqDTO;
-import com.zdmj.careerReportService.dto.CareerReportUpdateReqDTO;
+import com.zdmj.careerReportService.dto.CareerReportGenerateRequest;
+import com.zdmj.careerReportService.dto.CareerReportPolishRequest;
+import com.zdmj.careerReportService.dto.CareerReportUpdateRequest;
 import com.zdmj.careerReportService.entity.CareerDevelopmentReport;
 
 /**
@@ -28,7 +28,7 @@ public interface CareerDevelopmentReportService extends IService<CareerDevelopme
      * @param req   生成参数（可选）
      * @return 新生成的报告
      */
-    CareerReportDTO generate(Long jobId, CareerReportGenerateReqDTO req);
+    CareerReportDTO generate(Long jobId, CareerReportGenerateRequest req);
 
     /**
      * 对已有报告进行智能润色，写入新版本。
@@ -37,7 +37,7 @@ public interface CareerDevelopmentReportService extends IService<CareerDevelopme
      * @param req      润色参数（可选）
      * @return 润色后的新版本报告
      */
-    CareerReportDTO polish(Long reportId, CareerReportPolishReqDTO req);
+    CareerReportDTO polish(Long reportId, CareerReportPolishRequest req);
 
     /**
      * 对报告做完整性检查（本地 + LLM），并更新当前记录的质量标记。
@@ -54,5 +54,5 @@ public interface CareerDevelopmentReportService extends IService<CareerDevelopme
      * @param req      编辑内容
      * @return 保存后的新版本报告
      */
-    CareerReportDTO saveManualEdit(Long reportId, CareerReportUpdateReqDTO req);
+    CareerReportDTO saveManualEdit(Long reportId, CareerReportUpdateRequest req);
 }

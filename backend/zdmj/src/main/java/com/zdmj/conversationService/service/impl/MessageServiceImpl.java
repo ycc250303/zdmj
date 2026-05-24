@@ -21,7 +21,6 @@ import com.zdmj.conversationService.service.ConversationService;
 import com.zdmj.conversationService.service.MessageService;
 import com.zdmj.knowledgeService.service.KnowledgeRagService;
 
-import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
@@ -288,18 +287,6 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
             throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
         }
         return conversation;
-    }
-
-    @Data
-    public class ChatStreamRequest {
-        private Long conversationId; // 会话ID
-        private String message; // 消息
-    }
-
-    @Data
-    public class ChatResumeRequest {
-        private Long streamId; // 流式消息ID 建议=assistantMessageId
-        private Integer offset; // 前端已接收字符数
     }
 
     /**

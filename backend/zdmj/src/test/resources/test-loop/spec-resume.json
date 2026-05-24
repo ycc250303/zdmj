@@ -20,7 +20,7 @@
     },
     {
       "className": "StudentCapabilityProfileServiceImpl",
-      "method": "generateProfile(CapabilityProfileGenerateReqDTO)",
+      "method": "generateProfile(CapabilityProfileGenerateRequest)",
       "givenWhenThen": {
         "given": ["用户已登录", "提供 rawText 或 pdfUrl"],
         "when": "生成能力画像",

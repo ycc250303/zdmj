@@ -2,7 +2,7 @@ package com.zdmj.matchService.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.zdmj.matchService.dto.JobStudentMatchDTO;
-import com.zdmj.matchService.dto.JobStudentMatchGenerateReqDTO;
+import com.zdmj.matchService.dto.JobStudentMatchGenerateRequest;
 import com.zdmj.matchService.dto.MatchWeightConfigDTO;
 import com.zdmj.matchService.entity.JobStudentMatch;
 
@@ -42,7 +42,7 @@ public interface JobStudentMatchService extends IService<JobStudentMatch> {
      * @param req   生成请求体（可携带自定义权重，可为 null）
      * @return 匹配结果 DTO
      */
-    JobStudentMatchDTO generate(Long jobId, JobStudentMatchGenerateReqDTO req);
+    JobStudentMatchDTO generate(Long jobId, JobStudentMatchGenerateRequest req);
 
     /**
      * 仅根据岗位类型解析默认权重（不查 LLM、不落库）。

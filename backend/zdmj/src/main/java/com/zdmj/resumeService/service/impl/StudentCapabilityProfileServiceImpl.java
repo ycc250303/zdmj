@@ -13,7 +13,7 @@ import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.ai.prompt.PromptNames;
 import com.zdmj.common.ai.PromptUtil.JobRole;
-import com.zdmj.resumeService.dto.CapabilityProfileGenerateReqDTO;
+import com.zdmj.resumeService.dto.CapabilityProfileGenerateRequest;
 import com.zdmj.resumeService.dto.ResumeRoleDetectDTO;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileDTO;
 import com.zdmj.resumeService.entity.StudentCapabilityProfile;
@@ -94,7 +94,7 @@ public class StudentCapabilityProfileServiceImpl
      * @return 能力画像DTO
      */
     @Override
-    public StudentCapabilityProfileDTO generateProfile(CapabilityProfileGenerateReqDTO reqDTO) {
+    public StudentCapabilityProfileDTO generateProfile(CapabilityProfileGenerateRequest reqDTO) {
         Long userId = UserHolder.requireUserId();
         String pdfUrl = StringUtils.hasText(reqDTO.getPdfUrl()) ? reqDTO.getPdfUrl().trim() : null;
         String sourceText = resolveSourceText(reqDTO);
@@ -234,7 +234,7 @@ public class StudentCapabilityProfileServiceImpl
      * @param reqDTO 简历生成请求DTO
      * @return 简历文本
      */
-    private String resolveSourceText(CapabilityProfileGenerateReqDTO reqDTO) {
+    private String resolveSourceText(CapabilityProfileGenerateRequest reqDTO) {
         String sourceText;
         if (StringUtils.hasText(reqDTO.getPdfUrl())) {
             log.info("从 PDF 解析内容: {}", reqDTO.getPdfUrl());
