@@ -497,6 +497,7 @@ const local: App.I18n.Schema = {
         fileUpload: '文件上传',
         fileUploadDesc: '上传简历文件（支持 PDF、Word、TXT），AI 将自动分析文件内容生成画像',
         selectFile: '选择文件',
+        uploadOnGenerateHint: '已选择文件，点击「生成画像」或「重新生成」时将自动上传并分析',
         uploadFile: '上传文件',
         uploadSuccess: '文件上传成功',
         textInput: '纯文本输入',

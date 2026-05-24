@@ -35,9 +35,9 @@ public class StudentCapabilityProfile extends BaseEntity {
     private String professionalSkills;
 
     /**
-     * 证书
+     * 获奖经历（在校荣誉、竞赛获奖等）
      */
-    private String certificates;
+    private String honorsAndAwards;
 
     /**
      * 创新能力
@@ -65,19 +65,9 @@ public class StudentCapabilityProfile extends BaseEntity {
     private String practicalAbility;
 
     /**
-     * 完整度评分 (0-100)
-     */
-    private Integer completenessScore;
-
-    /**
-     * 竞争力评分 (0-100)
+     * 竞争力评分 (0-100)，由 scoreDetail 五项之和计算
      */
     private Integer competitivenessScore;
-
-    /**
-     * 岗位专项评估总分（可选）
-     */
-    private Integer overallScore;
 
     /**
      * 岗位识别置信度（0~1）
@@ -99,18 +89,6 @@ public class StudentCapabilityProfile extends BaseEntity {
      */
     @TableField(typeHandler = JsonbStringTypeHandler.class)
     private String scoreDetail;
-
-    /**
-     * 缺失技能项（JSONB）
-     */
-    @TableField(typeHandler = JsonbStringTypeHandler.class)
-    private String missingSkills;
-
-    /**
-     * 证据不足项（JSONB）
-     */
-    @TableField(typeHandler = JsonbStringTypeHandler.class)
-    private String weakEvidenceItems;
 
     /**
      * 改进建议（JSONB）

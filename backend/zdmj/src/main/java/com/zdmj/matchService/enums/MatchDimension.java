@@ -14,13 +14,13 @@ import lombok.Getter;
 public enum MatchDimension {
 
     /**
-     * 基础要求：学历、证书、岗位的硬性资质门槛。
+     * 基础要求：学历、岗位硬性资质门槛与学生荣誉/竞赛成果。
      */
     BASIC(
             "basic",
             "基础要求",
-            "学历、证书与岗位硬性资质门槛",
-            List.of("certificates")),
+            "学历、岗位硬性资质门槛与学生荣誉/竞赛成果",
+            List.of("honorsAndAwards")),
 
     /**
      * 职业技能：专业技能、技术栈、关键词命中。

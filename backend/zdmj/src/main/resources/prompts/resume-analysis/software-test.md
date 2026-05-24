@@ -9,7 +9,7 @@
 
 **不要**输出 `capabilityProfile` 嵌套对象；七维内容**只**写在下列七个顶层字符串字段中。
 1. professionalSkills（专业技能）
-2. certificates（证书）
+2. honorsAndAwards（获奖经历：校级及以上荣誉、学科/专业竞赛、奖学金等；无则写「无」或「简历未体现」）
 3. innovationAbility（创新能力）
 4. learningAbility（学习能力）
 5. pressureResistance（抗压能力）
@@ -18,86 +18,67 @@
 
 # Evidence & Hallucination Rules（证据与臆测，必须遵守）
 1. **只信简历原文**：七维与 `professionalSkills` 中的测试方法、工具、流程，须在简历中有**明确字面或合理同义**。**禁止**凭「测试岗常见能力」脑补简历未写的内容（如未提「性能测试 / 安全测试 / 专项自动化框架」则不得声称具备）；未写即写「简历未体现」或不写该项。
-2. **missingSkills**：仅列简历**未出现**或**仅有词汇无项目/场景佐证**的测试核心能力（如用例设计深度、缺陷分析与定位、接口/自动化实践、质量指标与闭环等——**仅当简历确实缺**时再列）。
-3. **weakEvidenceItems**：仅列「简历**已提到**但缺可追问细节」的项；**禁止**把简历已写明的 Postman/JMeter/某框架等标为「证据不足」除非指出缺哪类细节（场景、数据、用例结构、缺陷样例）。缺深度时写「缺 XXX 深度证据」，而非否认其存在。
-4. **缺口与 Rubrics 对齐**：`missingSkills` / `weakEvidenceItems` / `suggestions` 优先对应 **A. 岗位匹配与技术深度** 中的短板，避免冤枉已被简历覆盖的能力。
+2. **缺口统一写入 suggestions**：「技能缺失」「证据不足」等问题**只**通过 `suggestions` 输出，禁止输出 missingSkills、weakEvidenceItems 等其它缺口字段；优先对应 **projectExperienceScore** 与 **skillMatchScore** 的高危短板。
 
-# Software Test Campus Rubrics (Total: 100)
+# Project Audit Standards (项目审计标准)
 
-## A. 岗位匹配与技术深度（0-40）
-重点看是否满足软件测试校招核心要求：
-- 测试理论基础（测试用例设计、等价类、边界值、缺陷生命周期）
-- 接口测试基础（HTTP、Postman/Apifox 等工具）
-- 功能测试流程意识（需求分析、测试计划、执行、回归）
-- 自动化测试基础（至少了解一种：Selenium/Playwright/Pytest/JUnit）
-- 基础 SQL 与日志分析能力
-评分原则：
-- 31-40：核心项证据充分，能体现“发现问题-定位问题-推动修复”
-- 18-30：有基础但深度不足或证据偏弱
-- 0-17：关键词堆砌、缺核心项或明显不匹配
+在审计项目经历时，必须参考以下准则：
 
-## B. 项目与实践能力（0-20）
-评估项目经历是否真实、可追问、可量化：
-- 是否说明“测试对象-职责-测试策略-结果”
-- 是否体现个人贡献（用例设计、缺陷分析、自动化脚本）
-- 是否有量化结果（缺陷发现率、回归效率、线上故障下降）
-评分原则：
-- 16-20：结构完整、贡献明确、结果可量化
-- 8-15：有项目但贡献与结果不清晰
-- 0-7：描述空泛、真实性弱
+1. **测试策略合理性**：识别并纠正不合理的测试方案（如只写功能测试却声称覆盖全链路质量保障）。
+2. **业务场景融合**：描述必须遵循「测试对象 + 测试策略 + 缺陷/质量结果」的模式。
+3. **表达精炼度**：单条描述建议不超过两行。动词开头，删除冗余词汇。
+4. **深度测试点**：优先挖掘用例设计、缺陷定位、自动化实践、质量指标等高价值信息。
 
-## C. 内容完整度（0-15）
-简历是否覆盖岗位判断所需关键信息：
-- 教育/技能/项目/实习是否齐全
-- 是否能支撑七维画像提取
-评分原则：
-- 12-15：信息完整，便于评估
-- 6-11：有缺项但可分析
-- 0-5：缺失严重，难以判断
+# Scoring Rubrics (Total: 100)
 
-## D. 结构与技术表达规范（0-15）
-- 技术名词是否规范（Test Case、API、Selenium、Pytest、SQL、JMeter）
-- 描述是否专业清晰，是否存在术语误用
-评分原则：
-- 12-15：规范清晰、专业
-- 6-11：可读但不够规范
-- 0-5：混乱或大量不规范表达
+评分分项须写入 `scoreDetail` 对应字段（**40-20-15-15-10**）；综合竞争力由系统根据 scoreDetail 五项自动计算，**禁止**输出 competitivenessScore、overallScore。
 
-## E. 职业素养与发展潜力（0-10）
-综合评估创新、学习、抗压、沟通：
-- 是否体现质量意识、风险意识、闭环意识
-- 是否体现跨团队沟通能力（研发/产品/运维）
-- 是否有快速学习和迭代能力证据
-评分原则：
-- 8-10：潜力强、素养证据充分
-- 4-7：有基础但证据一般
-- 0-3：缺乏可验证证据
+1. **projectExperienceScore（0-40，项目经验）**：测试相关项目是否真实可追问；是否体现「发现问题-定位问题-推动修复」闭环；是否有量化结果（缺陷发现率、回归效率、线上故障下降等）。
+   - 31-40：项目深度强、证据充分、有量化结果
+   - 18-30：有项目但深度不足或证据偏弱
+   - 0-17：关键词堆砌、描述空泛或明显不匹配
+
+2. **skillMatchScore（0-20，技能匹配）**：软件测试校招核心能力覆盖（测试理论基础、接口测试、功能测试流程、自动化测试基础、SQL 与日志分析）；是否有项目或实习佐证。
+   - 16-20：核心技能与岗位匹配且证据充分
+   - 8-15：有基础但覆盖不全或证据一般
+   - 0-7：缺核心项或仅关键词堆砌
+
+3. **contentCompletenessScore（0-15，内容完整性）**：模块顺序是否合理（个人信息→求职意向→教育经历→专业技能→工作/实习→项目→获奖/荣誉/校园经历→个人评价）；教育/技能/项目/实习是否齐全。
+   - 12-15：信息完整、模块顺序合理
+   - 6-11：有缺项但可分析
+   - 0-5：缺失严重，难以判断
+
+4. **structureClarityScore（0-15，结构清晰度）**：简历层次是否清晰、模块划分是否易读；技术名词是否规范（Test Case、API、Selenium、Pytest、SQL、JMeter）；句式是否清晰，是否存在明显语病/堆词。
+   - 12-15：结构清晰、排版规范
+   - 6-11：可读但层次或规范一般
+   - 0-5：混乱或大量不规范表达
+
+5. **expressionProfessionalismScore（0-10，表达专业性）**：语言是否简洁专业；是否避免冗余表达；描述是否动词开头、结果导向；整体是否符合校招简历表达习惯。
+   - 8-10：表达精炼、专业
+   - 4-7：有基础但表达或专业性一般
+   - 0-3：表达冗余或不够专业
 
 # Scoring Constraints (必须遵守)
 1. 严禁虚构简历中未出现的经历、项目、技术结论。
 2. 若关键技能无证据支撑（如只写“熟悉测试”无项目体现），不得给高分。
-3. 若缺少测试核心项（测试理论基础 / 测试实践项目 / 缺陷分析能力）中的 2 项及以上，competitivenessScore（若输出 overallScore 则两者中较低者）不得高于 65。
-4. 必须明确指出“缺失技能项（missingSkills）”和“证据不足项（weakEvidenceItems）”。
+3. 若缺少测试核心项（测试理论基础 / 测试实践项目 / 缺陷分析能力）中的 2 项及以上，scoreDetail 五项之和不得高于 65。
 5. 若简历主要为开发经历且缺少测试职责证据，需明确说明“与测试岗位匹配偏弱”的原因。
 
 # Output Format
 请直接输出一个 JSON 对象，不要包含 Markdown 代码块标签（如 ```json）。
 
-JSON 必须严格包含以下字段（**禁止** `scoreDetail.totalScore`；**禁止** `capabilityProfile` 嵌套）：
+JSON 必须严格包含以下字段（**禁止** `scoreDetail.totalScore`；**禁止** `capabilityProfile` 嵌套；**禁止** competitivenessScore、overallScore）：
 
 {
-  "completenessScore": 0,
-  "competitivenessScore": 0,
-  "overallScore": 0,
   "scoreDetail": {
-    "jobMatchTechDepthScore": 0,
-    "projectPracticeScore": 0,
+    "projectExperienceScore": 0,
+    "skillMatchScore": 0,
     "contentCompletenessScore": 0,
-    "structureExpressionScore": 0,
-    "professionalPotentialScore": 0
+    "structureClarityScore": 0,
+    "expressionProfessionalismScore": 0
   },
   "professionalSkills": "",
-  "certificates": "",
+  "honorsAndAwards": "",
   "innovationAbility": "",
   "learningAbility": "",
   "pressureResistance": "",
@@ -105,11 +86,9 @@ JSON 必须严格包含以下字段（**禁止** `scoreDetail.totalScore`；**�
   "practicalAbility": "",
   "summary": "",
   "strengths": [],
-  "missingSkills": [],
-  "weakEvidenceItems": [],
   "suggestions": [
     {
-      "category": "技能|项目|表达|结构|职业素养",
+      "category": "技能缺失|证据不足|项目|表达|结构|职业素养",
       "priority": "高|中|低",
       "issue": "",
       "recommendation": ""
@@ -117,9 +96,37 @@ JSON 必须严格包含以下字段（**禁止** `scoreDetail.totalScore`；**�
   ]
 }
 
+
+
+# Suggestions Writing Rules（改进建议，必须遵守）
+
+`suggestions` 是**唯一**的缺口诊断与改进输出通道（不再单独输出缺失技能/证据不足列表）。
+
+1. **数量**：至少 **5 条**，建议 5～8 条；真实缺口不足时可略少，禁止用空话凑数。
+2. **category** 取值（必填）：
+   - **技能缺失**：简历未出现，或仅关键词无项目/场景/结果佐证的岗位核心能力
+   - **证据不足**：简历已提到但缺可追问细节（场景、数据、边界、异常、指标、个人职责）
+   - **项目 | 表达 | 结构 | 职业素养**：项目重写、表达精炼、排版结构、求职方向等
+3. **issue**（必填，1～2 句）：说清楚问题所在。**技能缺失**须点名具体技能/能力；**证据不足**须写「已提及 XXX，但缺 YYY 细节」；其它类别须指向简历具体段落或模块。
+4. **recommendation**（必填，1～2 句）：给出可执行动作（补哪类经历、加什么指标、如何改写某项目描述、学习路径与验证方式）；禁止「加强学习」「提升能力」等空话。
+5. **priority**：至少 1 条「高」对应最影响投递/面试追问的短板；其余按影响排「中」「低」。
+6. **覆盖要求**：若存在明显技能缺口或证据薄弱点，须各有至少 1 条 **技能缺失** / **证据不足** 类建议（无则不要编造）。
+7. **去重**：同一技能/项目缺口不要拆成多条重复建议；与 **scoreDetail** 低分维度（尤其项目经验、技能匹配）对齐。
+
+# Strengths Writing Rules（优势亮点，必须遵守）
+
+`strengths` 用于输出 3～5 条**可追问、可验证**的优势亮点，供前端展示。
+
+1. **结构**：每条采用「简短判断 + 具体证据」——先概括优势方向，再**点名**简历中的项目名、技术栈、方案做法或量化结果（可用括号、顿号或短从句嵌入）。
+2. **必须具体**：至少包含 1 项简历专有信息（项目/业务名、框架或中间件、算法/设计模式、性能指标、负责模块等）；禁止单独输出「项目经验丰富」「基础扎实」「学习能力强」「技术栈全面」等无佐证套话。
+3. **证据边界**：只写简历原文已有或可合理同义的内容；禁止为凑条目而臆测未出现的项目或技术。
+4. **去重覆盖**：各条侧重不同维度（项目/领域、核心技术栈、工程或性能实践、架构或方法论、协作与交付等），勿重复同一证据。
+5. **篇幅**：每条一行，建议 20～60 字，简洁有力。
+
 # Additional Requirements
-- **completenessScore**（0～100）：简历整体完整度总评，**必填且不得无故为 0**。
-- **competitivenessScore**（0～100）：须与 scoreDetail 五项之和一致（上限分别为 40、20、15、15、10）；**overallScore** 若输出须与 competitivenessScore 数值相同。
-- 七维顶层字符串字段必须有内容；须遵守上文 **Evidence & Hallucination Rules**，不得臆测简历未写的技术栈。
-- suggestions 至少给出 3 条，且必须可执行；与 `missingSkills` / `weakEvidenceItems` 逻辑一致。
+- **禁止**输出 competitivenessScore、overallScore；综合竞争力由系统根据 scoreDetail 五项之和（上限 40、20、15、15、10）自动计算。
+- 七维顶层字符串字段必须有内容，标准见上文「Evaluation Scope」段落；且须遵守上文 **Evidence & Hallucination Rules**，不得臆测简历未写的技术栈。
+- **honorsAndAwards**：聚焦在校荣誉、学科/专业竞赛、奖学金等可验证成果，须写名称、级别与个人角色；无则写「无」或「简历未体现」。职业/语言类证书（如 CET、软考）若简历有写可顺带提及，但不作为本维度重点。
+- **strengths**：须遵守上文 **Strengths Writing Rules**；不足 3 条真实亮点时可少写，但不得用空泛套话凑数。
+- **suggestions**：须遵守上文 **Suggestions Writing Rules**。
 - 对测试岗位建议优先覆盖：测试设计能力、缺陷定位能力、自动化能力、质量闭环推进能力。

@@ -310,8 +310,8 @@ CREATE TABLE IF NOT EXISTS student_capability_profiles (
     -- 关联用户ID（逻辑外键：users.id）
     professional_skills TEXT,
     -- 专业技能
-    certificates TEXT,
-    -- 证书
+    honors_and_awards TEXT,
+    -- 获奖经历（在校荣誉、竞赛获奖等）
     innovation_ability TEXT,
     -- 创新能力
     learning_ability TEXT,
@@ -322,12 +322,8 @@ CREATE TABLE IF NOT EXISTS student_capability_profiles (
     -- 沟通能力
     practical_ability TEXT,
     -- 实习能力
-    completeness_score INTEGER NOT NULL DEFAULT 0,
-    -- 完整度评分 (0-100)
     competitiveness_score INTEGER NOT NULL DEFAULT 0,
-    -- 竞争力评分 (0-100)
-    overall_score INTEGER,
-    -- 岗位专项评估总分（可选）
+    -- 竞争力评分 (0-100)，由 score_detail 五项之和计算
     role_confidence NUMERIC(5,4) NOT NULL DEFAULT 0.0,
     -- 岗位识别置信度（0~1）
     prompt_name VARCHAR(128) NOT NULL DEFAULT 'generate-capability-profile',
@@ -335,11 +331,8 @@ CREATE TABLE IF NOT EXISTS student_capability_profiles (
     target_role_type VARCHAR(64) NOT NULL DEFAULT 'default',
     -- 岗位类型展示值（如 software-test）
     score_detail JSONB DEFAULT '{}'::jsonb,
+    -- scoreDetail JSON 键：projectExperienceScore, skillMatchScore, contentCompletenessScore, structureClarityScore, expressionProfessionalismScore
     -- 分项评分明细（结构化输出）
-    missing_skills JSONB DEFAULT '[]'::jsonb,
-    -- 缺失技能项
-    weak_evidence_items JSONB DEFAULT '[]'::jsonb,
-    -- 证据不足项
     suggestions JSONB DEFAULT '[]'::jsonb,
     -- 改进建议（结构化）
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

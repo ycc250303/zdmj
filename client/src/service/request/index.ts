@@ -30,6 +30,15 @@ export const request = createFlatRequest(
       const Authorization = getAuthorization();
       Object.assign(config.headers, { Authorization });
 
+      // 默认 headers 为 application/json；上传 FormData 时必须去掉，由浏览器自动带 multipart boundary
+      if (config.data instanceof FormData) {
+        if (typeof config.headers.delete === 'function') {
+          config.headers.delete('Content-Type');
+        } else {
+          delete config.headers['Content-Type'];
+        }
+      }
+
       return config;
     },
     isBackendSuccess(response) {

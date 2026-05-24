@@ -10,7 +10,7 @@
  *  - dimensions: 维度数组 [{ key, label, score, max }]，自动渲染雷达图与进度条
  *  - totalScore / totalMax: 总分（左下大字）
  *  - summary: 核心评价文本
- *  - strengths: 优势亮点（chip 列表）
+ *  - strengths: 优势亮点（「能力标签 — 具体证据」列表）
  *  - generatedAt: 分析时间显示
  */
 import { computed, onMounted, onBeforeUnmount, ref, shallowRef, watch, nextTick } from 'vue';
@@ -49,7 +49,7 @@ interface Props {
   summary?: string;
   /** 核心评价标题，默认 "核心评价" */
   summaryLabel?: string;
-  /** 优势亮点（chip 标签列表） */
+  /** 优势亮点（每条建议「能力标签 — 具体证据」） */
   strengths?: string[];
   /** 优势亮点标题，默认 "优势亮点" */
   strengthsLabel?: string;
@@ -160,6 +160,28 @@ function percentOf(d: Dimension): number {
 }
 
 const hasStrengths = computed(() => Array.isArray(props.strengths) && props.strengths.length > 0);
+
+interface ParsedStrength {
+  label: string;
+  detail: string;
+}
+
+function parseStrengthItem(item: string): ParsedStrength {
+  const trimmed = item.trim();
+  const sep = trimmed.includes(' — ') ? ' — ' : (trimmed.includes(' - ') ? ' - ' : null);
+  if (!sep) {
+    return { label: trimmed, detail: '' };
+  }
+  const idx = trimmed.indexOf(sep);
+  return {
+    label: trimmed.slice(0, idx).trim(),
+    detail: trimmed.slice(idx + sep.length).trim()
+  };
+}
+
+const parsedStrengths = computed(() =>
+  (props.strengths ?? []).map(parseStrengthItem)
+);
 
 /** 是否处于"仅有总分"的极简状态：用于切换左卡为居中大评分卡 */
 const isMinimal = computed(() => !props.summary && !hasStrengths.value);
@@ -295,15 +317,19 @@ const gradId = `csc-grad-${Math.random().toString(36).slice(2, 8)}`;
             <span>{{ strengthsLabel }}</span>
             <span class="text-xs text-slate-400 font-normal ml-1">({{ strengths!.length }})</span>
           </div>
-          <div class="flex flex-wrap gap-2">
-            <span
-              v-for="(item, i) in strengths"
+          <ul class="space-y-2.5">
+            <li
+              v-for="(item, i) in parsedStrengths"
               :key="i"
-              class="inline-block px-3 py-1.5 rounded-lg bg-white text-emerald-700 text-xs border border-emerald-200 shadow-sm hover:shadow transition"
+              class="flex items-start gap-2 text-sm leading-relaxed"
             >
-              {{ item }}
-            </span>
-          </div>
+              <span class="text-emerald-500 mt-0.5 flex-shrink-0">•</span>
+              <span class="min-w-0">
+                <span class="font-semibold text-emerald-800">{{ item.label }}</span>
+                <span v-if="item.detail" class="text-slate-600"> — {{ item.detail }}</span>
+              </span>
+            </li>
+          </ul>
         </div>
       </template>
     </div>

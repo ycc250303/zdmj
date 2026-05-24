@@ -206,7 +206,7 @@ public class JobStudentMatchServiceImpl
 
         sb.append("## 学生就业能力画像（七维）\n");
         appendCapabilityRow(sb, "专业技能", studentProfile.getProfessionalSkills());
-        appendCapabilityRow(sb, "证书", studentProfile.getCertificates());
+        appendCapabilityRow(sb, "获奖经历", studentProfile.getHonorsAndAwards());
         appendCapabilityRow(sb, "创新能力", studentProfile.getInnovationAbility());
         appendCapabilityRow(sb, "学习能力", studentProfile.getLearningAbility());
         appendCapabilityRow(sb, "抗压能力", studentProfile.getPressureResistance());
@@ -215,8 +215,19 @@ public class JobStudentMatchServiceImpl
         if (studentProfile.getStrengths() != null && !studentProfile.getStrengths().isEmpty()) {
             sb.append("- 学生优势点：").append(String.join("；", studentProfile.getStrengths())).append('\n');
         }
-        if (studentProfile.getMissingSkills() != null && !studentProfile.getMissingSkills().isEmpty()) {
-            sb.append("- 学生缺失技能项：").append(String.join("；", studentProfile.getMissingSkills())).append('\n');
+        if (studentProfile.getSuggestions() != null && !studentProfile.getSuggestions().isEmpty()) {
+            String gapSummary = studentProfile.getSuggestions().stream()
+                    .filter(s -> s != null && StringUtils.hasText(s.getIssue()))
+                    .limit(6)
+                    .map(s -> {
+                        String cat = StringUtils.hasText(s.getCategory()) ? s.getCategory() + "：" : "";
+                        return cat + s.getIssue().trim();
+                    })
+                    .reduce((a, b) -> a + "；" + b)
+                    .orElse("");
+            if (StringUtils.hasText(gapSummary)) {
+                sb.append("- 学生改进建议摘要：").append(gapSummary).append('\n');
+            }
         }
         if (StringUtils.hasText(studentProfile.getSummary())) {
             sb.append("- 学生画像总结：").append(studentProfile.getSummary()).append('\n');
@@ -344,7 +355,7 @@ public class JobStudentMatchServiceImpl
         }
         return String.join(" ", Arrays.asList(
                 Objects.toString(p.getProfessionalSkills(), ""),
-                Objects.toString(p.getCertificates(), ""),
+                Objects.toString(p.getHonorsAndAwards(), ""),
                 Objects.toString(p.getInnovationAbility(), ""),
                 Objects.toString(p.getLearningAbility(), ""),
                 Objects.toString(p.getPressureResistance(), ""),

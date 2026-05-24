@@ -312,7 +312,7 @@ class JobStudentMatchServiceImplTest {
     private static StudentCapabilityProfileDTO buildStudentProfile() {
         StudentCapabilityProfileDTO p = new StudentCapabilityProfileDTO();
         p.setProfessionalSkills("Java、Spring Boot、MySQL");
-        p.setCertificates("CET-6");
+        p.setHonorsAndAwards("蓝桥杯省赛二等奖");
         p.setInnovationAbility("校赛二等奖");
         p.setLearningAbility("自学 Redis");
         p.setPressureResistance("曾在比赛 48h 内交付");
@@ -320,7 +320,11 @@ class JobStudentMatchServiceImplTest {
         p.setPracticalAbility("实习 3 个月");
         p.setSummary("Java 方向应届生");
         p.setStrengths(List.of("基础扎实"));
-        p.setMissingSkills(List.of("Kafka"));
+        StudentCapabilityProfileDTO.Suggestion gap = new StudentCapabilityProfileDTO.Suggestion();
+        gap.setCategory("技能缺失");
+        gap.setIssue("缺少 Kafka 相关实践");
+        gap.setRecommendation("在项目中补充消息队列场景");
+        p.setSuggestions(List.of(gap));
         return p;
     }
 

@@ -84,14 +84,12 @@ class StudentCapabilityProfileServiceImplTest {
         StudentCapabilityProfile profile = new StudentCapabilityProfile();
         profile.setUserId(1L);
         profile.setPromptName(PromptNames.RESUME_ANALYSIS_JAVA_BACKEND);
-        profile.setCompletenessScore(85);
         profile.setCompetitivenessScore(74);
         doReturn(profile).when(service).getOne(any());
 
         StudentCapabilityProfileDTO out = service.getCurrentUserProfile();
 
         assertNotNull(out);
-        assertEquals(85, out.getCompletenessScore());
         assertEquals(74, out.getCompetitivenessScore());
     }
 
@@ -142,13 +140,11 @@ class StudentCapabilityProfileServiceImplTest {
         StudentCapabilityProfileDTO.ScoreDetail detail = new StudentCapabilityProfileDTO.ScoreDetail();
         detail.setContentCompletenessScore(7);
         ai.setScoreDetail(detail);
-        ai.setCompetitivenessScore(null);
         ai.setStrengths(List.of("技术栈匹配"));
         ai.setSummary("可投递初级 Java 岗位");
-        ai.setMissingSkills(List.of("性能调优"));
-        ai.setWeakEvidenceItems(List.of("实习证据不足"));
         StudentCapabilityProfileDTO.Suggestion suggestion = new StudentCapabilityProfileDTO.Suggestion();
-        suggestion.setCategory("项目");
+        suggestion.setCategory("技能缺失");
+        suggestion.setIssue("缺少 JVM 调优相关实践");
         suggestion.setRecommendation("补充压测数据");
         ai.setSuggestions(List.of(suggestion));
         doReturn(ai).when(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileDTO.class));
@@ -158,7 +154,6 @@ class StudentCapabilityProfileServiceImplTest {
         StudentCapabilityProfileDTO out = service.generateProfile(req);
 
         assertNotNull(out);
-        assertEquals(70, out.getCompletenessScore());
         assertEquals(7, out.getCompetitivenessScore());
         assertEquals("可投递初级 Java 岗位", out.getSummary());
         assertEquals(1, out.getStrengths().size());
@@ -172,6 +167,13 @@ class StudentCapabilityProfileServiceImplTest {
         req.setRawText("java spring boot redis mysql");
 
         StudentCapabilityProfileDTO ai = new StudentCapabilityProfileDTO();
+        StudentCapabilityProfileDTO.ScoreDetail detail = new StudentCapabilityProfileDTO.ScoreDetail();
+        detail.setProjectExperienceScore(30);
+        detail.setSkillMatchScore(15);
+        detail.setContentCompletenessScore(10);
+        detail.setStructureClarityScore(8);
+        detail.setExpressionProfessionalismScore(3);
+        ai.setScoreDetail(detail);
         ai.setCompetitivenessScore(66);
         doReturn(ai).when(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileDTO.class));
 
@@ -268,21 +270,17 @@ class StudentCapabilityProfileServiceImplTest {
         StudentCapabilityProfile profile = new StudentCapabilityProfile();
         profile.setUserId(1L);
         profile.setPromptName(PromptNames.RESUME_ANALYSIS_JAVA_BACKEND);
-        profile.setCompletenessScore(81);
         profile.setCompetitivenessScore(72);
         profile.setScoreDetail("{\"contentCompletenessScore\":8}");
-        profile.setMissingSkills("[\"分布式\"]");
-        profile.setWeakEvidenceItems("[\"量化指标不足\"]");
-        profile.setSuggestions("[{\"category\":\"项目\",\"recommendation\":\"补充结果\"}]");
+        profile.setSuggestions("[{\"category\":\"项目\",\"issue\":\"缺量化\",\"recommendation\":\"补充结果\"}]");
         doReturn(profile).when(service).getOne(any());
 
         StudentCapabilityProfileDTO out = service.getCurrentUserProfileOrNull();
 
         assertNotNull(out);
-        assertEquals(81, out.getCompletenessScore());
         assertNotNull(out.getScoreDetail());
         assertEquals(8, out.getScoreDetail().getContentCompletenessScore());
-        assertEquals(1, out.getMissingSkills().size());
+        assertEquals(1, out.getSuggestions().size());
         assertEquals("项目", out.getSuggestions().get(0).getCategory());
         verify(service).getOne(any());
     }
@@ -292,80 +290,65 @@ class StudentCapabilityProfileServiceImplTest {
         StudentCapabilityProfile profile = new StudentCapabilityProfile();
         profile.setUserId(1L);
         profile.setPromptName(PromptNames.RESUME_ANALYSIS_FRONTEND);
-        profile.setCompletenessScore(59);
         profile.setCompetitivenessScore(61);
         profile.setScoreDetail("{bad-json");
-        profile.setMissingSkills("[\"react\"]");
         doReturn(profile).when(service).getOne(any());
 
         StudentCapabilityProfileDTO out = service.getCurrentUserProfileOrNull();
 
         assertNotNull(out);
-        assertEquals(59, out.getCompletenessScore());
         assertEquals(61, out.getCompetitivenessScore());
         assertNull(out.getScoreDetail());
         verify(service).getOne(any());
     }
 
     @Test
-    void generateProfile_completenessAlreadyPresent_shouldKeepAndUpdatePath() {
-        CapabilityProfileGenerateReqDTO req = new CapabilityProfileGenerateReqDTO();
-        req.setRawText("java spring 简历内容");
-
-        StudentCapabilityProfileDTO ai = new StudentCapabilityProfileDTO();
-        ai.setCompletenessScore(88);
-        ai.setCompetitivenessScore(77);
+    void normalizeProfileScores_scoreDetailOutOfRange_shouldThrow() {
+        StudentCapabilityProfileDTO dto = new StudentCapabilityProfileDTO();
         StudentCapabilityProfileDTO.ScoreDetail detail = new StudentCapabilityProfileDTO.ScoreDetail();
-        detail.setContentCompletenessScore(3);
-        ai.setScoreDetail(detail);
-        doReturn(ai).when(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileDTO.class));
+        detail.setProjectExperienceScore(50);
+        dto.setScoreDetail(detail);
 
-        StudentCapabilityProfile existing = new StudentCapabilityProfile();
-        existing.setId(123L);
-        existing.setUserId(1L);
-        doReturn(existing).when(service).getOne(any());
-        doReturn(true).when(service).updateById(any(StudentCapabilityProfile.class));
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> ReflectionTestUtils.invokeMethod(service, "normalizeProfileScores", dto));
 
-        StudentCapabilityProfileDTO out = service.generateProfile(req);
-
-        assertNotNull(out);
-        assertEquals(88, out.getCompletenessScore());
-        assertEquals(3, out.getCompetitivenessScore());
-        verify(service).updateById(any(StudentCapabilityProfile.class));
-        verify(service, never()).save(any(StudentCapabilityProfile.class));
+        assertEquals(ErrorCode.CAPABILITY_PROFILE_SCORE_INVALID.getCode(), ex.getCode());
+        assertNotNull(ex.getMessage());
     }
 
     @Test
-    void normalizeProfileScores_scoreDetailOutOfRange_shouldClampAndRecomputeTotal() {
+    void normalizeProfileScores_scoreDetailInRange_shouldRecomputeTotal() {
         StudentCapabilityProfileDTO dto = new StudentCapabilityProfileDTO();
-        dto.setCompetitivenessScore(999);
         StudentCapabilityProfileDTO.ScoreDetail detail = new StudentCapabilityProfileDTO.ScoreDetail();
-        detail.setJobMatchTechDepthScore(50);
-        detail.setProjectPracticeScore(25);
-        detail.setContentCompletenessScore(20);
-        detail.setStructureExpressionScore(18);
-        detail.setProfessionalPotentialScore(15);
+        detail.setProjectExperienceScore(40);
+        detail.setSkillMatchScore(20);
+        detail.setContentCompletenessScore(15);
+        detail.setStructureClarityScore(15);
+        detail.setExpressionProfessionalismScore(10);
         dto.setScoreDetail(detail);
 
         ReflectionTestUtils.invokeMethod(service, "normalizeProfileScores", dto);
 
-        assertEquals(40, dto.getScoreDetail().getJobMatchTechDepthScore());
-        assertEquals(20, dto.getScoreDetail().getProjectPracticeScore());
-        assertEquals(15, dto.getScoreDetail().getContentCompletenessScore());
-        assertEquals(15, dto.getScoreDetail().getStructureExpressionScore());
-        assertEquals(10, dto.getScoreDetail().getProfessionalPotentialScore());
         assertEquals(100, dto.getCompetitivenessScore());
+    }
+
+    @Test
+    void normalizeProfileScores_ignoresLlmCompetitivenessWhenNoScoreDetail_shouldFallbackToZero() {
+        StudentCapabilityProfileDTO dto = new StudentCapabilityProfileDTO();
+        dto.setCompetitivenessScore(88);
+
+        ReflectionTestUtils.invokeMethod(service, "normalizeProfileScores", dto);
+
+        assertEquals(0, dto.getCompetitivenessScore());
     }
 
     @Test
     void normalizeProfileScores_competitivenessMissing_shouldFallbackToZero() {
         StudentCapabilityProfileDTO dto = new StudentCapabilityProfileDTO();
-        dto.setCompletenessScore(66);
         dto.setCompetitivenessScore(null);
 
         ReflectionTestUtils.invokeMethod(service, "normalizeProfileScores", dto);
 
-        assertEquals(66, dto.getCompletenessScore());
         assertEquals(0, dto.getCompetitivenessScore());
     }
 

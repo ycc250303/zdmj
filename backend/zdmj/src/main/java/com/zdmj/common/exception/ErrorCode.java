@@ -41,6 +41,7 @@ public enum ErrorCode {
     RESUME_UPDATE_FAILED(3004, "更新简历失败"),
     RESUME_DELETE_FAILED(3005, "删除简历失败"),
     RESUME_NOT_FOUND(3006, "简历不存在"),
+    CAPABILITY_PROFILE_SCORE_INVALID(3010, "能力画像分项评分超出合法范围"),
 
     // ========== 项目经历相关 (4xxx) ==========
     PROJECT_EXPERIENCE_ADD_FAILED(4001, "添加项目经历失败"),
