@@ -26,6 +26,7 @@ env:
   SERVER_USER: root
   APP_DIR: /opt/zdmj/zdmj
   DEPLOY_BRANCH: main
+  DOCKER_CLEANUP_UNTIL: 168h
 
 jobs:
   detect-changes:
@@ -99,3 +100,10 @@ jobs:
             ls -lah deploy
             chmod +x "${{ env.APP_DIR }}/deploy/deploy_backend.sh"
             "${{ env.APP_DIR }}/deploy/deploy_backend.sh"
+            echo "== Docker usage before cleanup =="
+            docker system df || true
+            echo "== Cleanup old Docker cache/images (${{ env.DOCKER_CLEANUP_UNTIL }}) =="
+            docker builder prune -af --filter "until=${{ env.DOCKER_CLEANUP_UNTIL }}" || true
+            docker image prune -af --filter "until=${{ env.DOCKER_CLEANUP_UNTIL }}" || true
+            echo "== Docker usage after cleanup =="
+            docker system df || true
