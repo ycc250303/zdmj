@@ -24,6 +24,7 @@ public enum ErrorCode {
     SYSTEM_EXCEPTION(1008, "系统异常，请联系管理员", HttpStatus.INTERNAL_SERVER_ERROR),
     FILE_EMPTY(1009, "上传文件不能为空", HttpStatus.BAD_REQUEST),
     FILE_SIZE_EXCEEDED(1010, "上传文件大小超出限制", HttpStatus.BAD_REQUEST),
+    RATE_LIMIT_EXCEEDED(1011, "请求过于频繁，请稍后再试", HttpStatus.TOO_MANY_REQUESTS),
 
     // ========== 用户相关 2xxx ==========
     USER_ALREADY_EXISTS(2001, "用户名已存在", HttpStatus.CONFLICT),
