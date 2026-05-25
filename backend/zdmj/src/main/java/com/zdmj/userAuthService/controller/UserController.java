@@ -1,5 +1,6 @@
 package com.zdmj.userAuthService.controller;
 
+import com.zdmj.common.annotation.RateLimit;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.model.Result;
@@ -20,6 +21,8 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * 用户控制器
@@ -67,6 +70,8 @@ public class UserController {
      * @return 登录结果
      */
     @PostMapping("/login")
+    @RateLimit(dimension = RateLimit.Dimension.GLOBAL, count = 100, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimit.Dimension.IP, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     public Result<UserLoginResponseDTO> login(@Valid @RequestBody UserLoginDTO loginDTO) {
         log.info("用户登录请求: {}", loginDTO.getUsernameOrEmail());
         UserLoginResponseDTO response = userService.login(loginDTO);
@@ -80,6 +85,8 @@ public class UserController {
      * @return 发送结果
      */
     @PostMapping("/verification-codes")
+    @RateLimit(dimension = RateLimit.Dimension.GLOBAL, count = 200, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimit.Dimension.IP, count = 5, interval = 1, timeUnit = TimeUnit.MINUTES)
     public Result<Void> sendVerificationCode(
             @RequestParam @NotBlank(message = "邮箱不能为空") @Email(message = "邮箱格式不正确") String email) {
         log.info("发送验证码请求: {}", email);
@@ -114,6 +121,7 @@ public class UserController {
      * @return 更新后的用户信息
      */
     @PutMapping("/me")
+    @RateLimit(dimension = RateLimit.Dimension.USER, count = 20, interval = 1, timeUnit = TimeUnit.MINUTES)
     public Result<UserDTO> updateCurrentUser(@Valid @RequestBody UserUpdateDTO updateDTO) {
         log.info("更新当前用户信息请求");
         UserDTO userDTO = userService.updateCurrentUser(updateDTO);
@@ -127,6 +135,8 @@ public class UserController {
      * @return 是否存在
      */
     @GetMapping("/validation/username")
+    @RateLimit(dimension = RateLimit.Dimension.GLOBAL, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimit.Dimension.IP, count = 3, interval = 1, timeUnit = TimeUnit.MINUTES)
     public Result<Boolean> validateUsername(@RequestParam String username) {
         log.info("检查用户名是否存在: {}", username);
         boolean exists = userService.existsByUsername(username);
