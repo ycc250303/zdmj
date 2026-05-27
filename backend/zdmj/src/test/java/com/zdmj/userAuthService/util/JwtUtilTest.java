@@ -1,5 +1,6 @@
 package com.zdmj.userAuthService.util;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.util.Date;
@@ -10,6 +11,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JwtUtilTest {
+
+    private static final String TEST_JWT_SECRET =
+            "test-jwt-secret-key-for-jwt-token-generation-2024-very-long-secret-key";
+
+    @BeforeAll
+    static void initSecret() {
+        JwtUtil.initSecret(TEST_JWT_SECRET);
+    }
 
     @Test
     void generateParseValidateAndGetExpiration_shouldWorkAsExpected() {

@@ -11,14 +11,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * JWT工具类
+ * JWT工具类（密钥由 {@link com.zdmj.common.config.JwtConfig} 从项目根目录 .env 注入）。
  */
 public class JwtUtil {
 
-    /**
-     * JWT密钥（生产环境应该从配置文件读取）
-     */
-    private static final String SECRET = "zdmj-secret-key-for-jwt-token-generation-2024-very-long-secret-key";
+    private static volatile String secret;
 
     /**
      * Token过期时间（毫秒）- 7天
@@ -26,10 +23,27 @@ public class JwtUtil {
     private static final long EXPIRATION_TIME = 7 * 24 * 60 * 60 * 1000L;
 
     /**
+     * 应用启动或单元测试前注入密钥。
+     */
+    public static void initSecret(String jwtSecret) {
+        if (jwtSecret == null || jwtSecret.isBlank()) {
+            throw new IllegalStateException("JWT_SECRET 未配置，请在项目根目录 .env 中设置");
+        }
+        secret = jwtSecret;
+    }
+
+    private static String requireSecret() {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException("JWT 密钥未初始化，请配置 JWT_SECRET");
+        }
+        return secret;
+    }
+
+    /**
      * 获取签名密钥
      */
     private static SecretKey getSigningKey() {
-        byte[] keyBytes = SECRET.getBytes(StandardCharsets.UTF_8);
+        byte[] keyBytes = requireSecret().getBytes(StandardCharsets.UTF_8);
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
