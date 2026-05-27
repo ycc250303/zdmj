@@ -75,8 +75,10 @@ docker compose up -d
 
 docker compose ps
 
-# 统一管理密码
+# 统一管理密码（项目根目录 .env，勿提交 Git）
 
+cd /opt/zdmj/zdmj
+cp .env.example .env
 nano .env
 ```
 

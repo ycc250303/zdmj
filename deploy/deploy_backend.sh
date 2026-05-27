@@ -13,13 +13,14 @@ git reset --hard origin/main
 
 echo "== 2) 构建并部署 backend =="
 cd "$COMPOSE_DIR"
-docker compose build backend
-docker compose up -d --no-deps --force-recreate backend
-docker compose ps backend
+ENV_FILE="$APP_DIR/.env"
+docker compose --env-file "$ENV_FILE" build backend
+docker compose --env-file "$ENV_FILE" up -d --no-deps --force-recreate backend
+docker compose --env-file "$ENV_FILE" ps backend
 
 echo "== 3) 健康检查 =="
 sleep 10
-docker compose ps backend
-docker logs --tail 50 zdmj-backend
+docker compose --env-file "$ENV_FILE" ps backend
+docker compose --env-file "$ENV_FILE" logs --tail 50 zdmj-backend
 
 echo "Backend deploy done."
