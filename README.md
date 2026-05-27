@@ -155,31 +155,18 @@ zdmj/
 
 #### 2. 配置环境变量
 
-在 `deploy/` 目录创建 `.env` 文件：
+在项目根目录从模板创建 `.env` 并填入真实值（`.env` 已加入 `.gitignore`）：
 
 ```bash
-cd deploy
-```
-
-`.env` 最小示例：
-
-```bash
-PG_USER=postgres
-PG_PASSWORD=postgres
-PG_DB=zdmj
-REDIS_PASSWORD=redis123
-DASHSCOPE_API_KEY=your_api_key
-DATASOURCE_URL=jdbc:postgresql://postgres:5432/zdmj?currentSchema=public&stringtype=unspecified&TimeZone=Asia/Shanghai
-COS_SECRET_ID=your_cos_secret_id
-COS_SECRET_KEY=your_cos_secret_key
-COS_REGION=ap-guangzhou
-COS_BUCKET=your_bucket
+cp .env.example .env
+# 编辑 .env 填入数据库、Redis、DashScope、COS、邮件、JWT 等密钥
 ```
 
 #### 3. 启动服务
 
 ```bash
-docker compose up -d --build
+cd deploy
+docker compose --env-file ../.env up -d --build
 ```
 
 #### 4. 访问服务
@@ -208,16 +195,20 @@ docker compose up -d --build
 
 ```bash
 cd deploy
-docker compose up -d postgres redis
+docker compose --env-file ../.env up -d postgres redis
 ```
 
-#### 3. 启动后端
+#### 3. 配置环境变量并启动后端
 
 ```bash
+cp .env.example .env   # 若尚未创建（在项目根目录）
+# 编辑 .env：本地直连 Docker 中的 postgres/redis 时，APP_REMOTE_HOST 一般为 127.0.0.1
+
 cd backend/zdmj
-cp src/main/resources/application-example.yml src/main/resources/application.yml
 mvn -B -ntp clean spring-boot:run
 ```
+
+`application.yml` 会通过 `spring.config.import` 自动加载项目根目录 `.env`；也可在 IDE 中指定同一文件。
 
 按本地环境修改 `application.yml` 或环境变量（数据库、Redis、DashScope、COS）。
 
