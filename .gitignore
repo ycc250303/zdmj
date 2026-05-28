@@ -1,14 +1,12 @@
-deploy/.env
+.env
 /.idea
 /backend/.idea
-backend/zdmj/src/main/resources/application.yml
 docs/backend/项目分析API文档 prisma.md
 docs/backend/API使用指南.md
 docs/backend/Java-Python服务对接规范.md
 docs/backend/项目分析API文档 zdmj.md
 docs/backend/项目分析API文档.md
 backend/zdmj-python/app/config.py
-backend/zdmj/src/main/resources/application.yml
 docs/backend/Prisma-AI功能LLM使用分类.md
 docs/backend/Prisma-AI功能分类-Spring-AI-vs-LangChain.md
 /docs/temp
@@ -30,3 +28,4 @@ command.md
 /auth-web
 agents.md
 /docs/todos
+/interview-guide

@@ -71,3 +71,16 @@ jobs:
             ls -lah deploy
             chmod +x /opt/zdmj/zdmj/deploy/deploy_frontend.sh
             /opt/zdmj/zdmj/deploy/deploy_frontend.sh
+            echo "== Disk usage after frontend deploy =="
+            df -h
+            echo "== Cleanup pnpm store =="
+            if [ -s "/root/.nvm/nvm.sh" ]; then
+              # shellcheck disable=SC1091
+              . "/root/.nvm/nvm.sh"
+              nvm use 20 >/dev/null || true
+            fi
+            if command -v pnpm >/dev/null 2>&1; then
+              pnpm store prune || true
+            else
+              echo "pnpm not found, skip pnpm store prune"
+            fi

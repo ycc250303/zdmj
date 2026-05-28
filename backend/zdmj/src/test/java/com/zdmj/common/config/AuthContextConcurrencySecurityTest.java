@@ -7,6 +7,7 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.userAuthService.util.JwtUtil;
 import jakarta.servlet.ServletException;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -37,8 +38,16 @@ import static org.mockito.Mockito.lenient;
 @ExtendWith(MockitoExtension.class)
 class AuthContextConcurrencySecurityTest {
 
+    private static final String TEST_JWT_SECRET =
+            "test-jwt-secret-key-for-jwt-token-generation-2024-very-long-secret-key";
+
     @Mock
     private RedisUtil redisUtil;
+
+    @BeforeAll
+    static void initJwtSecret() {
+        JwtUtil.initSecret(TEST_JWT_SECRET);
+    }
 
     @AfterEach
     void tearDown() {

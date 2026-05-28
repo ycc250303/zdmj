@@ -136,7 +136,7 @@ public class UserController {
      */
     @GetMapping("/validation/username")
     @RateLimit(dimension = RateLimit.Dimension.GLOBAL, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
-    @RateLimit(dimension = RateLimit.Dimension.IP, count = 3, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimit.Dimension.IP, count = 5, interval = 1, timeUnit = TimeUnit.MINUTES)
     public Result<Boolean> validateUsername(@RequestParam String username) {
         log.info("检查用户名是否存在: {}", username);
         boolean exists = userService.existsByUsername(username);

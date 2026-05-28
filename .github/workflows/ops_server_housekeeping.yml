@@ -1,0 +1,80 @@
+# 服务器例行巡检与清理：
+# - 定时执行基础资源巡检（内存/磁盘/Docker 占用）
+# - 清理过旧 Docker 构建缓存与未使用资源
+# - 清理前端 pnpm 缓存与 Git 历史垃圾对象
+name: Ops - Server Housekeeping
+
+on:
+  schedule:
+    # 每周一 03:30 UTC（北京时间周一 11:30）自动执行
+    - cron: '30 3 * * 1'
+  # 支持在 Actions 页面手动触发（用于临时排障或验证）
+  workflow_dispatch:
+
+concurrency:
+  # 同一分支只保留一个运行实例，避免重复清理任务并发执行
+  group: ops-housekeeping-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 目标服务器与项目目录
+  SERVER_HOST: 111.229.81.45
+  SERVER_USER: root
+  APP_DIR: /opt/zdmj/zdmj
+  # 仅清理 7 天前的 Docker 缓存，兼顾磁盘回收与构建速度
+  DOCKER_CLEANUP_UNTIL: 168h
+
+jobs:
+  housekeeping:
+    name: Run server housekeeping
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Cleanup and report usage
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.SERVER_HOST }}
+          username: ${{ env.SERVER_USER }}
+          # 复用仓库 Secret 中的 SSH 私钥进行远程执行
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
+            cd "${{ env.APP_DIR }}"
+            # 1) 基线快照：先记录清理前资源占用
+            echo "== Host info =="
+            echo "hostname=$(hostname)"
+            echo "time=$(date '+%F %T %Z')"
+            echo "== Before cleanup =="
+            df -h
+            free -h
+            docker system df || true
+            # 2) Docker 清理：按时间窗口清理历史缓存与未使用资源
+            echo "== Docker cleanup (older than ${{ env.DOCKER_CLEANUP_UNTIL }}) =="
+            docker builder prune -af --filter "until=${{ env.DOCKER_CLEANUP_UNTIL }}" || true
+            docker image prune -af --filter "until=${{ env.DOCKER_CLEANUP_UNTIL }}" || true
+            docker container prune -f || true
+            docker network prune -f || true
+            # 3) 前端缓存清理：如果服务器安装了 pnpm，则回收未引用包
+            echo "== pnpm cleanup =="
+            if [ -s "/root/.nvm/nvm.sh" ]; then
+              # shellcheck disable=SC1091
+              . "/root/.nvm/nvm.sh"
+              nvm use 20 >/dev/null || true
+            fi
+            if command -v pnpm >/dev/null 2>&1; then
+              pnpm store prune || true
+            else
+              echo "pnpm not found, skip pnpm store prune"
+            fi
+            # 4) Git 仓库清理：回收无引用对象，降低 .git 占用
+            echo "== Git gc =="
+            git gc --prune=now || true
+            # 5) 清理后快照：输出结果用于对比
+            echo "== After cleanup =="
+            df -h
+            free -h
+            docker system df || true
+
