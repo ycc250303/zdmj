@@ -62,6 +62,12 @@ jobs:
         if: steps.compile.outcome == 'success'
         continue-on-error: true
         working-directory: ./backend/zdmj
+        env:
+          # 仓库 Variables/Secrets 可能注入 LLM Key，避免误触发 *LiveConnectionTest
+          ZDMJ_RUN_LIVE_LLM_TESTS: "false"
+          DASHSCOPE_API_KEY: ""
+          DEEPSEEK_API_KEY: ""
+          SPRING_AI_OPENAI_API_KEY: ""
         run: mvn -B -ntp test
 
       # 步骤5: 覆盖率与路径门禁
