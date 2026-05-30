@@ -10,7 +10,7 @@ import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import org.springframework.beans.factory.annotation.Qualifier;
+import com.zdmj.common.context.UserHolder;
 
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
@@ -19,10 +19,9 @@ import reactor.core.publisher.Flux;
 @Component
 public class ChatUtil {
 
-    private final ChatClient chatClient;
-    @Qualifier("chatClientWithMemory")
-    private final ChatClient chatClientWithMemory;
     private final PromptUtil promptUtil;
+
+    private final UserLlmRouter userLlmRouter;
 
     /**
      * 单次对话
@@ -123,7 +122,8 @@ public class ChatUtil {
      * @return 请求
      */
     private ChatClientRequestSpec buildSpecWithoutMemory(String promptName, Map<String, Object> promptVars) {
-        ChatClientRequestSpec spec = chatClient.prompt();
+        Long userId = UserHolder.getUserId();
+        ChatClientRequestSpec spec = userLlmRouter.getChatClient(userId).prompt();
         return applySystemPrompt(spec, promptName, promptVars);
     }
 
@@ -140,7 +140,8 @@ public class ChatUtil {
         if (conversationId == null) {
             throw new IllegalArgumentException("Conversation ID cannot be null");
         }
-        ChatClientRequestSpec spec = chatClientWithMemory.prompt()
+        Long userId = UserHolder.getUserId();
+        ChatClientRequestSpec spec = userLlmRouter.getChatClientWithMemory(userId).prompt()
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, String.valueOf(conversationId)));
         return applySystemPrompt(spec, promptName, promptVars);
     }

@@ -43,22 +43,22 @@ public class ChatModelConfig {
                 .build();
     }
 
-    /**
-     * 无会话记忆的 ChatClient：能力画像、岗位识别等单次/结构化调用使用，不写 SPRING_AI_CHAT_MEMORY。
-     */
-    @Primary
-    @Bean
-    public ChatClient chatClient(ChatModel model) {
-        return ChatClient.builder(model).build();
-    }
+    // /**
+    //  * 无会话记忆的 ChatClient：能力画像、岗位识别等单次/结构化调用使用，不写 SPRING_AI_CHAT_MEMORY。
+    //  */
+    // @Primary
+    // @Bean
+    // public ChatClient chatClient(ChatModel model) {
+    //     return ChatClient.builder(model).build();
+    // }
 
-    /**
-     * 带 JDBC 会话记忆的 ChatClient：仅对话接口（chatInConversation / chatStreamInConversation）使用。
-     */
-    @Bean
-    public ChatClient chatClientWithMemory(ChatModel model, ChatMemory chatMemory) {
-        return ChatClient.builder(model)
-                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
-                .build();
-    }
+    // /**
+    //  * 带 JDBC 会话记忆的 ChatClient：仅对话接口（chatInConversation / chatStreamInConversation）使用。
+    //  */
+    // @Bean
+    // public ChatClient chatClientWithMemory(ChatModel model, ChatMemory chatMemory) {
+    //     return ChatClient.builder(model)
+    //             .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+    //             .build();
+    // }
 }

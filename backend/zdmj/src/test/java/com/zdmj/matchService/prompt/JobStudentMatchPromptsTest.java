@@ -16,7 +16,10 @@ import org.springframework.util.StreamUtils;
 
 import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.common.ai.PromptUtil;
+import com.zdmj.common.ai.UserLlmRouter;
 import com.zdmj.common.ai.prompt.PromptNames;
+import com.zdmj.common.context.UserContext;
+import com.zdmj.common.context.UserHolder;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -63,8 +66,8 @@ class JobStudentMatchPromptsTest {
     @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     private ChatClient statelessChatClient;
 
-    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
-    private ChatClient chatClientWithMemory;
+    @Mock
+    private UserLlmRouter userLlmRouter;
 
     @Test
     void allMatchPrompts_shouldNotContainDollarBracePlaceholders() throws IOException {
@@ -97,7 +100,9 @@ class JobStudentMatchPromptsTest {
     @Test
     void chatOnce_withRealPromptUtil_andNullPromptVars_shouldNotThrowSTException() {
         PromptUtil promptUtil = new PromptUtil(new DefaultResourceLoader());
-        ChatUtil chatUtil = new ChatUtil(statelessChatClient, chatClientWithMemory, promptUtil);
+        ChatUtil chatUtil = new ChatUtil(promptUtil, userLlmRouter);
+        UserHolder.set(UserContext.of(1L, "tester"));
+        when(userLlmRouter.getChatClient(1L)).thenReturn(statelessChatClient);
         when(statelessChatClient.prompt()
                 .system(org.mockito.ArgumentMatchers.anyString())
                 .user(org.mockito.ArgumentMatchers.anyString())

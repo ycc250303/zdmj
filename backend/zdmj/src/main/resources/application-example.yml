@@ -62,7 +62,7 @@ spring:
       api-key: your-dashscope-api-key
       chat:
         options:
-          model: qwen-plus
+          model: qwen3.6-plus
       # Embedding模型配置
       embedding:
         options:
@@ -153,3 +153,14 @@ cos:
 app:
   remote:
     host: your-server-ip
+  jwt:
+    secret: your-jwt-secret
+  ai:
+    user-llm:
+      require-user-config: false
+      platform-fallback-enabled: true
+      require-encryption-key: false
+      encryption-key: ${APP_AI_USER_KEY_ENCRYPTION_KEY:}
+      advisors:
+        enabled: false
+        tool-call-enabled: false

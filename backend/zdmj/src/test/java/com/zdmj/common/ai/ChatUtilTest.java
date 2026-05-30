@@ -11,6 +11,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
 import reactor.core.publisher.Flux;
 
+import com.zdmj.common.context.UserContext;
+import com.zdmj.common.context.UserHolder;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -22,21 +25,23 @@ class ChatUtilTest {
     @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     private ChatClient statelessChatClient;
 
-    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
-    private ChatClient chatClientWithMemory;
-
     @Mock
     private PromptUtil promptUtil;
+
+    @Mock
+    private UserLlmRouter userLlmRouter;
 
     private ChatUtil chatUtil;
 
     @BeforeEach
     void setUp() {
-        chatUtil = new ChatUtil(statelessChatClient, chatClientWithMemory, promptUtil);
+        chatUtil = new ChatUtil(promptUtil, userLlmRouter);
+        UserHolder.set(UserContext.of(1L, "tester"));
     }
 
     @Test
     void testChatOnce() {
+        when(userLlmRouter.getChatClient(1L)).thenReturn(statelessChatClient);
         String message = "hello";
         String expected = "world";
 
@@ -71,6 +76,7 @@ class ChatUtilTest {
 
     @Test
     void testChatStreamOnce() {
+        when(userLlmRouter.getChatClient(1L)).thenReturn(statelessChatClient);
         String message = "hello";
         Flux<String> expected = Flux.just("a", "b", "c");
 

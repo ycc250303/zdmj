@@ -52,7 +52,7 @@ spring:
       api-key: ${SPRING_AI_OPENAI_API_KEY:${DASHSCOPE_API_KEY:}}
       chat:
         options:
-          model: ${AL_MODEL:qwen-max}
+          model: ${AL_MODEL:qwen3.7-max}
       embedding:
         options:
           model: text-embedding-v4
@@ -104,3 +104,12 @@ app:
     host: ${APP_REMOTE_HOST:localhost}
   jwt:
     secret: ${JWT_SECRET:}
+  ai:
+    user-llm:
+      require-user-config: false
+      platform-fallback-enabled: true
+      require-encryption-key: false
+      encryption-key: ${APP_AI_USER_KEY_ENCRYPTION_KEY:}
+      advisors:
+        enabled: false
+        tool-call-enabled: false

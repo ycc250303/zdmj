@@ -1,0 +1,17 @@
+package com.zdmj.userAuthService.dto;
+
+import lombok.Data;
+
+@Data
+public class UserLlmConfigDTO {
+
+    private boolean configured;
+
+    private boolean usingPlatformDefault;
+
+    private String modelCode;
+
+    private String modelDisplayName;
+
+    private String apiKeyMasked;
+}
