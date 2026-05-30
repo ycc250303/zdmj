@@ -36,6 +36,11 @@ public enum ErrorCode {
     USER_EMAIL_NOT_REGISTERED(2007, "该邮箱未注册", HttpStatus.NOT_FOUND),
     PASSWORD_CHANGE_FAILED(2008, "密码修改失败", HttpStatus.BAD_REQUEST),
     CAPTCHA_SEND_FAILED(2009, "验证码发送失败，请稍后重试", HttpStatus.BAD_REQUEST),
+    USER_LLM_NOT_CONFIGURED(2010, "请先配置大模型与 API Key", HttpStatus.PRECONDITION_REQUIRED),
+    USER_LLM_CONFIG_INVALID(2011, "大模型配置无效", HttpStatus.BAD_REQUEST),
+    USER_LLM_API_KEY_ENCRYPT_FAILED(2012, "API Key 加密失败", HttpStatus.BAD_REQUEST),
+    USER_LLM_API_KEY_DECRYPT_FAILED(2013, "API Key 解密失败", HttpStatus.BAD_REQUEST),
+    USER_LLM_CONNECTION_TEST_FAILED(2014, "大模型连通性测试失败", HttpStatus.BAD_REQUEST),
 
     // ========== 简历与能力画像 3xxx ==========
     RESUME_NAME_EXISTS(3001, "简历名称已存在，请使用其他名称", HttpStatus.CONFLICT),
