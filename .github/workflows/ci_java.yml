@@ -62,7 +62,12 @@ jobs:
         if: steps.compile.outcome == 'success'
         continue-on-error: true
         working-directory: ./backend/zdmj
-        run: mvn -B -ntp test
+        run: |
+          mvn -B -ntp test
+          if [ -d target/surefire-reports ]; then
+            grep -h "failures=\"[1-9]" target/surefire-reports/TEST-*.xml 2>/dev/null | head -20 || true
+            grep -h "errors=\"[1-9]" target/surefire-reports/TEST-*.xml 2>/dev/null | head -20 || true
+          fi
 
       # 步骤5: 覆盖率与路径门禁
       - name: Run coverage and path gates

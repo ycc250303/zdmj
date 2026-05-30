@@ -1,32 +1,53 @@
 package com.zdmj.common.util;
 
-import org.junit.jupiter.api.Test;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PdfParserUtilTest {
-    private static final String TEST_URL =
-            "https://zdmj-1381832847.cos.ap-shanghai.myqcloud.com/user-1/resume/%E5%B0%B9%E8%AF%9A%E6%88%90-%E7%AE%80%E5%8E%86-8dac604635c24287b0aee44739cb6456.pdf";
 
     @Test
-    void extractTextFromUrl_shouldParsePdfText() {
-        String parsedText = PdfParserUtil.extractTextFromUrl(TEST_URL);
-        System.out.println(parsedText);
-        assertTrue(parsedText != null && !parsedText.isBlank(), "URL PDF解析结果不应为空");
+    void extractTextFromLocalPath_shouldParseClasspathFixture() throws Exception {
+        URL resource = PdfParserUtilTest.class.getResource("/fixtures/minimal-sample.pdf");
+        assertTrue(resource != null, "测试 PDF 资源缺失");
+
+        String parsedText = PdfParserUtil.extractTextFromLocalPath(Path.of(resource.toURI()).toString());
+
+        assertTrue(parsedText != null && !parsedText.isBlank(), "本地 PDF 解析结果不应为空");
+        assertTrue(parsedText.contains("ZDMJ"), "应解析出 fixture 中的文本");
     }
 
     @Test
-    void extractTextFromUrl_shouldWrapException() {
+    void extractTextFromLocalPath_shouldWrapExceptionForMissingFile(@TempDir Path tempDir) {
+        Path missing = tempDir.resolve("not-exists.pdf");
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> PdfParserUtil.extractTextFromLocalPath(missing.toString()));
+        assertTrue(ex.getMessage().startsWith("PDF解析失败："));
+    }
+
+    @Test
+    void extractTextFromUrl_shouldWrapExceptionForInvalidHost() {
         RuntimeException ex = assertThrows(RuntimeException.class,
                 () -> PdfParserUtil.extractTextFromUrl("https://invalid-host-for-test-zdmj/pdf.pdf"));
         assertTrue(ex.getMessage().startsWith("PDF解析失败："));
     }
 
     @Test
-    void extractTextFromUrl_realCosFile_shouldParseText() {
-        String text = PdfParserUtil.extractTextFromUrl(TEST_URL);
-        System.out.println(text);
-        assertTrue(text != null && !text.isBlank(), "COS PDF解析结果不应为空");
+    void extractTextFromUrl_shouldParseFileUrl(@TempDir Path tempDir) throws Exception {
+        URL resource = PdfParserUtilTest.class.getResource("/fixtures/minimal-sample.pdf");
+        assertTrue(resource != null, "测试 PDF 资源缺失");
+
+        Path copy = tempDir.resolve("sample.pdf");
+        Files.copy(Path.of(resource.toURI()), copy);
+
+        String parsedText = PdfParserUtil.extractTextFromUrl(copy.toUri().toString());
+
+        assertTrue(parsedText != null && !parsedText.isBlank(), "file:// PDF 解析结果不应为空");
     }
 }
