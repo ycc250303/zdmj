@@ -212,5 +212,15 @@ export const generatedRoutes: GeneratedRoute[] = [
       i18nKey: 'route.resumes-editor',
       hideInMenu: true
     }
+  },
+  {
+    name: 'user-settings',
+    path: '/user-settings',
+    component: 'layout.base$view.user-settings',
+    meta: {
+      title: 'user-settings',
+      i18nKey: 'route.user-settings',
+      hideInMenu: true
+    }
   }
 ];
