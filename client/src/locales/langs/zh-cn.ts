@@ -238,7 +238,8 @@ const local: App.I18n.Schema = {
     "profile_career":'工作经历管理',
     "profile_skill":'技能管理',
     "profile_basic-info":'基本信息',
-    "profile_capability":'能力画像'
+    "profile_capability":'能力画像',
+    'user-settings': '用户设置'
   },
   page: {
     login: {
@@ -530,6 +531,30 @@ const local: App.I18n.Schema = {
         loginToView: '请先登录后查看能力画像',
         goToLogin: '前往登录'
       }
+    },
+    userSettings: {
+      navTitle: '用户设置',
+      title: '大模型配置',
+      desc: '配置你自己的模型与 API Key；未配置时将使用平台默认模型。',
+      model: '模型',
+      modelPlaceholder: '请选择模型',
+      modelRequired: '请选择模型',
+      apiKey: 'API Key',
+      apiKeyPlaceholder: '请输入 API Key',
+      apiKeyRequired: '请输入 API Key',
+      apiKeyHint: '保存后 Key 会加密存储；再次编辑需重新输入完整 Key。',
+      save: '保存配置',
+      test: '测试连通性',
+      clearConfig: '清除配置',
+      deleteConfirm: '确定清除当前模型配置并恢复为平台默认吗？',
+      saveSuccess: '配置保存成功',
+      deleteSuccess: '配置已清除',
+      testSuccess: '连通性测试成功',
+      statusConfigured: '已配置自定义模型',
+      statusPlatformDefault: '使用平台默认模型',
+      statusNotConfigured: '未配置',
+      currentModel: '当前模型',
+      currentApiKey: '当前 Key'
     },
     resume: {
       template: '排版模板',

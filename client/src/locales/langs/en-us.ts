@@ -241,7 +241,8 @@ const local: App.I18n.Schema = {
     "chat": 'AI Chat',
     "jobs": 'Jobs',
     "job-detail": 'Job Details',
-    "job-edit": 'Edit Job'
+    "job-edit": 'Edit Job',
+    'user-settings': 'User Settings'
   },
   page: {
     login: {
@@ -533,6 +534,30 @@ const local: App.I18n.Schema = {
         loginToView: "Please login to view capability profile",
         goToLogin: "Go to Login"
       }
+    },
+    userSettings: {
+      navTitle: 'User Settings',
+      title: 'LLM Configuration',
+      desc: 'Configure your own model and API Key. Platform default is used when not configured.',
+      model: 'Model',
+      modelPlaceholder: 'Select a model',
+      modelRequired: 'Please select a model',
+      apiKey: 'API Key',
+      apiKeyPlaceholder: 'Enter API Key',
+      apiKeyRequired: 'Please enter API Key',
+      apiKeyHint: 'Key is encrypted after save. Re-enter the full key when editing.',
+      save: 'Save',
+      test: 'Test Connection',
+      clearConfig: 'Clear Config',
+      deleteConfirm: 'Clear your LLM config and revert to platform default?',
+      saveSuccess: 'Configuration saved',
+      deleteSuccess: 'Configuration cleared',
+      testSuccess: 'Connection test succeeded',
+      statusConfigured: 'Custom model configured',
+      statusPlatformDefault: 'Using platform default',
+      statusNotConfigured: 'Not configured',
+      currentModel: 'Current model',
+      currentApiKey: 'Current key'
     },
     resume: {
           template: 'Template',

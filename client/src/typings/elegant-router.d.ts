@@ -38,6 +38,7 @@ declare module "@elegant-router/types" {
     "profile_skill": "/profile/skill";
     "resumes": "/resumes";
     "resumes-editor": "/resumes-editor";
+    "user-settings": "/user-settings";
   };
 
   /**
@@ -84,6 +85,7 @@ declare module "@elegant-router/types" {
     | "profile"
     | "resumes"
     | "resumes-editor"
+    | "user-settings"
   >;
 
   /**
@@ -120,6 +122,7 @@ declare module "@elegant-router/types" {
     | "profile_skill"
     | "resumes-editor"
     | "resumes"
+    | "user-settings"
   >;
 
   /**

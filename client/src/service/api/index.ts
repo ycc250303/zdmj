@@ -31,3 +31,4 @@ export * from './conversation';
 export * from './job';
 export * from './match';
 export * from './career-report';
+export * from './user-llm-config';

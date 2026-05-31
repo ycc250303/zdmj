@@ -763,6 +763,30 @@ declare namespace App {
             goToLogin: string;
           };
         };
+        userSettings: {
+          navTitle: string;
+          title: string;
+          desc: string;
+          model: string;
+          modelPlaceholder: string;
+          modelRequired: string;
+          apiKey: string;
+          apiKeyPlaceholder: string;
+          apiKeyRequired: string;
+          apiKeyHint: string;
+          save: string;
+          test: string;
+          clearConfig: string;
+          deleteConfirm: string;
+          saveSuccess: string;
+          deleteSuccess: string;
+          testSuccess: string;
+          statusConfigured: string;
+          statusPlatformDefault: string;
+          statusNotConfigured: string;
+          currentModel: string;
+          currentApiKey: string;
+        };
         resume:{
           template:string;
           color: string;

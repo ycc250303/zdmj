@@ -183,7 +183,8 @@ const routeMap: RouteMap = {
   "profile_project": "/profile/project",
   "profile_skill": "/profile/skill",
   "resumes": "/resumes",
-  "resumes-editor": "/resumes-editor"
+  "resumes-editor": "/resumes-editor",
+  "user-settings": "/user-settings"
 };
 
 /**
