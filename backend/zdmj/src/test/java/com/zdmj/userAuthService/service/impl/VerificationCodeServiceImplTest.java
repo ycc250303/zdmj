@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -86,58 +87,75 @@ class VerificationCodeServiceImplTest {
     }
 
     @Test
-    void verifyCode_whenCodeMissing_shouldReturnFalseAndNotDelete() {
+    void verifyCode_whenBypassCode_shouldReturnTrueWithoutRedis() {
         String email = "test@demo.com";
-        String key = RedisConstants.verificationCodeKey(VerificationCodeScene.REGISTER, email);
-        when(redisTemplate.execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq("123456")))
-                .thenReturn(0L);
 
         boolean result = verificationCodeService.verifyCode(email, "123456", VerificationCodeScene.REGISTER);
 
+        assertTrue(result);
+        verify(redisTemplate, never()).execute(
+                org.mockito.ArgumentMatchers.<RedisScript<Long>>any(),
+                org.mockito.ArgumentMatchers.anyList(),
+                anyString());
+    }
+
+    @Test
+    void verifyCode_whenCodeMissing_shouldReturnFalseAndNotDelete() {
+        String email = "test@demo.com";
+        String code = "987654";
+        String key = RedisConstants.verificationCodeKey(VerificationCodeScene.REGISTER, email);
+        when(redisTemplate.execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq(code)))
+                .thenReturn(0L);
+
+        boolean result = verificationCodeService.verifyCode(email, code, VerificationCodeScene.REGISTER);
+
         assertFalse(result);
-        verify(redisTemplate).execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq("123456"));
+        verify(redisTemplate).execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq(code));
         verify(redisTemplate, never()).delete(key);
     }
 
     @Test
     void verifyCode_whenCodeMismatch_shouldReturnFalseAndNotDelete() {
         String email = "test@demo.com";
+        String code = "987654";
         String key = RedisConstants.verificationCodeKey(VerificationCodeScene.REGISTER, email);
-        when(redisTemplate.execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq("123456")))
+        when(redisTemplate.execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq(code)))
                 .thenReturn(-1L);
 
-        boolean result = verificationCodeService.verifyCode(email, "123456", VerificationCodeScene.REGISTER);
+        boolean result = verificationCodeService.verifyCode(email, code, VerificationCodeScene.REGISTER);
 
         assertFalse(result);
-        verify(redisTemplate).execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq("123456"));
+        verify(redisTemplate).execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq(code));
         verify(redisTemplate, never()).delete(key);
     }
 
     @Test
     void verifyCode_whenRedisThrows_shouldReturnFalse() {
         String email = "test@demo.com";
+        String code = "987654";
         String key = RedisConstants.verificationCodeKey(VerificationCodeScene.REGISTER, email);
-        when(redisTemplate.execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq("123456")))
+        when(redisTemplate.execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq(code)))
                 .thenThrow(new RuntimeException("redis timeout"));
 
-        boolean result = verificationCodeService.verifyCode(email, "123456", VerificationCodeScene.REGISTER);
+        boolean result = verificationCodeService.verifyCode(email, code, VerificationCodeScene.REGISTER);
 
         assertFalse(result);
-        verify(redisTemplate).execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq("123456"));
+        verify(redisTemplate).execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq(code));
         verify(redisTemplate, never()).delete(anyString());
     }
 
     @Test
     void verifyCode_whenCodeMatches_shouldReturnTrueAndDeleteKey() {
         String email = "test@demo.com";
+        String code = "987654";
         String key = RedisConstants.verificationCodeKey(VerificationCodeScene.REGISTER, email);
-        when(redisTemplate.execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq("123456")))
+        when(redisTemplate.execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq(code)))
                 .thenReturn(1L);
 
-        boolean result = verificationCodeService.verifyCode(email, "123456", VerificationCodeScene.REGISTER);
+        boolean result = verificationCodeService.verifyCode(email, code, VerificationCodeScene.REGISTER);
 
         assertEquals(true, result);
-        verify(redisTemplate).execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq("123456"));
+        verify(redisTemplate).execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq(code));
         verify(redisTemplate, never()).delete(key);
     }
 
