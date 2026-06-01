@@ -61,14 +61,14 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         // 2.获取原始文本
         String rawString = userMessage == null ? "" : userMessage.trim().replaceAll("\\s+", " ");
 
-        // 3.获取改写后的文本
+        // 3.获取改写后的文本（短句跳过改写，避免阻塞首 token 的同步 LLM 调用）
+        Search s = ragConfig.getSearch();
         String rewrittenText = rawString;
-        if (ragConfig.getRewrite().isEnabled()) {
+        if (ragConfig.getRewrite().isEnabled() && rawString.length() > s.getShortQueryLength()) {
             rewrittenText = rewriteQuery(rawString);
         }
 
         // 4.提取配置值
-        Search s = ragConfig.getSearch();
         int topK = resolveTopK(rawString.length(), s);
         double minScore = rawString.length() <= s.getShortQueryLength() ? s.getMinScoreShort() : s.getMinScoreDefault();
 
