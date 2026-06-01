@@ -321,6 +321,23 @@ class UserServiceImplTest {
     }
 
     @Test
+    void updateCurrentUser_whenNameBlank_shouldThrow1001() {
+        UserHolder.set(UserContext.of(14L, "u14"));
+        UserUpdateDTO dto = new UserUpdateDTO();
+        dto.setName("   ");
+
+        User existing = new User();
+        existing.setId(14L);
+        existing.setName("old-name");
+        doReturn(existing).when(userService).getById(14L);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> userService.updateCurrentUser(dto));
+
+        assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
+        verify(userService, never()).updateById(any(User.class));
+    }
+
+    @Test
     void updateCurrentUser_whenUserNotFound_shouldThrow2006() {
         UserHolder.set(UserContext.of(12L, "u12"));
         UserUpdateDTO dto = new UserUpdateDTO();

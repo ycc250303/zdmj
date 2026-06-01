@@ -18,8 +18,11 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import com.zdmj.userAuthService.support.VerificationCodeSceneResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.concurrent.TimeUnit;
@@ -32,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 @RequestMapping("/users")
 @RequiredArgsConstructor
 @Tag(name = "用户认证", description = "注册、登录、验证码等")
+@Validated
 public class UserController {
 
     // 临时放宽登录相关限流，上线前恢复为 rate-limit.md 中的默认值
@@ -96,11 +100,13 @@ public class UserController {
     @RateLimit(dimension = RateLimit.Dimension.GLOBAL, count = TEMP_VERIFICATION_GLOBAL_PER_MIN, interval = 1, timeUnit = TimeUnit.MINUTES)
     @RateLimit(dimension = RateLimit.Dimension.IP, count = TEMP_VERIFICATION_IP_PER_MIN, interval = 1, timeUnit = TimeUnit.MINUTES)
     public Result<Void> sendVerificationCode(
-            @RequestParam @NotBlank(message = "邮箱不能为空") @Email(message = "邮箱格式不正确") String email) {
-        log.info("发送验证码请求: {}", email);
-        VerificationCodeScene scene = userService.existsByEmail(email)
-                ? VerificationCodeScene.RESET_PASSWORD
-                : VerificationCodeScene.REGISTER;
+            @RequestParam @NotBlank(message = "邮箱不能为空") @Email(message = "邮箱格式不正确") String email,
+            @RequestParam(required = false) String type) {
+        log.info("发送验证码请求: email={}, type={}", email, type);
+        VerificationCodeScene explicit = VerificationCodeSceneResolver.parseOptionalType(type);
+        VerificationCodeScene scene = explicit != null
+                ? explicit
+                : (userService.existsByEmail(email) ? VerificationCodeScene.RESET_PASSWORD : VerificationCodeScene.REGISTER);
         boolean success = verificationCodeService.sendVerificationCode(email, scene);
         if (success) {
             return Result.success("验证码已发送到邮箱", null);
@@ -145,7 +151,8 @@ public class UserController {
     @GetMapping("/validation/username")
     @RateLimit(dimension = RateLimit.Dimension.GLOBAL, count = TEMP_VALIDATION_GLOBAL_PER_MIN, interval = 1, timeUnit = TimeUnit.MINUTES)
     @RateLimit(dimension = RateLimit.Dimension.IP, count = TEMP_VALIDATION_IP_PER_MIN, interval = 1, timeUnit = TimeUnit.MINUTES)
-    public Result<Boolean> validateUsername(@RequestParam String username) {
+    public Result<Boolean> validateUsername(
+            @RequestParam @NotBlank(message = "用户名不能为空") @Size(min = 3, max = 50, message = "用户名长度必须在3-50个字符之间") String username) {
         log.info("检查用户名是否存在: {}", username);
         boolean exists = userService.existsByUsername(username);
         return Result.success(exists);
@@ -158,7 +165,8 @@ public class UserController {
      * @return 是否存在
      */
     @GetMapping("/validation/email")
-    public Result<Boolean> validateEmail(@RequestParam String email) {
+    public Result<Boolean> validateEmail(
+            @RequestParam @NotBlank(message = "邮箱不能为空") @Email(message = "邮箱格式不正确") String email) {
         log.info("检查邮箱是否存在: {}", email);
         boolean exists = userService.existsByEmail(email);
         return Result.success(exists);

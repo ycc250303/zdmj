@@ -196,14 +196,16 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
-        // 仅更新允许修改的字段
         if (updateDTO.getName() != null) {
+            rejectBlankField(updateDTO.getName(), "姓名不能为空");
             user.setName(updateDTO.getName());
         }
         if (updateDTO.getPhone() != null) {
+            rejectBlankField(updateDTO.getPhone(), "电话不能为空");
             user.setPhone(updateDTO.getPhone());
         }
         if (updateDTO.getWebsite() != null) {
+            rejectBlankField(updateDTO.getWebsite(), "主页链接不能为空");
             user.setWebsite(updateDTO.getWebsite());
         }
         boolean updated = updateById(user);
@@ -213,6 +215,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
         log.info("用户信息更新成功: userId={}", userId);
         return convertToDTO(user);
+    }
+
+    private void rejectBlankField(String value, String message) {
+        if (value.isBlank()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), message);
+        }
     }
 
     /**

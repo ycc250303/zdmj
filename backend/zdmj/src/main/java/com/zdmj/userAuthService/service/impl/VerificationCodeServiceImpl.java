@@ -41,8 +41,12 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
     @Override
     public boolean sendVerificationCode(String email, VerificationCodeScene scene) {
         try {
-            String code = generateCode();
             String key = RedisConstants.verificationCodeKey(scene, email);
+            if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) {
+                log.warn("验证码未过期，拒绝重复发送: {}, scene={}", email, scene);
+                return false;
+            }
+            String code = generateCode();
             redisTemplate.opsForValue().set(key, code, RedisConstants.CODE_EXPIRE_TTL, TimeUnit.SECONDS);
 
             String subject;

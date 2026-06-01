@@ -45,6 +45,7 @@ class VerificationCodeServiceImplTest {
     @BeforeEach
     void setUp() {
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        lenient().when(redisTemplate.hasKey(anyString())).thenReturn(false);
         verificationCodeService = new VerificationCodeServiceImpl(redisTemplate, emailService);
     }
 
@@ -59,6 +60,20 @@ class VerificationCodeServiceImplTest {
 
         assertFalse(result);
         verify(valueOperations).set(eq(key), anyString(), anyLong(), eq(TimeUnit.SECONDS));
+        verifyNoInteractions(emailService);
+    }
+
+    @Test
+    void sendVerificationCode_whenCodeStillValid_shouldReturnFalseWithoutResend() {
+        String email = "test@demo.com";
+        String key = RedisConstants.verificationCodeKey(VerificationCodeScene.REGISTER, email);
+        when(redisTemplate.hasKey(key)).thenReturn(true);
+
+        boolean result = verificationCodeService.sendVerificationCode(email, VerificationCodeScene.REGISTER);
+
+        assertFalse(result);
+        verify(redisTemplate).hasKey(key);
+        verify(valueOperations, never()).set(eq(key), anyString(), anyLong(), eq(TimeUnit.SECONDS));
         verifyNoInteractions(emailService);
     }
 
