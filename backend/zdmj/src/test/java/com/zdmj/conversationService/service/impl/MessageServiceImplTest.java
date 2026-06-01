@@ -245,9 +245,7 @@ class MessageServiceImplTest {
         conversation.setId(302L);
         conversation.setMessageCount(0);
         doReturn(conversation).when(conversationService).getById(302L);
-        RagConfig.Rewrite rewrite = new RagConfig.Rewrite();
-        rewrite.setEnabled(false);
-        doReturn(rewrite).when(ragConfig).getRewrite();
+        doReturn(false).when(ragConfig).isEnabled();
         doReturn("title").when(chatUtil).chatOnce(anyString(), anyString(), any());
         doReturn(Flux.just("he", "llo")).when(chatUtil)
                 .chatStreamInConversation(eq(302L), eq("hello"), anyString(), any());
@@ -303,9 +301,7 @@ class MessageServiceImplTest {
         conversation.setId(304L);
         conversation.setMessageCount(1);
         doReturn(conversation).when(conversationService).getById(304L);
-        RagConfig.Rewrite rewrite = new RagConfig.Rewrite();
-        rewrite.setEnabled(false);
-        doReturn(rewrite).when(ragConfig).getRewrite();
+        doReturn(false).when(ragConfig).isEnabled();
         org.mockito.Mockito.doAnswer(invocation -> {
             Message m = invocation.getArgument(0);
             if (m.getRole() == 2) {
@@ -330,9 +326,7 @@ class MessageServiceImplTest {
         conversation.setId(305L);
         conversation.setMessageCount(1);
         doReturn(conversation).when(conversationService).getById(305L);
-        RagConfig.Rewrite rewrite = new RagConfig.Rewrite();
-        rewrite.setEnabled(false);
-        doReturn(rewrite).when(ragConfig).getRewrite();
+        doReturn(false).when(ragConfig).isEnabled();
         org.mockito.Mockito.doAnswer(invocation -> {
             Message m = invocation.getArgument(0);
             if (m.getRole() == 2) {
@@ -356,9 +350,7 @@ class MessageServiceImplTest {
         conversation.setMessageCount(0);
         doReturn(conversation).when(conversationService).getById(conversationId);
 
-        RagConfig.Rewrite rewrite = new RagConfig.Rewrite();
-        rewrite.setEnabled(false);
-        doReturn(rewrite).when(ragConfig).getRewrite();
+        doReturn(false).when(ragConfig).isEnabled();
         doReturn("title-once").when(chatUtil).chatOnce(anyString(), anyString(), any());
         doReturn(Flux.just("ok")).when(chatUtil)
                 .chatStreamInConversation(eq(conversationId), anyString(), anyString(), any());

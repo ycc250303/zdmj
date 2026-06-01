@@ -128,7 +128,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         AtomicInteger lastFlushedLen = new AtomicInteger(0);
 
         // 7.调用 AI 服务
-        Flux<String> chatFlux = ragConfig.getRewrite().isEnabled()
+        Flux<String> chatFlux = ragConfig.isEnabled()
                 ? knowledgeRagService.streamAnswer(dto.getConversationId(), dto.getMessage())
                 : chatUtil.chatStreamInConversation(
                         dto.getConversationId(),
