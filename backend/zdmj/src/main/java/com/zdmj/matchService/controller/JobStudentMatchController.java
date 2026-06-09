@@ -1,6 +1,10 @@
 package com.zdmj.matchService.controller;
 
+import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.ai.LlmRateLimits;
 import com.zdmj.common.model.Result;
+
+import java.util.concurrent.TimeUnit;
 import com.zdmj.matchService.dto.JobStudentMatchDTO;
 import com.zdmj.matchService.dto.JobStudentMatchGenerateRequest;
 import com.zdmj.matchService.dto.MatchWeightConfigDTO;
@@ -48,6 +52,8 @@ public class JobStudentMatchController {
      * @param req   生成请求体（可选，可携带自定义权重）
      * @return 匹配结果
      */
+    @RateLimit(dimension = RateLimit.Dimension.USER, count = LlmRateLimits.MATCH_GENERATE_PER_MIN, interval = 1,
+            timeUnit = TimeUnit.MINUTES)
     @PostMapping("/jobs/{jobId}")
     public Result<JobStudentMatchDTO> generate(@PathVariable Long jobId,
                                                @RequestBody(required = false) JobStudentMatchGenerateRequest req) {

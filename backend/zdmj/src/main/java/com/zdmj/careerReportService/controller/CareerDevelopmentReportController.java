@@ -6,7 +6,11 @@ import com.zdmj.careerReportService.dto.CareerReportGenerateRequest;
 import com.zdmj.careerReportService.dto.CareerReportPolishRequest;
 import com.zdmj.careerReportService.dto.CareerReportUpdateRequest;
 import com.zdmj.careerReportService.service.CareerDevelopmentReportService;
+import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.ai.LlmRateLimits;
 import com.zdmj.common.model.Result;
+
+import java.util.concurrent.TimeUnit;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -52,6 +56,8 @@ public class CareerDevelopmentReportController {
      * @param req   生成请求（可选：用户偏好、生成侧重点）
      * @return 新生成的报告
      */
+    @RateLimit(dimension = RateLimit.Dimension.USER, count = LlmRateLimits.CAREER_REPORT_GENERATE_PER_MIN, interval = 1,
+            timeUnit = TimeUnit.MINUTES)
     @PostMapping("/jobs/{jobId}")
     public Result<CareerReportDTO> generate(@PathVariable Long jobId,
                                             @RequestBody(required = false) CareerReportGenerateRequest req) {
@@ -66,6 +72,8 @@ public class CareerDevelopmentReportController {
      * @param req 润色请求（可选：润色说明）
      * @return 润色后的新版本报告
      */
+    @RateLimit(dimension = RateLimit.Dimension.USER, count = LlmRateLimits.CAREER_REPORT_AUX_PER_MIN, interval = 1,
+            timeUnit = TimeUnit.MINUTES)
     @PostMapping("/{id}/polish")
     public Result<CareerReportDTO> polish(@PathVariable Long id,
                                           @RequestBody(required = false) CareerReportPolishRequest req) {
@@ -79,6 +87,8 @@ public class CareerDevelopmentReportController {
      * @param id 报告ID
      * @return 检查结果（完整度、缺失章节、风险等级等）
      */
+    @RateLimit(dimension = RateLimit.Dimension.USER, count = LlmRateLimits.CAREER_REPORT_AUX_PER_MIN, interval = 1,
+            timeUnit = TimeUnit.MINUTES)
     @PostMapping("/{id}/integrity-check")
     public Result<CareerReportCheckDTO> integrityCheck(@PathVariable Long id) {
         log.info("检查职业发展报告完整性: reportId={}", id);

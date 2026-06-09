@@ -7,10 +7,16 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.RequestBody;
 
+import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.ai.LlmRateLimits;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.Result;
+import jakarta.validation.Valid;
+
+import java.util.concurrent.TimeUnit;
 import com.zdmj.conversationService.dto.MessageDTO;
 import com.zdmj.conversationService.entity.Message;
 import com.zdmj.conversationService.service.MessageService;
@@ -25,6 +31,7 @@ import reactor.core.publisher.Flux;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/messages")
+@Validated
 @Tag(name = "对话消息", description = "消息发送、流式回复与历史查询")
 public class MessageController {
 
@@ -52,8 +59,10 @@ public class MessageController {
      * @param dto 消息DTO
      * @return 流式消息
      */
+    @RateLimit(dimension = RateLimit.Dimension.USER, count = LlmRateLimits.CHAT_PER_MIN, interval = 1,
+            timeUnit = TimeUnit.MINUTES)
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ServerSentEvent<String>> chatStream(@RequestBody MessageDTO dto) {
+    public Flux<ServerSentEvent<String>> chatStream(@Valid @RequestBody MessageDTO dto) {
         return messageService.createStream(dto);
     }
 
