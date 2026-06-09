@@ -97,21 +97,21 @@ public enum ErrorCode {
     CONVERSATION_UPDATE_FAILED(9004, "更新会话失败", HttpStatus.BAD_REQUEST),
     MESSAGE_CREATE_FAILED(9005, "创建消息失败", HttpStatus.BAD_REQUEST),
 
-    // ========== 岗位 82xx ==========
-    JOB_NOT_FOUND(8201, "岗位不存在", HttpStatus.NOT_FOUND),
-    JOB_CAPABILITY_PROFILE_GENERATION_FAILED(8202, "生成岗位能力画像失败", HttpStatus.BAD_REQUEST),
-    JOB_CAREER_GRAPH_GENERATION_FAILED(8204, "生成岗位关联图谱失败", HttpStatus.BAD_REQUEST),
-    JOB_CAREER_GRAPH_INVALID(8205, "岗位关联图谱结果不符合要求（晋升路径或换岗路径数量不足）", HttpStatus.BAD_REQUEST),
+    // ========== 岗位 jobService 100xx ==========
+    JOB_NOT_FOUND(10001, "岗位不存在", HttpStatus.NOT_FOUND),
+    JOB_CAPABILITY_PROFILE_GENERATION_FAILED(10002, "生成岗位能力画像失败", HttpStatus.BAD_REQUEST),
+    JOB_CAREER_GRAPH_GENERATION_FAILED(10004, "生成岗位关联图谱失败", HttpStatus.BAD_REQUEST),
+    JOB_CAREER_GRAPH_INVALID(10005, "岗位关联图谱结果不符合要求（晋升路径或换岗路径数量不足）", HttpStatus.BAD_REQUEST),
 
-    // ========== 人岗匹配 83xx ==========
-    MATCH_GENERATION_FAILED(8301, "生成人岗匹配分析失败，请稍后重试", HttpStatus.BAD_REQUEST),
-    MATCH_PRECONDITION_MISSING(8302, "学生能力画像缺失，请先到能力画像页生成画像", HttpStatus.BAD_REQUEST),
+    // ========== 人岗匹配 matchService 110xx ==========
+    MATCH_GENERATION_FAILED(11001, "生成人岗匹配分析失败，请稍后重试", HttpStatus.BAD_REQUEST),
+    MATCH_PRECONDITION_MISSING(11002, "学生能力画像缺失，请先到能力画像页生成画像", HttpStatus.BAD_REQUEST),
 
-    // ========== 职业发展报告 84xx ==========
-    CAREER_REPORT_NOT_FOUND(8401, "职业发展报告不存在", HttpStatus.NOT_FOUND),
-    CAREER_REPORT_GENERATION_FAILED(8402, "生成职业发展报告失败，请稍后重试", HttpStatus.BAD_REQUEST),
-    CAREER_REPORT_POLISH_FAILED(8403, "润色职业发展报告失败，请稍后重试", HttpStatus.BAD_REQUEST),
-    CAREER_REPORT_INVALID(8404, "职业发展报告结果不符合要求", HttpStatus.BAD_REQUEST);
+    // ========== 职业发展报告 careerReportService 120xx ==========
+    CAREER_REPORT_NOT_FOUND(12001, "职业发展报告不存在", HttpStatus.NOT_FOUND),
+    CAREER_REPORT_GENERATION_FAILED(12002, "生成职业发展报告失败，请稍后重试", HttpStatus.BAD_REQUEST),
+    CAREER_REPORT_POLISH_FAILED(12003, "润色职业发展报告失败，请稍后重试", HttpStatus.BAD_REQUEST),
+    CAREER_REPORT_INVALID(12004, "职业发展报告结果不符合要求", HttpStatus.BAD_REQUEST);
 
     private final Integer code;
     private final String message;

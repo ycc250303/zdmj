@@ -45,10 +45,10 @@ import static org.mockito.Mockito.verify;
 /**
  * {@link JobStudentMatchServiceImpl} 单元测试。
  *
- * <p>重点回归：「队友报障 —— 换岗位仍然 8301」。该 bug 的根因是
+ * <p>重点回归：「队友报障 —— 换岗位仍然 11001」。该 bug 的根因是
  * {@code generate(...)} 当时传入了非空 {@code promptVars}，触发 Spring AI
  * {@code PromptTemplate.render(...)}（基于 StringTemplate）解析提示词里的 JSON 示例花括号失败，
- * 异常被 {@code catch (Exception e)} 吞成 8301 错误码，并且对任何岗位都会一致触发。</p>
+ * 异常被 {@code catch (Exception e)} 吞成 11001 错误码，并且对任何岗位都会一致触发。</p>
  *
  * <p>本类测试 {@code generate(...)} 的全部正反路径，并显式断言「
  * {@link ChatUtil#chatStructuredOnce} 必须以 {@code null} promptVars 调用」，
@@ -99,7 +99,7 @@ class JobStudentMatchServiceImplTest {
 
         assertNotNull(result);
         // 关键断言：promptVars 必须是 null —— 一旦改回 Map，PromptTemplate 渲染会因
-        // 提示词正文里的 JSON 大括号炸成 STException，被 catch 吞成 8301。
+        // 提示词正文里的 JSON 大括号炸成 STException，被 catch 吞成 11001。
         verify(chatUtil).chatStructuredOnce(
                 any(String.class),
                 eq("job-student-match/java-backend"),
@@ -182,11 +182,11 @@ class JobStudentMatchServiceImplTest {
     }
 
     // ========================================================
-    // 异常分支：LLM 故障 → 8301（保留既有行为）
+    // 异常分支：LLM 故障 → 11001（保留既有行为）
     // ========================================================
 
     @Test
-    void generate_chatUtilThrows_shouldThrow8301_matchGenerationFailed() {
+    void generate_chatUtilThrows_shouldThrow11001_matchGenerationFailed() {
         Long jobId = 21L;
         prepareJobAndProfiles(jobId, "java-backend");
         doThrow(new RuntimeException("llm down")).when(chatUtil)
@@ -199,7 +199,7 @@ class JobStudentMatchServiceImplTest {
     }
 
     @Test
-    void generate_chatUtilReturnsNull_shouldThrow8301_matchGenerationFailed() {
+    void generate_chatUtilReturnsNull_shouldThrow11001_matchGenerationFailed() {
         Long jobId = 22L;
         prepareJobAndProfiles(jobId, "java-backend");
         doReturn(null).when(chatUtil).chatStructuredOnce(
@@ -212,7 +212,7 @@ class JobStudentMatchServiceImplTest {
     }
 
     @Test
-    void generate_studentProfileMissing_shouldThrow8302_preconditionMissing() {
+    void generate_studentProfileMissing_shouldThrow11002_preconditionMissing() {
         Long jobId = 23L;
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
         doReturn(buildJobProfile("java-backend")).when(jobCapabilityProfileService)
@@ -225,7 +225,7 @@ class JobStudentMatchServiceImplTest {
     }
 
     @Test
-    void generate_jobDetailMissing_shouldThrow8201_jobNotFound() {
+    void generate_jobDetailMissing_shouldThrow10001_jobNotFound() {
         Long jobId = 24L;
         doReturn(null).when(jobService).getDetail(jobId);
 

@@ -45,7 +45,7 @@ class JobCapabilityProfileServiceImplTest {
     }
 
     @Test
-    void profile_generate_fail_shouldThrow8202() {
+    void profile_generate_fail_shouldThrow10002() {
         Long jobId = 11L;
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
         doThrow(new RuntimeException("llm down")).when(chatUtil)
@@ -123,7 +123,7 @@ class JobCapabilityProfileServiceImplTest {
     }
 
     @Test
-    void profile_fail_getJobCapabilityProfileOrNull_whenJobDetailNull_shouldThrow8201() {
+    void profile_fail_getJobCapabilityProfileOrNull_whenJobDetailNull_shouldThrow10001() {
         Long jobId = 14L;
         doReturn(null).when(jobService).getDetail(jobId);
 

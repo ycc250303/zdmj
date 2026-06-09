@@ -64,7 +64,7 @@ function extractApiError(errLike: any, fallback: string): string {
   const parsed = parseApiErrorBody(resp);
   const msg: string = parsed.msg || errLike?.message || fallback;
   const code = parsed.code ? `[${parsed.code}] ` : '';
-  if (Number(parsed.code) === 8301) {
+  if (Number(parsed.code) === 11001) {
     return `${code}${msg}（请稍后重试，或确认后端 LLM 服务可用、能力画像已生成）`;
   }
   return `${code}${msg}`;

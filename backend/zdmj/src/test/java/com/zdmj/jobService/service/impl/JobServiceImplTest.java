@@ -59,7 +59,7 @@ class JobServiceImplTest {
     }
 
     @Test
-    void getDetail_null_marker_notFound_shouldThrow8201() {
+    void getDetail_null_marker_notFound_shouldThrow10001() {
         Long jobId = 101L;
         String key = RedisConstants.JOB_DETAIL_KEY + jobId;
         doReturn(true).when(redisUtil).isNullValue(key);
@@ -72,7 +72,7 @@ class JobServiceImplTest {
     }
 
     @Test
-    void getDetail_db_miss_notFound_shouldSetNullCacheAndThrow8201() {
+    void getDetail_db_miss_notFound_shouldSetNullCacheAndThrow10001() {
         Long jobId = 102L;
         String key = RedisConstants.JOB_DETAIL_KEY + jobId;
         doReturn(false).when(redisUtil).isNullValue(key);
@@ -142,7 +142,7 @@ class JobServiceImplTest {
     }
 
     @Test
-    void update_notFound_shouldThrow8201() {
+    void update_notFound_shouldThrow10001() {
         JobDTO dto = new JobDTO();
         dto.setId(404L);
         doReturn(null).when(jobMapper).selectById(404L);
@@ -203,7 +203,7 @@ class JobServiceImplTest {
     }
 
     @Test
-    void update_notFound_shouldThrow8201AndSkipUpdate() {
+    void update_notFound_shouldThrow10001AndSkipUpdate() {
         JobDTO dto = new JobDTO();
         dto.setId(405L);
         doReturn(null).when(jobMapper).selectById(405L);
@@ -216,7 +216,7 @@ class JobServiceImplTest {
     }
 
     @Test
-    void delete_notFound_shouldThrow8201AndSkipCacheEvict() {
+    void delete_notFound_shouldThrow10001AndSkipCacheEvict() {
         Long jobId = 502L;
         doReturn(false).when(jobService).removeById(jobId);
 

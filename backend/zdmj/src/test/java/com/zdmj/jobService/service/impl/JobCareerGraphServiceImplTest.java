@@ -46,7 +46,7 @@ class JobCareerGraphServiceImplTest {
     }
 
     @Test
-    void graph_generate_fail_shouldThrow8204() {
+    void graph_generate_fail_shouldThrow10004() {
         Long jobId = 31L;
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
         doThrow(new RuntimeException("llm timeout")).when(chatUtil)
@@ -59,7 +59,7 @@ class JobCareerGraphServiceImplTest {
     }
 
     @Test
-    void graph_generate_invalid_shouldThrow8205() {
+    void graph_generate_invalid_shouldThrow10005() {
         Long jobId = 32L;
         JobCareerGraphDTO invalidGraph = new JobCareerGraphDTO();
         invalidGraph.setVerticalPath(List.of(vNode(1, "初级"), vNode(2, "中级")));
@@ -190,7 +190,7 @@ class JobCareerGraphServiceImplTest {
     }
 
     @Test
-    void graph_generate_fail_whenTransitionNodeTooShort_shouldThrow8205() {
+    void graph_generate_fail_whenTransitionNodeTooShort_shouldThrow10005() {
         Long jobId = 36L;
         JobCareerGraphDTO invalidGraph = new JobCareerGraphDTO();
         invalidGraph.setVerticalPath(List.of(vNode(1, "初级"), vNode(2, "中级"), vNode(3, "高级")));
@@ -214,7 +214,7 @@ class JobCareerGraphServiceImplTest {
     }
 
     @Test
-    void graph_generate_fail_whenTransitionPathCountTooFew_shouldThrow8205() {
+    void graph_generate_fail_whenTransitionPathCountTooFew_shouldThrow10005() {
         Long jobId = 40L;
         JobCareerGraphDTO invalidGraph = new JobCareerGraphDTO();
         invalidGraph.setVerticalPath(List.of(vNode(1, "初级"), vNode(2, "中级"), vNode(3, "高级")));
