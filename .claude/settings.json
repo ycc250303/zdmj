@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -sL \"https://raw.githubusercontent.com/VoltAgent/awesome-design-md/main/design-md/vercel/DESIGN.md\")",
+      "Bash(curl -sL \"https://raw.githubusercontent.com/VoltAgent/awesome-design-md/main/design-md/figma/DESIGN.md\")",
+      "Bash(curl -sL \"https://raw.githubusercontent.com/VoltAgent/awesome-design-md/main/design-md/nike/DESIGN.md\")",
+      "Bash(git -C d:/github_download/zdmj log --oneline -20)",
+      "Bash(git -C d:/github_download/zdmj diff HEAD~1 --name-only)",
+      "Bash(git -C d:/github_download/zdmj branch -a)",
+      "Bash(curl -sL \"https://raw.githubusercontent.com/VoltAgent/awesome-design-md/main/design-md/starbucks/DESIGN.md\")",
+      "Bash(curl -sL \"https://raw.githubusercontent.com/VoltAgent/awesome-design-md/main/design-md/ferrari/DESIGN.md\")",
+      "Bash(curl -sL \"https://raw.githubusercontent.com/VoltAgent/awesome-design-md/main/design-md/airbnb/DESIGN.md\" -o d:/github_download/zdmj/DESIGN.md)",
+      "Bash(npx vue-tsc *)",
+      "Bash(git checkout *)",
+      "Bash(npx vite *)",
+      "Bash(pnpm add *)",
+      "WebFetch(domain:www.tasteskill.dev)",
+      "Bash(curl -sL \"https://www.tasteskill.dev/\")"
+    ]
+  }
+}

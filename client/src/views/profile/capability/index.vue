@@ -8,6 +8,7 @@ import type { ResumeApi } from '@/service/api/resume';
 import { $t } from '@/locales';
 import { useAuthStore } from '@/store/modules/auth';
 import CapabilityScoreCard, { type Dimension } from '@/components/common/CapabilityScoreCard.vue';
+import CapabilityDimension, { type AbilityItem } from '@/components/common/CapabilityDimension.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -41,17 +42,17 @@ const totalScore = computed(() => {
   );
 });
 
-// 能力项列表
-const abilityItems = computed(() => {
+// 能力项列表（硬技能/软技能分组）
+const abilityItems = computed<AbilityItem[]>(() => {
   if (!profile.value) return [];
   return [
-    { key: 'professionalSkills', label: '专业技能', icon: 'mdi:code-braces', value: profile.value.professionalSkills },
-    { key: 'certificates', label: '证书', icon: 'mdi:certificate', value: profile.value.certificates },
-    { key: 'innovationAbility', label: '创新能力', icon: 'mdi:lightbulb-outline', value: profile.value.innovationAbility },
-    { key: 'learningAbility', label: '学习能力', icon: 'mdi:school-outline', value: profile.value.learningAbility },
-    { key: 'pressureResistance', label: '抗压能力', icon: 'mdi:weight-lifter', value: profile.value.pressureResistance },
-    { key: 'communicationAbility', label: '沟通能力', icon: 'mdi:account-group-outline', value: profile.value.communicationAbility },
-    { key: 'practicalAbility', label: '实习/实践能力', icon: 'mdi:briefcase-outline', value: profile.value.practicalAbility }
+    { key: 'professionalSkills', label: '专业技能', value: profile.value.professionalSkills, category: 'hard' },
+    { key: 'certificates', label: '证书', value: profile.value.certificates, category: 'hard' },
+    { key: 'practicalAbility', label: '实习/实践能力', value: profile.value.practicalAbility, category: 'hard' },
+    { key: 'innovationAbility', label: '创新能力', value: profile.value.innovationAbility, category: 'soft' },
+    { key: 'learningAbility', label: '学习能力', value: profile.value.learningAbility, category: 'soft' },
+    { key: 'pressureResistance', label: '抗压能力', value: profile.value.pressureResistance, category: 'soft' },
+    { key: 'communicationAbility', label: '沟通能力', value: profile.value.communicationAbility, category: 'soft' }
   ];
 });
 
@@ -344,52 +345,40 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="p-6 h-full overflow-y-auto bg-gray-50">
+  <div class="p-6 h-full overflow-y-auto bg-[#ffffff] dark:bg-[#181818]">
     <!-- 未登录提示 -->
-    <div v-if="!isLogin" class="max-w-4xl mx-auto text-center py-20 bg-white rounded-xl border border-gray-100 shadow-sm">
-      <span class="text-6xl mb-4 mx-auto opacity-50 text-gray-400">🔒</span>
-      <p class="text-gray-500 mb-4">{{ $t('page.profile.capability.loginToView') }}</p>
+    <div v-if="!isLogin" class="max-w-4xl mx-auto text-center py-20 bg-[#ffffff] dark:bg-gray-800 rounded-lg border border-[#ebebeb] dark:border-gray-700">
+      <p class="text-[#6a6a6a] dark:text-gray-400 mb-4">{{ $t('page.profile.capability.loginToView') }}</p>
       <NButton type="primary" @click="router.push('/login')">
         {{ $t('page.profile.capability.goToLogin') }}
       </NButton>
     </div>
 
-    <!-- 已登录但无数据 -->
+    <!-- 已登录加载中/有数据 -->
     <NSpin v-else :show="loading">
-      <div v-if="profile" class="max-w-6xl mx-auto space-y-6">
+      <div v-if="profile" class="max-w-6xl mx-auto space-y-8">
         <!-- 头部：标题和操作按钮 -->
-        <div class="flex justify-between items-center bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+        <div class="flex justify-between items-center">
           <div>
-            <h1 class="text-2xl font-bold text-gray-800">{{ $t('page.profile.capability.title') }}</h1>
-            <p class="text-gray-500 mt-2 text-sm">{{ $t('page.profile.capability.desc') }}</p>
+            <h1 class="text-2xl font-semibold text-[#222222] dark:text-gray-200">{{ $t('page.profile.capability.title') }}</h1>
+            <p class="text-[#6a6a6a] dark:text-gray-400 mt-1 text-sm">{{ $t('page.profile.capability.desc') }}</p>
           </div>
           <NButton type="primary" size="large" :loading="generating" @click="handleGenerate">
-            <template #icon>
-              <span>🔄</span>
-            </template>
             {{ $t('page.profile.capability.regenerate') }}
           </NButton>
         </div>
 
-        <!-- 生成方式选择和输入区域 -->
-        <div class="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-          <h3 class="text-lg font-bold text-gray-800 mb-4">{{ $t('page.profile.capability.generateMethod') }}</h3>
-
-          <!-- 生成方式Tab -->
+        <!-- 生成方式选择 -->
+        <div class="airbnb-card p-6">
+          <h3 class="text-base font-semibold text-[#222222] dark:text-gray-200 mb-4">{{ $t('page.profile.capability.generateMethod') }}</h3>
           <NTabs v-model:value="generateMethod" type="segment">
-            <!-- 自动生成 -->
             <NTabPane name="0" :tab="$t('page.profile.capability.autoGenerate')">
-              <p class="text-gray-600 text-sm">{{ $t('page.profile.capability.autoGenerateDesc') }}</p>
+              <p class="text-[#3f3f3f] dark:text-gray-300 text-sm">{{ $t('page.profile.capability.autoGenerateDesc') }}</p>
             </NTabPane>
-
-            <!-- 文件上传 -->
             <NTabPane name="1" :tab="$t('page.profile.capability.fileUpload')">
               <div class="space-y-4">
-                <p class="text-gray-600 text-sm">{{ $t('page.profile.capability.fileUploadDesc') }}</p>
+                <p class="text-[#3f3f3f] dark:text-gray-300 text-sm">{{ $t('page.profile.capability.fileUploadDesc') }}</p>
                 <NAlert type="info" :bordered="false" class="text-sm">
-                  <template #icon>
-                    <span>ℹ️</span>
-                  </template>
                   <div class="space-y-1">
                     <p>• {{ $t('page.profile.capability.uploadTips.useEnglishName') }}</p>
                     <p>• {{ $t('page.profile.capability.uploadTips.fileSizeLimit') }}</p>
@@ -403,9 +392,6 @@ onMounted(() => {
                   accept=".pdf,.doc,.docx,.txt"
                 >
                   <NButton :loading="uploading">
-                    <template #icon>
-                      <span>⬆️</span>
-                    </template>
                     {{ $t('page.profile.capability.selectFile') }}
                   </NButton>
                 </NUpload>
@@ -413,18 +399,13 @@ onMounted(() => {
                   {{ $t('page.profile.capability.uploadFile') }}
                 </NButton>
                 <NTag v-if="uploadedFileUrl" type="success" class="ml-2">
-                  <template #icon>
-                    <span>✅</span>
-                  </template>
                   {{ $t('page.profile.capability.uploadSuccess') }}
                 </NTag>
               </div>
             </NTabPane>
-
-            <!-- 纯文本输入 -->
             <NTabPane name="2" :tab="$t('page.profile.capability.textInput')">
               <div class="space-y-4">
-                <p class="text-gray-600 text-sm">{{ $t('page.profile.capability.textInputDesc') }}</p>
+                <p class="text-[#3f3f3f] dark:text-gray-300 text-sm">{{ $t('page.profile.capability.textInputDesc') }}</p>
                 <NInput
                   v-model:value="rawTextInput"
                   type="textarea"
@@ -438,7 +419,7 @@ onMounted(() => {
           </NTabs>
         </div>
 
-        <!-- 评分概览：核心评价 + 雷达图 + 维度进度条 -->
+        <!-- 评分概览 -->
         <CapabilityScoreCard
           :dimensions="scoreDimensions"
           :total-score="profile.competitivenessScore || totalScore"
@@ -448,26 +429,10 @@ onMounted(() => {
           :strengths="profile.strengths"
         />
 
-        <!-- 能力详情（七维）：2 列卡片网格 -->
-        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <div class="flex items-center gap-2 mb-5">
-            <span class="text-xl">🧩</span>
-            <h3 class="text-lg font-bold text-slate-800">{{ $t('page.profile.capability.abilityDetail') }}</h3>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div
-              v-for="item in abilityItems"
-              :key="item.key"
-              class="group bg-gradient-to-br from-slate-50 to-white border border-slate-200 hover:border-blue-300 hover:shadow-md transition rounded-xl p-4"
-            >
-              <div class="flex items-center gap-2 mb-2">
-                <span class="w-2 h-2 rounded-full bg-blue-500 group-hover:scale-125 transition"></span>
-                <h4 class="font-semibold text-slate-800 text-sm">{{ item.label }}</h4>
-              </div>
-              <p v-if="item.value" class="text-slate-600 text-xs leading-relaxed">{{ item.value }}</p>
-              <p v-else class="text-slate-300 text-xs italic">暂无相关信息</p>
-            </div>
-          </div>
+        <!-- 能力详情：用 CapabilityDimension 替代原来的彩色嵌套框 -->
+        <div class="airbnb-card p-6">
+          <h3 class="text-base font-semibold text-[#222222] dark:text-gray-200 mb-5">{{ $t('page.profile.capability.abilityDetail') }}</h3>
+          <CapabilityDimension :items="abilityItems" />
         </div>
 
         <!-- 缺失技能 + 证据不足：双列对比 -->
@@ -477,50 +442,47 @@ onMounted(() => {
         >
           <!-- 缺失技能 -->
           <div v-if="profile.missingSkills && profile.missingSkills.length > 0"
-               class="bg-gradient-to-br from-orange-50 to-white border border-orange-100 rounded-2xl p-6">
+               class="airbnb-card p-6 border-l-2" style="border-left-color: #ff385c">
             <div class="flex items-center gap-2 mb-4">
-              <span class="text-lg">⚠️</span>
-              <h3 class="font-bold text-slate-800">{{ $t('page.profile.capability.missingSkills') }}</h3>
-              <span class="ml-auto text-xs text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full">
+              <h3 class="font-semibold text-[#222222] dark:text-gray-200">{{ $t('page.profile.capability.missingSkills') }}</h3>
+              <span class="ml-auto text-xs text-[#ff385c] bg-[#ff385c]/10 px-2 py-0.5 rounded-full">
                 {{ profile.missingSkills.length }}
               </span>
             </div>
-            <ul class="space-y-2.5">
+            <ul class="space-y-2">
               <li v-for="(item, index) in profile.missingSkills" :key="index"
-                  class="flex items-start gap-2 text-sm bg-white/60 rounded-lg px-3 py-2 border border-orange-100">
-                <span class="text-orange-500 mt-0.5 flex-shrink-0">⊖</span>
-                <span class="text-slate-700">{{ item }}</span>
+                  class="flex items-start gap-2 text-sm text-[#3f3f3f] dark:text-gray-300">
+                <span class="text-[#ff385c] mt-0.5 shrink-0">-</span>
+                <span>{{ item }}</span>
               </li>
             </ul>
           </div>
 
           <!-- 证据不足 -->
           <div v-if="profile.weakEvidenceItems && profile.weakEvidenceItems.length > 0"
-               class="bg-gradient-to-br from-rose-50 to-white border border-rose-100 rounded-2xl p-6">
+               class="airbnb-card p-6 border-l-2" style="border-left-color: #ff385c">
             <div class="flex items-center gap-2 mb-4">
-              <span class="text-lg">❓</span>
-              <h3 class="font-bold text-slate-800">{{ $t('page.profile.capability.weakEvidence') }}</h3>
-              <span class="ml-auto text-xs text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full">
+              <h3 class="font-semibold text-[#222222] dark:text-gray-200">{{ $t('page.profile.capability.weakEvidence') }}</h3>
+              <span class="ml-auto text-xs text-[#ff385c] bg-[#ff385c]/10 px-2 py-0.5 rounded-full">
                 {{ profile.weakEvidenceItems.length }}
               </span>
             </div>
-            <ul class="space-y-2.5">
+            <ul class="space-y-2">
               <li v-for="(item, index) in profile.weakEvidenceItems" :key="index"
-                  class="flex items-start gap-2 text-sm bg-white/60 rounded-lg px-3 py-2 border border-rose-100">
-                <span class="text-rose-500 mt-0.5 flex-shrink-0">!</span>
-                <span class="text-slate-700">{{ item }}</span>
+                  class="flex items-start gap-2 text-sm text-[#3f3f3f] dark:text-gray-300">
+                <span class="text-[#ff385c] mt-0.5 shrink-0">!</span>
+                <span>{{ item }}</span>
               </li>
             </ul>
           </div>
         </div>
 
-        <!-- 改进建议：带优先级色条 -->
+        <!-- 改进建议 -->
         <div v-if="profile.suggestions && profile.suggestions.length > 0"
-             class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+             class="airbnb-card p-6">
           <div class="flex items-center gap-2 mb-5">
-            <span class="text-xl">💡</span>
-            <h3 class="text-lg font-bold text-slate-800">{{ $t('page.profile.capability.suggestions') }}</h3>
-            <span class="ml-auto text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+            <h3 class="text-base font-semibold text-[#222222] dark:text-gray-200">{{ $t('page.profile.capability.suggestions') }}</h3>
+            <span class="ml-auto text-xs text-[#6a6a6a] dark:text-gray-400 bg-[#f7f7f7] dark:bg-gray-700 px-2 py-0.5 rounded-full">
               {{ profile.suggestions.length }} 条
             </span>
           </div>
@@ -528,34 +490,30 @@ onMounted(() => {
             <div
               v-for="(item, index) in profile.suggestions"
               :key="index"
-              class="relative bg-gradient-to-br from-slate-50 to-white border border-slate-200 rounded-xl p-4 pl-5 hover:shadow-md transition"
+              class="relative border border-[#ebebeb] dark:border-gray-700 rounded-lg p-4 pl-5 hover:shadow-sm transition"
             >
-              <!-- 左侧优先级色条 -->
               <div
                 class="absolute left-0 top-3 bottom-3 w-1 rounded-r"
-                :class="{
-                  'bg-rose-500': item.priority === '高',
-                  'bg-amber-500': item.priority === '中',
-                  'bg-emerald-500': item.priority === '低'
+                :style="{
+                  backgroundColor: item.priority === '高' ? '#ff385c' : item.priority === '中' ? '#ff385c99' : '#ff385c4d'
                 }"
               ></div>
               <div class="flex items-center gap-2 mb-2">
                 <span
                   class="px-2 py-0.5 text-xs rounded-full font-medium"
-                  :class="{
-                    'bg-rose-100 text-rose-700': item.priority === '高',
-                    'bg-amber-100 text-amber-700': item.priority === '中',
-                    'bg-emerald-100 text-emerald-700': item.priority === '低'
+                  :style="{
+                    backgroundColor: item.priority === '高' ? 'rgba(255,56,92,0.12)' : item.priority === '中' ? 'rgba(255,56,92,0.07)' : 'rgba(255,56,92,0.04)',
+                    color: item.priority === '高' ? '#e00b41' : '#ff385c'
                   }"
                 >
                   {{ item.priority }}优先级
                 </span>
-                <span class="text-sm font-semibold text-slate-700">{{ item.category }}</span>
+                <span class="text-sm font-semibold text-[#222222] dark:text-gray-200">{{ item.category }}</span>
               </div>
-              <div class="text-xs text-slate-600 mb-1.5 leading-relaxed">
-                <span class="font-medium text-slate-700">问题：</span>{{ item.issue }}
+              <div class="text-xs text-[#3f3f3f] dark:text-gray-300 mb-1.5 leading-relaxed">
+                <span class="font-medium text-[#222222] dark:text-gray-200">问题：</span>{{ item.issue }}
               </div>
-              <div class="text-xs text-slate-700 leading-relaxed">
+              <div class="text-xs text-[#3f3f3f] dark:text-gray-300 leading-relaxed">
                 <span class="font-medium">建议：</span>{{ item.recommendation }}
               </div>
             </div>
@@ -564,20 +522,17 @@ onMounted(() => {
       </div>
 
       <!-- 空状态 -->
-      <div v-else class="max-w-4xl mx-auto text-center py-20 bg-white rounded-xl border border-gray-100 shadow-sm">
-        <span class="text-6xl mb-4 mx-auto opacity-50 text-gray-400">📄</span>
-        <p class="text-gray-400 mb-4">{{ $t('page.profile.capability.empty') }}</p>
+      <div v-else class="max-w-4xl mx-auto text-center py-20 bg-[#ffffff] dark:bg-gray-800 rounded-lg border border-[#ebebeb] dark:border-gray-700">
+        <p class="text-[#6a6a6a] dark:text-gray-400 mb-4">{{ $t('page.profile.capability.empty') }}</p>
 
-        <!-- 生成方式选择 -->
         <div class="max-w-2xl mx-auto mb-6">
           <NTabs v-model:value="generateMethod" type="segment" class="mb-6">
             <NTabPane name="0" :tab="$t('page.profile.capability.autoGenerate')">
-              <p class="text-gray-600 text-sm mb-4">{{ $t('page.profile.capability.autoGenerateDesc') }}</p>
+              <p class="text-[#3f3f3f] dark:text-gray-300 text-sm mb-4">{{ $t('page.profile.capability.autoGenerateDesc') }}</p>
             </NTabPane>
-
             <NTabPane name="1" :tab="$t('page.profile.capability.fileUpload')">
               <div class="space-y-4">
-                <p class="text-gray-600 text-sm">{{ $t('page.profile.capability.fileUploadDesc') }}</p>
+                <p class="text-[#3f3f3f] dark:text-gray-300 text-sm">{{ $t('page.profile.capability.fileUploadDesc') }}</p>
                 <NUpload
                   :file-list="fileList"
                   @update:file-list="handleFileChange"
@@ -585,9 +540,6 @@ onMounted(() => {
                   accept=".pdf,.doc,.docx,.txt"
                 >
                   <NButton :loading="uploading">
-                    <template #icon>
-                      <span>⬆️</span>
-                    </template>
                     {{ $t('page.profile.capability.selectFile') }}
                   </NButton>
                 </NUpload>
@@ -595,17 +547,13 @@ onMounted(() => {
                   {{ $t('page.profile.capability.uploadFile') }}
                 </NButton>
                 <NTag v-if="uploadedFileUrl" type="success">
-                  <template #icon>
-                    <span>✅</span>
-                  </template>
                   {{ $t('page.profile.capability.uploadSuccess') }}
                 </NTag>
               </div>
             </NTabPane>
-
             <NTabPane name="2" :tab="$t('page.profile.capability.textInput')">
               <div class="space-y-4">
-                <p class="text-gray-600 text-sm">{{ $t('page.profile.capability.textInputDesc') }}</p>
+                <p class="text-[#3f3f3f] dark:text-gray-300 text-sm">{{ $t('page.profile.capability.textInputDesc') }}</p>
                 <NInput
                   v-model:value="rawTextInput"
                   type="textarea"
@@ -619,9 +567,6 @@ onMounted(() => {
           </NTabs>
 
           <NButton type="primary" size="large" :loading="generating" @click="handleGenerate">
-            <template #icon>
-              <span>✨</span>
-            </template>
             {{ $t('page.profile.capability.generate') }}
           </NButton>
         </div>

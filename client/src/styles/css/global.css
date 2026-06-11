@@ -2,33 +2,54 @@
 @import './nprogress.css';
 @import './transition.css';
 
-/* ============== 全新主题：暖棕奶油（Warm Mocha / Editorial）============== */
+/* ============== Airbnb 风格：珊瑚红 + 纯白画布 ============== */
 :root {
-  --brand-cream: #fbf8f3;
-  --brand-paper: #fffcf7;
-  --brand-mocha: #b86b4b;
-  --brand-mocha-deep: #8a4a31;
-  --brand-matcha: #3f8a6a;
-  --brand-ink: #2d211a;
-  --brand-ink-soft: #6b5c52;
-  --brand-line: rgba(120, 80, 50, 0.12);
-  --brand-shadow-sm: 0 1px 2px rgba(120, 80, 50, 0.06);
-  --brand-shadow: 0 6px 24px rgba(120, 80, 50, 0.08);
-  --brand-shadow-lg: 0 18px 48px rgba(120, 80, 50, 0.12);
+  --brand-primary: #ff385c;
+  --brand-primary-active: #e00b41;
+  --brand-primary-disabled: #ffd1da;
+  --brand-canvas: #ffffff;
+  --brand-surface-soft: #f7f7f7;
+  --brand-surface-strong: #f2f2f2;
+  --brand-ink: #222222;
+  --brand-body: #3f3f3f;
+  --brand-muted: #6a6a6a;
+  --brand-muted-soft: #929292;
+  --brand-hairline: #dddddd;
+  --brand-hairline-soft: #ebebeb;
+  --brand-border-strong: #c1c1c1;
+  --brand-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+  --brand-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
 
-  --serif-display: 'Fraunces', 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', Georgia, serif;
-  --sans-base: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --sans-base: 'Circular', 'Airbnb Cereal VF', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 html.dark {
-  --brand-cream: #18140f;
-  --brand-paper: #1f1a14;
-  --brand-line: rgba(232, 200, 170, 0.1);
-  --brand-ink: #ece2d4;
-  --brand-ink-soft: #b9a99a;
-  --brand-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --brand-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
-  --brand-shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.5);
+  --brand-canvas: #181818;
+  --brand-surface-soft: #222222;
+  --brand-surface-strong: #2a2a2a;
+  --brand-hairline: #333333;
+  --brand-hairline-soft: #2a2a2a;
+  --brand-border-strong: #444444;
+  --brand-ink: #e4e4e4;
+  --brand-body: #b0b0b0;
+  --brand-muted: #888888;
+  --brand-muted-soft: #666666;
+  --brand-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+  --brand-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+/* 向后兼容别名 —— 旧变量自动映射到 Airbnb token */
+:root {
+  --brand-cream: var(--brand-canvas);
+  --brand-paper: var(--brand-canvas);
+  --brand-mocha: var(--brand-primary);
+  --brand-mocha-deep: var(--brand-primary-active);
+  --brand-matcha: var(--success-color, #3f8a6a);
+  --brand-ink-soft: var(--brand-body);
+  --brand-line: var(--brand-hairline);
+  --brand-shadow-sm: var(--brand-shadow);
+  --brand-shadow-lg: var(--brand-shadow-md);
+  --serif-display: var(--sans-base);
 }
 
 html,
@@ -46,49 +67,42 @@ html {
 }
 
 body {
-  background-color: var(--brand-cream);
+  background-color: var(--brand-canvas);
   letter-spacing: 0.005em;
 }
 
-/* 衬线标题工具类（视觉风格关键差异点） */
-.font-display,
-.text-display {
-  font-family: var(--serif-display);
-  font-feature-settings: 'ss01', 'liga', 'kern';
-  letter-spacing: -0.01em;
-}
-
-/* 工具类：新版纸卡 */
-.paper-card {
-  background: var(--brand-paper);
-  border: 1px solid var(--brand-line);
-  border-radius: 18px;
+/* Airbnb 卡片工具类 */
+.airbnb-card {
+  background: var(--brand-canvas);
+  border: 1px solid var(--brand-hairline);
+  border-radius: 14px;
   box-shadow: var(--brand-shadow);
 }
 
-/* 工具类：徽章/胶囊（替代 hero-badge 风格） */
-.brand-pill {
+.airbnb-card:hover {
+  box-shadow: var(--brand-shadow-md);
+}
+
+/* Airbnb 胶囊标签 */
+.airbnb-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
+  gap: 4px;
+  padding: 4px 12px;
   border-radius: 999px;
-  background: rgba(184, 107, 75, 0.08);
-  color: var(--brand-mocha-deep);
+  background: rgba(255, 56, 92, 0.06);
+  color: var(--brand-primary);
   font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  border: 1px solid rgba(184, 107, 75, 0.18);
+  border: 1px solid rgba(255, 56, 92, 0.15);
 }
 
-html.dark .brand-pill {
-  background: rgba(232, 180, 150, 0.1);
-  color: #e8b496;
-  border-color: rgba(232, 180, 150, 0.18);
+html.dark .airbnb-pill {
+  background: rgba(255, 56, 92, 0.12);
+  border-color: rgba(255, 56, 92, 0.22);
 }
 
-/* 全局滚动条（更细，奶油色） */
+/* 全局滚动条 */
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -99,27 +113,18 @@ html.dark .brand-pill {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: rgba(120, 80, 50, 0.18);
+  background: rgba(0, 0, 0, 0.12);
   border-radius: 8px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: rgba(120, 80, 50, 0.32);
+  background: rgba(0, 0, 0, 0.22);
 }
 
 html.dark *::-webkit-scrollbar-thumb {
-  background: rgba(232, 200, 170, 0.18);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 html.dark *::-webkit-scrollbar-thumb:hover {
-  background: rgba(232, 200, 170, 0.32);
-}
-
-/* 装饰：纸纹纹理（极淡） */
-.paper-grain {
-  background-image:
-    radial-gradient(rgba(120, 80, 50, 0.05) 1px, transparent 1px),
-    radial-gradient(rgba(120, 80, 50, 0.04) 1px, transparent 1px);
-  background-size: 16px 16px, 32px 32px;
-  background-position: 0 0, 8px 8px;
+  background: rgba(255, 255, 255, 0.28);
 }

@@ -12,9 +12,11 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AbilityGaugeBar: typeof import('./../components/common/AbilityGaugeBar.vue')['default']
     AppProvider: typeof import('./../components/common/app-provider.vue')['default']
     BetterScroll: typeof import('./../components/custom/better-scroll.vue')['default']
     ButtonIcon: typeof import('./../components/custom/button-icon.vue')['default']
+    CapabilityDimension: typeof import('./../components/common/CapabilityDimension.vue')['default']
     CapabilityScoreCard: typeof import('./../components/common/CapabilityScoreCard.vue')['default']
     CountTo: typeof import('./../components/custom/count-to.vue')['default']
     DarkModeContainer: typeof import('./../components/common/dark-mode-container.vue')['default']
@@ -26,10 +28,6 @@ declare module 'vue' {
     IconGridiconsFullscreen: typeof import('~icons/gridicons/fullscreen')['default']
     IconGridiconsFullscreenExit: typeof import('~icons/gridicons/fullscreen-exit')['default']
     IconLocalLogo: typeof import('~icons/local/logo')['default']
-    IconMdiArrowDownThin: typeof import('~icons/mdi/arrow-down-thin')['default']
-    IconMdiArrowUpThin: typeof import('~icons/mdi/arrow-up-thin')['default']
-    IconMdiKeyboardEsc: typeof import('~icons/mdi/keyboard-esc')['default']
-    IconMdiKeyboardReturn: typeof import('~icons/mdi/keyboard-return')['default']
     IconTooltip: typeof import('./../components/common/icon-tooltip.vue')['default']
     IconUilSearch: typeof import('~icons/uil/search')['default']
     LangSwitch: typeof import('./../components/common/lang-switch.vue')['default']
@@ -59,7 +57,6 @@ declare module 'vue' {
     NEmpty: typeof import('naive-ui')['NEmpty']
     NForm: typeof import('naive-ui')['NForm']
     NFormItem: typeof import('naive-ui')['NFormItem']
-    NGradientText: typeof import('naive-ui')['NGradientText']
     NGrid: typeof import('naive-ui')['NGrid']
     NGridItem: typeof import('naive-ui')['NGridItem']
     NInput: typeof import('naive-ui')['NInput']
@@ -105,9 +102,11 @@ declare module 'vue' {
 
 // For TSX support
 declare global {
+  const AbilityGaugeBar: typeof import('./../components/common/AbilityGaugeBar.vue')['default']
   const AppProvider: typeof import('./../components/common/app-provider.vue')['default']
   const BetterScroll: typeof import('./../components/custom/better-scroll.vue')['default']
   const ButtonIcon: typeof import('./../components/custom/button-icon.vue')['default']
+  const CapabilityDimension: typeof import('./../components/common/CapabilityDimension.vue')['default']
   const CapabilityScoreCard: typeof import('./../components/common/CapabilityScoreCard.vue')['default']
   const CountTo: typeof import('./../components/custom/count-to.vue')['default']
   const DarkModeContainer: typeof import('./../components/common/dark-mode-container.vue')['default']
@@ -119,10 +118,6 @@ declare global {
   const IconGridiconsFullscreen: typeof import('~icons/gridicons/fullscreen')['default']
   const IconGridiconsFullscreenExit: typeof import('~icons/gridicons/fullscreen-exit')['default']
   const IconLocalLogo: typeof import('~icons/local/logo')['default']
-  const IconMdiArrowDownThin: typeof import('~icons/mdi/arrow-down-thin')['default']
-  const IconMdiArrowUpThin: typeof import('~icons/mdi/arrow-up-thin')['default']
-  const IconMdiKeyboardEsc: typeof import('~icons/mdi/keyboard-esc')['default']
-  const IconMdiKeyboardReturn: typeof import('~icons/mdi/keyboard-return')['default']
   const IconTooltip: typeof import('./../components/common/icon-tooltip.vue')['default']
   const IconUilSearch: typeof import('~icons/uil/search')['default']
   const LangSwitch: typeof import('./../components/common/lang-switch.vue')['default']
@@ -152,7 +147,6 @@ declare global {
   const NEmpty: typeof import('naive-ui')['NEmpty']
   const NForm: typeof import('naive-ui')['NForm']
   const NFormItem: typeof import('naive-ui')['NFormItem']
-  const NGradientText: typeof import('naive-ui')['NGradientText']
   const NGrid: typeof import('naive-ui')['NGrid']
   const NGridItem: typeof import('naive-ui')['NGridItem']
   const NInput: typeof import('naive-ui')['NInput']

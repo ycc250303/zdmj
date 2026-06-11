@@ -4,10 +4,10 @@ export const themeSettings: App.Theme.ThemeSetting = {
   grayscale: false,
   colourWeakness: false,
   recommendColor: false,
-  themeColor: '#b86b4b',
-  themeRadius: 12,
+  themeColor: '#ff385c',
+  themeRadius: 8,
   otherColor: {
-    info: '#5a8aa6',
+    info: '#222222',
     success: '#3f8a6a',
     warning: '#d7a13b',
     error: '#c44536'
@@ -66,22 +66,22 @@ export const themeSettings: App.Theme.ThemeSetting = {
   tokens: {
     light: {
       colors: {
-        container: 'rgb(255, 252, 247)',
-        layout: 'rgb(251, 248, 243)',
-        inverted: 'rgb(38, 28, 22)',
-        'base-text': 'rgb(45, 33, 26)'
+        container: 'rgb(255, 255, 255)',
+        layout: 'rgb(247, 247, 247)',
+        inverted: 'rgb(34, 34, 34)',
+        'base-text': 'rgb(63, 63, 63)'
       },
       boxShadow: {
-        header: '0 1px 0 rgba(120, 80, 50, 0.08)',
-        sider: '1px 0 0 rgba(120, 80, 50, 0.08)',
-        tab: '0 1px 0 rgba(120, 80, 50, 0.08)'
+        header: '0 1px 0 rgba(0, 0, 0, 0.06)',
+        sider: '1px 0 0 rgba(0, 0, 0, 0.06)',
+        tab: '0 1px 0 rgba(0, 0, 0, 0.06)'
       }
     },
     dark: {
       colors: {
-        container: 'rgb(34, 28, 24)',
-        layout: 'rgb(24, 20, 18)',
-        'base-text': 'rgb(232, 224, 214)'
+        container: 'rgb(24, 24, 24)',
+        layout: 'rgb(18, 18, 18)',
+        'base-text': 'rgb(210, 210, 210)'
       }
     }
   }
