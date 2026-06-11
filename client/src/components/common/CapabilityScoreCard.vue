@@ -43,7 +43,7 @@ const props = withDefaults(defineProps<Props>(), {
   totalLabel: '总分',
   summaryLabel: '核心评价',
   strengthsLabel: '优势亮点',
-  themeColor: '#ff385c'
+  themeColor: '#c4a46c'
 });
 
 const chartEl = ref<HTMLDivElement | null>(null);

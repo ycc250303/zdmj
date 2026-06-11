@@ -42,7 +42,7 @@ function formatSalary(job: JobApi.JobListItem): string {
         </div>
         <div class="flex items-center justify-between py-2">
           <span class="text-[#6a6a6a] dark:text-gray-400 text-sm">{{ $t('page.jobs.salaryInfo') }}</span>
-          <span class="font-semibold text-[#ff385c]">{{ formatSalary(jobDetail) }}</span>
+          <span class="font-semibold text-[#c4a46c]">{{ formatSalary(jobDetail) }}</span>
         </div>
       </div>
     </div>
@@ -68,7 +68,7 @@ function formatSalary(job: JobApi.JobListItem): string {
       <h3 class="text-base font-semibold text-[#222222] dark:text-gray-200 mb-3">{{ $t('page.jobs.jobDuties') }}</h3>
       <ul class="space-y-2">
         <li v-for="(duty, idx) in jobDetail.jobDuties" :key="idx" class="text-[#3f3f3f] dark:text-gray-300 flex items-start gap-2">
-          <span class="text-[#ff385c] mt-1 shrink-0">-</span>
+          <span class="text-[#c4a46c] mt-1 shrink-0">-</span>
           <span>{{ duty }}</span>
         </li>
       </ul>
@@ -79,7 +79,7 @@ function formatSalary(job: JobApi.JobListItem): string {
       <h3 class="text-base font-semibold text-[#222222] dark:text-gray-200 mb-3">{{ $t('page.jobs.jobRequirements') }}</h3>
       <ul class="space-y-2">
         <li v-for="(req, idx) in jobDetail.jobRequirements" :key="idx" class="text-[#3f3f3f] dark:text-gray-300 flex items-start gap-2">
-          <span class="text-[#ff385c] mt-1 shrink-0">-</span>
+          <span class="text-[#c4a46c] mt-1 shrink-0">-</span>
           <span>{{ req }}</span>
         </li>
       </ul>

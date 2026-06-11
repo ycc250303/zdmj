@@ -22,7 +22,7 @@ defineProps<{ data: CareerPathData }>();
         <div class="text-xs text-[#6a6a6a] dark:text-gray-400 font-medium mb-0.5">入职起点</div>
         <div class="text-sm font-semibold text-[#222222] dark:text-gray-200">{{ data.entryPoint }}</div>
       </div>
-      <div class="text-[#ff385c] text-xl">→</div>
+      <div class="text-[#c4a46c] text-xl">→</div>
       <div class="bg-[#f7f7f7] dark:bg-gray-700/30 rounded-lg px-4 py-2.5 text-center min-w-[140px]">
         <div class="text-xs text-[#6a6a6a] dark:text-gray-400 font-medium mb-0.5">下一步发展</div>
         <div class="text-sm font-semibold text-[#222222] dark:text-gray-200">{{ data.nextStep }}</div>

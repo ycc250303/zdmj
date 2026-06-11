@@ -27,9 +27,9 @@ defineProps<{ data: ActionPlanData }>();
         <NTag size="tiny" type="warning" round>近期执行</NTag>
       </div>
       <div class="space-y-3">
-        <div v-for="(t, i) in data.shortTerm" :key="i" class="border-l-2 border-[#ff385c] pl-3 py-1">
+        <div v-for="(t, i) in data.shortTerm" :key="i" class="border-l-2 border-[#c4a46c] pl-3 py-1">
           <div class="flex items-start gap-2 mb-1">
-            <span class="bg-[#ff385c] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0">{{ i + 1 }}</span>
+            <span class="bg-[#c4a46c] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0">{{ i + 1 }}</span>
             <span class="text-sm font-medium text-[#222222] dark:text-gray-200">{{ t.task }}</span>
           </div>
           <div class="grid grid-cols-3 gap-2 ml-7 text-xs text-[#6a6a6a] dark:text-gray-400">
@@ -48,9 +48,9 @@ defineProps<{ data: ActionPlanData }>();
         <NTag size="tiny" type="info" round>持续成长</NTag>
       </div>
       <div class="space-y-3">
-        <div v-for="(t, i) in data.midTerm" :key="i" class="border-l-2 border-[#ff385c] pl-3 py-1">
+        <div v-for="(t, i) in data.midTerm" :key="i" class="border-l-2 border-[#c4a46c] pl-3 py-1">
           <div class="flex items-start gap-2 mb-1">
-            <span class="bg-[#ff385c] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0">{{ i + 1 }}</span>
+            <span class="bg-[#c4a46c] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0">{{ i + 1 }}</span>
             <span class="text-sm font-medium text-[#222222] dark:text-gray-200">{{ t.task }}</span>
           </div>
           <div class="grid grid-cols-3 gap-2 ml-7 text-xs text-[#6a6a6a] dark:text-gray-400">

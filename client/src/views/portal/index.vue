@@ -23,8 +23,7 @@ const langOptions = [
 ];
 
 function handleLangSelect(key: string | number) { appStore.changeLocale(key as App.I18n.LangType); }
-function goHome() { router.push('/home'); }
-function goLogin() { router.push('/login'); }
+function handleAction() { router.push(isLogin.value ? '/home' : '/login'); }
 </script>
 
 <template>
@@ -64,13 +63,13 @@ function goLogin() { router.push('/login'); }
       </div>
 
       <div class="hero-btns">
-        <button class="btn-glass-dark" @click="goHome">
+        <button class="btn-glass-dark" @click="handleAction">
           进入控制台
           <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
             <path d="M3 7.5h9M8 3.5l4 4-4 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
-        <button class="btn-glass" @click="goLogin">
+        <button class="btn-glass" @click="handleAction">
           登录系统
         </button>
       </div>
@@ -155,7 +154,7 @@ function goLogin() { router.push('/login'); }
 .tag-dot {
   width: 5px; height: 5px;
   border-radius: 50%;
-  background: #ff385c;
+  background: rgba(255,255,255,0.6);
 }
 
 .hero-zh {

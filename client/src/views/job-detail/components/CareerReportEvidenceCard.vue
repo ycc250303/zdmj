@@ -18,7 +18,7 @@ defineProps<{ data: EvidenceData }>();
         <div class="font-semibold text-sm text-[#222222] dark:text-gray-200 mb-2">行业证据</div>
         <ul class="space-y-1">
           <li v-for="(item, i) in data.industry" :key="i" class="text-xs text-[#3f3f3f] dark:text-gray-300 flex items-start gap-1.5">
-            <span class="text-[#ff385c] mt-0.5 shrink-0">-</span><span>{{ item }}</span>
+            <span class="text-[#c4a46c] mt-0.5 shrink-0">-</span><span>{{ item }}</span>
           </li>
         </ul>
       </div>
@@ -26,7 +26,7 @@ defineProps<{ data: EvidenceData }>();
         <div class="font-semibold text-sm text-[#222222] dark:text-gray-200 mb-2">技术证据</div>
         <ul class="space-y-1">
           <li v-for="(item, i) in data.technical" :key="i" class="text-xs text-[#3f3f3f] dark:text-gray-300 flex items-start gap-1.5">
-            <span class="text-[#ff385c] mt-0.5 shrink-0">-</span><span>{{ item }}</span>
+            <span class="text-[#c4a46c] mt-0.5 shrink-0">-</span><span>{{ item }}</span>
           </li>
         </ul>
       </div>
@@ -34,7 +34,7 @@ defineProps<{ data: EvidenceData }>();
         <div class="font-semibold text-sm text-[#222222] dark:text-gray-200 mb-2">沟通证据</div>
         <ul class="space-y-1">
           <li v-for="(item, i) in data.communication" :key="i" class="text-xs text-[#3f3f3f] dark:text-gray-300 flex items-start gap-1.5">
-            <span class="text-[#ff385c] mt-0.5 shrink-0">-</span><span>{{ item }}</span>
+            <span class="text-[#c4a46c] mt-0.5 shrink-0">-</span><span>{{ item }}</span>
           </li>
         </ul>
       </div>

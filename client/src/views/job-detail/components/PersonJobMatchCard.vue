@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import type { MatchApi } from '@/service/api/match';
 import { $t } from '@/locales';
+import { NButton } from 'naive-ui';
 import CapabilityScoreCard, { type Dimension } from '@/components/common/CapabilityScoreCard.vue';
 
 defineOptions({ name: 'PersonJobMatchCard' });
@@ -37,6 +38,9 @@ const matchDimensions = computed<Dimension[]>(() => {
 
 <template>
   <div class="mb-6">
+    <div class="flex items-center justify-end mb-2 gap-2">
+      <NButton size="small" @click="emit('generateMatch')">重新分析匹配</NButton>
+    </div>
     <CapabilityScoreCard
       :dimensions="matchDimensions"
       :total-score="matchResult.overallScore || 0"

@@ -30,51 +30,20 @@ const activeModule = computed(() => moduleMap[props.module || 'pwd-login']);
 
 <template>
   <div class="login-root">
-    <!-- Left: Brand -->
-    <aside class="login-brand">
-      <div class="brand-inner">
-        <div class="brand-top">
-          <SystemLogo class="text-28px" />
-          <span class="brand-app">{{ $t('system.title') }}</span>
-        </div>
+    <div class="bg-image"></div>
+    <div class="frost"></div>
 
-        <div class="brand-hero">
-          <h1 class="brand-heading">人才与机会的<span class="brand-accent">温度感</span>链接。</h1>
-          <p class="brand-desc">A more human way to discover, evaluate and grow careers — built around clarity.</p>
-        </div>
+    <header class="top-bar">
+      <ThemeSchemaSwitch :theme-schema="themeStore.themeScheme" :show-tooltip="false" class="top-btn" @switch="themeStore.toggleThemeScheme" />
+      <LangSwitch v-if="themeStore.header.multilingual.visible" :lang="appStore.locale" :lang-options="appStore.localeOptions" :show-tooltip="false" class="top-btn" @change-lang="appStore.changeLocale" />
+    </header>
 
-        <div class="brand-foot">
-          <span class="brand-version">v2.0 · 2026</span>
-        </div>
+    <main class="hero">
+      <div class="hero-tag"><span class="tag-dot"></span>{{ $t(activeModule.label) }}</div>
+      <h1 class="hero-zh">欢迎回来</h1>
+      <p class="hero-en">Sign in to continue your journey</p>
 
-        <!-- Subtle animated gradient orbs -->
-        <div class="brand-orb brand-orb-1"></div>
-        <div class="brand-orb brand-orb-2"></div>
-      </div>
-    </aside>
-
-    <!-- Right: Form -->
-    <main class="login-form">
-      <div class="form-header">
-        <ThemeSchemaSwitch
-          :theme-schema="themeStore.themeScheme" :show-tooltip="false"
-          class="text-18px" @switch="themeStore.toggleThemeScheme"
-        />
-        <LangSwitch
-          v-if="themeStore.header.multilingual.visible"
-          :lang="appStore.locale" :lang-options="appStore.localeOptions" :show-tooltip="false"
-          @change-lang="appStore.changeLocale"
-        />
-      </div>
-
-      <div class="form-body">
-        <div class="form-tag">
-          <span class="form-tag-dot"></span>
-          {{ $t(activeModule.label) }}
-        </div>
-
-        <h2 class="form-title">欢迎回来<br /><span class="form-title-sub">让我们继续。</span></h2>
-
+      <div class="form-wrap">
         <Transition :name="themeStore.page.animateMode" mode="out-in" appear>
           <component :is="activeModule.component" />
         </Transition>
@@ -84,91 +53,22 @@ const activeModule = computed(() => moduleMap[props.module || 'pwd-login']);
 </template>
 
 <style scoped>
-.login-root {
-  width: 100%; height: 100%;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  overflow: hidden;
-}
-@media (max-width: 768px) {
-  .login-root { grid-template-columns: 1fr; }
-  .login-brand { display: none; }
-}
+.login-root { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 
-/* ====== LEFT BRAND ====== */
-.login-brand {
-  background: #111111;
-  display: flex; align-items: center; justify-content: center;
-  position: relative; overflow: hidden;
-}
-.brand-inner {
-  position: relative; z-index: 1;
-  padding: 64px 56px;
-  display: flex; flex-direction: column; justify-content: space-between;
-  min-height: 100%; max-width: 440px;
-}
-.brand-top { display: flex; align-items: center; gap: 10px; color: rgba(255,255,255,0.6); }
-.brand-app { font-size: 18px; font-weight: 600; color: rgba(255,255,255,0.8); }
+.bg-image { position: absolute; inset: -20px; background: url('/images/2.jpg') center/cover no-repeat; filter: blur(4px); z-index: 0; }
+.frost { position: absolute; inset: 0; background: rgba(12,12,12,0.3); z-index: 1; }
 
-.brand-hero { margin: auto 0; }
-.brand-heading {
-  font-size: clamp(28px, 3vw, 38px); font-weight: 600; color: rgba(255,255,255,0.9);
-  line-height: 1.25; letter-spacing: -0.02em; margin: 0 0 16px;
-}
-.brand-accent { color: #ff385c; }
-.brand-desc { font-size: 15px; color: rgba(255,255,255,0.4); line-height: 1.6; margin: 0; max-width: 360px; }
+.top-bar { position: absolute; top: 0; right: 0; z-index: 3; display: flex; gap: 8px; padding: 20px 32px; }
+.top-btn { color: rgba(255,255,255,0.5) !important; }
+.top-btn:hover { color: rgba(255,255,255,0.8) !important; }
 
-.brand-foot { color: rgba(255,255,255,0.25); font-size: 12px; }
+.hero { position: relative; z-index: 2; text-align: center; padding: 40px; max-width: 440px; width: 100%; }
 
-.brand-orb {
-  position: absolute; border-radius: 50%; filter: blur(100px);
-  pointer-events: none;
-}
-.brand-orb-1 {
-  width: 400px; height: 400px;
-  background: rgba(255,56,92,0.12);
-  top: -100px; left: -100px;
-  animation: brandOrb 12s ease-in-out infinite;
-}
-.brand-orb-2 {
-  width: 300px; height: 300px;
-  background: rgba(255,107,129,0.08);
-  bottom: -80px; right: -60px;
-  animation: brandOrb 10s 2s ease-in-out infinite;
-}
-@keyframes brandOrb {
-  0%, 100% { transform: scale(1); opacity: 0.6; }
-  50% { transform: scale(1.2); opacity: 1; }
-}
+.hero-tag { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.2em; color: rgba(255,255,255,0.4); margin-bottom: 32px; }
+.tag-dot { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,0.6); }
 
-/* ====== RIGHT FORM ====== */
-.login-form {
-  background: #ffffff;
-  display: flex; flex-direction: column;
-  padding: 32px 40px;
-}
-:global(.dark) .login-form { background: #1a1a1a; }
+.hero-zh { font-family: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', Georgia, serif; font-size: clamp(42px, 6vw, 64px); font-weight: 700; color: rgba(255,255,255,0.9); line-height: 1; letter-spacing: -0.03em; margin: 0 0 12px; }
+.hero-en { font-family: Georgia, 'Times New Roman', serif; font-size: 16px; font-style: italic; color: rgba(255,255,255,0.3); margin: 0 0 48px; }
 
-.form-header {
-  display: flex; justify-content: flex-end; gap: 12px;
-}
-
-.form-body {
-  flex: 1; display: flex; flex-direction: column; justify-content: center;
-  max-width: 400px; margin: 0 auto; width: 100%;
-}
-
-.form-tag {
-  display: inline-flex; align-items: center; gap: 8px;
-  font-size: 12px; font-weight: 500; color: #6a6a6a;
-  letter-spacing: 0.06em; margin-bottom: 12px;
-}
-.form-tag-dot { width: 5px; height: 5px; border-radius: 50%; background: #ff385c; }
-
-.form-title {
-  font-size: 32px; font-weight: 600; color: #222;
-  line-height: 1.2; letter-spacing: -0.02em; margin: 0 0 32px;
-}
-:global(.dark) .form-title { color: #e4e4e4; }
-.form-title-sub { color: #ff385c; }
+.form-wrap { text-align: left; }
 </style>

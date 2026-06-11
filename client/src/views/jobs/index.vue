@@ -115,7 +115,7 @@ onMounted(() => {
       <header class="section-head">
         <div class="head-meta">
           <span class="head-bar"></span>
-          <span class="head-tag">— SECTION 04 / OPPORTUNITIES —</span>
+          <span class="head-tag">— OPPORTUNITIES —</span>
         </div>
         <div class="head-row">
           <h1 class="head-title font-display">{{ $t('page.jobs.title') }}</h1>

@@ -220,7 +220,7 @@ function renderValue(value: any): string {
       <NCard v-if="careerReport?.knowledgeSources?.length" size="small" :title="$t('page.jobs.careerReport.knowledgeSources')" class="mb-4 rounded-lg">
         <ul class="space-y-1 text-sm">
           <li v-for="(src, i) in careerReport.knowledgeSources" :key="i" class="text-[#3f3f3f] dark:text-gray-300">
-            <a v-if="src.url" :href="src.url" target="_blank" class="text-[#ff385c] hover:underline">{{ src.title || src.url }}</a>
+            <a v-if="src.url" :href="src.url" target="_blank" class="text-[#c4a46c] hover:underline">{{ src.title || src.url }}</a>
             <span v-else>{{ src.title || '-' }}</span>
             <span v-if="src.snippet" class="ml-2 text-[#6a6a6a] dark:text-gray-400">— {{ src.snippet }}</span>
           </li>

@@ -293,13 +293,13 @@ onMounted(() => {
     <!-- 侧边栏：会话列表 -->
     <div
       v-show="!sidebarCollapsed"
-      class="h-full w-260px flex-shrink-0 flex flex-col bg-gray-50 dark:bg-dark-100 border-r border-gray-200 dark:border-gray-700 transition-all duration-300"
+      class="h-full w-260px flex-shrink-0 flex flex-col bg-[#faf8f4] dark:bg-dark-100 border-r border-[#e8e0d0] dark:border-gray-700 transition-all duration-300"
     >
       <!-- 新对话按钮和折叠按钮 -->
       <div class="p-3 flex gap-2">
-        <n-button class="flex-1 !rounded-lg !bg-white dark:!bg-gray-800 !text-gray-700 dark:!text-gray-300 !border !border-blue-200 dark:!border-blue-800 hover:!bg-blue-50 dark:hover:!bg-gray-700 hover:!border-blue-300 dark:hover:!border-blue-600 hover:shadow-md hover:!text-blue-600 dark:hover:!text-blue-400 transition-all duration-200 [&_.n-button__content]:!justify-center" @click="handleNewChat">
+        <n-button class="flex-1 !rounded-lg !bg-white dark:!bg-gray-800 !text-gray-700 dark:!text-gray-300 !border !border-[#e8dcc8] dark:!border-[#6b5530] hover:!bg-[#faf6ee] dark:hover:!bg-gray-700 hover:!border-[#ddd0b8] dark:hover:!border-[#a08050] hover:shadow-md hover:!text-[#a08050] dark:hover:!text-[#d4b896] transition-all duration-200 [&_.n-button__content]:!justify-center" @click="handleNewChat">
           <template #icon>
-            <div class="i-icon-park-outline:plus !text-blue-500 dark:!text-blue-400 mr-1.5" />
+            <div class="i-icon-park-outline:plus !text-[#c4a46c] dark:!text-[#d4b896] mr-1.5" />
           </template>
           {{ $t('page.chat.newChat') }}
         </n-button>
@@ -327,7 +327,7 @@ onMounted(() => {
             :class="[
               'cursor-pointer transition-all duration-200 px-3 py-2.5 rounded-lg mb-1 group',
               currentConversationId === item.id
-                ? 'bg-blue-50 dark:bg-blue-900/20'
+                ? 'bg-[#faf6ee] dark:bg-[#4a3a20]/10'
                 : 'hover:bg-gray-100 dark:hover:bg-gray-800/50'
             ]"
           >
@@ -336,13 +336,13 @@ onMounted(() => {
                 class="flex flex-col gap-0.5 flex-1 min-w-0 pr-2 max-w-[180px]"
                 @click="handleSelectConversation(item.id)"
               >
-                <span class="text-sm font-medium truncate block" :class="currentConversationId === item.id ? 'text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'" :title="item.title || $t('page.chat.newChat')">
+                <span class="text-sm font-medium truncate block" :class="currentConversationId === item.id ? 'text-[#8a7040] dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'" :title="item.title || $t('page.chat.newChat')">
                   {{ item.title || $t('page.chat.newChat') }}
                 </span>
                 <span class="text-xs text-gray-400 dark:text-gray-500 truncate">{{ formatTime(item.updatedAt) }}</span>
               </div>
               <div
-                class="flex-shrink-0 w-8 h-8 flex items-center justify-center text-gray-500 cursor-pointer hover:text-blue-700 dark:hover:text-blue-300 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded transition-colors"
+                class="flex-shrink-0 w-8 h-8 flex items-center justify-center text-gray-500 cursor-pointer hover:text-[#8a7040] dark:hover:text-[#ddd0b8] hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded transition-colors"
                 @click="(e) => handleDeleteConversation(item.id, e)"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -414,7 +414,7 @@ onMounted(() => {
                   :disabled="!inputText.trim() || sending"
                   :loading="sending"
                   @click="handleSend"
-                  class="!bg-blue-500 hover:!bg-blue-600"
+                  class="!bg-[#c4a46c] hover:!bg-[#a08050]"
                 >
                   <template #icon>
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -458,7 +458,7 @@ onMounted(() => {
                   <n-avatar
                     round
                     :size="32"
-                    :class="msg.role === 2 ? 'bg-blue-100 text-blue-600' : 'bg-gray-200'"
+                    :class="msg.role === 2 ? 'bg-[#f5efe0] text-[#a08050]' : 'bg-gray-200'"
                   >
                     <template v-if="msg.role === 2">
                       <div class="i-icon-park-outline:robot text-base" />
@@ -472,7 +472,7 @@ onMounted(() => {
                   <div
                     class="max-w-[calc(100%-120px)] rounded-2xl px-4 py-2.5 overflow-hidden"
                     :class="msg.role === 1
-                      ? 'bg-blue-500 text-white'
+                      ? 'bg-[#faf6ee]0 text-white'
                       : 'bg-gray-100 dark:bg-dark-400'"
                   >
                     <!-- AI正在思考 -->
@@ -520,7 +520,7 @@ onMounted(() => {
                     :disabled="!inputText.trim() || sending"
                     :loading="sending"
                     @click="handleSend"
-                    class="!bg-blue-500 hover:!bg-blue-600"
+                    class="!bg-[#c4a46c] hover:!bg-[#a08050]"
                   >
                     <template #icon>
                       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -610,7 +610,7 @@ onMounted(() => {
 }
 
 /* 用户消息保持原样 */
-.bg-blue-500 .ai-message-content {
+.bg-[#faf6ee]0 .ai-message-content {
   color: white;
 }
 

@@ -4,7 +4,7 @@ export const themeSettings: App.Theme.ThemeSetting = {
   grayscale: false,
   colourWeakness: false,
   recommendColor: false,
-  themeColor: '#ff385c',
+  themeColor: '#c4a46c',
   themeRadius: 8,
   otherColor: {
     info: '#222222',

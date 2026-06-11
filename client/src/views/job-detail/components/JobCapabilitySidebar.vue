@@ -56,7 +56,7 @@ function buildAbilityItems(profile: JobApi.JobCapabilityProfile): AbilityItem[] 
         <div class="text-sm font-semibold text-[#222222] dark:text-gray-200 mb-2">{{ $t('page.jobs.strengths') }}</div>
         <ul class="space-y-1">
           <li v-for="(s, idx) in capabilityProfile.strengths" :key="idx" class="text-sm text-[#3f3f3f] dark:text-gray-300 flex items-start gap-2">
-            <span class="text-[#ff385c] shrink-0">+</span>
+            <span class="text-[#c4a46c] shrink-0">+</span>
             <span>{{ s }}</span>
           </li>
         </ul>
@@ -67,7 +67,7 @@ function buildAbilityItems(profile: JobApi.JobCapabilityProfile): AbilityItem[] 
         <div class="text-sm font-semibold text-[#222222] dark:text-gray-200 mb-2">{{ $t('page.jobs.missingSkills') }}</div>
         <ul class="space-y-1">
           <li v-for="(s, idx) in capabilityProfile.missingSkills" :key="idx" class="text-sm text-[#3f3f3f] dark:text-gray-300 flex items-start gap-2">
-            <span class="text-[#ff385c] shrink-0">-</span>
+            <span class="text-[#c4a46c] shrink-0">-</span>
             <span>{{ s }}</span>
           </li>
         </ul>
@@ -78,7 +78,7 @@ function buildAbilityItems(profile: JobApi.JobCapabilityProfile): AbilityItem[] 
         <div class="text-sm font-semibold text-[#222222] dark:text-gray-200 mb-2">{{ $t('page.jobs.weakEvidenceItems') }}</div>
         <ul class="space-y-1">
           <li v-for="(item, idx) in capabilityProfile.weakEvidenceItems" :key="idx" class="text-sm text-[#3f3f3f] dark:text-gray-300 flex items-start gap-2">
-            <span class="text-[#ff385c] shrink-0">!</span>
+            <span class="text-[#c4a46c] shrink-0">!</span>
             <span>{{ item }}</span>
           </li>
         </ul>

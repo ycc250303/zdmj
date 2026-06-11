@@ -5,14 +5,14 @@ import { useRouter } from 'vue-router';
 const router = useRouter();
 
 const slides = [
-  'https://picsum.photos/seed/r1/500/700',
-  'https://picsum.photos/seed/r2/500/700',
-  'https://picsum.photos/seed/r3/500/700',
-  'https://picsum.photos/seed/r4/500/700',
-  'https://picsum.photos/seed/r5/500/700',
-  'https://picsum.photos/seed/r6/500/700',
-  'https://picsum.photos/seed/r7/500/700',
-  'https://picsum.photos/seed/r8/500/700',
+  '/images/3.jpg',
+  '/images/4.jpg',
+  '/images/5.jpg',
+  '/images/6.jpg',
+  '/images/3.jpg',
+  '/images/4.jpg',
+  '/images/5.jpg',
+  '/images/6.jpg',
 ];
 
 const count = slides.length;
@@ -183,19 +183,19 @@ onBeforeUnmount(() => { cancelAnimationFrame(rafId); });
 }
 
 .kicker { display: flex; align-items: center; gap: 10px; font-size: 11px; font-weight: 600; letter-spacing: 0.2em; color: #333; text-transform: uppercase; margin-bottom: 48px; }
-.kicker-rule { display: block; width: 28px; height: 2px; background: #ff385c; }
+.kicker-rule { display: block; width: 28px; height: 2px; background: #c4a46c; }
 
 .headline { display: flex; flex-direction: column; gap: 2px; margin: 0 0 36px; }
 .hl-top { font-family: 'Noto Serif SC','Source Han Serif SC','Songti SC',Georgia,serif; font-size: clamp(42px,6vw,76px); font-weight: 700; color: #1a1a1a; line-height: 1.08; letter-spacing: -0.02em; }
 .hl-bot { font-family: 'Noto Serif SC','Source Han Serif SC','Songti SC',Georgia,serif; font-size: clamp(46px,6.5vw,84px); font-weight: 700; color: #1a1a1a; line-height: 1.08; letter-spacing: -0.025em; margin-left: clamp(32px,7vw,100px); }
-.hl-accent { color: #ff385c; font-style: italic; }
+.hl-accent { color: #c4a46c; font-style: italic; }
 
 .deck { font-family: Georgia,'Noto Serif SC','Times New Roman',serif; font-size: 16px; color: #555; line-height: 1.7; font-style: italic; margin: 0 0 28px; max-width: 380px; }
 .deck em { font-style: normal; color: #333; }
 
 .sep { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
 .sep-line { width: 48px; height: 1px; background: #ddd; }
-.sep-dot { font-size: 7px; color: #ff385c; }
+.sep-dot { font-size: 7px; color: #c4a46c; }
 
 .desc { font-family: -apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif; font-size: 15px; color: #666; line-height: 1.8; letter-spacing: 0.03em; margin: 0 0 36px; }
 
@@ -295,7 +295,7 @@ onBeforeUnmount(() => { cancelAnimationFrame(rafId); });
 }
 .card-dark .card-en { color: rgba(255,255,255,0.45); }
 .card-dark .card-arrow { color: rgba(255,255,255,0.25); }
-.card-dark:hover .card-arrow { color: #ff385c; }
+.card-dark:hover .card-arrow { color: #c4a46c; }
 
 /* 主推卡片 —— 独占一行 */
 .card-hero {
@@ -316,7 +316,7 @@ onBeforeUnmount(() => { cancelAnimationFrame(rafId); });
 }
 .card-hero .card-en { color: rgba(0,0,0,0.35); }
 .card-hero .card-arrow { color: rgba(0,0,0,0.15); }
-.card-hero:hover .card-arrow { color: #ff385c; }
+.card-hero:hover .card-arrow { color: #c4a46c; }
 
 /* 卡片内部 */
 .card-icon { font-size: 20px; flex-shrink: 0; transition: transform 0.35s; }
@@ -331,7 +331,7 @@ onBeforeUnmount(() => { cancelAnimationFrame(rafId); });
   color: rgba(0,0,0,0.15);
   transition: all 0.35s;
 }
-.entry-card:hover .card-arrow { transform: translateX(2px); color: #ff385c; }
+.entry-card:hover .card-arrow { transform: translateX(2px); color: #c4a46c; }
 
 /* ====== 右栏 ====== */
 .visual-col { display: flex; align-items: center; justify-content: center; overflow: hidden; }

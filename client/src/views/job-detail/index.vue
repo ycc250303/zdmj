@@ -48,6 +48,8 @@ const loadingCareerReport = ref(false);
 const generatingCareerReport = ref(false);
 const polishingCareerReport = ref(false);
 const checkingCareerReport = ref(false);
+const showMatch = ref(false);
+const showProfile = ref(false);
 const careerReportDrawerVisible = ref(false);
 const careerReportCheckResult = ref<CareerReportApi.CareerReportCheck | null>(null);
 
@@ -68,6 +70,7 @@ async function loadJobDetail() {
     const { data, error } = await fetchGetJobDetail(jobId.value);
     if (!error && data) {
       jobDetail.value = data;
+      // 静默检查是否有已生成的数据，决定按钮文案
       loadCapabilityProfile();
       loadMatchResult();
       loadCareerReport();
@@ -129,6 +132,24 @@ async function handleGenerateMatch() {
   } catch (err) {
     window.$message?.error(extractApiError(err, $t('page.jobs.matchFailedRetry') as string), { duration: 6000 });
   } finally { generatingMatch.value = false; }
+}
+
+async function openMatchSection() {
+  if (showMatch.value) { showMatch.value = false; return; }
+  showMatch.value = true;
+  if (!matchResult.value) {
+    await loadMatchResult();
+    if (!matchResult.value) await handleGenerateMatch();
+  }
+}
+
+async function openProfileSection() {
+  if (showProfile.value) { showProfile.value = false; return; }
+  showProfile.value = true;
+  if (!capabilityProfile.value) {
+    await loadCapabilityProfile();
+    if (!capabilityProfile.value) await handleGenerateProfile();
+  }
 }
 
 function openCareerReportDrawer() { careerReportDrawerVisible.value = true; loadCareerReport(); }
@@ -239,14 +260,14 @@ onMounted(() => {
           <h1 class="text-2xl font-semibold text-[#222222] dark:text-gray-200">{{ $t('page.jobs.viewDetail') }}</h1>
         </div>
         <div class="flex gap-3">
-          <NButton @click="handleGenerateMatch" :loading="generatingMatch">
-            {{ matchResult ? $t('page.jobs.reanalyzeMatch') : $t('page.jobs.analyzeMatch') }}
+          <NButton @click="openMatchSection" :loading="generatingMatch">
+            {{ showMatch ? '收起匹配分析' : matchResult ? '查看匹配分析' : $t('page.jobs.analyzeMatch') }}
           </NButton>
-          <NButton @click="handleGenerateProfile" :loading="generatingProfile">
-            {{ capabilityProfile ? $t('page.jobs.regenerateProfile') : $t('page.jobs.generateProfile') }}
+          <NButton @click="openProfileSection" :loading="generatingProfile">
+            {{ showProfile ? '收起能力画像' : capabilityProfile ? '查看能力画像' : $t('page.jobs.generateProfile') }}
           </NButton>
           <NButton type="primary" ghost @click="openCareerReportDrawer" :loading="loadingCareerReport">
-            {{ careerReport ? $t('page.jobs.careerReport.view') : $t('page.jobs.careerReport.entry') }}
+            {{ careerReport ? '查看职业报告' : $t('page.jobs.careerReport.entry') }}
           </NButton>
           <NButton type="primary" @click="handleEdit">
             {{ $t('page.jobs.edit') }}
@@ -254,13 +275,14 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- 人岗匹配 -->
-      <PersonJobMatchCard v-if="matchResult" :match-result="matchResult" />
+      <!-- 人岗匹配（按需显示） -->
+      <PersonJobMatchCard v-if="showMatch && matchResult" :match-result="matchResult" @generate-match="handleGenerateMatch" />
 
       <!-- 双列布局 -->
       <div v-if="jobDetail" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <JobBasicInfoCard :job-detail="jobDetail" class="lg:col-span-2" />
+        <JobBasicInfoCard :job-detail="jobDetail" :class="showProfile ? 'lg:col-span-2' : 'lg:col-span-3'" />
         <JobCapabilitySidebar
+          v-if="showProfile"
           :capability-profile="capabilityProfile"
           :generating-profile="generatingProfile"
           @generate="handleGenerateProfile"
