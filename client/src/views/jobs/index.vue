@@ -58,9 +58,9 @@ onMounted(() => { loadJobData(); });
         <h1 class="jobs-title">{{ $t('page.jobs.title') }}</h1>
         <p class="jobs-sub">发现最适合你的职业机会</p>
       </div>
-      <NButton type="primary" round @click="handleCreate">
+      <button class="btn-glass-dark" @click="handleCreate">
         + {{ $t('page.jobs.create') }}
-      </NButton>
+      </button>
     </div>
 
     <!-- Job Cards Grid -->
@@ -90,8 +90,8 @@ onMounted(() => { loadJobData(); });
           </div>
 
           <div class="job-card-actions" @click.stop>
-            <NButton size="small" @click="handleViewDetail(job.id)">查看</NButton>
-            <NButton size="small" @click="handleEdit(job.id)">编辑</NButton>
+            <button class="btn-glass" @click="handleViewDetail(job.id)">查看</button>
+            <button class="btn-glass" @click="handleEdit(job.id)">编辑</button>
             <NButton size="small" type="error" ghost @click="handleDelete(job.id)">删除</NButton>
           </div>
         </article>
@@ -101,7 +101,7 @@ onMounted(() => { loadJobData(); });
       <div v-else-if="!loading" class="jobs-empty">
         <div class="empty-icon">📋</div>
         <p class="empty-text">{{ $t('page.jobs.empty') }}</p>
-        <NButton type="primary" round @click="handleCreate">+ {{ $t('page.jobs.createFirst') }}</NButton>
+        <button class="btn-glass-dark" @click="handleCreate">+ {{ $t('page.jobs.createFirst') }}</button>
       </div>
 
       <!-- Pagination -->

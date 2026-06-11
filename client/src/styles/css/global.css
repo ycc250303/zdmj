@@ -102,6 +102,205 @@ html.dark .airbnb-pill {
   border-color: rgba(255, 56, 92, 0.22);
 }
 
+/* ====== 液态玻璃按钮（全局） ====== */
+.btn-glass {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: 9999px;
+  background: rgba(255,255,255,0.55);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border: 1px solid rgba(255,255,255,0.6);
+  color: #1a1a1a;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03);
+  position: relative;
+  overflow: hidden;
+  text-decoration: none;
+}
+.btn-glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 50%);
+  pointer-events: none;
+}
+.btn-glass:hover {
+  background: rgba(255,255,255,0.75);
+  border-color: rgba(0,0,0,0.12);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.05);
+}
+.btn-glass:active { transform: scale(0.97); }
+
+.btn-glass-dark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: 9999px;
+  background: rgba(30,30,30,0.75);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.9);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 4px 12px rgba(0,0,0,0.08);
+  position: relative;
+  overflow: hidden;
+  text-decoration: none;
+}
+.btn-glass-dark::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 50%);
+  pointer-events: none;
+}
+.btn-glass-dark:hover {
+  background: rgba(30,30,30,0.85);
+  border-color: rgba(255,255,255,0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15), 0 8px 28px rgba(0,0,0,0.12);
+}
+.btn-glass-dark:active { transform: scale(0.97); }
+
+html.dark .btn-glass {
+  background: rgba(40,40,40,0.65);
+  border-color: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.85);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.15);
+}
+html.dark .btn-glass::after {
+  background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0) 50%);
+}
+html.dark .btn-glass:hover {
+  background: rgba(50,50,50,0.75);
+  border-color: rgba(255,255,255,0.15);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25), 0 8px 28px rgba(0,0,0,0.2);
+}
+
+/* ====== Naive UI 按钮全局液态玻璃化 ====== */
+/* 先掐掉 Naive UI 的主题色变量 */
+.n-button {
+  --n-color: transparent !important;
+  --n-color-hover: transparent !important;
+  --n-color-pressed: transparent !important;
+  --n-color-focus: transparent !important;
+  --n-text-color: #1a1a1a !important;
+  --n-text-color-hover: #1a1a1a !important;
+  --n-border: 1px solid rgba(0,0,0,0.08) !important;
+  --n-border-hover: 1px solid rgba(0,0,0,0.12) !important;
+  --n-border-pressed: 1px solid rgba(0,0,0,0.12) !important;
+  --n-border-focus: 1px solid rgba(0,0,0,0.12) !important;
+  border-radius: 9999px !important;
+}
+.n-button-group .n-button { border-radius: 8px !important; }
+
+/* primary → 白玻璃 */
+.n-button--primary-type.n-button:not(.n-button--disabled) {
+  background: rgba(255,255,255,0.6) !important;
+  backdrop-filter: saturate(180%) blur(20px) !important;
+  -webkit-backdrop-filter: saturate(180%) blur(20px) !important;
+  border: 1px solid rgba(0,0,0,0.08) !important;
+  border-color: rgba(0,0,0,0.08) !important;
+  color: #1a1a1a !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03) !important;
+  transition: all 0.3s cubic-bezier(0.16,1,0.3,1) !important;
+}
+.n-button--primary-type.n-button:not(.n-button--disabled):hover {
+  background: rgba(255,255,255,0.8) !important;
+  border-color: rgba(0,0,0,0.12) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.05) !important;
+}
+.n-button--primary-type.n-button:not(.n-button--disabled):active,
+.n-button--primary-type.n-button:not(.n-button--disabled):focus {
+  transform: scale(0.97) !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03) !important;
+  border-color: rgba(0,0,0,0.08) !important;
+}
+
+/* default */
+.n-button--default-type.n-button:not(.n-button--disabled) {
+  background: rgba(255,255,255,0.45) !important;
+  backdrop-filter: saturate(180%) blur(16px) !important;
+  -webkit-backdrop-filter: saturate(180%) blur(16px) !important;
+  border: 1px solid rgba(0,0,0,0.06) !important;
+  border-color: rgba(0,0,0,0.06) !important;
+  color: #1a1a1a !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03) !important;
+  transition: all 0.3s cubic-bezier(0.16,1,0.3,1) !important;
+}
+.n-button--default-type.n-button:not(.n-button--disabled):hover {
+  background: rgba(255,255,255,0.7) !important;
+  border-color: rgba(0,0,0,0.1) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* info */
+.n-button--info-type.n-button:not(.n-button--disabled) {
+  background: rgba(255,255,255,0.5) !important;
+  backdrop-filter: saturate(180%) blur(16px) !important;
+  -webkit-backdrop-filter: saturate(180%) blur(16px) !important;
+  border: 1px solid rgba(0,0,0,0.06) !important;
+  border-color: rgba(0,0,0,0.06) !important;
+  color: #1a1a1a !important;
+  box-shadow: none !important;
+}
+
+/* secondary */
+.n-button--secondary-type.n-button:not(.n-button--disabled) {
+  background: rgba(255,255,255,0.35) !important;
+  backdrop-filter: saturate(150%) blur(12px) !important;
+  -webkit-backdrop-filter: saturate(150%) blur(12px) !important;
+  border: 1px solid rgba(0,0,0,0.05) !important;
+  border-color: rgba(0,0,0,0.05) !important;
+  color: #3f3f3f !important;
+}
+
+/* dark mode */
+html.dark .n-button {
+  --n-text-color: rgba(255,255,255,0.85) !important;
+  --n-border: 1px solid rgba(255,255,255,0.08) !important;
+}
+html.dark .n-button--primary-type.n-button:not(.n-button--disabled) {
+  background: rgba(40,40,40,0.65) !important;
+  border-color: rgba(255,255,255,0.08) !important;
+  color: rgba(255,255,255,0.85) !important;
+}
+html.dark .n-button--default-type.n-button:not(.n-button--disabled) {
+  background: rgba(35,35,35,0.55) !important;
+  border-color: rgba(255,255,255,0.06) !important;
+  color: rgba(255,255,255,0.8) !important;
+}
+
+/* error / text / quaternary / disabled → 还原 */
+.n-button--error-type.n-button,
+.n-button--text-type.n-button,
+.n-button--quaternary-type.n-button {
+  --n-color: unset !important;
+  --n-text-color: unset !important;
+  --n-border: unset !important;
+  border-radius: unset !important;
+  background: unset !important;
+  backdrop-filter: unset !important;
+  -webkit-backdrop-filter: unset !important;
+  border: unset !important;
+  box-shadow: unset !important;
+  transform: unset !important;
+}
+
 /* 全局滚动条 */
 *::-webkit-scrollbar {
   width: 8px;
