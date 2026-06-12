@@ -63,6 +63,8 @@ public final class PromptNames {
     public static final String RESUME_ANALYSIS_CYBERSECURITY = "resume-analysis/cybersecurity";
     /** 岗位分类 job-detect */
     public static final String JOB_DETECT = "job-detect";
+    /** 简历导入：从纯文本结构化提取字段 */
+    public static final String RESUME_IMPORT_PARSE = "resume-import-parse";
 
     /** 岗位关联图谱 Java 后端 */
     public static final String JOB_CAREER_GRAPH_JAVA_BACKEND = "job-career-graph/java-backend";

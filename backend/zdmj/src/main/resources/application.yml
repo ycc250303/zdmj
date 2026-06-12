@@ -113,3 +113,5 @@ app:
       advisors:
         enabled: false
         tool-call-enabled: false
+    deepseek:
+      api-key: ${DEEPSEEK_API_KEY:}

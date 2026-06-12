@@ -11,6 +11,9 @@ public final class LlmRateLimits {
     /** 能力画像生成 */
     public static final double CAPABILITY_PROFILE_GENERATE_PER_MIN = 10;
 
+    /** 简历 PDF/文本结构化识别 */
+    public static final double RESUME_IMPORT_PARSE_PER_MIN = 10;
+
     /** 人岗匹配生成 */
     public static final double MATCH_GENERATE_PER_MIN = 10;
 

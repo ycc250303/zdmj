@@ -2,6 +2,8 @@ package com.zdmj.resumeService.service;
 
 import com.zdmj.resumeService.dto.ResumeContentDTO;
 import com.zdmj.resumeService.dto.ResumeDTO;
+import com.zdmj.resumeService.dto.ResumeImportParseRequest;
+import com.zdmj.resumeService.dto.ResumeImportParseResultDTO;
 import com.zdmj.resumeService.entity.Resume;
 
 import java.util.List;
@@ -63,4 +65,12 @@ public interface ResumeService {
      * @return 简历完整内容列表
      */
     List<ResumeContentDTO> getResumeContentList();
+
+    /**
+     * 从 PDF URL 或纯文本识别简历，返回结构化字段（不写库）。
+     *
+     * @param request 识别请求
+     * @return 结构化识别结果
+     */
+    ResumeImportParseResultDTO parseImport(ResumeImportParseRequest request);
 }

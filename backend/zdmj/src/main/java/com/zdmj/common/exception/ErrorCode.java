@@ -51,6 +51,8 @@ public enum ErrorCode {
     CAPABILITY_PROFILE_SCORE_INVALID(3010, "能力画像分项评分超出合法范围", HttpStatus.BAD_REQUEST),
     CAPABILITY_PROFILE_NOT_FOUND(3011, "当前用户尚未生成能力画像", HttpStatus.NOT_FOUND),
     CAPABILITY_PROFILE_GENERATION_FAILED(3012, "能力画像生成失败，请稍后重试", HttpStatus.BAD_REQUEST),
+    RESUME_IMPORT_PARSE_FAILED(3013, "简历识别失败，请稍后重试", HttpStatus.BAD_REQUEST),
+    RESUME_IMPORT_TEXT_EMPTY(3014, "提取到的简历文本为空，无法识别", HttpStatus.BAD_REQUEST),
 
     // ========== 项目经历 4xxx ==========
     PROJECT_EXPERIENCE_ADD_FAILED(4001, "添加项目经历失败", HttpStatus.BAD_REQUEST),

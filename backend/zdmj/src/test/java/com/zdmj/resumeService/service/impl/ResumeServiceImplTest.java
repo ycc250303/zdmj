@@ -4,8 +4,14 @@ import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.common.ai.ModelEnum;
+import com.zdmj.common.ai.prompt.PromptNames;
 import com.zdmj.resumeService.dto.ResumeContentDTO;
 import com.zdmj.resumeService.dto.ResumeDTO;
+import com.zdmj.resumeService.dto.ResumeImportParseRequest;
+import com.zdmj.resumeService.dto.ResumeImportParseResultDTO;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.resumeService.entity.Career;
 import com.zdmj.resumeService.entity.Education;
 import com.zdmj.resumeService.entity.ProjectExperience;
@@ -31,7 +37,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -49,12 +58,16 @@ class ResumeServiceImplTest {
     private CareerMapper careerMapper;
     @Mock
     private SkillMapper skillMapper;
+    @Mock
+    private ChatUtil chatUtil;
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private ResumeServiceImpl resumeService;
 
     @BeforeEach
     void setUp() {
-        resumeService = spy(new ResumeServiceImpl(educationMapper, projectExperienceMapper, careerMapper, skillMapper));
+        resumeService = spy(new ResumeServiceImpl(
+                educationMapper, projectExperienceMapper, careerMapper, skillMapper, chatUtil, objectMapper));
         ReflectionTestUtils.setField(Objects.requireNonNull(resumeService), "baseMapper", resumeMapper);
     }
 
@@ -384,5 +397,137 @@ class ResumeServiceImplTest {
 
         assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
         verify(resumeMapper, never()).selectByUserId(any());
+    }
+
+    @Test
+    void parseImport_missingInput_shouldThrowValidationError() {
+        UserHolder.set(UserContext.of(1L, "u1"));
+        ResumeImportParseRequest request = new ResumeImportParseRequest();
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.parseImport(request));
+
+        assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
+        verify(chatUtil, never()).chatStructuredOnceWithPlatformModel(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void parseImport_blankRawText_shouldThrowTextEmpty() {
+        UserHolder.set(UserContext.of(1L, "u1"));
+        ResumeImportParseRequest request = new ResumeImportParseRequest();
+        request.setRawText("   ");
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.parseImport(request));
+
+        assertEquals(ErrorCode.RESUME_IMPORT_TEXT_EMPTY.getCode(), ex.getCode());
+    }
+
+    @Test
+    void parseImport_llmFailure_shouldThrowParseFailed() {
+        UserHolder.set(UserContext.of(1L, "u1"));
+        ResumeImportParseRequest request = new ResumeImportParseRequest();
+        request.setRawText("张三 某某大学 软件工程");
+        doThrow(new RuntimeException("llm down")).when(chatUtil).chatStructuredOnceWithPlatformModel(
+                any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
+                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.parseImport(request));
+
+        assertEquals(ErrorCode.RESUME_IMPORT_PARSE_FAILED.getCode(), ex.getCode());
+    }
+
+    @Test
+    void parseImport_success_shouldNormalizeAndUseDeepSeekFlash() {
+        UserHolder.set(UserContext.of(1L, "u1"));
+        ResumeImportParseRequest request = new ResumeImportParseRequest();
+        request.setRawText("resume body");
+
+        ResumeImportParseResultDTO llmResult = new ResumeImportParseResultDTO();
+        ResumeImportParseResultDTO.EducationItem edu = new ResumeImportParseResultDTO.EducationItem();
+        edu.setSchool("SCU");
+        edu.setMajor("SE");
+        edu.setDegree(99);
+        edu.setStartDate("2020-9");
+        edu.setEndDate("至今");
+        llmResult.setEducations(List.of(edu));
+
+        ResumeImportParseResultDTO.CareerItem blankCareer = new ResumeImportParseResultDTO.CareerItem();
+        llmResult.setCareers(List.of(blankCareer));
+
+        doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
+                any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
+                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
+
+        ResumeImportParseResultDTO out = resumeService.parseImport(request);
+
+        assertEquals(1, out.getEducations().size());
+        assertEquals("SCU", out.getEducations().get(0).getSchool());
+        assertEquals(6, out.getEducations().get(0).getDegree());
+        assertEquals("2020-09-01", out.getEducations().get(0).getStartDate());
+        assertEquals(null, out.getEducations().get(0).getEndDate());
+        assertEquals(0, out.getCareers().size());
+        verify(chatUtil).chatStructuredOnceWithPlatformModel(
+                any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
+                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
+    }
+
+    @Test
+    void parseImport_yearOnlyDate_shouldNormalizeToNull() {
+        UserHolder.set(UserContext.of(1L, "u1"));
+        ResumeImportParseRequest request = new ResumeImportParseRequest();
+        request.setRawText("resume");
+
+        ResumeImportParseResultDTO llmResult = new ResumeImportParseResultDTO();
+        ResumeImportParseResultDTO.EducationItem edu = new ResumeImportParseResultDTO.EducationItem();
+        edu.setSchool("SCU");
+        edu.setStartDate("2020");
+        edu.setEndDate("2022年");
+        llmResult.setEducations(List.of(edu));
+
+        doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
+                any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
+                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
+
+        ResumeImportParseResultDTO out = resumeService.parseImport(request);
+
+        assertEquals(null, out.getEducations().get(0).getStartDate());
+        assertEquals(null, out.getEducations().get(0).getEndDate());
+    }
+
+    @Test
+    void parseImport_chineseYearMonth_shouldUseFirstDay() {
+        UserHolder.set(UserContext.of(1L, "u1"));
+        ResumeImportParseRequest request = new ResumeImportParseRequest();
+        request.setRawText("resume");
+
+        ResumeImportParseResultDTO llmResult = new ResumeImportParseResultDTO();
+        ResumeImportParseResultDTO.CareerItem career = new ResumeImportParseResultDTO.CareerItem();
+        career.setCompany("ACME");
+        career.setStartDate("2021年3月");
+        llmResult.setCareers(List.of(career));
+
+        doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
+                any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
+                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
+
+        ResumeImportParseResultDTO out = resumeService.parseImport(request);
+
+        assertEquals("2021-03-01", out.getCareers().get(0).getStartDate());
+    }
+
+    @Test
+    void parseImport_longText_shouldTruncateAndAddWarning() {
+        UserHolder.set(UserContext.of(1L, "u1"));
+        ResumeImportParseRequest request = new ResumeImportParseRequest();
+        request.setRawText("a".repeat(16000));
+
+        ResumeImportParseResultDTO llmResult = new ResumeImportParseResultDTO();
+        doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
+                any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
+                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
+
+        ResumeImportParseResultDTO out = resumeService.parseImport(request);
+
+        assertNotNull(out.getWarnings());
+        assertEquals(true, out.getWarnings().stream().anyMatch(w -> w.contains("截断")));
     }
 }

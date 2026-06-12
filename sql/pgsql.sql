@@ -254,59 +254,7 @@ CREATE TABLE IF NOT EXISTS resumes (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_resumes_user_id_name ON resumes(user_id, name);
 CREATE INDEX IF NOT EXISTS idx_resumes_user_id ON resumes(user_id);
 CREATE INDEX IF NOT EXISTS idx_resumes_skill_id ON resumes(skill_id);
--- 2.6 专用简历表
-CREATE TABLE IF NOT EXISTS resume_matches (
-    id BIGSERIAL PRIMARY KEY,
-    -- 专用简历ID
-    user_id BIGINT NOT NULL,
-    -- 用户ID（逻辑外键：users.id）
-    resume_id BIGINT,
-    -- 关联的原始简历ID（逻辑外键：resumes.id，可选）
-    name VARCHAR(255) NOT NULL,
-    -- 简历名称
-    skill JSONB NOT NULL,
-    -- 技能清单对象（JSONB，嵌入存储优化后的技能）
-    -- skill 示例
-    -- {
-    --   "name": "技能清单",
-    --   "content": [
-    --     {
-    --       "type": "前端框架",
-    --       "content": ["React", "Vue.js"]
-    --     }
-    --   ]
-    -- }
-    projects JSONB DEFAULT '[]'::jsonb,
-    -- 项目经历对象数组（JSONB数组，嵌入存储优化后的项目经历数据）
-    -- projects 示例
-    -- [
-    --   {
-    --     "id": 1,
-    --     "name": "项目名称",
-    --     "description": "项目描述（已优化）",
-    --     "tech_stack": ["React", "TypeScript"],
-    --     "highlights": [
-    --       {
-    --         "type": "技术难点",
-    --         "content": "实现了分布式锁"
-    --       }
-    --     ]
-    --   }
-    -- ]
-    job_id BIGINT,
-    -- 岗位ID（逻辑外键：jobs.id）
-    status SMALLINT DEFAULT 1,
-    -- 简历状态（枚举：1=committed已提交/2=generated已生成/3=optimized已优化）
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    -- 创建时间
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
-);
-CREATE INDEX IF NOT EXISTS idx_resume_matches_user_id ON resume_matches(user_id);
-CREATE INDEX IF NOT EXISTS idx_resume_matches_user_id_name ON resume_matches(user_id, name);
-CREATE INDEX IF NOT EXISTS idx_resume_matches_job_id ON resume_matches(job_id);
-CREATE INDEX IF NOT EXISTS idx_resume_matches_resume_id ON resume_matches(resume_id);
-CREATE INDEX IF NOT EXISTS idx_resume_matches_status ON resume_matches(status);
--- 2.7 学生就业能力画像表（最小结构，支持岗位路由+结构化输出）
+-- 2.6 学生就业能力画像表（最小结构，支持岗位路由+结构化输出）
 CREATE TABLE IF NOT EXISTS student_capability_profiles (
     id BIGSERIAL PRIMARY KEY,
     -- 画像ID

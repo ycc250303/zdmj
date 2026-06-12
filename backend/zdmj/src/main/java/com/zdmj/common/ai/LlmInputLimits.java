@@ -14,6 +14,9 @@ public final class LlmInputLimits {
     /** 能力画像：PDF COS URL */
     public static final int RESUME_PDF_URL_MAX_CHARS = 2048;
 
+    /** 简历识别：送入 LLM 前的纯文本截断上限（字符数） */
+    public static final int RESUME_IMPORT_TEXT_TRUNCATE_CHARS = 15000;
+
     private LlmInputLimits() {
     }
 }

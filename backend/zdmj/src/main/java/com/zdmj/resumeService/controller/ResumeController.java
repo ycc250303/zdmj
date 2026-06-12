@@ -1,5 +1,10 @@
 package com.zdmj.resumeService.controller;
 
+import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.ai.LlmRateLimits;
+import com.zdmj.common.model.Result;
+
+import java.util.concurrent.TimeUnit;
 import com.zdmj.resumeService.dto.ResumeContentDTO;
 import lombok.extern.slf4j.Slf4j;
 
@@ -16,9 +21,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.zdmj.common.model.CreateGroup;
-import com.zdmj.common.model.Result;
 import com.zdmj.common.model.UpdateGroup;
 import com.zdmj.resumeService.dto.ResumeDTO;
+import com.zdmj.resumeService.dto.ResumeImportParseRequest;
+import com.zdmj.resumeService.dto.ResumeImportParseResultDTO;
 import com.zdmj.resumeService.entity.Resume;
 import com.zdmj.resumeService.service.ResumeService;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -108,5 +114,21 @@ public class ResumeController {
     public Result<Void> deleteResume(@PathVariable Long id) {
         resumeService.delete(id);
         return Result.success("删除简历成功", null);
+    }
+
+    /**
+     * 从 PDF 或纯文本识别简历字段（结构化输出，不写库）
+     *
+     * @param request 识别请求（pdfUrl 与 rawText 二选一）
+     * @return 结构化识别结果
+     */
+    @RateLimit(dimension = RateLimit.Dimension.USER, count = LlmRateLimits.RESUME_IMPORT_PARSE_PER_MIN,
+            interval = 1, timeUnit = TimeUnit.MINUTES)
+    @PostMapping("/import/parse")
+    public Result<ResumeImportParseResultDTO> parseResumeImport(
+            @Validated @RequestBody ResumeImportParseRequest request) {
+
+        ResumeImportParseResultDTO result = resumeService.parseImport(request);
+        return Result.success("简历识别成功", result);
     }
 }

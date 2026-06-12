@@ -1,9 +1,15 @@
 package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.common.ai.LlmInputLimits;
+import com.zdmj.common.ai.ModelEnum;
+import com.zdmj.common.ai.prompt.PromptNames;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.resumeService.dto.*;
 import com.zdmj.resumeService.entity.*;
 import com.zdmj.resumeService.mapper.CareerMapper;
@@ -17,8 +23,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -28,10 +41,17 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Service
 public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> implements ResumeService {
+
+    private static final Pattern WHITESPACE_RUN = Pattern.compile("\\s{3,}");
+    private static final Pattern PRESENT_END = Pattern.compile("^(至今|现在|present|current|now)$",
+            Pattern.CASE_INSENSITIVE);
+
     private final EducationMapper educationMapper;
     private final ProjectExperienceMapper projectExperienceMapper;
     private final CareerMapper careerMapper;
     private final SkillMapper skillMapper;
+    private final ChatUtil chatUtil;
+    private final ObjectMapper objectMapper;
 
     @Override
     public Resume create(ResumeDTO resumeDTO) {
@@ -179,6 +199,248 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
                 .collect(Collectors.toList());
 
         return result;
+    }
+
+    @Override
+    public ResumeImportParseResultDTO parseImport(ResumeImportParseRequest request) {
+        log.info("开始识别简历结构化字段");
+        UserHolder.requireUserId();
+        List<String> warnings = new ArrayList<>();
+        String sourceText = resolveImportSourceText(request);
+        sourceText = preprocessImportText(sourceText, warnings);
+
+        ResumeImportParseResultDTO parsed;
+        try {
+            parsed = chatUtil.chatStructuredOnceWithPlatformModel(
+                    sourceText,
+                    PromptNames.RESUME_IMPORT_PARSE,
+                    null,
+                    ResumeImportParseResultDTO.class,
+                    ModelEnum.DEEPSEEK_FLASH);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (IllegalStateException e) {
+            log.error("简历结构化输出解析失败", e);
+            throw new BusinessException(ErrorCode.RESUME_IMPORT_PARSE_FAILED);
+        } catch (Exception e) {
+            log.error("简历识别失败", e);
+            throw new BusinessException(ErrorCode.RESUME_IMPORT_PARSE_FAILED);
+        }
+
+        normalizeImportResult(parsed, warnings);
+        return parsed;
+    }
+
+    private String resolveImportSourceText(ResumeImportParseRequest request) {
+        if (StringUtils.hasText(request.getPdfUrl())) {
+            log.info("简历识别：从 PDF 解析文本");
+            try {
+                String text = PdfParserUtil.extractTextFromUrl(request.getPdfUrl().trim());
+                if (!StringUtils.hasText(text)) {
+                    throw new BusinessException(ErrorCode.RESUME_IMPORT_TEXT_EMPTY);
+                }
+                return text;
+            } catch (BusinessException e) {
+                throw e;
+            } catch (Exception e) {
+                log.error("PDF 解析失败", e);
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "PDF 解析失败，请检查文件是否合法");
+            }
+        }
+        if (request.getRawText() != null) {
+            String text = request.getRawText().trim();
+            if (!StringUtils.hasText(text)) {
+                throw new BusinessException(ErrorCode.RESUME_IMPORT_TEXT_EMPTY);
+            }
+            log.info("简历识别：使用纯文本");
+            return text;
+        }
+        throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "必须提供 pdfUrl 或 rawText");
+    }
+
+    private String preprocessImportText(String sourceText, List<String> warnings) {
+        String normalized = WHITESPACE_RUN.matcher(sourceText.trim()).replaceAll("\n\n");
+        int limit = LlmInputLimits.RESUME_IMPORT_TEXT_TRUNCATE_CHARS;
+        if (normalized.length() > limit) {
+            warnings.add("简历文本过长，已截断至前 " + limit + " 个字符，部分经历可能未识别");
+            normalized = normalized.substring(0, limit);
+        }
+        return normalized;
+    }
+
+    private void normalizeImportResult(ResumeImportParseResultDTO result, List<String> warnings) {
+        if (result == null) {
+            throw new BusinessException(ErrorCode.RESUME_IMPORT_PARSE_FAILED);
+        }
+        if (result.getWarnings() == null) {
+            result.setWarnings(new ArrayList<>());
+        }
+        result.getWarnings().addAll(0, warnings);
+
+        if (result.getEducations() == null) {
+            result.setEducations(new ArrayList<>());
+        }
+        if (result.getCareers() == null) {
+            result.setCareers(new ArrayList<>());
+        }
+        if (result.getProjects() == null) {
+            result.setProjects(new ArrayList<>());
+        }
+
+        List<ResumeImportParseResultDTO.EducationItem> educations = new ArrayList<>();
+        for (ResumeImportParseResultDTO.EducationItem item : result.getEducations()) {
+            if (item == null || !StringUtils.hasText(item.getSchool())) {
+                continue;
+            }
+            item.setDegree(normalizeDegree(item.getDegree()));
+            item.setStartDate(formatDateString(parseFlexibleDate(item.getStartDate())));
+            item.setEndDate(formatDateString(parseFlexibleDate(item.getEndDate())));
+            if (item.getVisible() == null) {
+                item.setVisible(true);
+            }
+            educations.add(item);
+        }
+        result.setEducations(educations);
+
+        List<ResumeImportParseResultDTO.CareerItem> careers = new ArrayList<>();
+        for (ResumeImportParseResultDTO.CareerItem item : result.getCareers()) {
+            if (item == null || !StringUtils.hasText(item.getCompany())) {
+                continue;
+            }
+            item.setStartDate(formatDateString(parseFlexibleDate(item.getStartDate())));
+            item.setEndDate(formatDateString(parseFlexibleDate(item.getEndDate())));
+            if (item.getVisible() == null) {
+                item.setVisible(true);
+            }
+            careers.add(item);
+        }
+        result.setCareers(careers);
+
+        List<ResumeImportParseResultDTO.ProjectItem> projects = new ArrayList<>();
+        for (ResumeImportParseResultDTO.ProjectItem item : result.getProjects()) {
+            if (item == null || !StringUtils.hasText(item.getName())) {
+                continue;
+            }
+            item.setStartDate(formatDateString(parseFlexibleDate(item.getStartDate())));
+            item.setEndDate(formatDateString(parseFlexibleDate(item.getEndDate())));
+            item.setHighlights(normalizeHighlights(item.getHighlights()));
+            if (item.getVisible() == null) {
+                item.setVisible(true);
+            }
+            projects.add(item);
+        }
+        result.setProjects(projects);
+
+        if (result.getSkill() != null && result.getSkill().getContent() == null) {
+            result.getSkill().setContent(new ArrayList<>());
+        }
+    }
+
+    private Integer normalizeDegree(Integer degree) {
+        if (degree == null || degree < 1 || degree > 6) {
+            return 6;
+        }
+        return degree;
+    }
+
+    private LocalDate parseFlexibleDate(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        String value = raw.trim();
+        if (PRESENT_END.matcher(value).matches()) {
+            return null;
+        }
+
+        LocalDate chineseDate = parseChineseDate(value);
+        if (chineseDate != null || isChineseYearOnly(value)) {
+            return chineseDate;
+        }
+
+        value = value.replace('.', '-').replace('/', '-');
+        try {
+            if (value.matches("\\d{4}")) {
+                return null;
+            }
+            if (value.matches("\\d{4}-\\d{1,2}")) {
+                return YearMonth.parse(value, DateTimeFormatter.ofPattern("yyyy-M")).atDay(1);
+            }
+            if (value.matches("\\d{4}-\\d{1,2}-\\d{1,2}")) {
+                String[] parts = value.split("-");
+                int year = Integer.parseInt(parts[0]);
+                int month = Integer.parseInt(parts[1]);
+                int day = Integer.parseInt(parts[2]);
+                if (day <= 0) {
+                    day = 1;
+                }
+                return LocalDate.of(year, month, day);
+            }
+            LocalDate parsed = LocalDate.parse(value, DateTimeFormatter.ISO_LOCAL_DATE);
+            return parsed;
+        } catch (DateTimeParseException | NumberFormatException e) {
+            log.warn("无法解析日期（需至少到月份粒度）: {}", raw);
+            return null;
+        }
+    }
+
+    /**
+     * 解析中文日期：有年月无日取 1 号；仅有年份返回 null。
+     */
+    private LocalDate parseChineseDate(String value) {
+        var yearMonthDay = Pattern.compile("^(\\d{4})年(\\d{1,2})月(\\d{1,2})日?$").matcher(value);
+        if (yearMonthDay.matches()) {
+            return LocalDate.of(
+                    Integer.parseInt(yearMonthDay.group(1)),
+                    Integer.parseInt(yearMonthDay.group(2)),
+                    Integer.parseInt(yearMonthDay.group(3)));
+        }
+        var yearMonth = Pattern.compile("^(\\d{4})年(\\d{1,2})月$").matcher(value);
+        if (yearMonth.matches()) {
+            return LocalDate.of(
+                    Integer.parseInt(yearMonth.group(1)),
+                    Integer.parseInt(yearMonth.group(2)),
+                    1);
+        }
+        return null;
+    }
+
+    private boolean isChineseYearOnly(String value) {
+        return Pattern.compile("^\\d{4}年$").matcher(value).matches();
+    }
+
+    private String formatDateString(LocalDate date) {
+        return date == null ? null : date.format(DateTimeFormatter.ISO_LOCAL_DATE);
+    }
+
+    /**
+     * highlights 归一化为 JSON 数组字符串（与 project_experiences.highlights 存储一致）。
+     */
+    private Object normalizeHighlights(Object highlights) {
+        if (highlights == null) {
+            return null;
+        }
+        if (highlights instanceof String s) {
+            if (!StringUtils.hasText(s)) {
+                return null;
+            }
+            return s.trim();
+        }
+        if (highlights instanceof List<?> list) {
+            try {
+                List<String> values = list.stream()
+                        .filter(v -> v != null && StringUtils.hasText(String.valueOf(v)))
+                        .map(String::valueOf)
+                        .collect(Collectors.toList());
+                if (values.isEmpty()) {
+                    return null;
+                }
+                return objectMapper.writeValueAsString(values);
+            } catch (Exception e) {
+                log.warn("highlights 序列化失败: {}", e.getMessage());
+                return null;
+            }
+        }
+        return String.valueOf(highlights);
     }
 
     /**
