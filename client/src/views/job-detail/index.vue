@@ -6,6 +6,8 @@ import {
   fetchGetJobDetail,
   fetchGetJobCapabilityProfile,
   fetchGenerateJobCapabilityProfile,
+  fetchGetJobCareerGraph,
+  fetchGenerateJobCareerGraph,
   type JobApi
 } from '@/service/api/job';
 import {
@@ -53,6 +55,12 @@ const careerReportGenerateForm = ref<CareerReportApi.CareerReportGenerateReq>({
 const careerReportPolishInstruction = ref('');
 const careerReportCheckResult = ref<CareerReportApi.CareerReportCheck | null>(null);
 
+// --- 岗位关联图谱相关状态 ---
+const careerGraph = ref<JobApi.JobCareerGraph | null>(null);
+const loadingCareerGraph = ref(false);
+const generatingCareerGraph = ref(false);
+const careerGraphDrawerVisible = ref(false);
+
 /**
  * 统一从后端错误对象中抽出 code/msg，避免把 LLM 业务错误吞成无意义提示。
  * 兼容两种来源：
@@ -98,6 +106,8 @@ async function loadJobDetail() {
       loadMatchResult();
       // 加载职业发展报告（不存在则为 null，不弹错）
       loadCareerReport();
+      // 加载岗位关联图谱（不存在则为 null，不弹错）
+      loadCareerGraph();
     } else {
       window.$message?.error($t('page.jobs.loadFailed'));
       router.back();
@@ -150,6 +160,116 @@ async function loadCareerReport() {
     careerReport.value = null;
   } finally {
     loadingCareerReport.value = false;
+  }
+}
+
+async function loadCareerGraph() {
+  if (!jobId.value) return;
+  loadingCareerGraph.value = true;
+  try {
+    const { data, error } = await fetchGetJobCareerGraph(jobId.value);
+    if (!error && data) {
+      careerGraph.value = data;
+    } else {
+      careerGraph.value = null;
+    }
+  } catch {
+    careerGraph.value = null;
+  } finally {
+    loadingCareerGraph.value = false;
+  }
+}
+
+function openCareerGraphDrawer() {
+  careerGraphDrawerVisible.value = true;
+  loadCareerGraph();
+}
+
+async function pollLatestCareerGraph(
+  totalMs = 90_000,
+  intervalMs = 5_000
+): Promise<JobApi.JobCareerGraph | null> {
+  if (!jobId.value) return null;
+  const start = Date.now();
+  while (Date.now() - start < totalMs) {
+    await new Promise(r => setTimeout(r, intervalMs));
+    try {
+      const { data, error } = await fetchGetJobCareerGraph(jobId.value);
+      if (!error && data) {
+        return data;
+      }
+    } catch {
+      // 单次失败忽略，继续轮询
+    }
+  }
+  return null;
+}
+
+async function handleGenerateCareerGraph() {
+  if (!jobId.value) return;
+  generatingCareerGraph.value = true;
+  window.$message?.info($t('page.jobs.careerGraph.generating') as string, { duration: 6000 });
+  try {
+    const { data, error } = await fetchGenerateJobCareerGraph(jobId.value);
+    if (!error && data) {
+      careerGraph.value = data;
+      careerGraphDrawerVisible.value = true;
+      window.$message?.success($t('page.jobs.careerGraph.generateSuccess') as string);
+      return;
+    }
+    if (isGatewayTimeout(error)) {
+      window.$message?.warning($t('page.jobs.careerGraph.gatewayTimeoutFallback') as string, { duration: 6000 });
+      const polled = await pollLatestCareerGraph(120_000, 5_000);
+      if (polled) {
+        careerGraph.value = polled;
+        careerGraphDrawerVisible.value = true;
+        window.$message?.success($t('page.jobs.careerGraph.generateSuccess') as string);
+      } else {
+        window.$message?.error($t('page.jobs.careerGraph.gatewayTimeoutHint') as string, { duration: 8000 });
+      }
+    } else {
+      window.$message?.error(
+        extractApiError(error, $t('page.jobs.careerGraph.generateFailed') as string),
+        { duration: 6000 }
+      );
+    }
+  } catch (err) {
+    if (isGatewayTimeout(err)) {
+      window.$message?.warning($t('page.jobs.careerGraph.gatewayTimeoutFallback') as string, { duration: 6000 });
+      const polled = await pollLatestCareerGraph(120_000, 5_000);
+      if (polled) {
+        careerGraph.value = polled;
+        careerGraphDrawerVisible.value = true;
+        window.$message?.success($t('page.jobs.careerGraph.generateSuccess') as string);
+      } else {
+        window.$message?.error($t('page.jobs.careerGraph.gatewayTimeoutHint') as string, { duration: 8000 });
+      }
+    } else {
+      window.$message?.error(
+        extractApiError(err, $t('page.jobs.careerGraph.generateFailed') as string),
+        { duration: 6000 }
+      );
+    }
+  } finally {
+    generatingCareerGraph.value = false;
+  }
+}
+
+function getTransitionDifficultyLabel(difficulty?: string): string {
+  switch ((difficulty || '').toLowerCase()) {
+    case 'easy': return $t('page.jobs.careerGraph.difficultyEasy') as string;
+    case 'medium': return $t('page.jobs.careerGraph.difficultyMedium') as string;
+    case 'hard': return $t('page.jobs.careerGraph.difficultyHard') as string;
+    default: return difficulty || '-';
+  }
+}
+
+function getTransitionDifficultyType(difficulty?: string): 'success' | 'warning' | 'error' | 'default' {
+  switch ((difficulty || '').toLowerCase()) {
+    case 'easy': return 'success';
+    case 'medium': return 'warning';
+    case 'hard': return 'error';
+    default: return 'default';
   }
 }
 
@@ -556,6 +676,12 @@ const unknownSections = computed(() => {
   return reportSections.value.filter(s => !KNOWN_SECTION_KEYS.has(s.key));
 });
 
+const sortedVerticalPath = computed(() => {
+  const path = careerGraph.value?.verticalPath;
+  if (!path?.length) return [];
+  return [...path].sort((a, b) => (a.level ?? 0) - (b.level ?? 0));
+});
+
 onMounted(() => {
   if (jobId.value) {
     loadJobDetail();
@@ -585,6 +711,15 @@ onMounted(() => {
           <NButton @click="handleGenerateProfile" :loading="generatingProfile">
             <template #icon><span>🧠</span></template>
             {{ capabilityProfile ? $t('page.jobs.regenerateProfile') : $t('page.jobs.generateProfile') }}
+          </NButton>
+          <NButton
+            type="info"
+            ghost
+            @click="openCareerGraphDrawer"
+            :loading="loadingCareerGraph"
+          >
+            <template #icon><span>🗺️</span></template>
+            {{ careerGraph ? $t('page.jobs.careerGraph.view') : $t('page.jobs.careerGraph.entry') }}
           </NButton>
           <NButton
             type="info"
@@ -1340,6 +1475,197 @@ onMounted(() => {
             </div>
           </div>
         </NCard>
+      </NDrawerContent>
+    </NDrawer>
+
+    <!-- 岗位关联图谱 抽屉 -->
+    <NDrawer
+      v-model:show="careerGraphDrawerVisible"
+      :width="720"
+      :auto-focus="false"
+      placement="right"
+    >
+      <NDrawerContent
+        :title="$t('page.jobs.careerGraph.drawerTitle')"
+        closable
+      >
+        <div class="mb-4 flex items-center justify-between flex-wrap gap-3">
+          <div class="flex items-center gap-2 flex-wrap">
+            <NTag v-if="careerGraph?.targetRoleType" type="info" round size="small">
+              {{ $t('page.jobs.careerGraph.targetRoleType') }}：{{ careerGraph.targetRoleType }}
+            </NTag>
+          </div>
+          <NButton
+            size="small"
+            type="primary"
+            :loading="generatingCareerGraph"
+            @click="handleGenerateCareerGraph"
+          >
+            <template #icon><span>{{ careerGraph ? '🔄' : '✨' }}</span></template>
+            {{ careerGraph ? $t('page.jobs.careerGraph.regenerate') : $t('page.jobs.careerGraph.generate') }}
+          </NButton>
+        </div>
+
+        <template v-if="careerGraph">
+          <NCard
+            v-if="careerGraph.currentNode"
+            size="small"
+            :title="$t('page.jobs.careerGraph.currentNode')"
+            class="mb-4 rounded-lg"
+          >
+            <div class="space-y-2">
+              <div class="text-base font-semibold text-slate-800 dark:text-gray-200">
+                {{ careerGraph.currentNode.title }}
+              </div>
+              <p v-if="careerGraph.currentNode.description" class="text-sm text-slate-700 dark:text-gray-300 leading-relaxed">
+                {{ careerGraph.currentNode.description }}
+              </p>
+            </div>
+          </NCard>
+
+          <NCard
+            v-if="sortedVerticalPath.length"
+            size="small"
+            :title="$t('page.jobs.careerGraph.verticalPath')"
+            class="mb-4 rounded-lg"
+          >
+            <div class="space-y-4">
+              <div
+                v-for="(node, idx) in sortedVerticalPath"
+                :key="'vp-' + idx"
+                class="relative pl-6"
+              >
+                <div
+                  class="absolute left-0 top-1.5 w-3 h-3 rounded-full border-2"
+                  :class="node.current
+                    ? 'bg-indigo-500 border-indigo-500'
+                    : 'bg-white dark:bg-gray-800 border-indigo-300 dark:border-indigo-600'"
+                />
+                <div
+                  v-if="idx < sortedVerticalPath.length - 1"
+                  class="absolute left-[5px] top-4 bottom-0 w-0.5 bg-indigo-200 dark:bg-indigo-800/60"
+                />
+                <div
+                  class="rounded-lg p-3 border"
+                  :class="node.current
+                    ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800/40'
+                    : 'bg-slate-50 dark:bg-gray-800/40 border-slate-200 dark:border-gray-700'"
+                >
+                  <div class="flex items-center gap-2 flex-wrap mb-1">
+                    <span class="font-semibold text-slate-800 dark:text-gray-200">{{ node.title }}</span>
+                    <NTag v-if="node.current" size="tiny" type="info" round>{{ $t('page.jobs.careerGraph.current') }}</NTag>
+                    <NTag v-if="node.typicalYears" size="tiny" round>
+                      {{ $t('page.jobs.careerGraph.typicalYears') }}：{{ node.typicalYears }}
+                    </NTag>
+                  </div>
+                  <p v-if="node.description" class="text-sm text-slate-700 dark:text-gray-300 mb-2">
+                    {{ node.description }}
+                  </p>
+                  <div v-if="node.responsibilities?.length" class="mb-2">
+                    <div class="text-xs font-semibold text-slate-600 dark:text-gray-400 mb-1">
+                      {{ $t('page.jobs.careerGraph.responsibilities') }}
+                    </div>
+                    <ul class="list-disc list-inside text-sm text-slate-700 dark:text-gray-300 space-y-0.5">
+                      <li v-for="(item, i) in node.responsibilities" :key="'resp-' + i">{{ item }}</li>
+                    </ul>
+                  </div>
+                  <div v-if="node.keyRequirements?.length">
+                    <div class="text-xs font-semibold text-slate-600 dark:text-gray-400 mb-1">
+                      {{ $t('page.jobs.careerGraph.keyRequirements') }}
+                    </div>
+                    <div class="flex flex-wrap gap-1">
+                      <NTag v-for="(req, i) in node.keyRequirements" :key="'req-' + i" size="tiny" round>
+                        {{ req }}
+                      </NTag>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </NCard>
+
+          <NCard
+            v-if="careerGraph.transitionPaths?.length"
+            size="small"
+            :title="$t('page.jobs.careerGraph.transitionPaths')"
+            class="mb-4 rounded-lg"
+          >
+            <div class="space-y-4">
+              <div
+                v-for="(path, idx) in careerGraph.transitionPaths"
+                :key="'tp-' + idx"
+                class="rounded-lg p-3 border border-slate-200 dark:border-gray-700 bg-slate-50/60 dark:bg-gray-800/30"
+              >
+                <div class="flex items-center gap-2 flex-wrap mb-2">
+                  <span class="font-semibold text-slate-800 dark:text-gray-200">{{ path.name }}</span>
+                  <NTag
+                    v-if="path.difficulty"
+                    size="tiny"
+                    :type="getTransitionDifficultyType(path.difficulty)"
+                    round
+                  >
+                    {{ $t('page.jobs.careerGraph.difficulty') }}：{{ getTransitionDifficultyLabel(path.difficulty) }}
+                  </NTag>
+                </div>
+                <div v-if="path.targetRole" class="text-sm text-slate-700 dark:text-gray-300 mb-2">
+                  <span class="font-medium">{{ $t('page.jobs.careerGraph.targetRole') }}：</span>{{ path.targetRole }}
+                </div>
+                <p v-if="path.reason" class="text-sm text-slate-700 dark:text-gray-300 mb-2">
+                  <span class="font-medium">{{ $t('page.jobs.careerGraph.reason') }}：</span>{{ path.reason }}
+                </p>
+                <div v-if="path.bridgingSkills?.length" class="mb-3">
+                  <div class="text-xs font-semibold text-slate-600 dark:text-gray-400 mb-1">
+                    {{ $t('page.jobs.careerGraph.bridgingSkills') }}
+                  </div>
+                  <div class="flex flex-wrap gap-1">
+                    <NTag v-for="(skill, i) in path.bridgingSkills" :key="'bs-' + i" size="tiny" type="warning" round>
+                      {{ skill }}
+                    </NTag>
+                  </div>
+                </div>
+                <div v-if="path.nodes?.length">
+                  <div class="text-xs font-semibold text-slate-600 dark:text-gray-400 mb-2">
+                    {{ $t('page.jobs.careerGraph.pathNodes') }}
+                  </div>
+                  <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-wrap">
+                    <template v-for="(node, nodeIdx) in path.nodes" :key="'tn-' + nodeIdx">
+                      <div class="bg-white dark:bg-gray-800 rounded-lg px-3 py-2 border border-slate-200 dark:border-gray-700 min-w-[120px]">
+                        <div class="text-sm font-medium text-slate-800 dark:text-gray-200">{{ node.title }}</div>
+                        <p v-if="node.description" class="text-xs text-slate-600 dark:text-gray-400 mt-1">{{ node.description }}</p>
+                      </div>
+                      <div
+                        v-if="nodeIdx < (path.nodes?.length ?? 0) - 1"
+                        class="text-slate-400 text-center sm:rotate-0 rotate-90"
+                      >
+                        →
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </NCard>
+
+          <div
+            v-if="careerGraph.summary"
+            class="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 p-4 rounded-lg border border-indigo-200 dark:border-indigo-800"
+          >
+            <h4 class="font-semibold text-slate-800 dark:text-gray-200 mb-2 flex items-center gap-2">
+              <span class="text-indigo-600">📝</span>
+              {{ $t('page.jobs.summary') }}
+            </h4>
+            <p class="text-slate-700 dark:text-gray-300 italic">{{ careerGraph.summary }}</p>
+          </div>
+        </template>
+
+        <NEmpty v-else :description="$t('page.jobs.careerGraph.empty')" class="py-12">
+          <template #extra>
+            <NButton type="primary" :loading="generatingCareerGraph" @click="handleGenerateCareerGraph">
+              <template #icon><span>🗺️</span></template>
+              {{ $t('page.jobs.careerGraph.generate') }}
+            </NButton>
+          </template>
+        </NEmpty>
       </NDrawerContent>
     </NDrawer>
   </NSpin>
