@@ -158,6 +158,21 @@ public Result<?> updateMe(...) { ... }
 | `PUT /users/me` | USER 20/min |
 | `GET /users/validation/username` | GLOBAL 10/min + IP 5/min |
 
+### 当前已接入（LLM 推理接口）
+
+阈值常量见 `com.zdmj.common.ai.LlmRateLimits`；威胁模型见 [`prompt-security.md`](prompt-security.md)。
+
+| 接口 | 规则 |
+|------|------|
+| `POST /messages/chat` | USER 30/min |
+| `POST /capability-profile/generate` | USER 10/min |
+| `POST /matches/jobs/{jobId}` | USER 10/min |
+| `POST /career-reports/jobs/{jobId}` | USER 5/min |
+| `POST /career-reports/{id}/polish` | USER 10/min |
+| `POST /career-reports/{id}/integrity-check` | USER 10/min |
+| `POST /jobs/{id}/capability-profile` | USER 10/min |
+| `POST /jobs/{id}/career-graph` | USER 5/min |
+
 ---
 
 ## 测试

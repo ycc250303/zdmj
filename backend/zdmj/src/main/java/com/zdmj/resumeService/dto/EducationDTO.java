@@ -64,11 +64,6 @@ public class EducationDTO {
     private LocalDate endDate;
 
     /**
-     * 是否在简历中展示
-     */
-    private Boolean visible = true;
-
-    /**
      * 绩点
      */
     private String gpa;

@@ -89,12 +89,12 @@ class CareerServiceImplTest {
 
     @Test
     void getByUserId_shouldCallMapper() {
-        doReturn(List.of(new Career())).when(careerMapper).selectByUserId(1L, null);
+        doReturn(List.of(new Career())).when(careerMapper).selectByUserId(1L);
 
         List<Career> out = service.getByUserId();
 
         assertEquals(1, out.size());
-        verify(careerMapper).selectByUserId(1L, null);
+        verify(careerMapper).selectByUserId(1L);
     }
 
     @Test

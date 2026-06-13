@@ -153,7 +153,7 @@ class ResumeCrudServicesTest {
     void skillCreate_userNotLogin_shouldThrowAndSkipSave() {
         UserHolder.clear();
         SkillDTO dto = new SkillDTO();
-        dto.setName("skill-x");
+        dto.setContent(validSkillContent());
 
         BusinessException ex = assertThrows(BusinessException.class, () -> skillService.create(dto));
 
@@ -167,7 +167,6 @@ class ResumeCrudServicesTest {
         Skill existing = new Skill();
         existing.setId(40L);
         existing.setUserId(1L);
-        existing.setName("java");
         doReturn(existing).when(skillMapper).selectById(40L);
         doReturn(false).when(skillService).removeById(40L);
 
@@ -184,6 +183,13 @@ class ResumeCrudServicesTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> careerService.getByUserId());
 
         assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
-        verify(careerMapper, never()).selectByUserId(any(), any());
+        verify(careerMapper, never()).selectByUserId(any());
+    }
+
+    private java.util.List<com.zdmj.resumeService.dto.SkillItemDTO> validSkillContent() {
+        com.zdmj.resumeService.dto.SkillItemDTO item = new com.zdmj.resumeService.dto.SkillItemDTO();
+        item.setType("后端");
+        item.setContent(java.util.List.of("Java"));
+        return java.util.List.of(item);
     }
 }

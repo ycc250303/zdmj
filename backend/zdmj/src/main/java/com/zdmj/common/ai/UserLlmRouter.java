@@ -117,6 +117,17 @@ public class UserLlmRouter {
     private String platformModel;
 
     /**
+     * DeepSeek 平台 API Key（简历识别等固定 deepseek 场景优先使用）
+     */
+    @Value("${app.ai.deepseek.api-key:}")
+    private String deepseekApiKey;
+
+    /**
+     * 按平台指定模型缓存的 ChatClient（与用户配置无关）
+     */
+    private final Map<String, ChatClient> platformClientCache = new ConcurrentHashMap<>();
+
+    /**
      * 用户 API Key 加解密器
      */
     private TextEncryptor textEncryptor;
@@ -153,6 +164,17 @@ public class UserLlmRouter {
      */
     public ChatClient getChatClientWithMemory(Long userId) {
         return cachedClient(userId, true);
+    }
+
+    /**
+     * 获取平台指定模型的 ChatClient（忽略用户自配 LLM，用于简历识别等固定模型任务）
+     *
+     * @param model 平台模型目录项
+     * @return 无会话记忆的 ChatClient
+     */
+    public ChatClient getPlatformChatClient(ModelEnum model) {
+        return platformClientCache.computeIfAbsent("platform:" + model.code(),
+                k -> createPlatformChatClient(model));
     }
 
     /**
@@ -287,6 +309,36 @@ public class UserLlmRouter {
             throw new BusinessException(ErrorCode.USER_LLM_NOT_CONFIGURED);
         }
         return new ResolvedProvider(platformBaseUrl, platformApiKey.trim(), platformModel, true);
+    }
+
+    /**
+     * 解析平台指定模型连接参数（不读取用户 LLM 配置）
+     */
+    private ResolvedProvider resolvePlatformProvider(ModelEnum model) {
+        String apiKey = resolvePlatformApiKey(model);
+        if (!StringUtils.hasText(apiKey)) {
+            throw new BusinessException(ErrorCode.USER_LLM_NOT_CONFIGURED.getCode(),
+                    "平台大模型 API Key 未配置，请配置 DEEPSEEK_API_KEY 或 SPRING_AI_OPENAI_API_KEY");
+        }
+        return new ResolvedProvider(model.baseUrl(), apiKey.trim(), model.apiModelName(), true);
+    }
+
+    private String resolvePlatformApiKey(ModelEnum model) {
+        if (model == ModelEnum.DEEPSEEK_FLASH || model == ModelEnum.DEEPSEEK_PRO) {
+            if (StringUtils.hasText(deepseekApiKey)) {
+                return deepseekApiKey;
+            }
+        }
+        return platformApiKey;
+    }
+
+    private ChatClient createPlatformChatClient(ModelEnum model) {
+        ResolvedProvider resolved = resolvePlatformProvider(model);
+        ChatClient client = ChatClient.builder(
+                chatModel(resolved.baseUrl(), resolved.apiKey(), resolved.model())).build();
+        log.info("[UserLlmRouter] created platform ChatClient model={} baseUrl={}",
+                resolved.model(), resolved.baseUrl());
+        return client;
     }
 
     /**

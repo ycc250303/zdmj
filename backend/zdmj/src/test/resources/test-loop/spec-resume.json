@@ -5,17 +5,17 @@
       "className": "ResumeServiceImpl",
       "method": "create(ResumeDTO)",
       "givenWhenThen": {
-        "given": ["用户已登录", "简历名可用"],
+        "given": ["用户已登录", "用户尚无简历"],
         "when": "创建简历",
         "then": ["保存成功并返回简历", "自动挂载当前可见教育/工作/项目ID"]
       },
       "paths": [
         {"pathId": "REGISTER_HAPPY", "type": "happy", "description": "创建简历成功"},
-        {"pathId": "REGISTER_NEGATIVE_NAME_EXISTS", "type": "negative", "description": "简历名重复抛 RESUME_NAME_EXISTS"}
+        {"pathId": "REGISTER_NEGATIVE_ALREADY_EXISTS", "type": "negative", "description": "用户已有简历抛 RESUME_ALREADY_EXISTS"}
       ],
       "assertionContract": [
-        {"field": "exception.code", "expected": "3001", "reason": "重名分支必须断言错误码"},
-        {"field": "interaction", "expected": "verify existsByName/save", "reason": "确保分支与持久化行为被验证"}
+        {"field": "exception.code", "expected": "3003", "reason": "重复创建分支必须断言错误码"},
+        {"field": "interaction", "expected": "verify existsByUserId/save", "reason": "确保分支与持久化行为被验证"}
       ]
     },
     {
@@ -55,7 +55,7 @@
     }
   ],
   "minimumTestSet": [
-    {"caseId": "resume_create_name_exists", "coversPathIds": ["REGISTER_NEGATIVE_NAME_EXISTS"]},
+    {"caseId": "resume_create_already_exists", "coversPathIds": ["REGISTER_NEGATIVE_ALREADY_EXISTS"]},
     {"caseId": "profile_generate_missing_input", "coversPathIds": ["LOGIN_NEGATIVE_BAD_REQUEST"]},
     {"caseId": "profile_generate_llm_illegal_state", "coversPathIds": ["RESET_PASSWORD_NEGATIVE_LLM_FAIL"]},
     {"caseId": "resume_content_list_aggregate", "coversPathIds": ["UPDATE_INFO_HAPPY"]},

@@ -2,7 +2,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import {
-  fetchGetResumeDetail,        // 只拉取简历的外壳（名称、绑定的技能ID）
+  fetchGetResumeDetail,        // 拉取简历外壳（id、绑定的技能ID）
   fetchUpdateResume,
   fetchGetEducationList,       // 拉取全局教育经历池
   fetchAddEducation,
@@ -50,13 +50,12 @@ export const useResumeStore = defineStore('resume-editor', () => {
         fetchGetSkillList()
       ]);
 
-      const currentSkill = skillRes.data?.find((s:any) => s.id === baseResume.skillId) 
-        || skillRes.data?.[0] 
-        || { id: baseResume.skillId, name: '默认技能', content: [] };
+      const currentSkill = skillRes.data?.find((s: ResumeApi.SkillDTO) => s.id === baseResume.skillId)
+        || skillRes.data?.[0]
+        || { id: baseResume.skillId, content: [] };
 
       resumeData.value = {
         id: baseResume.id,
-        name: baseResume.name,
         skill: currentSkill as ResumeApi.SkillDTO,
         educations: eduRes.data || [],
         projects: projRes.data || [],
@@ -85,10 +84,9 @@ export const useResumeStore = defineStore('resume-editor', () => {
     try {
       const updatePromises = [];
 
-      updatePromises.push(fetchUpdateResume({ 
-        id: resumeData.value.id, 
-        name: resumeData.value.name, 
-        skillId: resumeData.value.skill?.id || 1 
+      updatePromises.push(fetchUpdateResume({
+        id: resumeData.value.id,
+        skillId: resumeData.value.skill?.id || 1
       }));
 
       const userPayload = {

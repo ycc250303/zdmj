@@ -175,14 +175,8 @@ const routeMap: RouteMap = {
   "knowledge": "/knowledge",
   "login": "/login/:module(pwd-login|code-login|register|reset-pwd|bind-wechat)?",
   "portal": "/portal",
-  "profile": "/profile",
-  "profile_basic-info": "/profile/basic-info",
-  "profile_capability": "/profile/capability",
-  "profile_career": "/profile/career",
-  "profile_education": "/profile/education",
-  "profile_project": "/profile/project",
-  "profile_skill": "/profile/skill",
-  "resumes": "/resumes",
+  "capability-profile": "/profile/capability",
+  "resume-import": "/resume-import",
   "resumes-editor": "/resumes-editor",
   "user-settings": "/user-settings"
 };

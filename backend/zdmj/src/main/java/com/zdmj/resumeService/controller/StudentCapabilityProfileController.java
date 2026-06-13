@@ -1,6 +1,10 @@
 package com.zdmj.resumeService.controller;
 
+import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.ai.LlmRateLimits;
 import com.zdmj.common.model.Result;
+
+import java.util.concurrent.TimeUnit;
 import com.zdmj.resumeService.dto.CapabilityProfileGenerateRequest;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileDTO;
 import com.zdmj.resumeService.service.StudentCapabilityProfileService;
@@ -48,6 +52,8 @@ public class StudentCapabilityProfileController {
      * @param reqDTO 生成参数
      * @return 生成的能力画像
      */
+    @RateLimit(dimension = RateLimit.Dimension.USER, count = LlmRateLimits.CAPABILITY_PROFILE_GENERATE_PER_MIN,
+            interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/generate")
     public Result<StudentCapabilityProfileDTO> generateProfile(@Validated @RequestBody CapabilityProfileGenerateRequest reqDTO) {
         log.info("开始生成学生能力画像");

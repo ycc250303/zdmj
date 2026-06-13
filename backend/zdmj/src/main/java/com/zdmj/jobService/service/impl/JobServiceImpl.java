@@ -10,6 +10,7 @@ import com.zdmj.jobService.dto.JobDTO;
 import com.zdmj.jobService.dto.JobPageQueryDTO;
 import com.zdmj.jobService.entity.Company;
 import com.zdmj.jobService.entity.Job;
+import com.zdmj.jobService.enums.JobEmploymentEnum;
 import com.zdmj.jobService.mapper.CompanyMapper;
 import com.zdmj.jobService.mapper.JobMapper;
 import com.zdmj.jobService.service.JobService;
@@ -70,8 +71,14 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
      * 用工类型与 salaryType 互斥；薪资区间仅在已明确薪资单位时生效。
      */
     private static void resolveSalaryQuery(JobPageQueryDTO q) {
+        q.setFullTimeEmployment(null);
         if (q.getEmployment() != null) {
-            q.setResolvedSalaryType(null);
+            if (q.getEmployment() == JobEmploymentEnum.INTERN) {
+                q.setResolvedSalaryType(1);
+            } else {
+                q.setResolvedSalaryType(null);
+                q.setFullTimeEmployment(true);
+            }
         } else if (q.getSalaryType() != null) {
             int type = q.getSalaryType();
             if (type < 1 || type > 3) {
@@ -81,9 +88,19 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
         } else {
             q.setResolvedSalaryType(null);
         }
-        if (q.getEmployment() == null && q.getResolvedSalaryType() == null) {
+        if (q.getEmployment() == null && q.getResolvedSalaryType() == null && !Boolean.TRUE.equals(q.getFullTimeEmployment())) {
             q.setFilterSalaryMin(null);
             q.setFilterSalaryMax(null);
+        } else {
+            validateSalaryFilterRange(q);
+        }
+    }
+
+    private static void validateSalaryFilterRange(JobPageQueryDTO q) {
+        Integer min = q.getFilterSalaryMin();
+        Integer max = q.getFilterSalaryMax();
+        if (min != null && max != null && min > max) {
+            throw new IllegalArgumentException("最低薪资不能大于最高薪资");
         }
     }
 

@@ -40,7 +40,7 @@ const quickActions = computed<QuickAction[]>(() => [
     title: $t('page.home.resume.title'),
     description: $t('page.home.resume.description'),
     icon: '📑',
-    route: '/resumes',
+    route: '/resume-import',
     accent: '#10b981',
     positionClass: 'card-3'
   },

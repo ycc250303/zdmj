@@ -59,7 +59,6 @@ class EducationServiceImplTest {
         dto.setDegree(3);
         dto.setStartDate(LocalDate.of(2020, 9, 1));
         dto.setEndDate(LocalDate.of(2024, 6, 30));
-        dto.setVisible(true);
         dto.setGpa("3.9");
         doReturn(true).when(service).save(any(Education.class));
 
@@ -105,12 +104,12 @@ class EducationServiceImplTest {
 
     @Test
     void getByUserId_shouldCallMapper() {
-        doReturn(List.of(new Education())).when(educationMapper).selectByUserId(1L, null);
+        doReturn(List.of(new Education())).when(educationMapper).selectByUserId(1L);
 
         List<Education> out = service.getByUserId();
 
         assertEquals(1, out.size());
-        verify(educationMapper).selectByUserId(1L, null);
+        verify(educationMapper).selectByUserId(1L);
     }
 
     @Test

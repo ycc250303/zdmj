@@ -59,7 +59,7 @@ class JobServiceImplTest {
     }
 
     @Test
-    void getDetail_null_marker_notFound_shouldThrow8201() {
+    void getDetail_null_marker_notFound_shouldThrow10001() {
         Long jobId = 101L;
         String key = RedisConstants.JOB_DETAIL_KEY + jobId;
         doReturn(true).when(redisUtil).isNullValue(key);
@@ -72,7 +72,7 @@ class JobServiceImplTest {
     }
 
     @Test
-    void getDetail_db_miss_notFound_shouldSetNullCacheAndThrow8201() {
+    void getDetail_db_miss_notFound_shouldSetNullCacheAndThrow10001() {
         Long jobId = 102L;
         String key = RedisConstants.JOB_DETAIL_KEY + jobId;
         doReturn(false).when(redisUtil).isNullValue(key);
@@ -142,7 +142,7 @@ class JobServiceImplTest {
     }
 
     @Test
-    void update_notFound_shouldThrow8201() {
+    void update_notFound_shouldThrow10001() {
         JobDTO dto = new JobDTO();
         dto.setId(404L);
         doReturn(null).when(jobMapper).selectById(404L);
@@ -203,7 +203,7 @@ class JobServiceImplTest {
     }
 
     @Test
-    void update_notFound_shouldThrow8201AndSkipUpdate() {
+    void update_notFound_shouldThrow10001AndSkipUpdate() {
         JobDTO dto = new JobDTO();
         dto.setId(405L);
         doReturn(null).when(jobMapper).selectById(405L);
@@ -216,7 +216,7 @@ class JobServiceImplTest {
     }
 
     @Test
-    void delete_notFound_shouldThrow8201AndSkipCacheEvict() {
+    void delete_notFound_shouldThrow10001AndSkipCacheEvict() {
         Long jobId = 502L;
         doReturn(false).when(jobService).removeById(jobId);
 
@@ -362,8 +362,28 @@ class JobServiceImplTest {
         JobPageQueryDTO normalized = captor.getValue();
         assertEquals(JobEmploymentEnum.FULL_TIME, normalized.getEmployment());
         assertNull(normalized.getResolvedSalaryType());
+        assertEquals(Boolean.TRUE, normalized.getFullTimeEmployment());
         assertEquals(15000, normalized.getFilterSalaryMin());
         assertEquals(30000, normalized.getFilterSalaryMax());
+    }
+
+    @Test
+    void getPage_whenInternEmployment_shouldSetResolvedSalaryTypeOne() {
+        JobPageQueryDTO query = new JobPageQueryDTO();
+        query.setEmployment(JobEmploymentEnum.INTERN);
+        Page<JobListItemDTO> mpPage = new Page<>(1, 20);
+        mpPage.setRecords(List.of());
+        mpPage.setTotal(0);
+        doReturn(mpPage).when(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
+
+        jobService.getPage(query);
+
+        ArgumentCaptor<JobPageQueryDTO> captor = ArgumentCaptor.forClass(JobPageQueryDTO.class);
+        verify(jobMapper).selectJobPage(any(Page.class), captor.capture());
+        JobPageQueryDTO normalized = captor.getValue();
+        assertEquals(JobEmploymentEnum.INTERN, normalized.getEmployment());
+        assertEquals(1, normalized.getResolvedSalaryType());
+        assertNull(normalized.getFullTimeEmployment());
     }
 
     @Test
@@ -385,6 +405,18 @@ class JobServiceImplTest {
         assertNull(normalized.getResolvedSalaryType());
         assertNull(normalized.getFilterSalaryMin());
         assertNull(normalized.getFilterSalaryMax());
+    }
+
+    @Test
+    void getPage_whenFilterSalaryMinGreaterThanMax_shouldThrow() {
+        JobPageQueryDTO query = new JobPageQueryDTO();
+        query.setEmployment(JobEmploymentEnum.FULL_TIME);
+        query.setFilterSalaryMin(20000);
+        query.setFilterSalaryMax(10000);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> jobService.getPage(query));
+        assertEquals("最低薪资不能大于最高薪资", ex.getMessage());
+        verify(jobMapper, never()).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
     }
 
     private static void initMybatisPlusLambdaCache() {

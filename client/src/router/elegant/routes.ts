@@ -95,7 +95,8 @@ export const generatedRoutes: GeneratedRoute[] = [
     component: 'layout.base$view.jobs',
     meta: {
       title: 'jobs',
-      i18nKey: 'route.jobs'
+      i18nKey: 'route.jobs',
+      order: 4
     }
   },
   {
@@ -130,77 +131,23 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
-    name: 'profile',
-    path: '/profile',
-    component: 'layout.base',
+    name: 'capability-profile',
+    path: '/profile/capability',
+    component: 'layout.base$view.capability-profile',
     meta: {
-      title: 'profile',
-      i18nKey: 'route.profile'
-    },
-    children: [
-      {
-        name: 'profile_basic-info',
-        path: '/profile/basic-info',
-        component: 'view.profile_basic-info',
-        meta: {
-          title: 'profile_basic-info',
-          i18nKey: 'route.profile_basic-info'
-        }
-      },
-      {
-        name: 'profile_capability',
-        path: '/profile/capability',
-        component: 'view.profile_capability',
-        meta: {
-          title: 'profile_capability',
-          i18nKey: 'route.profile_capability'
-        }
-      },
-      {
-        name: 'profile_career',
-        path: '/profile/career',
-        component: 'view.profile_career',
-        meta: {
-          title: 'profile_career',
-          i18nKey: 'route.profile_career'
-        }
-      },
-      {
-        name: 'profile_education',
-        path: '/profile/education',
-        component: 'view.profile_education',
-        meta: {
-          title: 'profile_education',
-          i18nKey: 'route.profile_education'
-        }
-      },
-      {
-        name: 'profile_project',
-        path: '/profile/project',
-        component: 'view.profile_project',
-        meta: {
-          title: 'profile_project',
-          i18nKey: 'route.profile_project'
-        }
-      },
-      {
-        name: 'profile_skill',
-        path: '/profile/skill',
-        component: 'view.profile_skill',
-        meta: {
-          title: 'profile_skill',
-          i18nKey: 'route.profile_skill'
-        }
-      }
-    ]
+      title: 'capability-profile',
+      i18nKey: 'route.profile_capability',
+      order: 3
+    }
   },
   {
-    name: 'resumes',
-    path: '/resumes',
-    component: 'layout.base$view.resumes',
+    name: 'resume-import',
+    path: '/resume-import',
+    component: 'layout.base$view.resume-import',
     meta: {
-      title: 'resumes',
-      i18nKey: 'route.resumes'
+      title: 'resume-import',
+      i18nKey: 'route.resume-import',
+      order: 2
     }
   },
   {

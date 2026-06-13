@@ -78,11 +78,6 @@ public class ProjectExperience extends BaseEntity {
     private String url;
 
     /**
-     * 是否在简历中展示
-     */
-    private Boolean visible;
-
-    /**
      * 项目分析状态（枚举：1=committed已提交/2=mining挖掘中/3=polishing打磨中/4=completed已完成）
      */
     private Integer status;

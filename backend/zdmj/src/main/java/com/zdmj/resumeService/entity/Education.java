@@ -58,11 +58,6 @@ public class Education extends BaseEntity {
     private LocalDate endDate;
 
     /**
-     * 是否在简历中展示
-     */
-    private Boolean visible;
-
-    /**
      * 绩点
      */
     private String gpa;

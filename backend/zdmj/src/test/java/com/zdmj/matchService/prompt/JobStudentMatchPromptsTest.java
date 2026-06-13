@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@code job-student-match/*.md} 提示词正文里嵌入了 JSON 示例（含大量 <code>{</code>
  * <code>}</code>），一旦走 PromptTemplate 渲染（即传入非空 promptVars），就会触发
  * {@code STException("... came as a complete surprise to me")} 并被
- * {@code JobStudentMatchServiceImpl#generate} 的兜底 catch 吞成 8301 错误码。</p>
+ * {@code JobStudentMatchServiceImpl#generate} 的兜底 catch 吞成 11001 错误码。</p>
  *
  * <p>此测试用例（持久回归）确保：</p>
  * <ol>

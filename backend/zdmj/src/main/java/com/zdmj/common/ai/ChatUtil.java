@@ -58,6 +58,24 @@ public class ChatUtil {
     }
 
     /**
+     * 使用平台指定模型进行单次结构化对话（忽略用户 LLM 配置）。
+     */
+    public <T> T chatStructuredOnceWithPlatformModel(String userMessage, String promptName,
+            Map<String, Object> promptVars, Class<T> outputType, ModelEnum model) {
+        BeanOutputConverter<T> converter = new BeanOutputConverter<>(outputType);
+        String userPayload = buildStructuredUserPayload(userMessage, converter.getFormat());
+        ChatClientRequestSpec spec = userLlmRouter.getPlatformChatClient(model).prompt();
+        spec = applySystemPrompt(spec, promptName, promptVars);
+        String content = spec.user(userPayload).call().content();
+        String cleaned = stripCodeFence(content);
+        T parsed = converter.convert(cleaned);
+        if (parsed == null) {
+            throw new IllegalStateException("结构化输出解析结果为空");
+        }
+        return parsed;
+    }
+
+    /**
      * 构建结构化用户消息
      * 
      * @param userMessage 用户消息

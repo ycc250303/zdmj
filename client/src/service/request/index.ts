@@ -4,7 +4,7 @@ import { useAuthStore } from '@/store/modules/auth';
 import { localStg } from '@/utils/storage';
 import { getServiceBaseURL } from '@/utils/service';
 import { $t } from '@/locales';
-import { getAuthorization, handleExpiredRequest, showErrorMsg } from './shared';
+import { getAuthorization, handleExpiredRequest, showErrorMsg, getLogoutCodes, shouldForceLogout, resolveRequestErrorInfo, forceLogout } from './shared';
 import { normalizeErrorResponse, parseApiErrorBody, type ApiErrorBody } from './api-error';
 import type { RequestInstanceState } from './type';
 
@@ -64,8 +64,8 @@ export const request = createFlatRequest(
       }
 
       // when the backend response code is in `logoutCodes`, it means the user will be logged out and redirected to login page
-      const logoutCodes = import.meta.env.VITE_SERVICE_LOGOUT_CODES?.split(',') || [];
-      if (logoutCodes.includes(responseCode)) {
+      const logoutCodes = getLogoutCodes();
+      if (logoutCodes.includes(responseCode) || response.status === 401) {
         handleLogout();
         return null;
       }
@@ -111,16 +111,21 @@ export const request = createFlatRequest(
       return null;
     },
     onError(error) {
+      const { httpStatus, message, backendErrorCode } = resolveRequestErrorInfo(error);
+
+      if (shouldForceLogout(httpStatus, backendErrorCode)) {
+        void forceLogout();
+        return;
+      }
+
       // when the request is fail, you can show error message
 
-      let message = error.message;
-      let backendErrorCode = '';
+      let displayMessage = message;
 
       // get backend error message and code (RFC 9457 Problem Details or legacy Result)
-      if (error.code === BACKEND_ERROR_CODE) {
+      if (error.code === BACKEND_ERROR_CODE && !displayMessage) {
         const parsed = parseApiErrorBody(error.response?.data as ApiErrorBody);
-        message = parsed.msg || message;
-        backendErrorCode = parsed.code;
+        displayMessage = parsed.msg || displayMessage;
       }
 
       // the error message is displayed in the modal
@@ -135,7 +140,7 @@ export const request = createFlatRequest(
         return;
       }
 
-      showErrorMsg(request.state, message);
+      showErrorMsg(request.state, displayMessage);
     }
   }
 );

@@ -43,14 +43,16 @@ public enum ErrorCode {
     USER_LLM_CONNECTION_TEST_FAILED(2014, "大模型连通性测试失败", HttpStatus.BAD_REQUEST),
 
     // ========== 简历与能力画像 3xxx ==========
-    RESUME_NAME_EXISTS(3001, "简历名称已存在，请使用其他名称", HttpStatus.CONFLICT),
     RESUME_CREATE_FAILED(3002, "创建简历失败", HttpStatus.BAD_REQUEST),
+    RESUME_ALREADY_EXISTS(3003, "用户已有简历，不能重复创建", HttpStatus.CONFLICT),
     RESUME_UPDATE_FAILED(3004, "更新简历失败", HttpStatus.BAD_REQUEST),
     RESUME_DELETE_FAILED(3005, "删除简历失败", HttpStatus.BAD_REQUEST),
     RESUME_NOT_FOUND(3006, "简历不存在", HttpStatus.NOT_FOUND),
     CAPABILITY_PROFILE_SCORE_INVALID(3010, "能力画像分项评分超出合法范围", HttpStatus.BAD_REQUEST),
     CAPABILITY_PROFILE_NOT_FOUND(3011, "当前用户尚未生成能力画像", HttpStatus.NOT_FOUND),
     CAPABILITY_PROFILE_GENERATION_FAILED(3012, "能力画像生成失败，请稍后重试", HttpStatus.BAD_REQUEST),
+    RESUME_IMPORT_PARSE_FAILED(3013, "简历识别失败，请稍后重试", HttpStatus.BAD_REQUEST),
+    RESUME_IMPORT_TEXT_EMPTY(3014, "提取到的简历文本为空，无法识别", HttpStatus.BAD_REQUEST),
 
     // ========== 项目经历 4xxx ==========
     PROJECT_EXPERIENCE_ADD_FAILED(4001, "添加项目经历失败", HttpStatus.BAD_REQUEST),
@@ -72,6 +74,13 @@ public enum ErrorCode {
     EDUCATION_GRADUATE_TIME_INVALID(6003, "毕业时间不能早于入学时间", HttpStatus.BAD_REQUEST),
     EDUCATION_DELETE_FAILED(6004, "删除教育经历失败", HttpStatus.BAD_REQUEST),
     EDUCATION_NOT_FOUND(6005, "教育经历不存在", HttpStatus.NOT_FOUND),
+
+    // ========== 获奖信息 6500 ==========
+    AWARD_ADD_FAILED(6501, "添加获奖信息失败", HttpStatus.BAD_REQUEST),
+    AWARD_UPDATE_FAILED(6502, "更新获奖信息失败", HttpStatus.BAD_REQUEST),
+    AWARD_DELETE_FAILED(6503, "删除获奖信息失败", HttpStatus.BAD_REQUEST),
+    AWARD_NOT_FOUND(6504, "获奖信息不存在", HttpStatus.NOT_FOUND),
+    AWARD_TYPE_INVALID(6505, "奖项类型无效", HttpStatus.BAD_REQUEST),
 
     // ========== 技能 7xxx ==========
     SKILL_ADD_FAILED(7001, "添加技能失败", HttpStatus.BAD_REQUEST),
@@ -97,21 +106,21 @@ public enum ErrorCode {
     CONVERSATION_UPDATE_FAILED(9004, "更新会话失败", HttpStatus.BAD_REQUEST),
     MESSAGE_CREATE_FAILED(9005, "创建消息失败", HttpStatus.BAD_REQUEST),
 
-    // ========== 岗位 82xx ==========
-    JOB_NOT_FOUND(8201, "岗位不存在", HttpStatus.NOT_FOUND),
-    JOB_CAPABILITY_PROFILE_GENERATION_FAILED(8202, "生成岗位能力画像失败", HttpStatus.BAD_REQUEST),
-    JOB_CAREER_GRAPH_GENERATION_FAILED(8204, "生成岗位关联图谱失败", HttpStatus.BAD_REQUEST),
-    JOB_CAREER_GRAPH_INVALID(8205, "岗位关联图谱结果不符合要求（晋升路径或换岗路径数量不足）", HttpStatus.BAD_REQUEST),
+    // ========== 岗位 jobService 100xx ==========
+    JOB_NOT_FOUND(10001, "岗位不存在", HttpStatus.NOT_FOUND),
+    JOB_CAPABILITY_PROFILE_GENERATION_FAILED(10002, "生成岗位能力画像失败", HttpStatus.BAD_REQUEST),
+    JOB_CAREER_GRAPH_GENERATION_FAILED(10004, "生成岗位关联图谱失败", HttpStatus.BAD_REQUEST),
+    JOB_CAREER_GRAPH_INVALID(10005, "岗位关联图谱结果不符合要求（晋升路径或换岗路径数量不足）", HttpStatus.BAD_REQUEST),
 
-    // ========== 人岗匹配 83xx ==========
-    MATCH_GENERATION_FAILED(8301, "生成人岗匹配分析失败，请稍后重试", HttpStatus.BAD_REQUEST),
-    MATCH_PRECONDITION_MISSING(8302, "学生能力画像缺失，请先到能力画像页生成画像", HttpStatus.BAD_REQUEST),
+    // ========== 人岗匹配 matchService 110xx ==========
+    MATCH_GENERATION_FAILED(11001, "生成人岗匹配分析失败，请稍后重试", HttpStatus.BAD_REQUEST),
+    MATCH_PRECONDITION_MISSING(11002, "学生能力画像缺失，请先到能力画像页生成画像", HttpStatus.BAD_REQUEST),
 
-    // ========== 职业发展报告 84xx ==========
-    CAREER_REPORT_NOT_FOUND(8401, "职业发展报告不存在", HttpStatus.NOT_FOUND),
-    CAREER_REPORT_GENERATION_FAILED(8402, "生成职业发展报告失败，请稍后重试", HttpStatus.BAD_REQUEST),
-    CAREER_REPORT_POLISH_FAILED(8403, "润色职业发展报告失败，请稍后重试", HttpStatus.BAD_REQUEST),
-    CAREER_REPORT_INVALID(8404, "职业发展报告结果不符合要求", HttpStatus.BAD_REQUEST);
+    // ========== 职业发展报告 careerReportService 120xx ==========
+    CAREER_REPORT_NOT_FOUND(12001, "职业发展报告不存在", HttpStatus.NOT_FOUND),
+    CAREER_REPORT_GENERATION_FAILED(12002, "生成职业发展报告失败，请稍后重试", HttpStatus.BAD_REQUEST),
+    CAREER_REPORT_POLISH_FAILED(12003, "润色职业发展报告失败，请稍后重试", HttpStatus.BAD_REQUEST),
+    CAREER_REPORT_INVALID(12004, "职业发展报告结果不符合要求", HttpStatus.BAD_REQUEST);
 
     private final Integer code;
     private final String message;

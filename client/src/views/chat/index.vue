@@ -454,19 +454,7 @@ onMounted(() => {
                   class="flex gap-3"
                   :class="msg.role === 1 ? 'flex-row-reverse' : ''"
                 >
-                  <!-- 头像 -->
-                  <n-avatar
-                    round
-                    :size="32"
-                    :class="msg.role === 2 ? 'bg-blue-100 text-blue-600' : 'bg-gray-200'"
-                  >
-                    <template v-if="msg.role === 2">
-                      <div class="i-icon-park-outline:robot text-base" />
-                    </template>
-                    <template v-else>
-                      <div class="i-icon-park-outline:user text-base" />
-                    </template>
-                  </n-avatar>
+                  <ChatMessageAvatar :role="msg.role" />
 
                   <!-- 消息气泡 -->
                   <div

@@ -6,33 +6,23 @@ import com.zdmj.common.model.CreateGroup;
 import com.zdmj.common.model.UpdateGroup;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
-
 /**
- * 技能实体类
- * 对应数据库表：skills
+ * 技能 DTO（一用户一份技能清单，仅维护 content）
  */
 @Data
 public class SkillDTO {
     /**
-     * 技能ID（主键，自增，更新时不能为空）
+     * 技能ID（更新时不能为空）
      */
     @NotNull(message = "技能ID不能为空", groups = UpdateGroup.class)
     private Long id;
 
     /**
-     * 技能清单名称（创建时不能为空）
-     */
-    @NotBlank(message = "技能清单名称不能为空", groups = CreateGroup.class)
-    private String name;
-
-    /**
      * 职业技能描述（结构化对象数组）
-     * 对应数据库 JSONB 数组字段 content，创建时不能为空且至少包含 1 项
      */
     @Valid
     @NotEmpty(message = "技能内容不能为空", groups = CreateGroup.class)

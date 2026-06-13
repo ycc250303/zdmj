@@ -20,6 +20,7 @@ DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS user_profiles;
 DROP TABLE IF EXISTS user_behavior_logs;
 DROP TABLE IF EXISTS educations;
+DROP TABLE IF EXISTS awards;
 DROP TABLE IF EXISTS skills;
 DROP TABLE IF EXISTS careers;
 DROP TABLE IF EXISTS project_experiences;
@@ -56,6 +57,8 @@ CREATE TABLE IF NOT EXISTS users (
     -- 电话
     website VARCHAR(500),
     -- 主页链接
+    preferred_work_city VARCHAR(255),
+    -- 意向工作城市
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
@@ -89,8 +92,6 @@ CREATE TABLE IF NOT EXISTS educations (
     -- 入学时间
     end_date DATE,
     -- 毕业时间（在读可为空）
-    visible BOOLEAN DEFAULT true,
-    -- 在简历中是否展示
     gpa VARCHAR(50),
     -- 绩点
     description TEXT,
@@ -102,14 +103,33 @@ CREATE TABLE IF NOT EXISTS educations (
 CREATE INDEX IF NOT EXISTS idx_educations_user_id ON educations(user_id);
 CREATE INDEX IF NOT EXISTS idx_educations_user_id_degree ON educations(user_id, degree);
 CREATE INDEX IF NOT EXISTS idx_educations_user_id_school ON educations(user_id, school);
--- 2.2 技能表
+-- 2.2 获奖信息表
+CREATE TABLE IF NOT EXISTS awards (
+    id BIGSERIAL PRIMARY KEY,
+    -- 获奖ID
+    user_id BIGINT NOT NULL,
+    -- 用户ID（逻辑外键：users.id）
+    award_type SMALLINT NOT NULL,
+    -- 奖项类型：1=奖学金, 2=竞赛获奖, 3=其他类型
+    name VARCHAR(255) NOT NULL,
+    -- 奖项名称
+    award_date DATE NOT NULL,
+    -- 获奖时间
+    description TEXT,
+    -- 奖项说明（可选）
+    CONSTRAINT chk_awards_type CHECK (award_type IN (1, 2, 3)),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- 创建时间
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
+);
+CREATE INDEX IF NOT EXISTS idx_awards_user_id ON awards(user_id);
+CREATE INDEX IF NOT EXISTS idx_awards_user_id_award_date ON awards(user_id, award_date);
+-- 2.3 技能表
 CREATE TABLE IF NOT EXISTS skills (
     id BIGSERIAL PRIMARY KEY,
     -- 技能ID
     user_id BIGINT NOT NULL,
     -- 用户ID（逻辑外键：users.id）
-    name VARCHAR(255) NOT NULL,
-    -- 技能清单名称
     content JSONB NOT NULL DEFAULT '[]'::jsonb,
     -- 职业技能描述（数组对象，包含type和content字段）
     -- content 示例
@@ -143,8 +163,6 @@ CREATE TABLE IF NOT EXISTS careers (
     -- 入职时间
     end_date DATE,
     -- 离职时间（在职可为空）
-    visible BOOLEAN DEFAULT true,
-    -- 是否在简历中展示
     details TEXT,
     -- 工作职责/业绩（可富文本）
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -190,8 +208,6 @@ CREATE TABLE IF NOT EXISTS project_experiences (
     -- ]
     url VARCHAR(500),
     -- 项目链接
-    visible BOOLEAN DEFAULT true,
-    -- 是否在简历中展示
     status SMALLINT NOT NULL DEFAULT 1,
     -- 项目分析状态（枚举：1=committed已提交/2=mining挖掘中/3=polishing打磨中/4=completed已完成）
     -- 说明：用于跟踪AI分析流程，不影响简历展示
@@ -219,7 +235,6 @@ CREATE TABLE IF NOT EXISTS project_experiences (
 );
 CREATE INDEX IF NOT EXISTS idx_project_experiences_user_id ON project_experiences(user_id);
 CREATE INDEX IF NOT EXISTS idx_project_experiences_user_id_name ON project_experiences(user_id, name);
-CREATE INDEX IF NOT EXISTS idx_project_experiences_user_id_visible ON project_experiences(user_id, visible);
 CREATE INDEX IF NOT EXISTS idx_project_experiences_status ON project_experiences(status);
 -- 2.5 简历表
 CREATE TABLE IF NOT EXISTS resumes (
@@ -227,8 +242,6 @@ CREATE TABLE IF NOT EXISTS resumes (
     -- 简历ID
     user_id BIGINT NOT NULL,
     -- 用户ID（逻辑外键：users.id）
-    name VARCHAR(255) NOT NULL,
-    -- 简历名称
     skill_id BIGINT,
     -- 技能清单ID（逻辑外键：skills.id）
     projects JSONB DEFAULT '[]'::jsonb,
@@ -243,6 +256,10 @@ CREATE TABLE IF NOT EXISTS resumes (
     -- 教育经历ID数组（JSONB数组，存储education ID）
     -- educations 示例
     -- [1]
+    awards JSONB DEFAULT '[]'::jsonb,
+    -- 获奖信息ID数组（JSONB数组，存储 awards ID）
+    -- awards 示例
+    -- [1, 2]
     resume_matched_ids JSONB DEFAULT '[]'::jsonb,
     -- 专用简历ID数组（JSONB数组，存储resume_matches ID）
     -- resume_matched_ids 示例
@@ -251,62 +268,9 @@ CREATE TABLE IF NOT EXISTS resumes (
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
 );
-CREATE UNIQUE INDEX IF NOT EXISTS idx_resumes_user_id_name ON resumes(user_id, name);
-CREATE INDEX IF NOT EXISTS idx_resumes_user_id ON resumes(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_resumes_user_id_unique ON resumes(user_id);
 CREATE INDEX IF NOT EXISTS idx_resumes_skill_id ON resumes(skill_id);
--- 2.6 专用简历表
-CREATE TABLE IF NOT EXISTS resume_matches (
-    id BIGSERIAL PRIMARY KEY,
-    -- 专用简历ID
-    user_id BIGINT NOT NULL,
-    -- 用户ID（逻辑外键：users.id）
-    resume_id BIGINT,
-    -- 关联的原始简历ID（逻辑外键：resumes.id，可选）
-    name VARCHAR(255) NOT NULL,
-    -- 简历名称
-    skill JSONB NOT NULL,
-    -- 技能清单对象（JSONB，嵌入存储优化后的技能）
-    -- skill 示例
-    -- {
-    --   "name": "技能清单",
-    --   "content": [
-    --     {
-    --       "type": "前端框架",
-    --       "content": ["React", "Vue.js"]
-    --     }
-    --   ]
-    -- }
-    projects JSONB DEFAULT '[]'::jsonb,
-    -- 项目经历对象数组（JSONB数组，嵌入存储优化后的项目经历数据）
-    -- projects 示例
-    -- [
-    --   {
-    --     "id": 1,
-    --     "name": "项目名称",
-    --     "description": "项目描述（已优化）",
-    --     "tech_stack": ["React", "TypeScript"],
-    --     "highlights": [
-    --       {
-    --         "type": "技术难点",
-    --         "content": "实现了分布式锁"
-    --       }
-    --     ]
-    --   }
-    -- ]
-    job_id BIGINT,
-    -- 岗位ID（逻辑外键：jobs.id）
-    status SMALLINT DEFAULT 1,
-    -- 简历状态（枚举：1=committed已提交/2=generated已生成/3=optimized已优化）
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    -- 创建时间
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
-);
-CREATE INDEX IF NOT EXISTS idx_resume_matches_user_id ON resume_matches(user_id);
-CREATE INDEX IF NOT EXISTS idx_resume_matches_user_id_name ON resume_matches(user_id, name);
-CREATE INDEX IF NOT EXISTS idx_resume_matches_job_id ON resume_matches(job_id);
-CREATE INDEX IF NOT EXISTS idx_resume_matches_resume_id ON resume_matches(resume_id);
-CREATE INDEX IF NOT EXISTS idx_resume_matches_status ON resume_matches(status);
--- 2.7 学生就业能力画像表（最小结构，支持岗位路由+结构化输出）
+-- 2.6 学生就业能力画像表（最小结构，支持岗位路由+结构化输出）
 CREATE TABLE IF NOT EXISTS student_capability_profiles (
     id BIGSERIAL PRIMARY KEY,
     -- 画像ID

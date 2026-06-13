@@ -17,7 +17,7 @@
 | `transitionPaths` | 换岗路径图谱（跨岗位血缘） | 路径条数 ≥ 5，每条 `nodes` ≥ 2 |
 | `summary` | 一句话总结 | - |
 
-服务侧会在生成后对图谱做强校验，不满足约束直接抛出 `JOB_CAREER_GRAPH_INVALID`（8205），避免脏数据落库。
+服务侧会在生成后对图谱做强校验，不满足约束直接抛出 `JOB_CAREER_GRAPH_INVALID`（10005），避免脏数据落库。
 
 ## 2. 存储方案（关系型数据库，一岗一图谱）
 
@@ -115,9 +115,9 @@ POST /jobs/{id}/career-graph
 
 | Code | 名称 | 说明 |
 | :--- | :--- | :--- |
-| `8201` | `JOB_NOT_FOUND` | 岗位不存在 |
-| `8204` | `JOB_CAREER_GRAPH_GENERATION_FAILED` | LLM 调用或解析失败 |
-| `8205` | `JOB_CAREER_GRAPH_INVALID` | LLM 返回不符合硬性要求（节点数不足） |
+| `10001` | `JOB_NOT_FOUND` | 岗位不存在 |
+| `10004` | `JOB_CAREER_GRAPH_GENERATION_FAILED` | LLM 调用或解析失败 |
+| `10005` | `JOB_CAREER_GRAPH_INVALID` | LLM 返回不符合硬性要求（节点数不足） |
 
 ## 5. 技术实现
 
@@ -135,7 +135,7 @@ PromptUtil.getJobCareerGraphPromptName() — 路由到 4 个 prompt：
     ↓
 ChatUtil.chatStructuredOnce() — 通义 qwen-plus 按 JSON Schema 结构化输出
     ↓
-validateGraph() — 强校验：垂直≥3、换岗≥5、每条≥2；不合规抛 8205
+validateGraph() — 强校验：垂直≥3、换岗≥5、每条≥2；不合规抛 10005
 markCurrentNode() — 自动打 current=true 高亮
     ↓
 toEntity() + JSONB 序列化 → DB upsert（getOne → updateById / save）

@@ -27,7 +27,6 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
 
         Skill skill = new Skill();
         skill.setUserId(userId);
-        skill.setName(skillDTO.getName());
 
         // content 使用强类型对象数组存储到 JSONB
         if (skillDTO.getContent() != null) {
@@ -38,7 +37,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
         if (!saved) {
             throw new BusinessException(ErrorCode.SKILL_ADD_FAILED);
         }
-        log.info("添加技能成功: {}", skill.getName());
+        log.info("添加技能成功: userId={}", userId);
         return skill;
     }
 
@@ -60,12 +59,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
         Long id = skillDTO.getId();
         Skill skill = requireSkillAndCheckOwnership(id, userId, "修改");
 
-        // 更新字段
-        if (skillDTO.getName() != null) {
-            skill.setName(skillDTO.getName());
-        }
-
-        // content 使用强类型对象数组存储到 JSONB
+        // 仅更新 content
         if (skillDTO.getContent() != null) {
             skill.setContent(SkillContentValidator.validate(skillDTO.getContent()));
         }
@@ -74,7 +68,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
         if (!updated) {
             throw new BusinessException(ErrorCode.SKILL_UPDATE_FAILED);
         }
-        log.info("更新技能成功: {}", skill.getName());
+        log.info("更新技能成功: skillId={}", skill.getId());
         return skill;
     }
 
@@ -87,7 +81,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
         if (!removed) {
             throw new BusinessException(ErrorCode.SKILL_DELETE_FAILED);
         }
-        log.info("删除技能成功: {}", skill.getName());
+        log.info("删除技能成功: skillId={}", skill.getId());
     }
 
     /**

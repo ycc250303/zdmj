@@ -4,20 +4,14 @@ import java.util.List;
 import lombok.Data;
 
 /**
- * 简历实体类
- * 对应数据库表：resumes
+ * 简历完整内容 DTO
  */
 @Data
 public class ResumeContentDTO {
     /**
-     * 简历ID（主键，自增）
+     * 简历ID
      */
     private Long id;
-
-    /**
-     * 简历名称
-     */
-    private String name;
 
     /**
      * 技能清单
@@ -38,4 +32,14 @@ public class ResumeContentDTO {
      * 项目经历列表
      */
     private List<ProjectExperienceDTO> projects;
+
+    /**
+     * 获奖信息列表
+     */
+    private List<AwardDTO> awards;
+
+    /**
+     * 基本信息（姓名、电话、个人主页、意向工作城市）
+     */
+    private ResumePersonalInfoDTO personalInfo;
 }

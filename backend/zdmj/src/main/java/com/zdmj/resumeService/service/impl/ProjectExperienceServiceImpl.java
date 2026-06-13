@@ -10,6 +10,7 @@ import com.zdmj.resumeService.enums.ProjectStatusEnum;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
 import com.zdmj.resumeService.mapper.ProjectExperienceStructMapper;
 import com.zdmj.resumeService.service.ProjectExperienceService;
+import com.zdmj.resumeService.support.ProjectHighlightsSupport;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -38,9 +39,9 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
         projectExperience.setDescription(projectExperienceDTO.getDescription());
         projectExperience.setContribution(projectExperienceDTO.getContribution());
         projectExperience.setTechStack(projectExperienceDTO.getTechStack());
-        projectExperience.setHighlights(projectExperienceDTO.getHighlights());
+        projectExperience.setHighlights(
+                ProjectHighlightsSupport.normalizeForStorage(projectExperienceDTO.getHighlights()));
         projectExperience.setUrl(projectExperienceDTO.getUrl());
-        projectExperience.setVisible(projectExperienceDTO.getVisible());
         // 设置默认状态：committed 已提交
         projectExperience.setStatus(ProjectStatusEnum.COMMITTED.getCode());
         projectExperience.setLookupResult(null);
@@ -60,7 +61,7 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
     @Override
     public List<ProjectExperience> getByUserId() {
         Long userId = UserHolder.requireUserId();
-        return baseMapper.selectByUserId(userId, null);
+        return baseMapper.selectByUserId(userId);
     }
 
     @Override
@@ -70,6 +71,8 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
         ProjectExperience projectExperience = requireProjectExperienceAndCheckOwnership(id, userId, "修改");
 
         projectExperiencePatchMapper.updateEntityFromDto(projectExperienceDTO, projectExperience);
+        projectExperience.setHighlights(
+                ProjectHighlightsSupport.normalizeForStorage(projectExperience.getHighlights()));
 
         if (projectExperience.getStartDate() != null && projectExperience.getEndDate() != null) {
             if (projectExperience.getEndDate().isBefore(projectExperience.getStartDate())) {

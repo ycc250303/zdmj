@@ -1,5 +1,6 @@
 package com.zdmj.userAuthService.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -22,9 +23,16 @@ public class UserUpdateDTO {
     private String phone;
 
     /**
-     * 主页链接（最大长度 255 个字符）
+     * 主页链接（最大长度 500 个字符）
      */
-    @Size(max = 255, message = "主页链接长度不能超过255个字符")
+    @Size(max = 500, message = "主页链接长度不能超过500个字符")
+    @JsonAlias({ "homepageUrl", "homepage" })
     private String website;
+
+    /**
+     * 意向工作城市（最大长度 255 个字符）
+     */
+    @Size(max = 255, message = "意向工作城市长度不能超过255个字符")
+    private String preferredWorkCity;
 }
 

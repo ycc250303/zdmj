@@ -7,6 +7,7 @@ import {
   fetchDeleteJob,
   type JobApi
 } from '@/service/api/job';
+import { formatJobLocation, isInternJob } from '@/utils/job-display';
 
 defineOptions({ name: 'jobs' });
 
@@ -51,6 +52,9 @@ watch(
   value => {
     if (value) {
       filterForm.salaryType = null;
+    } else if (filterForm.salaryType == null) {
+      filterForm.filterSalaryMin = null;
+      filterForm.filterSalaryMax = null;
     }
   }
 );
@@ -60,6 +64,9 @@ watch(
   value => {
     if (value != null) {
       filterForm.employment = null;
+    } else if (!filterForm.employment) {
+      filterForm.filterSalaryMin = null;
+      filterForm.filterSalaryMax = null;
     }
   }
 );
@@ -92,6 +99,19 @@ function buildQuery(): JobApi.JobPageQuery {
   return query;
 }
 
+function validateSalaryFilter(): boolean {
+  if (!salaryFilterEnabled.value) {
+    return true;
+  }
+  const min = filterForm.filterSalaryMin;
+  const max = filterForm.filterSalaryMax;
+  if (min != null && max != null && min > max) {
+    window.$message?.error($t('page.jobs.formValidation.salaryRangeInvalid') as string);
+    return false;
+  }
+  return true;
+}
+
 async function loadJobData() {
   loading.value = true;
   try {
@@ -109,6 +129,9 @@ async function loadJobData() {
 }
 
 function handleSearch() {
+  if (!validateSalaryFilter()) {
+    return;
+  }
   pagination.page = 1;
   loadJobData();
 }
@@ -160,6 +183,10 @@ function handleDelete(id: number) {
       }
     }
   });
+}
+
+function formatEmploymentType(job: JobApi.JobListItem): string {
+  return isInternJob(job.salaryType) ? $t('page.jobs.intern') : $t('page.jobs.fulltime');
 }
 
 function formatSalary(job: JobApi.JobListItem): string {
@@ -269,6 +296,9 @@ onMounted(() => {
             <motion.div class="flex-1">
               <motion.div class="flex items-center gap-3 mb-2">
                 <h3 class="text-xl font-bold text-slate-800 dark:text-gray-200">{{ job.jobName }}</h3>
+                <NTag :type="isInternJob(job.salaryType) ? 'warning' : 'success'" size="small">
+                  {{ formatEmploymentType(job) }}
+                </NTag>
                 <NTag v-if="job.companyIndustries && job.companyIndustries.length > 0" type="info" size="small">
                   {{ job.companyIndustries[0] }}
                 </NTag>
@@ -281,7 +311,7 @@ onMounted(() => {
                 </motion.div>
                 <motion.div class="flex items-center gap-1">
                   <span class="text-base">📍</span>
-                  <span>{{ job.location }}</span>
+                  <span>{{ formatJobLocation(job.location) }}</span>
                 </motion.div>
                 <motion.div class="flex items-center gap-1">
                   <span class="text-base">¥</span>

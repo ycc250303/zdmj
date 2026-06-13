@@ -49,11 +49,6 @@ public class Career extends BaseEntity {
     private LocalDate endDate;
 
     /**
-     * 是否在简历中展示
-     */
-    private Boolean visible;
-
-    /**
      * 工作职责/业绩（可富文本）
      */
     private String details;

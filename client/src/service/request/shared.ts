@@ -1,6 +1,7 @@
 import { useAuthStore } from '@/store/modules/auth';
 import { localStg } from '@/utils/storage';
 import { fetchRefreshToken } from '../api';
+import { parseApiErrorBody, type ApiErrorBody } from './api-error';
 import type { RequestInstanceState } from './type';
 
 export function getAuthorization() {
@@ -8,6 +9,41 @@ export function getAuthorization() {
   const Authorization = token ? `Bearer ${token}` : null;
 
   return Authorization;
+}
+
+/** 触发强制登出的业务错误码（默认含 USER_NOT_LOGIN=1002） */
+export function getLogoutCodes(): string[] {
+  const fromEnv = import.meta.env.VITE_SERVICE_LOGOUT_CODES?.split(',')
+    .map(code => code.trim())
+    .filter(Boolean);
+  return fromEnv?.length ? fromEnv : ['1002'];
+}
+
+export function shouldForceLogout(httpStatus?: number, backendErrorCode?: string): boolean {
+  if (httpStatus === 401) {
+    return true;
+  }
+  return Boolean(backendErrorCode && getLogoutCodes().includes(backendErrorCode));
+}
+
+export function resolveRequestErrorInfo(error: {
+  message?: string;
+  response?: { status?: number; data?: unknown };
+}): { httpStatus?: number; message: string; backendErrorCode: string } {
+  const httpStatus = error.response?.status;
+  let message = error.message ?? '';
+  let backendErrorCode = '';
+  if (error.response?.data) {
+    const parsed = parseApiErrorBody(error.response.data as ApiErrorBody);
+    message = parsed.msg || message;
+    backendErrorCode = parsed.code;
+  }
+  return { httpStatus, message, backendErrorCode };
+}
+
+export async function forceLogout() {
+  const authStore = useAuthStore();
+  await authStore.resetStore();
 }
 
 /** refresh token */

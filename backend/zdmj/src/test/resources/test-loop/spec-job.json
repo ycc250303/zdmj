@@ -12,8 +12,8 @@
         ],
         "when": "根据岗位 id 查询详情",
         "then": [
-          "空值标记命中时抛 BusinessException: JOB_NOT_FOUND(8201)",
-          "DB 为空时写入空值缓存并抛 JOB_NOT_FOUND(8201)",
+          "空值标记命中时抛 BusinessException: JOB_NOT_FOUND(10001)",
+          "DB 为空时写入空值缓存并抛 JOB_NOT_FOUND(10001)",
           "DB 命中时写缓存并返回 DTO"
         ]
       },
@@ -37,7 +37,7 @@
       "assertionContract": [
         {
           "field": "BusinessException.errorCode",
-          "expected": "8201",
+          "expected": "10001",
           "reason": "岗位不存在语义必须稳定"
         },
         {
@@ -57,7 +57,7 @@
         ],
         "when": "按 DTO 更新岗位",
         "then": [
-          "岗位不存在抛 BusinessException: JOB_NOT_FOUND(8201)",
+          "岗位不存在抛 BusinessException: JOB_NOT_FOUND(10001)",
           "更新成功后清理 normal/null 两类缓存键"
         ]
       },
@@ -91,7 +91,7 @@
         ],
         "when": "删除岗位",
         "then": [
-          "removeById=false 抛 BusinessException: JOB_NOT_FOUND(8201)",
+          "removeById=false 抛 BusinessException: JOB_NOT_FOUND(10001)",
           "删除成功后清理 normal/null 缓存"
         ]
       },
@@ -99,7 +99,7 @@
         {
           "pathId": "JOB_DELETE_NOT_FOUND",
           "type": "negative",
-          "description": "删除不存在岗位抛 8201"
+          "description": "删除不存在岗位抛 10001"
         },
         {
           "pathId": "JOB_DELETE_SUCCESS",
@@ -110,7 +110,7 @@
       "assertionContract": [
         {
           "field": "BusinessException.errorCode",
-          "expected": "8201",
+          "expected": "10001",
           "reason": "错误码一致性"
         }
       ]
@@ -125,7 +125,7 @@
         ],
         "when": "生成岗位能力画像",
         "then": [
-          "LLM 失败抛 BusinessException: JOB_CAPABILITY_PROFILE_GENERATION_FAILED(8202)",
+          "LLM 失败抛 BusinessException: JOB_CAPABILITY_PROFILE_GENERATION_FAILED(10002)",
           "成功时执行 upsert 并返回 DTO"
         ]
       },
@@ -133,7 +133,7 @@
         {
           "pathId": "JOB_PROFILE_GENERATE_FAIL",
           "type": "negative",
-          "description": "chatStructuredOnce 异常映射为 8202"
+          "description": "chatStructuredOnce 异常映射为 10002"
         },
         {
           "pathId": "JOB_PROFILE_UPSERT_UPDATE",
@@ -144,7 +144,7 @@
       "assertionContract": [
         {
           "field": "BusinessException.errorCode",
-          "expected": "8202",
+          "expected": "10002",
           "reason": "能力画像失败语义"
         }
       ]
@@ -159,8 +159,8 @@
         ],
         "when": "生成岗位路径图谱",
         "then": [
-          "LLM 失败抛 BusinessException: JOB_CAREER_GRAPH_GENERATION_FAILED(8204)",
-          "非法图谱抛 BusinessException: JOB_CAREER_GRAPH_INVALID(8205)",
+          "LLM 失败抛 BusinessException: JOB_CAREER_GRAPH_GENERATION_FAILED(10004)",
+          "非法图谱抛 BusinessException: JOB_CAREER_GRAPH_INVALID(10005)",
           "合法图谱标记 currentNode 后持久化"
         ]
       },
@@ -168,12 +168,12 @@
         {
           "pathId": "JOB_GRAPH_GENERATE_FAIL",
           "type": "negative",
-          "description": "chat 异常映射为 8204"
+          "description": "chat 异常映射为 10004"
         },
         {
           "pathId": "JOB_GRAPH_VALIDATE_FAIL",
           "type": "negative",
-          "description": "图谱不合规映射为 8205"
+          "description": "图谱不合规映射为 10005"
         },
         {
           "pathId": "JOB_GRAPH_GENERATE_SUCCESS",
@@ -184,7 +184,7 @@
       "assertionContract": [
         {
           "field": "BusinessException.errorCode",
-          "expected": "8204/8205",
+          "expected": "10004/10005",
           "reason": "生成失败与结构不合法需区分"
         }
       ]
@@ -334,7 +334,7 @@
       "assertionContract": [
         {
           "field": "exception.code",
-          "expected": "8201",
+          "expected": "10001",
           "reason": "BusinessException(ErrorCode.JOB_NOT_FOUND)必须映射岗位不存在语义"
         },
         {
@@ -498,7 +498,7 @@
       "assertionContract": [
         {
           "field": "exception.code",
-          "expected": "8201",
+          "expected": "10001",
           "reason": "岗位不存在必须抛JOB_NOT_FOUND语义"
         },
         {
@@ -542,7 +542,7 @@
       "assertionContract": [
         {
           "field": "exception.code",
-          "expected": "8201",
+          "expected": "10001",
           "reason": "删除不存在岗位必须映射JOB_NOT_FOUND"
         },
         {
@@ -598,7 +598,7 @@
       "assertionContract": [
         {
           "field": "exception.code",
-          "expected": "8202",
+          "expected": "10002",
           "reason": "画像生成失败必须映射JOB_CAPABILITY_PROFILE_GENERATION_FAILED"
         },
         {
@@ -648,7 +648,7 @@
       "assertionContract": [
         {
           "field": "exception.code",
-          "expected": "8201",
+          "expected": "10001",
           "reason": "岗位不存在必须映射JOB_NOT_FOUND"
         },
         {
@@ -693,7 +693,7 @@
       "assertionContract": [
         {
           "field": "exception.code",
-          "expected": "8201",
+          "expected": "10001",
           "reason": "岗位不存在必须映射JOB_NOT_FOUND"
         },
         {
@@ -759,12 +759,12 @@
       "assertionContract": [
         {
           "field": "exception.code",
-          "expected": "8204",
+          "expected": "10004",
           "reason": "LLM生成失败必须映射JOB_CAREER_GRAPH_GENERATION_FAILED"
         },
         {
           "field": "exception.code",
-          "expected": "8205",
+          "expected": "10005",
           "reason": "图谱结构校验失败必须映射JOB_CAREER_GRAPH_INVALID"
         },
         {

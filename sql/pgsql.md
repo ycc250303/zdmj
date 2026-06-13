@@ -23,6 +23,7 @@
 | `name`       | `VARCHAR(50)`  | 姓名     | 可空                          | -                 |
 | `phone`      | `VARCHAR(20)`  | 电话     | 可空                          | -                 |
 | `website`    | `VARCHAR(500)` | 个人主页 | 可空                          | -                 |
+| `preferred_work_city` | `VARCHAR(255)` | 意向工作城市 | 可空                          | -                 |
 | `created_at` | `TIMESTAMP`    | 创建时间 | `DEFAULT CURRENT_TIMESTAMP` | -                 |
 | `updated_at` | `TIMESTAMP`    | 更新时间 | `DEFAULT CURRENT_TIMESTAMP` | -                 |
 
@@ -49,24 +50,35 @@
 | `degree`      | `SMALLINT`     | 学历层次         | `NOT NULL`                        | `1=博士, 2=硕士, 3=本科, 4=大专, 5=高中, 6=其他` |
 | `start_date`  | `DATE`         | 入学时间         | `NOT NULL`                        | -                                                  |
 | `end_date`    | `DATE`         | 毕业时间         | 可空                                | -                                                  |
-| `visible`     | `BOOLEAN`      | 是否展示在简历中 | `DEFAULT true`                    | -                                                  |
 | `gpa`         | `VARCHAR(50)`  | 绩点             | 可空                                | -                                                  |
 | `description` | `TEXT`         | 课程/奖项等描述  | 可空                                | -                                                  |
 | `created_at`  | `TIMESTAMP`    | 创建时间         | `DEFAULT CURRENT_TIMESTAMP`       | -                                                  |
 | `updated_at`  | `TIMESTAMP`    | 更新时间         | `DEFAULT CURRENT_TIMESTAMP`       | -                                                  |
 
-### 2.2 表 `skills`
+### 2.2 表 `awards`
+
+| 字段名称       | 字段类型         | 字段含义   | 约束                                | 枚举/JSON字段含义                          |
+| -------------- | ---------------- | ---------- | ----------------------------------- | ------------------------------------------ |
+| `id`         | `BIGSERIAL`    | 获奖ID     | `PK`                              | -                                          |
+| `user_id`    | `BIGINT`       | 用户ID     | `NOT NULL`，逻辑外键 `users.id` | -                                          |
+| `award_type` | `SMALLINT`     | 奖项类型   | `NOT NULL, CHECK 1-3`             | `1=奖学金, 2=竞赛获奖, 3=其他类型`         |
+| `name`       | `VARCHAR(255)` | 奖项名称   | `NOT NULL`                        | -                                          |
+| `award_date` | `DATE`         | 获奖时间   | `NOT NULL`                        | -                                          |
+| `description`| `TEXT`         | 奖项说明   | 可空                                | -                                          |
+| `created_at` | `TIMESTAMP`    | 创建时间   | `DEFAULT CURRENT_TIMESTAMP`       | -                                          |
+| `updated_at` | `TIMESTAMP`    | 更新时间   | `DEFAULT CURRENT_TIMESTAMP`       | -                                          |
+
+### 2.3 表 `skills`
 
 | 字段名称       | 字段类型         | 字段含义     | 约束                                                                   | 枚举/JSON字段含义                                                |
 | -------------- | ---------------- | ------------ | ---------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | `id`         | `BIGSERIAL`    | 技能清单ID   | `PK`                                                                 | -                                                                |
 | `user_id`    | `BIGINT`       | 用户ID       | `NOT NULL`，逻辑外键 `users.id`                                    | -                                                                |
-| `name`       | `VARCHAR(255)` | 技能清单名称 | `NOT NULL`                                                           | -                                                                |
 | `content`    | `JSONB`        | 技能内容数组 | `NOT NULL, DEFAULT '[]'::jsonb, CHECK jsonb_typeof(content)='array'` | 数组项结构：`{"type":"前端框架","content":["React","Vue.js"]}` |
 | `created_at` | `TIMESTAMP`    | 创建时间     | `DEFAULT CURRENT_TIMESTAMP`                                          | -                                                                |
 | `updated_at` | `TIMESTAMP`    | 更新时间     | `DEFAULT CURRENT_TIMESTAMP`                                          | -                                                                |
 
-### 2.3 表 `careers`
+### 2.4 表 `careers`
 
 | 字段名称       | 字段类型         | 字段含义         | 约束                                | 枚举/JSON字段含义 |
 | -------------- | ---------------- | ---------------- | ----------------------------------- | ----------------- |
@@ -76,12 +88,11 @@
 | `position`   | `VARCHAR(255)` | 职位名称         | `NOT NULL`                        | -                 |
 | `start_date` | `DATE`         | 入职时间         | `NOT NULL`                        | -                 |
 | `end_date`   | `DATE`         | 离职时间         | 可空                                | -                 |
-| `visible`    | `BOOLEAN`      | 是否展示在简历中 | `DEFAULT true`                    | -                 |
 | `details`    | `TEXT`         | 工作职责/业绩    | 可空                                | -                 |
 | `created_at` | `TIMESTAMP`    | 创建时间         | `DEFAULT CURRENT_TIMESTAMP`       | -                 |
 | `updated_at` | `TIMESTAMP`    | 更新时间         | `DEFAULT CURRENT_TIMESTAMP`       | -                 |
 
-### 2.4 表 `project_experiences`
+### 2.5 表 `project_experiences`
 
 | 字段名称          | 字段类型         | 字段含义         | 约束                                | 枚举/JSON字段含义                                                           |
 | ----------------- | ---------------- | ---------------- | ----------------------------------- | --------------------------------------------------------------------------- |
@@ -96,28 +107,27 @@
 | `tech_stack`    | `JSONB`        | 技术栈           | `DEFAULT '[]'::jsonb`             | 示例：`["React","TypeScript","Node.js"]`                                  |
 | `highlights`    | `JSONB`        | 项目亮点         | `DEFAULT '[]'::jsonb`             | 数组项结构：`{"type":"技术难点","content":"实现了分布式锁"}`              |
 | `url`           | `VARCHAR(500)` | 项目链接         | 可空                                | -                                                                           |
-| `visible`       | `BOOLEAN`      | 是否展示在简历中 | `DEFAULT true`                    | -                                                                           |
 | `status`        | `SMALLINT`     | AI分析状态       | `NOT NULL, DEFAULT 1`             | `1=committed已提交, 2=mining挖掘中, 3=polishing打磨中, 4=completed已完成` |
 | `lookup_result` | `JSONB`        | AI分析结果       | 可空                                | 示例：`{"problem":[...],"solution":[...],"score":85}`                     |
 | `created_at`    | `TIMESTAMP`    | 创建时间         | `DEFAULT CURRENT_TIMESTAMP`       | -                                                                           |
 | `updated_at`    | `TIMESTAMP`    | 更新时间         | `DEFAULT CURRENT_TIMESTAMP`       | -                                                                           |
 
-### 2.5 表 `resumes`
+### 2.6 表 `resumes`
 
 | 字段名称               | 字段类型         | 字段含义       | 约束                                | 枚举/JSON字段含义                                    |
 | ---------------------- | ---------------- | -------------- | ----------------------------------- | ---------------------------------------------------- |
 | `id`                 | `BIGSERIAL`    | 简历ID         | `PK`                              | -                                                    |
-| `user_id`            | `BIGINT`       | 用户ID         | `NOT NULL`，逻辑外键 `users.id` | -                                                    |
-| `name`               | `VARCHAR(255)` | 简历名称       | `NOT NULL`                        | -                                                    |
+| `user_id`            | `BIGINT`       | 用户ID         | `UNIQUE, NOT NULL`，逻辑外键 `users.id` | -                                                    |
 | `skill_id`           | `BIGINT`       | 技能清单ID     | 可空，逻辑外键 `skills.id`        | -                                                    |
 | `projects`           | `JSONB`        | 项目经历ID数组 | `DEFAULT '[]'::jsonb`             | 示例：`[1,2,3]`（对应 `project_experiences.id`） |
 | `careers`            | `JSONB`        | 工作经历ID数组 | `DEFAULT '[]'::jsonb`             | 示例：`[1,2]`（对应 `careers.id`）               |
 | `educations`         | `JSONB`        | 教育经历ID数组 | `DEFAULT '[]'::jsonb`             | 示例：`[1]`（对应 `educations.id`）              |
+| `awards`             | `JSONB`        | 获奖信息ID数组 | `DEFAULT '[]'::jsonb`             | 示例：`[1,2]`（对应 `awards.id`）                |
 | `resume_matched_ids` | `JSONB`        | 专用简历ID数组 | `DEFAULT '[]'::jsonb`             | 示例：`[1,2]`（对应 `resume_matches.id`）        |
 | `created_at`         | `TIMESTAMP`    | 创建时间       | `DEFAULT CURRENT_TIMESTAMP`       | -                                                    |
 | `updated_at`         | `TIMESTAMP`    | 更新时间       | `DEFAULT CURRENT_TIMESTAMP`       | -                                                    |
 
-### 2.6 表 `resume_matches`
+### 2.7 表 `resume_matches`
 
 | 字段名称       | 字段类型         | 字段含义             | 约束                                | 枚举/JSON字段含义                                                                |
 | -------------- | ---------------- | -------------------- | ----------------------------------- | -------------------------------------------------------------------------------- |
@@ -132,7 +142,7 @@
 | `created_at` | `TIMESTAMP`    | 创建时间             | `DEFAULT CURRENT_TIMESTAMP`       | -                                                                                |
 | `updated_at` | `TIMESTAMP`    | 更新时间             | `DEFAULT CURRENT_TIMESTAMP`       | -                                                                                |
 
-### 2.7 表 `student_capability_profiles`
+### 2.8 表 `student_capability_profiles`
 
 | 字段名称                  | 字段类型         | 字段含义       | 约束                                                | 枚举/JSON字段含义                                                                                                                                |
 | ------------------------- | ---------------- | -------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |

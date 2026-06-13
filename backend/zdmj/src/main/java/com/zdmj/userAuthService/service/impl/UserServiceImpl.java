@@ -208,6 +208,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             rejectBlankField(updateDTO.getWebsite(), "主页链接不能为空");
             user.setWebsite(updateDTO.getWebsite());
         }
+        if (updateDTO.getPreferredWorkCity() != null) {
+            user.setPreferredWorkCity(updateDTO.getPreferredWorkCity().trim());
+        }
         boolean updated = updateById(user);
         if (!updated) {
             throw new BusinessException(ErrorCode.USER_REGISTER_FAILED);

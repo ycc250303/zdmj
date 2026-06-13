@@ -1,6 +1,12 @@
 package com.zdmj.resumeService.controller;
 
+import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.ai.LlmRateLimits;
+import com.zdmj.common.model.Result;
+
+import java.util.concurrent.TimeUnit;
 import com.zdmj.resumeService.dto.ResumeContentDTO;
+import com.zdmj.resumeService.dto.ResumeContentSaveRequest;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -16,9 +22,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.zdmj.common.model.CreateGroup;
-import com.zdmj.common.model.Result;
 import com.zdmj.common.model.UpdateGroup;
 import com.zdmj.resumeService.dto.ResumeDTO;
+import com.zdmj.resumeService.dto.ResumeImportParseRequest;
+import com.zdmj.resumeService.dto.ResumeImportParseResultDTO;
 import com.zdmj.resumeService.entity.Resume;
 import com.zdmj.resumeService.service.ResumeService;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -47,25 +54,20 @@ public class ResumeController {
     }
 
     /**
-     * 根据ID查询简历
-     * 
-     * @param id 简历ID
-     * @return 查询的简历
+     * 获取当前用户简历完整内容（不存在则自动创建）
      */
-    @GetMapping("/{id}")
-    public Result<Resume> getResumeById(@PathVariable Long id) {
-        return Result.success("查询简历成功", resumeService.getById(id));
+    @GetMapping("/me/content")
+    public Result<ResumeContentDTO> getMyResumeContent() {
+        return Result.success("查询简历完整内容成功", resumeService.getMyResumeContent());
     }
 
     /**
-     * 根据ID查询简历完整内容
-     * 
-     * @param id 简历ID
-     * @return 查询的简历
+     * 全量保存当前用户简历内容
      */
-    @GetMapping("/{id}/content")
-    public Result<ResumeContentDTO> getResumeContentById(@PathVariable Long id) {
-        return Result.success("查询简历完整内容成功", resumeService.getResumeContentById(id));
+    @PutMapping("/me/content")
+    public Result<ResumeContentDTO> saveMyResumeContent(
+            @Validated @RequestBody ResumeContentSaveRequest request) {
+        return Result.success("保存简历成功", resumeService.saveMyResumeContent(request));
     }
 
     /**
@@ -108,5 +110,21 @@ public class ResumeController {
     public Result<Void> deleteResume(@PathVariable Long id) {
         resumeService.delete(id);
         return Result.success("删除简历成功", null);
+    }
+
+    /**
+     * 从 PDF 或纯文本识别简历字段（结构化输出，不写库）
+     *
+     * @param request 识别请求（pdfUrl 与 rawText 二选一）
+     * @return 结构化识别结果
+     */
+    @RateLimit(dimension = RateLimit.Dimension.USER, count = LlmRateLimits.RESUME_IMPORT_PARSE_PER_MIN,
+            interval = 1, timeUnit = TimeUnit.MINUTES)
+    @PostMapping("/import/parse")
+    public Result<ResumeImportParseResultDTO> parseResumeImport(
+            @Validated @RequestBody ResumeImportParseRequest request) {
+
+        ResumeImportParseResultDTO result = resumeService.parseImport(request);
+        return Result.success("简历识别成功", result);
     }
 }
