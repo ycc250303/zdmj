@@ -48,7 +48,6 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
         education.setDegree(educationDTO.getDegree());
         education.setStartDate(educationDTO.getStartDate());
         education.setEndDate(educationDTO.getEndDate());
-        education.setVisible(educationDTO.getVisible());
         education.setGpa(educationDTO.getGpa());
         boolean saved = save(education);
         if (!saved) {
@@ -128,7 +127,7 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
     @Override
     public List<Education> getByUserId() {
         Long userId = UserHolder.requireUserId();
-        return baseMapper.selectByUserId(userId, null);
+        return baseMapper.selectByUserId(userId);
     }
 
     /**

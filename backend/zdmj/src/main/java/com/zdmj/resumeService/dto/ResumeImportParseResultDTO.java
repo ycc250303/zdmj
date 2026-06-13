@@ -47,7 +47,6 @@ public class ResumeImportParseResultDTO {
         private Integer degree;
         private String startDate;
         private String endDate;
-        private Boolean visible;
         private String gpa;
     }
 
@@ -58,7 +57,6 @@ public class ResumeImportParseResultDTO {
         private String position;
         private String startDate;
         private String endDate;
-        private Boolean visible;
         private String details;
     }
 
@@ -75,7 +73,6 @@ public class ResumeImportParseResultDTO {
         /** 模型可返回字符串或字符串数组，归一化后统一为 JSON 数组字符串 */
         private Object highlights;
         private String url;
-        private Boolean visible;
     }
 
     @Data

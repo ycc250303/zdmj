@@ -184,6 +184,6 @@ class ResumeCrudServicesTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> careerService.getByUserId());
 
         assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
-        verify(careerMapper, never()).selectByUserId(any(), any());
+        verify(careerMapper, never()).selectByUserId(any());
     }
 }

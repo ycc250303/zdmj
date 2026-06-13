@@ -6,6 +6,7 @@ import com.zdmj.common.model.Result;
 
 import java.util.concurrent.TimeUnit;
 import com.zdmj.resumeService.dto.ResumeContentDTO;
+import com.zdmj.resumeService.dto.ResumeContentSaveRequest;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -53,25 +54,20 @@ public class ResumeController {
     }
 
     /**
-     * 根据ID查询简历
-     * 
-     * @param id 简历ID
-     * @return 查询的简历
+     * 获取当前用户简历完整内容（不存在则自动创建）
      */
-    @GetMapping("/{id}")
-    public Result<Resume> getResumeById(@PathVariable Long id) {
-        return Result.success("查询简历成功", resumeService.getById(id));
+    @GetMapping("/me/content")
+    public Result<ResumeContentDTO> getMyResumeContent() {
+        return Result.success("查询简历完整内容成功", resumeService.getMyResumeContent());
     }
 
     /**
-     * 根据ID查询简历完整内容
-     * 
-     * @param id 简历ID
-     * @return 查询的简历
+     * 全量保存当前用户简历内容
      */
-    @GetMapping("/{id}/content")
-    public Result<ResumeContentDTO> getResumeContentById(@PathVariable Long id) {
-        return Result.success("查询简历完整内容成功", resumeService.getResumeContentById(id));
+    @PutMapping("/me/content")
+    public Result<ResumeContentDTO> saveMyResumeContent(
+            @Validated @RequestBody ResumeContentSaveRequest request) {
+        return Result.success("保存简历成功", resumeService.saveMyResumeContent(request));
     }
 
     /**

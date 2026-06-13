@@ -27,7 +27,6 @@
 | degree    | 整数：1 博士、2 硕士、3 本科、4 大专、5 高中、6 其他 |
 | startDate | 入学时间；前端按月展示，格式 YYYY-MM-DD |
 | endDate   | 毕业时间；在读或「至今」则为 null |
-| visible   | 默认 true                                            |
 | gpa       | 绩点字符串                                           |
 
 ### careers[]（对应 careers 表，含实习与工作经历）
@@ -37,7 +36,6 @@
 | company             | 公司/组织名称                    |
 | position            | 职位                             |
 | startDate / endDate | 实习/在职周期；前端按月展示 |
-| visible             | 默认 true                        |
 | details             | 职责与业绩（纯文本，可合并多行） |
 
 ### projects[]（对应 project_experiences 表，项目经历）
@@ -52,7 +50,6 @@
 | techStack           | 字符串数组，如 ["Java", "Spring Boot"] |
 | highlights          | 亮点数组或字符串                       |
 | url                 | 项目链接                               |
-| visible             | 默认 true                              |
 
 ### skill（对应 skills 表）
 
@@ -94,7 +91,6 @@
       "degree": 3,
       "startDate": "2018-09-01",
       "endDate": "2022-06-30",
-      "visible": true,
       "gpa": "3.8/4.0"
     }
   ],

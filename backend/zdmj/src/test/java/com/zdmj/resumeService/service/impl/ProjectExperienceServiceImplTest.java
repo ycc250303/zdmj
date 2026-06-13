@@ -92,12 +92,12 @@ class ProjectExperienceServiceImplTest {
 
     @Test
     void getByUserId_shouldCallMapper() {
-        doReturn(List.of(new ProjectExperience())).when(projectExperienceMapper).selectByUserId(1L, null);
+        doReturn(List.of(new ProjectExperience())).when(projectExperienceMapper).selectByUserId(1L);
 
         List<ProjectExperience> out = service.getByUserId();
 
         assertEquals(1, out.size());
-        verify(projectExperienceMapper).selectByUserId(1L, null);
+        verify(projectExperienceMapper).selectByUserId(1L);
     }
 
     @Test

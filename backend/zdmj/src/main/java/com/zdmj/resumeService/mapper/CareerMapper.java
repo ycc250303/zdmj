@@ -8,37 +8,13 @@ import org.apache.ibatis.annotations.Param;
 import java.util.List;
 
 /**
- * 工作/实习经历Mapper接口
+ * 工作/实习经历 Mapper
  */
 @Mapper
 public interface CareerMapper extends BaseMapper<Career> {
 
     /**
-     * 根据用户ID查询所有工作经历
-     * 自定义方法，使用 MyBatis XML 实现
-     *
-     * @param userId  用户ID
-     * @param visible 是否可见（可选，如果提供则只返回 visible=true 的数据，null 则忽略此条件）
-     * @return 工作经历列表
+     * 根据用户 ID 查询全部工作经历
      */
-    List<Career> selectByUserId(@Param("userId") Long userId, @Param("visible") Boolean visible);
-
-    /**
-     * 根据用户ID查询工作经历ID列表
-     * 自定义方法，使用 MyBatis XML 实现
-     *
-     * @param userId 用户ID
-     * @return 工作经历ID列表
-     */
-    List<Long> selectCareerIds(@Param("userId") Long userId, @Param("visible") Boolean visible);
-
-    /**
-     * 根据简历ID查询工作经历列表
-     * 从简历的 careers JSONB 数组中提取工作经历ID，然后关联查询工作经历详情
-     * 自定义方法，使用 MyBatis XML 实现
-     *
-     * @param resumeId 简历ID
-     * @return 工作经历列表
-     */
-    List<Career> selectByResumeId(@Param("resumeId") Long resumeId);
+    List<Career> selectByUserId(@Param("userId") Long userId);
 }

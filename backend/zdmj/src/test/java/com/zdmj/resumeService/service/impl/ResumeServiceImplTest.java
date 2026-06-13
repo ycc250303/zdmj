@@ -12,16 +12,17 @@ import com.zdmj.resumeService.dto.ResumeDTO;
 import com.zdmj.resumeService.dto.ResumeImportParseRequest;
 import com.zdmj.resumeService.dto.ResumeImportParseResultDTO;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zdmj.resumeService.entity.Career;
-import com.zdmj.resumeService.entity.Education;
-import com.zdmj.resumeService.entity.ProjectExperience;
 import com.zdmj.resumeService.entity.Resume;
-import com.zdmj.resumeService.entity.Skill;
 import com.zdmj.resumeService.mapper.CareerMapper;
 import com.zdmj.resumeService.mapper.EducationMapper;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
 import com.zdmj.resumeService.mapper.ResumeMapper;
 import com.zdmj.resumeService.mapper.SkillMapper;
+import com.zdmj.resumeService.service.CareerService;
+import com.zdmj.resumeService.service.EducationService;
+import com.zdmj.resumeService.service.ProjectExperienceService;
+import com.zdmj.resumeService.service.SkillService;
+import jakarta.validation.Validator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,6 +61,16 @@ class ResumeServiceImplTest {
     private SkillMapper skillMapper;
     @Mock
     private ChatUtil chatUtil;
+    @Mock
+    private EducationService educationService;
+    @Mock
+    private CareerService careerService;
+    @Mock
+    private ProjectExperienceService projectExperienceService;
+    @Mock
+    private SkillService skillService;
+    @Mock
+    private Validator validator;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private ResumeServiceImpl resumeService;
@@ -67,7 +78,8 @@ class ResumeServiceImplTest {
     @BeforeEach
     void setUp() {
         resumeService = spy(new ResumeServiceImpl(
-                educationMapper, projectExperienceMapper, careerMapper, skillMapper, chatUtil, objectMapper));
+                educationMapper, projectExperienceMapper, careerMapper, skillMapper, chatUtil, objectMapper,
+                educationService, careerService, projectExperienceService, skillService, validator));
         ReflectionTestUtils.setField(Objects.requireNonNull(resumeService), "baseMapper", resumeMapper);
     }
 
@@ -77,11 +89,26 @@ class ResumeServiceImplTest {
     }
 
     @Test
+    void create_userAlreadyHasResume_shouldThrow() {
+        UserHolder.set(UserContext.of(1L, "u1"));
+        ResumeDTO dto = new ResumeDTO();
+        dto.setName("resume");
+        dto.setSkillId(99L);
+        doReturn(true).when(resumeMapper).existsByUserId(1L);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.create(dto));
+
+        assertEquals(ErrorCode.RESUME_ALREADY_EXISTS.getCode(), ex.getCode());
+        verify(resumeService, never()).save(any(Resume.class));
+    }
+
+    @Test
     void create_nameExists_shouldThrowAndSkipSave() {
         UserHolder.set(UserContext.of(1L, "u1"));
         ResumeDTO dto = new ResumeDTO();
         dto.setName("same-name");
         dto.setSkillId(99L);
+        doReturn(false).when(resumeMapper).existsByUserId(1L);
         doReturn(true).when(resumeMapper).existsByName(1L, "same-name", null);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.create(dto));
@@ -92,28 +119,21 @@ class ResumeServiceImplTest {
     }
 
     @Test
-    void create_success_shouldAssembleAndSaveResume() {
+    void create_success_shouldSaveResumeShell() {
         UserHolder.set(UserContext.of(1L, "u1"));
         ResumeDTO dto = new ResumeDTO();
         dto.setName("java-backend");
         dto.setSkillId(99L);
+        doReturn(false).when(resumeMapper).existsByUserId(1L);
         doReturn(false).when(resumeMapper).existsByName(1L, "java-backend", null);
-        doReturn(List.of(101L, 102L)).when(educationMapper).selectEducationIds(1L, true);
-        doReturn(List.of(201L)).when(careerMapper).selectCareerIds(1L, true);
-        doReturn(List.of(301L)).when(projectExperienceMapper).selectProjectExperienceIds(1L, true);
         doReturn(true).when(resumeService).save(any(Resume.class));
 
         Resume out = resumeService.create(dto);
 
         assertEquals(1L, out.getUserId());
         assertEquals("java-backend", out.getName());
-        assertEquals(2, out.getEducations().size());
-        assertEquals(1, out.getCareers().size());
-        assertEquals(1, out.getProjects().size());
-        verify(resumeMapper).existsByName(1L, "java-backend", null);
-        verify(educationMapper).selectEducationIds(1L, true);
-        verify(careerMapper).selectCareerIds(1L, true);
-        verify(projectExperienceMapper).selectProjectExperienceIds(1L, true);
+        assertEquals(99L, out.getSkillId());
+        verify(resumeMapper).existsByUserId(1L);
         verify(resumeService).save(any(Resume.class));
     }
 
@@ -122,26 +142,15 @@ class ResumeServiceImplTest {
         UserHolder.set(UserContext.of(1L, "u1"));
         ResumeDTO dto = new ResumeDTO();
         dto.setName("java-backend");
+        dto.setSkillId(99L);
+        doReturn(false).when(resumeMapper).existsByUserId(1L);
         doReturn(false).when(resumeMapper).existsByName(1L, "java-backend", null);
-        doReturn(List.of()).when(educationMapper).selectEducationIds(1L, true);
-        doReturn(List.of()).when(careerMapper).selectCareerIds(1L, true);
-        doReturn(List.of()).when(projectExperienceMapper).selectProjectExperienceIds(1L, true);
         doReturn(false).when(resumeService).save(any(Resume.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.create(dto));
 
         assertEquals(ErrorCode.RESUME_CREATE_FAILED.getCode(), ex.getCode());
         verify(resumeService).save(any(Resume.class));
-    }
-
-    @Test
-    void getById_notFound_shouldThrow() {
-        doReturn(null).when(resumeMapper).selectById(404L);
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.getById(404L));
-
-        assertEquals(ErrorCode.RESUME_NOT_FOUND.getCode(), ex.getCode());
-        verify(resumeMapper).selectById(404L);
     }
 
     @Test
@@ -176,7 +185,7 @@ class ResumeServiceImplTest {
     }
 
     @Test
-    void update_success_shouldRefreshVisibleCollectionsAndPersist() {
+    void update_success_shouldPersistShellFields() {
         UserHolder.set(UserContext.of(1L, "u1"));
         ResumeDTO dto = new ResumeDTO();
         dto.setId(10L);
@@ -188,22 +197,13 @@ class ResumeServiceImplTest {
         existing.setName("old-name");
         doReturn(existing).when(resumeMapper).selectById(10L);
         doReturn(false).when(resumeMapper).existsByName(1L, "new-name", 10L);
-        doReturn(List.of(11L)).when(educationMapper).selectEducationIds(1L, true);
-        doReturn(List.of(21L, 22L)).when(careerMapper).selectCareerIds(1L, true);
-        doReturn(List.of(31L)).when(projectExperienceMapper).selectProjectExperienceIds(1L, true);
         doReturn(true).when(resumeService).updateById(any(Resume.class));
 
         Resume out = resumeService.update(dto);
 
         assertEquals("new-name", out.getName());
         assertEquals(5L, out.getSkillId());
-        assertEquals(1, out.getEducations().size());
-        assertEquals(2, out.getCareers().size());
-        assertEquals(1, out.getProjects().size());
         verify(resumeMapper).existsByName(1L, "new-name", 10L);
-        verify(educationMapper).selectEducationIds(1L, true);
-        verify(careerMapper).selectCareerIds(1L, true);
-        verify(projectExperienceMapper).selectProjectExperienceIds(1L, true);
         verify(resumeService).updateById(existing);
     }
 
@@ -219,9 +219,6 @@ class ResumeServiceImplTest {
         existing.setUserId(1L);
         existing.setName("same");
         doReturn(existing).when(resumeMapper).selectById(10L);
-        doReturn(List.of()).when(educationMapper).selectEducationIds(1L, true);
-        doReturn(List.of()).when(careerMapper).selectCareerIds(1L, true);
-        doReturn(List.of()).when(projectExperienceMapper).selectProjectExperienceIds(1L, true);
         doReturn(true).when(resumeService).updateById(any(Resume.class));
 
         resumeService.update(dto);
@@ -255,15 +252,13 @@ class ResumeServiceImplTest {
         ResumeDTO dto = new ResumeDTO();
         dto.setId(10L);
         dto.setName("new-name");
+        dto.setSkillId(5L);
         Resume existing = new Resume();
         existing.setId(10L);
         existing.setUserId(1L);
         existing.setName("old-name");
         doReturn(existing).when(resumeMapper).selectById(10L);
         doReturn(false).when(resumeMapper).existsByName(1L, "new-name", 10L);
-        doReturn(List.of()).when(educationMapper).selectEducationIds(1L, true);
-        doReturn(List.of()).when(careerMapper).selectCareerIds(1L, true);
-        doReturn(List.of()).when(projectExperienceMapper).selectProjectExperienceIds(1L, true);
         doReturn(false).when(resumeService).updateById(any(Resume.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.update(dto));
@@ -315,78 +310,32 @@ class ResumeServiceImplTest {
     }
 
     @Test
-    void getResumeContentById_shouldMapNestedEntities() {
+    void getResumeContentList_shouldReturnSingleItemWhenResumeExists() {
         UserHolder.set(UserContext.of(1L, "u1"));
         Resume resume = new Resume();
-        resume.setId(20L);
+        resume.setId(31L);
         resume.setUserId(1L);
-        resume.setName("backend-resume");
-        resume.setSkillId(8L);
-        doReturn(resume).when(resumeMapper).selectById(20L);
-
-        Skill skill = new Skill();
-        skill.setId(8L);
-        skill.setName("skill-pack");
-        skill.setContent(null);
-        doReturn(skill).when(skillMapper).selectById(8L);
-
-        Education education = new Education();
-        education.setId(101L);
-        education.setSchool("SCU");
-        Career career = new Career();
-        career.setId(102L);
-        career.setCompany("ZDMJ");
-        ProjectExperience project = new ProjectExperience();
-        project.setId(103L);
-        project.setName("AI Resume");
-        doReturn(List.of(education)).when(educationMapper).selectByResumeId(20L);
-        doReturn(List.of(career)).when(careerMapper).selectByResumeId(20L);
-        doReturn(List.of(project)).when(projectExperienceMapper).selectByResumeId(20L);
-
-        ResumeContentDTO out = resumeService.getResumeContentById(20L);
-
-        assertEquals(20L, out.getId());
-        assertEquals("backend-resume", out.getName());
-        assertNotNull(out.getSkill());
-        assertEquals("skill-pack", out.getSkill().getName());
-        assertNotNull(out.getSkill().getContent());
-        assertEquals(0, out.getSkill().getContent().size());
-        assertEquals(1, out.getEducations().size());
-        assertEquals("SCU", out.getEducations().get(0).getSchool());
-        assertEquals(1, out.getCareers().size());
-        assertEquals("ZDMJ", out.getCareers().get(0).getCompany());
-        assertEquals(1, out.getProjects().size());
-        assertEquals("AI Resume", out.getProjects().get(0).getName());
-        verify(skillMapper).selectById(8L);
-        verify(educationMapper).selectByResumeId(20L);
-        verify(careerMapper).selectByResumeId(20L);
-        verify(projectExperienceMapper).selectByResumeId(20L);
-    }
-
-    @Test
-    void getResumeContentList_shouldAggregateByCurrentUserResumes() {
-        UserHolder.set(UserContext.of(1L, "u1"));
-        Resume r1 = new Resume();
-        r1.setId(31L);
-        Resume r2 = new Resume();
-        r2.setId(32L);
-        doReturn(List.of(r1, r2)).when(resumeMapper).selectByUserId(1L);
-
-        ResumeContentDTO c1 = new ResumeContentDTO();
-        c1.setId(31L);
-        ResumeContentDTO c2 = new ResumeContentDTO();
-        c2.setId(32L);
-        doReturn(c1).when(resumeService).getResumeContentById(31L);
-        doReturn(c2).when(resumeService).getResumeContentById(32L);
+        resume.setName("my-resume");
+        doReturn(resume).when(resumeMapper).selectOneByUserId(1L);
+        doReturn(List.of()).when(educationMapper).selectByUserId(1L);
+        doReturn(List.of()).when(careerMapper).selectByUserId(1L);
+        doReturn(List.of()).when(projectExperienceMapper).selectByUserId(1L);
 
         List<ResumeContentDTO> out = resumeService.getResumeContentList();
 
-        assertEquals(2, out.size());
+        assertEquals(1, out.size());
         assertEquals(31L, out.get(0).getId());
-        assertEquals(32L, out.get(1).getId());
-        verify(resumeMapper).selectByUserId(1L);
-        verify(resumeService).getResumeContentById(31L);
-        verify(resumeService).getResumeContentById(32L);
+        verify(resumeMapper).selectOneByUserId(1L);
+    }
+
+    @Test
+    void getResumeContentList_noResume_shouldReturnEmpty() {
+        UserHolder.set(UserContext.of(1L, "u1"));
+        doReturn(null).when(resumeMapper).selectOneByUserId(1L);
+
+        List<ResumeContentDTO> out = resumeService.getResumeContentList();
+
+        assertEquals(0, out.size());
     }
 
     @Test
@@ -465,9 +414,6 @@ class ResumeServiceImplTest {
         assertEquals("2020-09-01", out.getEducations().get(0).getStartDate());
         assertEquals(null, out.getEducations().get(0).getEndDate());
         assertEquals(0, out.getCareers().size());
-        verify(chatUtil).chatStructuredOnceWithPlatformModel(
-                any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
-                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
     }
 
     @Test
@@ -529,5 +475,34 @@ class ResumeServiceImplTest {
 
         assertNotNull(out.getWarnings());
         assertEquals(true, out.getWarnings().stream().anyMatch(w -> w.contains("截断")));
+    }
+
+    @Test
+    void saveMyResumeContent_shouldSyncSkillAndPersistShell() {
+        UserHolder.set(UserContext.of(1L, "u1"));
+        Resume resume = new Resume();
+        resume.setId(1L);
+        resume.setUserId(1L);
+        resume.setSkillId(9L);
+        doReturn(resume).when(resumeMapper).selectOneByUserId(1L);
+        doReturn(List.of()).when(educationMapper).selectByUserId(1L);
+        doReturn(List.of()).when(careerMapper).selectByUserId(1L);
+        doReturn(List.of()).when(projectExperienceMapper).selectByUserId(1L);
+        doReturn(true).when(resumeService).updateById(any(Resume.class));
+
+        var request = new com.zdmj.resumeService.dto.ResumeContentSaveRequest();
+        var skill = new com.zdmj.resumeService.dto.SkillDTO();
+        skill.setId(9L);
+        skill.setName("skills");
+        request.setSkill(skill);
+        request.setEducations(List.of());
+        request.setCareers(List.of());
+        request.setProjects(List.of());
+
+        ResumeContentDTO out = resumeService.saveMyResumeContent(request);
+
+        assertEquals(1L, out.getId());
+        verify(skillService).update(any());
+        verify(resumeService).updateById(resume);
     }
 }

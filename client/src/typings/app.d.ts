@@ -875,8 +875,6 @@ declare namespace App {
           title: string;
           subtitle: string;
           defaultResumeName: string;
-          createResume: string;
-          createSuccess: string;
           rename: string;
           renamePlaceholder: string;
           renameSuccess: string;
@@ -886,15 +884,10 @@ declare namespace App {
           uploadPdf: string;
           parsing: string;
           uploadTip: string;
-          uploadNeedResume: string;
           uploadFail: string;
           parseFail: string;
           parseSuccess: string;
           pdfOnly: string;
-          resumeList: string;
-          emptyList: string;
-          sectionCounts: string;
-          selectOrCreateHint: string;
           aggregated: string;
           noSection: string;
           previewTitle: string;
@@ -902,6 +895,7 @@ declare namespace App {
           applyToResume: string;
           applySuccess: string;
           createResumeFail: string;
+          loadFail: string;
         };
         knowledge: {
           title: string;

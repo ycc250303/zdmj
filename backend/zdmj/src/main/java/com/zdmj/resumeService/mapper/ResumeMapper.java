@@ -24,6 +24,16 @@ public interface ResumeMapper extends BaseMapper<Resume> {
     List<Resume> selectByUserId(@Param("userId") Long userId);
 
     /**
+     * 根据用户 ID 查询简历（一用户一份）
+     */
+    Resume selectOneByUserId(@Param("userId") Long userId);
+
+    /**
+     * 检查用户是否已有简历
+     */
+    boolean existsByUserId(@Param("userId") Long userId);
+
+    /**
      * 检查用户是否存在同名简历
      * 自定义方法，使用 MyBatis XML 实现
      *

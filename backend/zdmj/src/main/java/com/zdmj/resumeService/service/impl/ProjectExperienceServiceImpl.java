@@ -40,7 +40,6 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
         projectExperience.setTechStack(projectExperienceDTO.getTechStack());
         projectExperience.setHighlights(projectExperienceDTO.getHighlights());
         projectExperience.setUrl(projectExperienceDTO.getUrl());
-        projectExperience.setVisible(projectExperienceDTO.getVisible());
         // 设置默认状态：committed 已提交
         projectExperience.setStatus(ProjectStatusEnum.COMMITTED.getCode());
         projectExperience.setLookupResult(null);
@@ -60,7 +59,7 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
     @Override
     public List<ProjectExperience> getByUserId() {
         Long userId = UserHolder.requireUserId();
-        return baseMapper.selectByUserId(userId, null);
+        return baseMapper.selectByUserId(userId);
     }
 
     @Override

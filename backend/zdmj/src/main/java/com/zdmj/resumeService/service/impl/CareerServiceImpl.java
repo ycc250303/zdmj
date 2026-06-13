@@ -32,7 +32,6 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
         career.setPosition(careerDTO.getPosition());
         career.setStartDate(careerDTO.getStartDate());
         career.setEndDate(careerDTO.getEndDate());
-        career.setVisible(careerDTO.getVisible());
         career.setDetails(careerDTO.getDetails());
         boolean saved = save(career);
         if (!saved) {
@@ -50,7 +49,7 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
     @Override
     public List<Career> getByUserId() {
         Long userId = UserHolder.requireUserId();
-        return baseMapper.selectByUserId(userId, null);
+        return baseMapper.selectByUserId(userId);
     }
 
     @Override

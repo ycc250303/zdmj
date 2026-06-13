@@ -77,9 +77,4 @@ public class ProjectExperienceDTO {
      * 项目链接
      */
     private String url;
-
-    /**
-     * 是否在简历中展示
-     */
-    private Boolean visible = true;
 }

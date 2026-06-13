@@ -9,6 +9,7 @@ import com.zdmj.common.ai.prompt.PromptNames;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.model.CreateGroup;
 import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.resumeService.dto.*;
 import com.zdmj.resumeService.entity.*;
@@ -17,7 +18,13 @@ import com.zdmj.resumeService.mapper.EducationMapper;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
 import com.zdmj.resumeService.mapper.ResumeMapper;
 import com.zdmj.resumeService.mapper.SkillMapper;
+import com.zdmj.resumeService.service.CareerService;
+import com.zdmj.resumeService.service.EducationService;
+import com.zdmj.resumeService.service.ProjectExperienceService;
 import com.zdmj.resumeService.service.ResumeService;
+import com.zdmj.resumeService.service.SkillService;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -30,7 +37,9 @@ import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -42,6 +51,7 @@ import java.util.stream.Collectors;
 @Service
 public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> implements ResumeService {
 
+    private static final String DEFAULT_RESUME_NAME = "我的简历";
     private static final Pattern WHITESPACE_RUN = Pattern.compile("\\s{3,}");
     private static final Pattern PRESENT_END = Pattern.compile("^(至今|现在|present|current|now)$",
             Pattern.CASE_INSENSITIVE);
@@ -52,12 +62,20 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     private final SkillMapper skillMapper;
     private final ChatUtil chatUtil;
     private final ObjectMapper objectMapper;
+    private final EducationService educationService;
+    private final CareerService careerService;
+    private final ProjectExperienceService projectExperienceService;
+    private final SkillService skillService;
+    private final Validator validator;
 
     @Override
     public Resume create(ResumeDTO resumeDTO) {
         Long userId = UserHolder.requireUserId();
 
-        // 检查是否存在同名简历
+        if (baseMapper.existsByUserId(userId)) {
+            throw new BusinessException(ErrorCode.RESUME_ALREADY_EXISTS);
+        }
+
         if (baseMapper.existsByName(userId, resumeDTO.getName(), null)) {
             throw new BusinessException(ErrorCode.RESUME_NAME_EXISTS);
         }
@@ -67,26 +85,12 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         resume.setName(resumeDTO.getName());
         resume.setSkillId(resumeDTO.getSkillId());
 
-        List<Long> educationIds = educationMapper.selectEducationIds(userId, true);
-        List<Long> careerIds = careerMapper.selectCareerIds(userId, true);
-        List<Long> projectExperienceIds = projectExperienceMapper.selectProjectExperienceIds(userId, true);
-
-        // 直接设置List，TypeHandler会自动处理JSONB转换
-        resume.setEducations(educationIds);
-        resume.setCareers(careerIds);
-        resume.setProjects(projectExperienceIds);
-
         boolean saved = save(resume);
         if (!saved) {
             throw new BusinessException(ErrorCode.RESUME_CREATE_FAILED);
         }
         log.info("创建简历成功: {}", resume.getName());
         return resume;
-    }
-
-    @Override
-    public Resume getById(Long id) {
-        return requireResume(id);
     }
 
     @Override
@@ -109,18 +113,8 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
             }
         }
 
-        // 重新查询用户当前所有可见的教育经历、工作经历、项目经历ID
-        // 这样当用户修改了某个经历的 visible 字段后，更新简历时会自动同步这些变化
-        List<Long> educationIds = educationMapper.selectEducationIds(userId, true);
-        List<Long> careerIds = careerMapper.selectCareerIds(userId, true);
-        List<Long> projectExperienceIds = projectExperienceMapper.selectProjectExperienceIds(userId, true);
-
         resume.setName(resumeDTO.getName());
         resume.setSkillId(resumeDTO.getSkillId());
-        // 直接设置List，TypeHandler会自动处理JSONB转换
-        resume.setEducations(educationIds);
-        resume.setCareers(careerIds);
-        resume.setProjects(projectExperienceIds);
         boolean updated = updateById(resume);
         if (!updated) {
             throw new BusinessException(ErrorCode.RESUME_UPDATE_FAILED);
@@ -147,25 +141,56 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     }
 
     @Override
-    public ResumeContentDTO getResumeContentById(Long id) {
+    public List<ResumeContentDTO> getResumeContentList() {
         Long userId = UserHolder.requireUserId();
+        Resume resume = baseMapper.selectOneByUserId(userId);
+        if (resume == null) {
+            return List.of();
+        }
+        return List.of(buildResumeContent(resume));
+    }
 
-        // 直接查询数据库，不使用缓存
-        // 原因：用户频繁修改项目经历、工作经历、教育经历等，写操作频繁
-        // 如果使用缓存，会导致缓存频繁失效，命中率低，反而增加系统负担
-        // 查询简历完整内容的SQL并不复杂（只是几个LEFT JOIN），数据库查询性能可以接受
-        Resume resume = requireResumeAndCheckOwnership(id, userId, "查询");
+    @Override
+    public ResumeContentDTO getMyResumeContent() {
+        Long userId = UserHolder.requireUserId();
+        Resume resume = ensureResumeForUser(userId);
+        return buildResumeContent(resume);
+    }
 
-        // 创建简历完整内容DTO
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ResumeContentDTO saveMyResumeContent(ResumeContentSaveRequest request) {
+        Long userId = UserHolder.requireUserId();
+        Resume resume = ensureResumeForUser(userId);
+
+        if (StringUtils.hasText(request.getName())) {
+            resume.setName(request.getName().trim());
+        }
+
+        Long skillId = syncSkill(userId, resume.getSkillId(), request.getSkill());
+        resume.setSkillId(skillId);
+
+        syncEducations(userId, request.getEducations());
+        syncCareers(userId, request.getCareers());
+        syncProjects(userId, request.getProjects());
+
+        boolean updated = updateById(resume);
+        if (!updated) {
+            throw new BusinessException(ErrorCode.RESUME_UPDATE_FAILED);
+        }
+        log.info("全量保存简历成功: userId={}, resumeId={}", userId, resume.getId());
+        return buildResumeContent(resume);
+    }
+
+    private ResumeContentDTO buildResumeContent(Resume resume) {
         ResumeContentDTO resumeContentDTO = new ResumeContentDTO();
         resumeContentDTO.setId(resume.getId());
         resumeContentDTO.setName(resume.getName());
 
-        // 获取技能、教育、工作、项目等信息
         Skill skill = resume.getSkillId() != null ? skillMapper.selectById(resume.getSkillId()) : null;
-        List<Education> educations = educationMapper.selectByResumeId(id);
-        List<Career> careers = careerMapper.selectByResumeId(id);
-        List<ProjectExperience> projects = projectExperienceMapper.selectByResumeId(id);
+        List<Education> educations = educationMapper.selectByUserId(resume.getUserId());
+        List<Career> careers = careerMapper.selectByUserId(resume.getUserId());
+        List<ProjectExperience> projects = projectExperienceMapper.selectByUserId(resume.getUserId());
 
         resumeContentDTO.setSkill(skill != null ? convertSkillToDTO(skill) : null);
         resumeContentDTO.setEducations(educations.stream()
@@ -177,28 +202,176 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         resumeContentDTO.setProjects(projects.stream()
                 .map(project -> convertSimpleEntityToDTO(project, ProjectExperienceDTO.class))
                 .collect(Collectors.toList()));
-
         return resumeContentDTO;
     }
 
-    /**
-     * 查询所有简历完整内容
-     *
-     * @return 简历完整内容列表
-     */
-    @Override
-    public List<ResumeContentDTO> getResumeContentList() {
-        Long userId = UserHolder.requireUserId();
+    private Resume ensureResumeForUser(Long userId) {
+        Resume resume = baseMapper.selectOneByUserId(userId);
+        if (resume != null) {
+            return resume;
+        }
 
-        // 直接查询数据库，不使用缓存
-        // 原因：用户频繁修改项目经历、工作经历、教育经历等，写操作频繁
-        // 如果使用缓存，会导致缓存频繁失效，命中率低，反而增加系统负担
-        List<Resume> resumes = baseMapper.selectByUserId(userId);
-        List<ResumeContentDTO> result = resumes.stream()
-                .map(resume -> getResumeContentById(resume.getId()))
-                .collect(Collectors.toList());
+        Long skillId = ensureDefaultSkillId(userId);
+        Resume newResume = new Resume();
+        newResume.setUserId(userId);
+        newResume.setName(DEFAULT_RESUME_NAME);
+        newResume.setSkillId(skillId);
+        boolean saved = save(newResume);
+        if (!saved) {
+            throw new BusinessException(ErrorCode.RESUME_CREATE_FAILED);
+        }
+        log.info("自动创建默认简历: userId={}", userId);
+        return newResume;
+    }
 
-        return result;
+    private Long ensureDefaultSkillId(Long userId) {
+        List<Skill> skills = skillMapper.selectByUserId(userId);
+        if (!skills.isEmpty()) {
+            return skills.get(0).getId();
+        }
+        SkillDTO skillDTO = new SkillDTO();
+        skillDTO.setName("专业技能");
+        SkillItemDTO item = new SkillItemDTO();
+        item.setType("专业技能");
+        item.setContent(List.of("待补充"));
+        skillDTO.setContent(List.of(item));
+        return skillService.create(skillDTO).getId();
+    }
+
+    private Long syncSkill(Long userId, Long currentSkillId, SkillDTO skillDto) {
+        if (skillDto.getId() != null) {
+            skillService.update(skillDto);
+            return skillDto.getId();
+        }
+        if (currentSkillId != null) {
+            skillDto.setId(currentSkillId);
+            skillService.update(skillDto);
+            return currentSkillId;
+        }
+        return skillService.create(skillDto).getId();
+    }
+
+    private void syncEducations(Long userId, List<EducationDTO> incoming) {
+        List<Education> existing = educationMapper.selectByUserId(userId);
+        Set<Long> incomingIds = collectIncomingIds(incoming);
+        for (Education item : existing) {
+            if (!incomingIds.contains(item.getId())) {
+                educationService.delete(item.getId());
+            }
+        }
+        for (EducationDTO dto : incoming) {
+            validateForSave(dto, CreateGroup.class);
+            if (dto.getId() == null) {
+                educationService.create(dto);
+            } else {
+                requireOwnedEducation(dto.getId(), userId);
+                educationService.update(dto);
+            }
+        }
+    }
+
+    private void syncCareers(Long userId, List<CareerDTO> incoming) {
+        List<Career> existing = careerMapper.selectByUserId(userId);
+        Set<Long> incomingIds = collectIncomingIds(incoming);
+        for (Career item : existing) {
+            if (!incomingIds.contains(item.getId())) {
+                careerService.delete(item.getId());
+            }
+        }
+        for (CareerDTO dto : incoming) {
+            validateForSave(dto, CreateGroup.class);
+            if (dto.getId() == null) {
+                careerService.create(dto);
+            } else {
+                requireOwnedCareer(dto.getId(), userId);
+                careerService.update(dto);
+            }
+        }
+    }
+
+    private void syncProjects(Long userId, List<ProjectExperienceDTO> incoming) {
+        List<ProjectExperience> existing = projectExperienceMapper.selectByUserId(userId);
+        Set<Long> incomingIds = collectIncomingIds(incoming);
+        for (ProjectExperience item : existing) {
+            if (!incomingIds.contains(item.getId())) {
+                projectExperienceService.delete(item.getId());
+            }
+        }
+        for (ProjectExperienceDTO dto : incoming) {
+            validateForSave(dto, CreateGroup.class);
+            if (dto.getId() == null) {
+                projectExperienceService.create(dto);
+            } else {
+                requireOwnedProject(dto.getId(), userId);
+                projectExperienceService.update(dto);
+            }
+        }
+    }
+
+    private <T> Set<Long> collectIncomingIds(List<T> incoming) {
+        Set<Long> ids = new HashSet<>();
+        for (T item : incoming) {
+            Long id = extractId(item);
+            if (id != null) {
+                if (!ids.add(id)) {
+                    throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "提交的数据中存在重复的经历 ID");
+                }
+            }
+        }
+        return ids;
+    }
+
+    private Long extractId(Object dto) {
+        if (dto instanceof EducationDTO educationDTO) {
+            return educationDTO.getId();
+        }
+        if (dto instanceof CareerDTO careerDTO) {
+            return careerDTO.getId();
+        }
+        if (dto instanceof ProjectExperienceDTO projectDTO) {
+            return projectDTO.getId();
+        }
+        return null;
+    }
+
+    private <T> void validateForSave(T dto, Class<?>... groups) {
+        Set<ConstraintViolation<T>> violations = validator.validate(dto, groups);
+        if (!violations.isEmpty()) {
+            String detail = violations.stream()
+                    .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                    .collect(Collectors.joining("; "));
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), detail);
+        }
+    }
+
+    private void requireOwnedEducation(Long id, Long userId) {
+        Education education = educationMapper.selectById(id);
+        if (education == null) {
+            throw new BusinessException(ErrorCode.EDUCATION_NOT_FOUND);
+        }
+        if (!education.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.NO_PERMISSION);
+        }
+    }
+
+    private void requireOwnedCareer(Long id, Long userId) {
+        Career career = careerMapper.selectById(id);
+        if (career == null) {
+            throw new BusinessException(ErrorCode.CAREER_NOT_FOUND);
+        }
+        if (!career.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.NO_PERMISSION);
+        }
+    }
+
+    private void requireOwnedProject(Long id, Long userId) {
+        ProjectExperience project = projectExperienceMapper.selectById(id);
+        if (project == null) {
+            throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_NOT_FOUND);
+        }
+        if (!project.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.NO_PERMISSION);
+        }
     }
 
     @Override
@@ -295,9 +468,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
             item.setDegree(normalizeDegree(item.getDegree()));
             item.setStartDate(formatDateString(parseFlexibleDate(item.getStartDate())));
             item.setEndDate(formatDateString(parseFlexibleDate(item.getEndDate())));
-            if (item.getVisible() == null) {
-                item.setVisible(true);
-            }
             educations.add(item);
         }
         result.setEducations(educations);
@@ -309,9 +479,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
             }
             item.setStartDate(formatDateString(parseFlexibleDate(item.getStartDate())));
             item.setEndDate(formatDateString(parseFlexibleDate(item.getEndDate())));
-            if (item.getVisible() == null) {
-                item.setVisible(true);
-            }
             careers.add(item);
         }
         result.setCareers(careers);
@@ -324,9 +491,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
             item.setStartDate(formatDateString(parseFlexibleDate(item.getStartDate())));
             item.setEndDate(formatDateString(parseFlexibleDate(item.getEndDate())));
             item.setHighlights(normalizeHighlights(item.getHighlights()));
-            if (item.getVisible() == null) {
-                item.setVisible(true);
-            }
             projects.add(item);
         }
         result.setProjects(projects);

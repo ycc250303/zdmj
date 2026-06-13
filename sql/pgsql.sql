@@ -89,8 +89,6 @@ CREATE TABLE IF NOT EXISTS educations (
     -- 入学时间
     end_date DATE,
     -- 毕业时间（在读可为空）
-    visible BOOLEAN DEFAULT true,
-    -- 在简历中是否展示
     gpa VARCHAR(50),
     -- 绩点
     description TEXT,
@@ -143,8 +141,6 @@ CREATE TABLE IF NOT EXISTS careers (
     -- 入职时间
     end_date DATE,
     -- 离职时间（在职可为空）
-    visible BOOLEAN DEFAULT true,
-    -- 是否在简历中展示
     details TEXT,
     -- 工作职责/业绩（可富文本）
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -190,8 +186,6 @@ CREATE TABLE IF NOT EXISTS project_experiences (
     -- ]
     url VARCHAR(500),
     -- 项目链接
-    visible BOOLEAN DEFAULT true,
-    -- 是否在简历中展示
     status SMALLINT NOT NULL DEFAULT 1,
     -- 项目分析状态（枚举：1=committed已提交/2=mining挖掘中/3=polishing打磨中/4=completed已完成）
     -- 说明：用于跟踪AI分析流程，不影响简历展示
@@ -219,7 +213,6 @@ CREATE TABLE IF NOT EXISTS project_experiences (
 );
 CREATE INDEX IF NOT EXISTS idx_project_experiences_user_id ON project_experiences(user_id);
 CREATE INDEX IF NOT EXISTS idx_project_experiences_user_id_name ON project_experiences(user_id, name);
-CREATE INDEX IF NOT EXISTS idx_project_experiences_user_id_visible ON project_experiences(user_id, visible);
 CREATE INDEX IF NOT EXISTS idx_project_experiences_status ON project_experiences(status);
 -- 2.5 简历表
 CREATE TABLE IF NOT EXISTS resumes (
@@ -251,8 +244,7 @@ CREATE TABLE IF NOT EXISTS resumes (
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
 );
-CREATE UNIQUE INDEX IF NOT EXISTS idx_resumes_user_id_name ON resumes(user_id, name);
-CREATE INDEX IF NOT EXISTS idx_resumes_user_id ON resumes(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_resumes_user_id_unique ON resumes(user_id);
 CREATE INDEX IF NOT EXISTS idx_resumes_skill_id ON resumes(skill_id);
 -- 2.6 学生就业能力画像表（最小结构，支持岗位路由+结构化输出）
 CREATE TABLE IF NOT EXISTS student_capability_profiles (
