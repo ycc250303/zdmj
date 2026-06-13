@@ -47,9 +47,14 @@ compose() {
 cd "$APP_DIR"
 
 echo "== 1) 更新代码 =="
-git fetch --prune origin
-git checkout main
-git reset --hard origin/main
+if [[ -f "$APP_DIR/deploy/sync_server_code.sh" ]]; then
+  chmod +x "$APP_DIR/deploy/sync_server_code.sh"
+  "$APP_DIR/deploy/sync_server_code.sh"
+else
+  git fetch --prune origin
+  git checkout main
+  git reset --hard origin/main
+fi
 
 echo "== 2) 检查环境变量 =="
 require_env_file
