@@ -13,11 +13,15 @@ import com.zdmj.resumeService.dto.ResumeImportParseRequest;
 import com.zdmj.resumeService.dto.ResumeImportParseResultDTO;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.resumeService.entity.Resume;
+import com.zdmj.resumeService.mapper.AwardMapper;
 import com.zdmj.resumeService.mapper.CareerMapper;
 import com.zdmj.resumeService.mapper.EducationMapper;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
 import com.zdmj.resumeService.mapper.ResumeMapper;
 import com.zdmj.resumeService.mapper.SkillMapper;
+import com.zdmj.resumeService.service.AwardService;
+import com.zdmj.userAuthService.entity.User;
+import com.zdmj.userAuthService.mapper.UserMapper;
 import com.zdmj.resumeService.service.CareerService;
 import com.zdmj.resumeService.service.EducationService;
 import com.zdmj.resumeService.service.ProjectExperienceService;
@@ -37,6 +41,7 @@ import java.util.Objects;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -58,13 +63,19 @@ class ResumeServiceImplTest {
     @Mock
     private CareerMapper careerMapper;
     @Mock
+    private AwardMapper awardMapper;
+    @Mock
     private SkillMapper skillMapper;
+    @Mock
+    private UserMapper userMapper;
     @Mock
     private ChatUtil chatUtil;
     @Mock
     private EducationService educationService;
     @Mock
     private CareerService careerService;
+    @Mock
+    private AwardService awardService;
     @Mock
     private ProjectExperienceService projectExperienceService;
     @Mock
@@ -78,8 +89,8 @@ class ResumeServiceImplTest {
     @BeforeEach
     void setUp() {
         resumeService = spy(new ResumeServiceImpl(
-                educationMapper, projectExperienceMapper, careerMapper, skillMapper, chatUtil, objectMapper,
-                educationService, careerService, projectExperienceService, skillService, validator));
+                educationMapper, projectExperienceMapper, careerMapper, awardMapper, skillMapper, userMapper, chatUtil, objectMapper,
+                educationService, careerService, awardService, projectExperienceService, skillService, validator));
         ReflectionTestUtils.setField(Objects.requireNonNull(resumeService), "baseMapper", resumeMapper);
     }
 
@@ -92,7 +103,6 @@ class ResumeServiceImplTest {
     void create_userAlreadyHasResume_shouldThrow() {
         UserHolder.set(UserContext.of(1L, "u1"));
         ResumeDTO dto = new ResumeDTO();
-        dto.setName("resume");
         dto.setSkillId(99L);
         doReturn(true).when(resumeMapper).existsByUserId(1L);
 
@@ -103,35 +113,16 @@ class ResumeServiceImplTest {
     }
 
     @Test
-    void create_nameExists_shouldThrowAndSkipSave() {
-        UserHolder.set(UserContext.of(1L, "u1"));
-        ResumeDTO dto = new ResumeDTO();
-        dto.setName("same-name");
-        dto.setSkillId(99L);
-        doReturn(false).when(resumeMapper).existsByUserId(1L);
-        doReturn(true).when(resumeMapper).existsByName(1L, "same-name", null);
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.create(dto));
-
-        assertEquals(ErrorCode.RESUME_NAME_EXISTS.getCode(), ex.getCode());
-        verify(resumeMapper).existsByName(1L, "same-name", null);
-        verify(resumeService, never()).save(any(Resume.class));
-    }
-
-    @Test
     void create_success_shouldSaveResumeShell() {
         UserHolder.set(UserContext.of(1L, "u1"));
         ResumeDTO dto = new ResumeDTO();
-        dto.setName("java-backend");
         dto.setSkillId(99L);
         doReturn(false).when(resumeMapper).existsByUserId(1L);
-        doReturn(false).when(resumeMapper).existsByName(1L, "java-backend", null);
         doReturn(true).when(resumeService).save(any(Resume.class));
 
         Resume out = resumeService.create(dto);
 
         assertEquals(1L, out.getUserId());
-        assertEquals("java-backend", out.getName());
         assertEquals(99L, out.getSkillId());
         verify(resumeMapper).existsByUserId(1L);
         verify(resumeService).save(any(Resume.class));
@@ -141,10 +132,8 @@ class ResumeServiceImplTest {
     void create_saveFailed_shouldThrowCreateFailed() {
         UserHolder.set(UserContext.of(1L, "u1"));
         ResumeDTO dto = new ResumeDTO();
-        dto.setName("java-backend");
         dto.setSkillId(99L);
         doReturn(false).when(resumeMapper).existsByUserId(1L);
-        doReturn(false).when(resumeMapper).existsByName(1L, "java-backend", null);
         doReturn(false).when(resumeService).save(any(Resume.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.create(dto));
@@ -169,12 +158,10 @@ class ResumeServiceImplTest {
         UserHolder.set(UserContext.of(1L, "u1"));
         ResumeDTO dto = new ResumeDTO();
         dto.setId(10L);
-        dto.setName("new");
         dto.setSkillId(3L);
         Resume existing = new Resume();
         existing.setId(10L);
         existing.setUserId(2L);
-        existing.setName("old");
         doReturn(existing).when(resumeMapper).selectById(10L);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.update(dto));
@@ -189,61 +176,17 @@ class ResumeServiceImplTest {
         UserHolder.set(UserContext.of(1L, "u1"));
         ResumeDTO dto = new ResumeDTO();
         dto.setId(10L);
-        dto.setName("new-name");
         dto.setSkillId(5L);
         Resume existing = new Resume();
         existing.setId(10L);
         existing.setUserId(1L);
-        existing.setName("old-name");
         doReturn(existing).when(resumeMapper).selectById(10L);
-        doReturn(false).when(resumeMapper).existsByName(1L, "new-name", 10L);
         doReturn(true).when(resumeService).updateById(any(Resume.class));
 
         Resume out = resumeService.update(dto);
 
-        assertEquals("new-name", out.getName());
         assertEquals(5L, out.getSkillId());
-        verify(resumeMapper).existsByName(1L, "new-name", 10L);
         verify(resumeService).updateById(existing);
-    }
-
-    @Test
-    void update_sameName_shouldSkipNameDupCheck() {
-        UserHolder.set(UserContext.of(1L, "u1"));
-        ResumeDTO dto = new ResumeDTO();
-        dto.setId(10L);
-        dto.setName("same");
-        dto.setSkillId(6L);
-        Resume existing = new Resume();
-        existing.setId(10L);
-        existing.setUserId(1L);
-        existing.setName("same");
-        doReturn(existing).when(resumeMapper).selectById(10L);
-        doReturn(true).when(resumeService).updateById(any(Resume.class));
-
-        resumeService.update(dto);
-
-        verify(resumeMapper, never()).existsByName(any(), any(), any());
-        verify(resumeService).updateById(existing);
-    }
-
-    @Test
-    void update_nameChangedAndDuplicated_shouldThrowNameExists() {
-        UserHolder.set(UserContext.of(1L, "u1"));
-        ResumeDTO dto = new ResumeDTO();
-        dto.setId(10L);
-        dto.setName("new-name");
-        Resume existing = new Resume();
-        existing.setId(10L);
-        existing.setUserId(1L);
-        existing.setName("old-name");
-        doReturn(existing).when(resumeMapper).selectById(10L);
-        doReturn(true).when(resumeMapper).existsByName(1L, "new-name", 10L);
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.update(dto));
-
-        assertEquals(ErrorCode.RESUME_NAME_EXISTS.getCode(), ex.getCode());
-        verify(resumeService, never()).updateById(any(Resume.class));
     }
 
     @Test
@@ -251,14 +194,11 @@ class ResumeServiceImplTest {
         UserHolder.set(UserContext.of(1L, "u1"));
         ResumeDTO dto = new ResumeDTO();
         dto.setId(10L);
-        dto.setName("new-name");
         dto.setSkillId(5L);
         Resume existing = new Resume();
         existing.setId(10L);
         existing.setUserId(1L);
-        existing.setName("old-name");
         doReturn(existing).when(resumeMapper).selectById(10L);
-        doReturn(false).when(resumeMapper).existsByName(1L, "new-name", 10L);
         doReturn(false).when(resumeService).updateById(any(Resume.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.update(dto));
@@ -273,7 +213,6 @@ class ResumeServiceImplTest {
         Resume existing = new Resume();
         existing.setId(11L);
         existing.setUserId(1L);
-        existing.setName("r1");
         doReturn(existing).when(resumeMapper).selectById(11L);
         doReturn(false).when(resumeService).removeById(11L);
 
@@ -289,7 +228,6 @@ class ResumeServiceImplTest {
         Resume existing = new Resume();
         existing.setId(11L);
         existing.setUserId(2L);
-        existing.setName("r1");
         doReturn(existing).when(resumeMapper).selectById(11L);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.delete(11L));
@@ -315,7 +253,6 @@ class ResumeServiceImplTest {
         Resume resume = new Resume();
         resume.setId(31L);
         resume.setUserId(1L);
-        resume.setName("my-resume");
         doReturn(resume).when(resumeMapper).selectOneByUserId(1L);
         doReturn(List.of()).when(educationMapper).selectByUserId(1L);
         doReturn(List.of()).when(careerMapper).selectByUserId(1L);
@@ -461,6 +398,128 @@ class ResumeServiceImplTest {
     }
 
     @Test
+    void parseImport_awardYearOnlyInName_shouldNormalizeAward() {
+        UserHolder.set(UserContext.of(1L, "u1"));
+        ResumeImportParseRequest request = new ResumeImportParseRequest();
+        request.setRawText("resume");
+
+        ResumeImportParseResultDTO llmResult = new ResumeImportParseResultDTO();
+        ResumeImportParseResultDTO.AwardItem award = new ResumeImportParseResultDTO.AwardItem();
+        award.setName("2024年同济大学本科生奖学金");
+        llmResult.setAwards(List.of(award));
+
+        doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
+                any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
+                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
+
+        ResumeImportParseResultDTO out = resumeService.parseImport(request);
+
+        assertEquals(1, out.getAwards().size());
+        assertEquals("2024-01-01", out.getAwards().get(0).getAwardDate());
+        assertEquals(1, out.getAwards().get(0).getAwardType());
+    }
+
+    @Test
+    void parseImport_scholarshipFromSourceText_shouldSupplementWhenLlmMisses() {
+        UserHolder.set(UserContext.of(1L, "u1"));
+        ResumeImportParseRequest request = new ResumeImportParseRequest();
+        request.setRawText("""
+                获奖情况
+                2024年同济大学本科生奖学金
+                2023年全国大学生数学建模竞赛省一等奖
+                """);
+
+        ResumeImportParseResultDTO llmResult = new ResumeImportParseResultDTO();
+        ResumeImportParseResultDTO.AwardItem competition = new ResumeImportParseResultDTO.AwardItem();
+        competition.setName("全国大学生数学建模竞赛省一等奖");
+        competition.setAwardType(2);
+        competition.setAwardDate("2023-11-01");
+        llmResult.setAwards(List.of(competition));
+
+        doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
+                any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
+                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
+
+        ResumeImportParseResultDTO out = resumeService.parseImport(request);
+
+        assertEquals(2, out.getAwards().size());
+        assertTrue(out.getAwards().stream().anyMatch(a ->
+                a.getName().contains("本科生奖学金") && Integer.valueOf(1).equals(a.getAwardType())));
+    }
+
+    @Test
+    void parseImport_awardMisclassifiedAsCompetition_shouldResolveToScholarship() {
+        UserHolder.set(UserContext.of(1L, "u1"));
+        ResumeImportParseRequest request = new ResumeImportParseRequest();
+        request.setRawText("resume");
+
+        ResumeImportParseResultDTO llmResult = new ResumeImportParseResultDTO();
+        ResumeImportParseResultDTO.AwardItem award = new ResumeImportParseResultDTO.AwardItem();
+        award.setName("同济大学本科生奖学金");
+        award.setAwardType(2);
+        award.setAwardDate("2024-09-01");
+        llmResult.setAwards(List.of(award));
+
+        doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
+                any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
+                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
+
+        ResumeImportParseResultDTO out = resumeService.parseImport(request);
+
+        assertEquals(1, out.getAwards().size());
+        assertEquals(1, out.getAwards().get(0).getAwardType());
+    }
+
+    @Test
+    void parseImport_awardFromProjectHighlight_shouldSupplement() {
+        UserHolder.set(UserContext.of(1L, "u1"));
+        ResumeImportParseRequest request = new ResumeImportParseRequest();
+        request.setRawText("resume");
+
+        ResumeImportParseResultDTO llmResult = new ResumeImportParseResultDTO();
+        ResumeImportParseResultDTO.ProjectItem project = new ResumeImportParseResultDTO.ProjectItem();
+        project.setName("CoEdit");
+        project.setRole("负责人");
+        project.setStartDate("2025-05-01");
+        project.setHighlights(List.of("该项目获 2025 年中国高校计算机大赛智能交互创新赛全国一等奖"));
+        llmResult.setProjects(List.of(project));
+
+        doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
+                any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
+                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
+
+        ResumeImportParseResultDTO out = resumeService.parseImport(request);
+
+        assertEquals(1, out.getAwards().size());
+        assertTrue(out.getAwards().get(0).getName().contains("一等奖"));
+        assertEquals("2025-01-01", out.getAwards().get(0).getAwardDate());
+    }
+
+    @Test
+    void parseImport_projectHighlightsString_shouldNormalizeToJsonArray() {
+        UserHolder.set(UserContext.of(1L, "u1"));
+        ResumeImportParseRequest request = new ResumeImportParseRequest();
+        request.setRawText("resume");
+
+        ResumeImportParseResultDTO llmResult = new ResumeImportParseResultDTO();
+        ResumeImportParseResultDTO.ProjectItem project = new ResumeImportParseResultDTO.ProjectItem();
+        project.setName("Demo");
+        project.setRole("开发");
+        project.setStartDate("2025-01-01");
+        project.setHighlights("该项目获全国一等奖");
+        llmResult.setProjects(List.of(project));
+
+        doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
+                any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
+                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
+
+        ResumeImportParseResultDTO out = resumeService.parseImport(request);
+
+        assertEquals(1, out.getProjects().size());
+        assertTrue(String.valueOf(out.getProjects().get(0).getHighlights()).startsWith("["));
+    }
+
+    @Test
     void parseImport_longText_shouldTruncateAndAddWarning() {
         UserHolder.set(UserContext.of(1L, "u1"));
         ResumeImportParseRequest request = new ResumeImportParseRequest();
@@ -488,16 +547,18 @@ class ResumeServiceImplTest {
         doReturn(List.of()).when(educationMapper).selectByUserId(1L);
         doReturn(List.of()).when(careerMapper).selectByUserId(1L);
         doReturn(List.of()).when(projectExperienceMapper).selectByUserId(1L);
+        doReturn(List.of()).when(awardMapper).selectByUserId(1L);
         doReturn(true).when(resumeService).updateById(any(Resume.class));
 
         var request = new com.zdmj.resumeService.dto.ResumeContentSaveRequest();
         var skill = new com.zdmj.resumeService.dto.SkillDTO();
         skill.setId(9L);
-        skill.setName("skills");
+        skill.setContent(List.of());
         request.setSkill(skill);
         request.setEducations(List.of());
         request.setCareers(List.of());
         request.setProjects(List.of());
+        request.setAwards(List.of());
 
         ResumeContentDTO out = resumeService.saveMyResumeContent(request);
 

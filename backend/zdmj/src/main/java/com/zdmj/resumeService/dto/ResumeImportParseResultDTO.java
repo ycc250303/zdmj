@@ -22,6 +22,9 @@ public class ResumeImportParseResultDTO {
 
     private List<ProjectItem> projects = new ArrayList<>();
 
+    @JsonAlias({ "honors", "honorsAndAwards", "honors_and_awards" })
+    private List<AwardItem> awards = new ArrayList<>();
+
     private SkillItem skill;
 
     private List<String> warnings = new ArrayList<>();
@@ -36,6 +39,8 @@ public class ResumeImportParseResultDTO {
         private String major;
         @JsonAlias({ "homepageUrl", "website", "homepage" })
         private String homepageUrl;
+        @JsonAlias({ "preferredWorkCity", "targetCity", "expectedCity" })
+        private String preferredWorkCity;
     }
 
     @Data
@@ -77,8 +82,20 @@ public class ResumeImportParseResultDTO {
 
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class SkillItem {
+    public static class AwardItem {
+        /** 1=奖学金, 2=竞赛获奖, 3=其他类型 */
+        @JsonAlias({ "type", "award_type" })
+        private Integer awardType;
+        @JsonAlias({ "awardName", "title", "honor" })
         private String name;
+        @JsonAlias({ "date", "award_date" })
+        private String awardDate;
+        private String description;
+    }
+
+    @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class SkillItem {
         private List<SkillItemDTO> content = new ArrayList<>();
     }
 }
