@@ -424,12 +424,7 @@ function careerEndTs(career: ResumeApi.CareerDTO) {
 
         <!-- 专业技能 -->
         <NCollapseItem :title="$t('page.resume.skills')" name="skills">
-          <div class="mb-4">
-            <NFormItem :label="$t('page.resume.skillListName')">
-              <NInput v-model:value="resumeStore.resumeData.skill.name" />
-            </NFormItem>
-            <NAlert type="info" class="mt-2">{{ $t('page.resume.skillTip') }}</NAlert>
-          </div>
+          <NAlert type="info">{{ $t('page.resume.skillTip') }}</NAlert>
         </NCollapseItem>
 
       </NCollapse>
