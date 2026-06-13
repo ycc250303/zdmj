@@ -193,10 +193,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     private ResponseEntity<Object> validationProblem(String detail, WebRequest request) {
-        String message = ErrorCode.VALIDATION_ERROR.getMessage() + ": " + detail;
+        String message = ErrorCode.VALIDATION_ERROR.getMessage() + ": " + sanitizeValidationDetail(detail);
         ProblemDetail problem = ProblemDetailSupport.of(ErrorCode.VALIDATION_ERROR, message);
         applyInstance(problem, request);
         return response(problem, ErrorCode.VALIDATION_ERROR.getHttpStatus());
+    }
+
+    private static String sanitizeValidationDetail(String detail) {
+        if (detail == null || detail.isBlank()) {
+            return "请求参数不合法";
+        }
+        if (detail.contains("invalid comparison") || detail.contains("com.zdmj.")) {
+            return "请求参数不合法";
+        }
+        return detail;
     }
 
     private ResponseEntity<Object> problem(ErrorCode errorCode, WebRequest request) {
