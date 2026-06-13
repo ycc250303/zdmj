@@ -25,6 +25,7 @@ import {
 import CapabilityScoreCard, { type Dimension } from '@/components/common/CapabilityScoreCard.vue';
 
 import { parseApiErrorBody } from '@/service/request/api-error';
+import { formatJobLocation } from '@/utils/job-display';
 
 const router = useRouter();
 const route = useRoute();
@@ -767,7 +768,7 @@ onMounted(() => {
               </div>
               <div class="flex items-center justify-between py-2 border-b border-slate-100 dark:border-gray-700">
                 <span class="text-slate-600 dark:text-gray-400">{{ $t('page.jobs.location') }}</span>
-                <span class="font-semibold text-slate-800 dark:text-gray-200">{{ jobDetail.location }}</span>
+                <span class="font-semibold text-slate-800 dark:text-gray-200">{{ formatJobLocation(jobDetail.location) }}</span>
               </div>
               <div class="flex items-center justify-between py-2">
                 <span class="text-slate-600 dark:text-gray-400">{{ $t('page.jobs.salaryInfo') }}</span>
