@@ -50,6 +50,7 @@ jobs:
               git reset --hard "origin/$DEPLOY_BRANCH"
               git rev-parse --short HEAD
             ) 9>"$LOCK_FILE"
+            cd "$APP_DIR"
             ls -lah
             ls -lah deploy
 
