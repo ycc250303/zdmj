@@ -362,8 +362,28 @@ class JobServiceImplTest {
         JobPageQueryDTO normalized = captor.getValue();
         assertEquals(JobEmploymentEnum.FULL_TIME, normalized.getEmployment());
         assertNull(normalized.getResolvedSalaryType());
+        assertEquals(Boolean.TRUE, normalized.getFullTimeEmployment());
         assertEquals(15000, normalized.getFilterSalaryMin());
         assertEquals(30000, normalized.getFilterSalaryMax());
+    }
+
+    @Test
+    void getPage_whenInternEmployment_shouldSetResolvedSalaryTypeOne() {
+        JobPageQueryDTO query = new JobPageQueryDTO();
+        query.setEmployment(JobEmploymentEnum.INTERN);
+        Page<JobListItemDTO> mpPage = new Page<>(1, 20);
+        mpPage.setRecords(List.of());
+        mpPage.setTotal(0);
+        doReturn(mpPage).when(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
+
+        jobService.getPage(query);
+
+        ArgumentCaptor<JobPageQueryDTO> captor = ArgumentCaptor.forClass(JobPageQueryDTO.class);
+        verify(jobMapper).selectJobPage(any(Page.class), captor.capture());
+        JobPageQueryDTO normalized = captor.getValue();
+        assertEquals(JobEmploymentEnum.INTERN, normalized.getEmployment());
+        assertEquals(1, normalized.getResolvedSalaryType());
+        assertNull(normalized.getFullTimeEmployment());
     }
 
     @Test
@@ -385,6 +405,18 @@ class JobServiceImplTest {
         assertNull(normalized.getResolvedSalaryType());
         assertNull(normalized.getFilterSalaryMin());
         assertNull(normalized.getFilterSalaryMax());
+    }
+
+    @Test
+    void getPage_whenFilterSalaryMinGreaterThanMax_shouldThrow() {
+        JobPageQueryDTO query = new JobPageQueryDTO();
+        query.setEmployment(JobEmploymentEnum.FULL_TIME);
+        query.setFilterSalaryMin(20000);
+        query.setFilterSalaryMax(10000);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> jobService.getPage(query));
+        assertEquals("最低薪资不能大于最高薪资", ex.getMessage());
+        verify(jobMapper, never()).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
     }
 
     private static void initMybatisPlusLambdaCache() {

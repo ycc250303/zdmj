@@ -77,6 +77,11 @@ public class JobPageQueryDTO {
     private Integer resolvedSalaryType;
 
     /**
+     * 全职用工（Service 写入；Mapper 映射为 salary_type IN (2, 3)）
+     */
+    private Boolean fullTimeEmployment;
+
+    /**
      * 期望薪资下限（元，须与 resolvedSalaryType 同一单位）
      */
     @Setter(AccessLevel.NONE)
