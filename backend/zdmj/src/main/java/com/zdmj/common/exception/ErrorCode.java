@@ -43,7 +43,6 @@ public enum ErrorCode {
     USER_LLM_CONNECTION_TEST_FAILED(2014, "大模型连通性测试失败", HttpStatus.BAD_REQUEST),
 
     // ========== 简历与能力画像 3xxx ==========
-    RESUME_NAME_EXISTS(3001, "简历名称已存在，请使用其他名称", HttpStatus.CONFLICT),
     RESUME_CREATE_FAILED(3002, "创建简历失败", HttpStatus.BAD_REQUEST),
     RESUME_ALREADY_EXISTS(3003, "用户已有简历，不能重复创建", HttpStatus.CONFLICT),
     RESUME_UPDATE_FAILED(3004, "更新简历失败", HttpStatus.BAD_REQUEST),
@@ -75,6 +74,13 @@ public enum ErrorCode {
     EDUCATION_GRADUATE_TIME_INVALID(6003, "毕业时间不能早于入学时间", HttpStatus.BAD_REQUEST),
     EDUCATION_DELETE_FAILED(6004, "删除教育经历失败", HttpStatus.BAD_REQUEST),
     EDUCATION_NOT_FOUND(6005, "教育经历不存在", HttpStatus.NOT_FOUND),
+
+    // ========== 获奖信息 6500 ==========
+    AWARD_ADD_FAILED(6501, "添加获奖信息失败", HttpStatus.BAD_REQUEST),
+    AWARD_UPDATE_FAILED(6502, "更新获奖信息失败", HttpStatus.BAD_REQUEST),
+    AWARD_DELETE_FAILED(6503, "删除获奖信息失败", HttpStatus.BAD_REQUEST),
+    AWARD_NOT_FOUND(6504, "获奖信息不存在", HttpStatus.NOT_FOUND),
+    AWARD_TYPE_INVALID(6505, "奖项类型无效", HttpStatus.BAD_REQUEST),
 
     // ========== 技能 7xxx ==========
     SKILL_ADD_FAILED(7001, "添加技能失败", HttpStatus.BAD_REQUEST),

@@ -50,14 +50,12 @@ class SkillServiceImplTest {
     @Test
     void create_success_shouldValidateAndSave() {
         SkillDTO dto = new SkillDTO();
-        dto.setName("backend");
         dto.setContent(validContent());
         doReturn(true).when(service).save(any(Skill.class));
 
         Skill out = service.create(dto);
 
         assertEquals(1L, out.getUserId());
-        assertEquals("backend", out.getName());
         assertEquals(1, out.getContent().size());
         verify(service).save(any(Skill.class));
     }
@@ -65,7 +63,6 @@ class SkillServiceImplTest {
     @Test
     void create_invalidContent_shouldThrowAndSkipSave() {
         SkillDTO dto = new SkillDTO();
-        dto.setName("backend");
         SkillItemDTO invalid = new SkillItemDTO();
         invalid.setType(" ");
         invalid.setContent(List.of("Java"));
@@ -80,7 +77,7 @@ class SkillServiceImplTest {
     @Test
     void create_saveFailed_shouldThrowAddFailed() {
         SkillDTO dto = new SkillDTO();
-        dto.setName("backend");
+        dto.setContent(validContent());
         doReturn(false).when(service).save(any(Skill.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
@@ -123,21 +120,18 @@ class SkillServiceImplTest {
     }
 
     @Test
-    void update_success_shouldUpdateNameAndContent() {
+    void update_success_shouldUpdateContent() {
         SkillDTO dto = new SkillDTO();
         dto.setId(10L);
-        dto.setName("new-skill");
         dto.setContent(validContent());
         Skill existing = new Skill();
         existing.setId(10L);
         existing.setUserId(1L);
-        existing.setName("old-skill");
         doReturn(existing).when(skillMapper).selectById(10L);
         doReturn(true).when(service).updateById(any(Skill.class));
 
         Skill out = service.update(dto);
 
-        assertEquals("new-skill", out.getName());
         assertEquals(1, out.getContent().size());
         verify(service).updateById(existing);
     }
@@ -146,7 +140,7 @@ class SkillServiceImplTest {
     void update_updateFailed_shouldThrowUpdateFailed() {
         SkillDTO dto = new SkillDTO();
         dto.setId(10L);
-        dto.setName("new-skill");
+        dto.setContent(validContent());
         Skill existing = new Skill();
         existing.setId(10L);
         existing.setUserId(1L);

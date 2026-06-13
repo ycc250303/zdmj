@@ -33,11 +33,6 @@ public class Skill extends BaseEntity {
     private Long userId;
 
     /**
-     * 技能清单名称
-     */
-    private String name;
-
-    /**
      * 职业技能描述（JSONB格式）
      * 示例：[{"type": "前端框架", "content": ["React", "Vue.js"]}, ...]
      */

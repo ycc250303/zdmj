@@ -14,7 +14,7 @@
 GET /resumes/me/content
 ```
 
-若用户尚无简历，自动创建默认壳（名称「我的简历」+ 默认技能）。
+若用户尚无简历，自动创建默认壳（含默认技能分类内容）。
 
 ### 全量保存
 
@@ -26,11 +26,11 @@ PUT /resumes/me/content
 
 | 字段 | 说明 |
 |------|------|
-| `name` | 可选，简历名称 |
 | `skill` | 必填，无 `id` 则绑定/创建，有 `id` 则更新 |
 | `educations` | 必填列表，无 `id` 新建，有 `id` 更新，DB 有但未提交则删除 |
 | `careers` | 同上 |
 | `projects` | 同上 |
+| `awards` | 同上 |
 
 事务内完成 diff；任一步失败整体回滚。
 
@@ -41,11 +41,10 @@ PUT /resumes/me/content
 
 ## 数据库
 
-迁移脚本：`sql/migrations/20260612_resume_single_user_drop_visible.sql`
+迁移脚本：
 
-- 删除 `educations/careers/project_experiences.visible`
-- `resumes.user_id` 唯一约束
-- 保留 `projects/careers/educations` JSONB 列（暂不再写入）
+- `sql/migrations/20260612_resume_single_user_drop_visible.sql`：删除 visible、单用户唯一
+- `sql/migrations/20260614_create_awards.sql`：新增 `awards` 表与 `resumes.awards` 字段
 
 ## 测试
 

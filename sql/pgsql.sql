@@ -20,6 +20,7 @@ DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS user_profiles;
 DROP TABLE IF EXISTS user_behavior_logs;
 DROP TABLE IF EXISTS educations;
+DROP TABLE IF EXISTS awards;
 DROP TABLE IF EXISTS skills;
 DROP TABLE IF EXISTS careers;
 DROP TABLE IF EXISTS project_experiences;
@@ -56,6 +57,8 @@ CREATE TABLE IF NOT EXISTS users (
     -- 电话
     website VARCHAR(500),
     -- 主页链接
+    preferred_work_city VARCHAR(255),
+    -- 意向工作城市
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
@@ -100,14 +103,33 @@ CREATE TABLE IF NOT EXISTS educations (
 CREATE INDEX IF NOT EXISTS idx_educations_user_id ON educations(user_id);
 CREATE INDEX IF NOT EXISTS idx_educations_user_id_degree ON educations(user_id, degree);
 CREATE INDEX IF NOT EXISTS idx_educations_user_id_school ON educations(user_id, school);
--- 2.2 技能表
+-- 2.2 获奖信息表
+CREATE TABLE IF NOT EXISTS awards (
+    id BIGSERIAL PRIMARY KEY,
+    -- 获奖ID
+    user_id BIGINT NOT NULL,
+    -- 用户ID（逻辑外键：users.id）
+    award_type SMALLINT NOT NULL,
+    -- 奖项类型：1=奖学金, 2=竞赛获奖, 3=其他类型
+    name VARCHAR(255) NOT NULL,
+    -- 奖项名称
+    award_date DATE NOT NULL,
+    -- 获奖时间
+    description TEXT,
+    -- 奖项说明（可选）
+    CONSTRAINT chk_awards_type CHECK (award_type IN (1, 2, 3)),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- 创建时间
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
+);
+CREATE INDEX IF NOT EXISTS idx_awards_user_id ON awards(user_id);
+CREATE INDEX IF NOT EXISTS idx_awards_user_id_award_date ON awards(user_id, award_date);
+-- 2.3 技能表
 CREATE TABLE IF NOT EXISTS skills (
     id BIGSERIAL PRIMARY KEY,
     -- 技能ID
     user_id BIGINT NOT NULL,
     -- 用户ID（逻辑外键：users.id）
-    name VARCHAR(255) NOT NULL,
-    -- 技能清单名称
     content JSONB NOT NULL DEFAULT '[]'::jsonb,
     -- 职业技能描述（数组对象，包含type和content字段）
     -- content 示例
@@ -220,8 +242,6 @@ CREATE TABLE IF NOT EXISTS resumes (
     -- 简历ID
     user_id BIGINT NOT NULL,
     -- 用户ID（逻辑外键：users.id）
-    name VARCHAR(255) NOT NULL,
-    -- 简历名称
     skill_id BIGINT,
     -- 技能清单ID（逻辑外键：skills.id）
     projects JSONB DEFAULT '[]'::jsonb,
@@ -236,6 +256,10 @@ CREATE TABLE IF NOT EXISTS resumes (
     -- 教育经历ID数组（JSONB数组，存储education ID）
     -- educations 示例
     -- [1]
+    awards JSONB DEFAULT '[]'::jsonb,
+    -- 获奖信息ID数组（JSONB数组，存储 awards ID）
+    -- awards 示例
+    -- [1, 2]
     resume_matched_ids JSONB DEFAULT '[]'::jsonb,
     -- 专用简历ID数组（JSONB数组，存储resume_matches ID）
     -- resume_matched_ids 示例

@@ -32,15 +32,4 @@ public interface ResumeMapper extends BaseMapper<Resume> {
      * 检查用户是否已有简历
      */
     boolean existsByUserId(@Param("userId") Long userId);
-
-    /**
-     * 检查用户是否存在同名简历
-     * 自定义方法，使用 MyBatis XML 实现
-     *
-     * @param userId    用户ID
-     * @param name      简历名称
-     * @param excludeId 排除的简历ID（用于更新时检查，如果为null则不排除）
-     * @return 如果存在同名简历返回true，否则返回false
-     */
-    boolean existsByName(@Param("userId") Long userId, @Param("name") String name, @Param("excludeId") Long excludeId);
 }

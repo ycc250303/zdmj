@@ -31,11 +31,6 @@ public class Resume extends BaseEntity {
     private Long userId;
 
     /**
-     * 简历名称
-     */
-    private String name;
-
-    /**
      * 技能清单ID（关联skills表）
      */
     private Long skillId;
@@ -57,6 +52,12 @@ public class Resume extends BaseEntity {
      */
     @TableField(typeHandler = JsonbListTypeHandler.class)
     private List<Long> educations;
+
+    /**
+     * 获奖信息ID数组（JSONB数组，存储 awards ID）
+     */
+    @TableField(typeHandler = JsonbListTypeHandler.class)
+    private List<Long> awards;
 
     /**
      * 专用简历ID数组（JSONB数组，存储resume_matches ID）

@@ -37,4 +37,9 @@ public class UserDTO {
      * 主页链接
      */
     private String website;
+
+    /**
+     * 意向工作城市
+     */
+    private String preferredWorkCity;
 }

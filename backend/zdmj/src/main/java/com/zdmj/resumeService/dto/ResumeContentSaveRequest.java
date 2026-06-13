@@ -13,11 +13,6 @@ import java.util.List;
 @Data
 public class ResumeContentSaveRequest {
 
-    /**
-     * 简历名称（可选，不传则保持原名）
-     */
-    private String name;
-
     @NotNull(message = "技能信息不能为空")
     @Valid
     private SkillDTO skill;
@@ -33,4 +28,11 @@ public class ResumeContentSaveRequest {
     @NotNull(message = "项目经历列表不能为 null")
     @Valid
     private List<ProjectExperienceDTO> projects = new ArrayList<>();
+
+    @NotNull(message = "获奖信息列表不能为 null")
+    @Valid
+    private List<AwardDTO> awards = new ArrayList<>();
+
+    @Valid
+    private ResumePersonalInfoDTO personalInfo;
 }
