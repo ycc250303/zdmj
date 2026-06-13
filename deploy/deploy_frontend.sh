@@ -7,9 +7,14 @@ DIST_DIR="/usr/share/nginx/html"
 cd "$APP_DIR"
 
 echo "== 1) 更新代码 =="
-git fetch --prune origin
-git checkout main
-git reset --hard origin/main
+if [[ -f "$APP_DIR/deploy/sync_server_code.sh" ]]; then
+  chmod +x "$APP_DIR/deploy/sync_server_code.sh"
+  "$APP_DIR/deploy/sync_server_code.sh"
+else
+  git fetch --prune origin
+  git checkout main
+  git reset --hard origin/main
+fi
 
 echo "== 2) 安装依赖 =="
 cd client

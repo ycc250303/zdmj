@@ -13,6 +13,7 @@ on:
     paths:
       - 'backend/zdmj/**'
       - 'deploy/deploy_backend.sh'
+      - 'deploy/sync_server_code.sh'
       - 'deploy/docker-compose.yml'
       - '.github/workflows/cd_backend.yml'
   workflow_dispatch:
@@ -47,6 +48,7 @@ jobs:
             java:
               - 'backend/zdmj/**'
               - 'deploy/deploy_backend.sh'
+              - 'deploy/sync_server_code.sh'
               - 'deploy/docker-compose.yml'
               - '.github/workflows/cd_backend.yml'
 
@@ -68,11 +70,18 @@ jobs:
           command_timeout: 10m
           script: |
             set -euo pipefail
-            cd "${{ env.APP_DIR }}"
-            git fetch --prune origin
-            git checkout "${{ env.DEPLOY_BRANCH }}"
-            git reset --hard "origin/${{ env.DEPLOY_BRANCH }}"
-            git rev-parse --short HEAD
+            APP_DIR="${{ env.APP_DIR }}"
+            DEPLOY_BRANCH="${{ env.DEPLOY_BRANCH }}"
+            LOCK_FILE="${APP_DIR}/.git/deploy.lock"
+            mkdir -p "$(dirname "$LOCK_FILE")"
+            (
+              flock -w 300 9 || { echo "Timed out waiting for git sync lock"; exit 1; }
+              cd "$APP_DIR"
+              git fetch --prune origin
+              git checkout "$DEPLOY_BRANCH"
+              git reset --hard "origin/$DEPLOY_BRANCH"
+              git rev-parse --short HEAD
+            ) 9>"$LOCK_FILE"
             ls -lah deploy
 
   deploy-java:
