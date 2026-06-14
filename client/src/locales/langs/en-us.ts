@@ -230,7 +230,7 @@ const local: App.I18n.Schema = {
     portal: 'portal',
     'resume-import': 'My Resume',
     'resumes-editor': 'Resume Editor',
-    "profile_capability": 'Capability Profile',
+    'capability-profile': 'Capability Profile',
     "knowledge": 'Knowledge Base',
     "chat": 'AI Chat',
     "jobs": 'Jobs',

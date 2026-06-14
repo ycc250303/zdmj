@@ -166,6 +166,7 @@ const routeMap: RouteMap = {
   "403": "/403",
   "404": "/404",
   "500": "/500",
+  "capability-profile": "/capability-profile",
   "chat": "/chat",
   "home": "/home",
   "iframe-page": "/iframe-page/:url",
@@ -175,8 +176,6 @@ const routeMap: RouteMap = {
   "knowledge": "/knowledge",
   "login": "/login/:module(pwd-login|code-login|register|reset-pwd|bind-wechat)?",
   "portal": "/portal",
-  "profile": "/profile",
-  "profile_capability": "/profile/capability",
   "resume-import": "/resume-import",
   "resumes-editor": "/resumes-editor",
   "user-settings": "/user-settings"

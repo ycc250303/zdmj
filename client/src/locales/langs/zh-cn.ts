@@ -232,7 +232,7 @@ const local: App.I18n.Schema = {
     chat: 'AI 对话',
     'resume-import': '我的简历',
     'resumes-editor': '简历编辑器',
-    "profile_capability":'能力画像',
+    'capability-profile': '能力画像',
     'user-settings': '用户设置'
   },
   page: {
