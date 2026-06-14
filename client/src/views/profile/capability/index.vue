@@ -34,11 +34,11 @@ const totalScore = computed(() => {
   if (!profile.value?.scoreDetail) return 0;
   const { scoreDetail } = profile.value;
   return (
-    (scoreDetail.jobMatchTechDepthScore || 0) +
-    (scoreDetail.projectPracticeScore || 0) +
+    ((scoreDetail as any).projectExperienceScore || 0) +
+    ((scoreDetail as any).skillMatchScore || 0) +
     (scoreDetail.contentCompletenessScore || 0) +
-    (scoreDetail.structureExpressionScore || 0) +
-    (scoreDetail.professionalPotentialScore || 0)
+    ((scoreDetail as any).structureClarityScore || 0) +
+    ((scoreDetail as any).expressionProfessionalismScore || 0)
   );
 });
 
@@ -331,11 +331,11 @@ const scoreDimensions = computed<Dimension[]>(() => {
   const sd = profile.value?.scoreDetail;
   if (!sd) return [];
   return [
-    { key: 'jobMatchTechDepthScore', label: '技术深度', score: sd.jobMatchTechDepthScore || 0, max: 40 },
-    { key: 'projectPracticeScore', label: '项目实践', score: sd.projectPracticeScore || 0, max: 20 },
+    { key: 'projectExperienceScore', label: '技术深度', score: (sd as any).projectExperienceScore || 0, max: 40 },
+    { key: 'skillMatchScore', label: '项目实践', score: (sd as any).skillMatchScore || 0, max: 20 },
     { key: 'contentCompletenessScore', label: '内容完整度', score: sd.contentCompletenessScore || 0, max: 15 },
-    { key: 'structureExpressionScore', label: '结构表达', score: sd.structureExpressionScore || 0, max: 15 },
-    { key: 'professionalPotentialScore', label: '职业素养', score: sd.professionalPotentialScore || 0, max: 10 }
+    { key: 'structureClarityScore', label: '结构表达', score: (sd as any).structureClarityScore || 0, max: 15 },
+    { key: 'expressionProfessionalismScore', label: '职业素养', score: (sd as any).expressionProfessionalismScore || 0, max: 10 }
   ];
 });
 

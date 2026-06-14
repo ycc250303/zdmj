@@ -63,33 +63,34 @@ interface ActionPlanData {
 }
 
 interface CareerPathData {
-  entryPoint: string;
-  nextStep: string;
-  transitionLogic: string;
-  alternativePaths: string[];
+  currentLevel: string;
+  nextLevel: string;
+  transitionPaths: any[];
 }
 
 interface GoalsData {
-  shortTerm: string;
-  midTerm: string;
-  longTerm: string;
+  shortTermGoal: string;
+  midTermGoal: string;
+  longTermGoal: string;
 }
 
 interface EvaluationMetric {
-  metric: string;
+  key: string;
+  label: string;
   target: string;
-  deadline: string;
 }
 
 interface EvaluationData {
-  cycles: string[];
+  evaluationCycle: string;
   metrics: EvaluationMetric[];
 }
 
 interface ExplorationData {
-  roleClarity: string;
-  industryInsight: string;
-  marketPositioning: string;
+  currentRole: string;
+  industry: string;
+  company: string;
+  location: string;
+  salaryRange: string;
 }
 
 import { computed } from 'vue';
@@ -120,10 +121,9 @@ const careerPathData = computed<CareerPathData | null>(() => {
   const raw = props.careerReport?.reportContent?.careerPath;
   if (!raw || typeof raw !== 'object') return null;
   return {
-    nextStep: (raw.nextStep as string) || '',
-    entryPoint: (raw.entryPoint as string) || '',
-    transitionLogic: (raw.transitionLogic as string) || '',
-    alternativePaths: Array.isArray(raw.alternativePaths) ? raw.alternativePaths : [],
+    currentLevel: (raw.currentLevel as string) || '',
+    nextLevel: (raw.nextLevel as string) || '',
+    transitionPaths: Array.isArray(raw.transitionPaths) ? raw.transitionPaths : [],
   };
 });
 
@@ -131,29 +131,38 @@ const careerGoalsData = computed<GoalsData | null>(() => {
   const raw = props.careerReport?.reportContent?.careerGoals;
   if (!raw || typeof raw !== 'object') return null;
   return {
-    shortTerm: (raw.shortTerm as string) || '',
-    midTerm: (raw.midTerm as string) || '',
-    longTerm: (raw.longTerm as string) || '',
+    shortTermGoal: (raw.shortTermGoal as string) || '',
+    midTermGoal: (raw.midTermGoal as string) || '',
+    longTermGoal: (raw.longTermGoal as string) || '',
   };
 });
 
 const evaluationPlanData = computed<EvaluationData | null>(() => {
   const raw = props.careerReport?.reportContent?.evaluationPlan;
   if (!raw || typeof raw !== 'object') return null;
-  const metrics: EvaluationMetric[] = Array.isArray(raw.quantitativeMetrics)
-    ? raw.quantitativeMetrics.map((m: any) => ({ metric: m?.metric || '', target: m?.target || '', deadline: m?.deadline || '' }))
-    : [];
-  const cycles: string[] = Array.isArray(raw.evaluationCycle) ? raw.evaluationCycle : [];
-  return { cycles, metrics };
+  // quantitativeMetrics is an object like { projectCompletionRate: "按时完成项目的百分比", ... }
+  const qm = raw.quantitativeMetrics;
+  const metrics: EvaluationMetric[] = [];
+  if (qm && typeof qm === 'object' && !Array.isArray(qm)) {
+    for (const [key, val] of Object.entries(qm)) {
+      metrics.push({ key, label: key, target: String(val) });
+    }
+  }
+  return {
+    evaluationCycle: (raw.evaluationCycle as string) || '',
+    metrics,
+  };
 });
 
 const careerExplorationData = computed<ExplorationData | null>(() => {
   const raw = props.careerReport?.reportContent?.careerExploration;
   if (!raw || typeof raw !== 'object') return null;
   return {
-    roleClarity: (raw.roleClarity as string) || '',
-    industryInsight: (raw.industryInsight as string) || '',
-    marketPositioning: (raw.marketPositioning as string) || '',
+    currentRole: (raw.currentRole as string) || '',
+    industry: (raw.industry as string) || '',
+    company: (raw.company as string) || '',
+    location: (raw.location as string) || '',
+    salaryRange: (raw.salaryRange as string) || '',
   };
 });
 
