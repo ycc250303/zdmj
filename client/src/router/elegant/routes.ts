@@ -131,14 +131,24 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
-    name: 'capability-profile',
-    path: '/profile/capability',
-    component: 'layout.base$view.capability-profile',
+    name: 'profile',
+    path: '/profile',
+    component: 'layout.base',
     meta: {
-      title: 'capability-profile',
-      i18nKey: 'route.profile_capability',
-      order: 3
-    }
+      title: 'profile',
+      i18nKey: 'route.profile'
+    },
+    children: [
+      {
+        name: 'profile_capability',
+        path: '/profile/capability',
+        component: 'view.profile_capability',
+        meta: {
+          title: 'profile_capability',
+          i18nKey: 'route.profile_capability'
+        }
+      }
+    ]
   },
   {
     name: 'resume-import',
