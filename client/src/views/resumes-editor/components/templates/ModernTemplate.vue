@@ -45,7 +45,7 @@ const props = defineProps<Props>();
         <div 
           v-for="edu in props.data.educations" 
           :key="edu.id" 
-          v-show="edu.visible" 
+           
           class="modern-item-grid"
         >
           <div class="col-span-8 pr-4">
@@ -76,7 +76,7 @@ const props = defineProps<Props>();
         <div 
           v-for="career in props.data.careers" 
           :key="career.id" 
-          v-show="career.visible"
+          
           class="modern-item-grid"
         >
           <div class="col-span-8 pr-4">
@@ -100,7 +100,7 @@ const props = defineProps<Props>();
         <div 
           v-for="proj in props.data.projects" 
           :key="proj.id" 
-          v-show="proj.visible"
+          
           class="modern-item-grid"
         >
           <div class="col-span-8 pr-4">

@@ -20,7 +20,7 @@ const formData = reactive<ResumeApi.CareerCreate>({
   startDate: '',
   endDate: '',
   details: '',
-  visible: true
+  
 });
 
 watch(() => props.initialData, (newVal) => {
@@ -126,12 +126,6 @@ async function handleSubmit() {
         <NInput v-model:value="formData.details" type="textarea" :autosize="{ minRows: 4, maxRows: 8 }" :placeholder="$t('page.profile.career.detailsPlaceholder')" size="large" />
       </NFormItem>
 
-      <NFormItem :label="$t('page.profile.common.visibleInResume')" path="visible">
-        <NSwitch v-model:value="formData.visible" size="large">
-          <template #checked>{{ $t('page.profile.common.visible') }}</template>
-          <template #unchecked>{{ $t('page.profile.common.hidden') }}</template>
-        </NSwitch>
-      </NFormItem>
 
       <div class="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
         <NButton size="large" @click="emit('cancel')">{{ $t('page.profile.common.cancel') }}</NButton>

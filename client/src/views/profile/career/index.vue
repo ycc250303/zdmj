@@ -140,7 +140,6 @@ onMounted(() => {
             <div class="row-content">
               <div class="row-top">
                 <h3 class="row-title">{{ item.company }}</h3>
-                <NTag v-if="!item.visible" size="small" type="warning" round>{{ $t('page.profile.common.hidden') }}</NTag>
               </div>
               <p class="row-sub">{{ item.position }}</p>
               <p class="row-date">{{ item.startDate }} ~ {{ item.endDate || $t('page.profile.common.present') }}</p>

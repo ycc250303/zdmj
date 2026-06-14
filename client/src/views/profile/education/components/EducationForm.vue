@@ -30,7 +30,7 @@ const formData = reactive<ResumeApi.EducationCreate>({
   startDate: '',
   endDate: '',
   gpa: '',
-  visible: true
+  
 });
 
 watch(() => props.initialData, (newVal) => {
@@ -144,12 +144,6 @@ async function handleSubmit() {
           </NFormItem>
         </NGridItem>
         <NGridItem>
-          <NFormItem :label="$t('page.profile.common.visibleInResume')" path="visible">
-            <NSwitch v-model:value="formData.visible" size="large">
-              <template #checked>{{ $t('page.profile.common.visible') }}</template>
-              <template #unchecked>{{ $t('page.profile.common.hidden') }}</template>
-            </NSwitch>
-          </NFormItem>
         </NGridItem>
       </NGrid>
 

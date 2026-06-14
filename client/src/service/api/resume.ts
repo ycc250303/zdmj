@@ -25,7 +25,6 @@ export namespace ResumeApi {
     position: string;
     startDate: string;
     endDate?: string;
-    visible?: boolean;
     details?: string;
   }
   export interface CareerUpdate extends CareerCreate {
@@ -36,10 +35,9 @@ export namespace ResumeApi {
   export interface EducationCreate {
     school: string;
     major: string;
-    degree: number; // 1:博士, 2:硕士, 3:本科, 4:大专, 5:高中, 6:其他
+    degree: number;
     startDate: string;
     endDate?: string;
-    visible?: boolean;
     gpa?: string;
   }
   export interface EducationUpdate extends EducationCreate {
@@ -57,7 +55,6 @@ export namespace ResumeApi {
     techStack?: string[];
     highlights?: string;
     url?: string;
-    visible?: boolean;
   }
   export interface ProjectUpdate extends ProjectCreate {
     id: number;
@@ -75,7 +72,6 @@ export namespace ResumeApi {
   //展示层
   export interface SkillDTO {
     id: number;
-    name: string;
     content: SkillItem[];
   }
 
@@ -86,7 +82,6 @@ export namespace ResumeApi {
     degree: number;
     startDate: string;
     endDate?: string;
-    visible: boolean;
     gpa?: string;
   }
 
@@ -96,7 +91,6 @@ export namespace ResumeApi {
     position: string;
     startDate: string;
     endDate?: string;
-    visible: boolean;
     details?: string;
   }
 
@@ -111,16 +105,16 @@ export namespace ResumeApi {
     techStack?: string[];
     highlights?: string;
     url?: string;
-    visible: boolean;
   }
 
   export interface ResumeContentDTO {
     id: number;
-    name: string;
     skill: SkillDTO;
     educations: EducationDTO[];
     careers: CareerDTO[];
     projects: ProjectDTO[];
+    awards?: any[];
+    personalInfo?: { name?: string; phone?: string; homepageUrl?: string };
   }
 }
 
@@ -208,25 +202,21 @@ export function fetchUpdateResume(data: ResumeApi.ResumeUpdate) {
 export function fetchGetResumeList() {
   return request({ url: '/resumes', method: 'get' });
 }
-export function fetchGetResumeDetail(id: number) {
-  return request({ url: `/resumes/${id}`, method: 'get' });
-}
 export function fetchDeleteResume(id: number) {
   return request({ url: `/resumes/${id}`, method: 'delete' });
 }
 
-/**
- * 聚合查询：一次性拉取整份简历的完整内容（包含技能、教育、工作、项目等关联数据）
- * 对应接口：/resumes/{id}/content
- */
-export function fetchGetResumeFullContentDetail(id: number) {
-  return request({ url: `/resumes/${id}/content`, method: 'get' });
+/** 获取当前用户的完整简历内容（新接口替代 /resumes/{id}/content） */
+export function fetchGetResumeMeContent() {
+  return request({ url: '/resumes/me/content', method: 'get' });
 }
 
-/**
- * 聚合查询：拉取所有简历的完整内容列表
- * 对应接口：/resumes/content
- */
+/** 全量保存简历内容 */
+export function fetchSaveResumeMeContent(data: ResumeApi.ResumeContentDTO) {
+  return request({ url: '/resumes/me/content', method: 'put', data });
+}
+
+/** 保留兼容：拉取所有简历完整内容列表 */
 export function fetchGetResumeFullContentList() {
   return request({ url: '/resumes/content', method: 'get' });
 }

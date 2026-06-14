@@ -41,7 +41,7 @@ const props = defineProps<Props>();
       <section v-if="props.data.educations && props.data.educations.length">
         <h2 class="theme-section-title">{{ $t('page.resume.education', 'Education') }}</h2>
         <div class="flex flex-col gap-4">
-          <div v-for="edu in props.data.educations" :key="edu.id" v-show="edu.visible">
+          <div v-for="edu in props.data.educations" :key="edu.id" >
             <h3 class="font-bold text-slate-800">{{ edu.school }}</h3>
             <div class="text-sm text-slate-600 mt-0.5">{{ edu.major }}</div>
             <div class="text-xs text-slate-400 font-medium mt-1">{{ edu.startDate }} - {{ edu.endDate || $t('page.resume.present', 'Present') }}</div>
@@ -88,7 +88,7 @@ const props = defineProps<Props>();
         <div class="flex flex-col gap-6 relative">
           <div class="absolute left-2 top-2 bottom-0 w-px bg-slate-200 -z-0"></div>
           
-          <div v-for="career in props.data.careers" :key="career.id" v-show="career.visible" class="relative z-10 pl-6">
+          <div v-for="career in props.data.careers" :key="career.id"  class="relative z-10 pl-6">
             <div class="absolute left-[5px] top-1.5 w-2 h-2 rounded-full outline outline-4 outline-white theme-bg"></div>
             
             <div class="flex justify-between items-start mb-1">
@@ -111,7 +111,7 @@ const props = defineProps<Props>();
         <div class="flex flex-col gap-6 relative">
           <div class="absolute left-2 top-2 bottom-0 w-px bg-slate-200 -z-0"></div>
 
-          <div v-for="proj in props.data.projects" :key="proj.id" v-show="proj.visible" class="relative z-10 pl-6">
+          <div v-for="proj in props.data.projects" :key="proj.id"  class="relative z-10 pl-6">
              <div class="absolute left-[5px] top-1.5 w-2 h-2 rounded-full outline outline-4 outline-white theme-bg" style="opacity: 0.7;"></div>
 
             <div class="flex justify-between items-start mb-1">

@@ -29,7 +29,7 @@ function tsToDateStr(ts: number | null): string {
 // ---- 新增教育经历 ----
 const showAddEdu = ref(false);
 const addingEdu = ref(false);
-const newEdu = ref<ResumeApi.EducationCreate>({ school: '', major: '', degree: 3, startDate: '', visible: true });
+const newEdu = ref<ResumeApi.EducationCreate>({ school: '', major: '', degree: 3, startDate: '' });
 const newEduStartTs = computed({
   get: () => dateStrToTs(newEdu.value.startDate),
   set: (v) => { newEdu.value.startDate = tsToDateStr(v); }
@@ -56,7 +56,7 @@ async function submitAddEdu() {
   addingEdu.value = false;
   if (ok) {
     showAddEdu.value = false;
-    newEdu.value = { school: '', major: '', degree: 3, startDate: '', visible: true };
+    newEdu.value = { school: '', major: '', degree: 3, startDate: '' };
     window.$message?.success($t('page.profile.education.addSuccess'));
   }
 }
@@ -64,7 +64,7 @@ async function submitAddEdu() {
 // ---- 新增项目经历 ----
 const showAddProj = ref(false);
 const addingProj = ref(false);
-const newProj = ref<ResumeApi.ProjectCreate>({ name: '', role: '', startDate: '', description: '', contribution: '', visible: true });
+const newProj = ref<ResumeApi.ProjectCreate>({ name: '', role: '', startDate: '', description: '', contribution: '' });
 const newProjStartTs = computed({
   get: () => dateStrToTs(newProj.value.startDate),
   set: (v) => { newProj.value.startDate = tsToDateStr(v); }
@@ -83,7 +83,7 @@ async function submitAddProj() {
   addingProj.value = false;
   if (ok) {
     showAddProj.value = false;
-    newProj.value = { name: '', role: '', startDate: '', description: '', contribution: '', visible: true };
+    newProj.value = { name: '', role: '', startDate: '', description: '', contribution: '' };
     window.$message?.success($t('page.profile.project.addSuccess'));
   }
 }
@@ -91,7 +91,7 @@ async function submitAddProj() {
 // ---- 新增实习经历 ----
 const showAddCareer = ref(false);
 const addingCareer = ref(false);
-const newCareer = ref<ResumeApi.CareerCreate>({ company: '', position: '', startDate: '', visible: true });
+const newCareer = ref<ResumeApi.CareerCreate>({ company: '', position: '', startDate: '' });
 const newCareerStartTs = computed({
   get: () => dateStrToTs(newCareer.value.startDate),
   set: (v) => { newCareer.value.startDate = tsToDateStr(v); }
@@ -110,7 +110,7 @@ async function submitAddCareer() {
   addingCareer.value = false;
   if (ok) {
     showAddCareer.value = false;
-    newCareer.value = { company: '', position: '', startDate: '', visible: true };
+    newCareer.value = { company: '', position: '', startDate: '' };
     window.$message?.success($t('page.profile.career.addSuccess'));
   }
 }
@@ -216,7 +216,6 @@ function careerEndTs(career: ResumeApi.CareerDTO) {
               <div class="flex justify-between items-center mb-4">
                 <span class="font-bold text-slate-700 dark:text-gray-300">{{ edu.school || `${$t('page.resume.education')} ${index + 1}` }}</span>
                 <div class="flex items-center gap-2">
-                  <NSwitch v-model:value="edu.visible" size="small" />
                   <NPopconfirm @positive-click="handleDeleteEdu(edu.id)">
                     <template #trigger>
                       <NButton size="tiny" quaternary type="error">{{ $t('page.resume.delete') }}</NButton>
@@ -294,7 +293,6 @@ function careerEndTs(career: ResumeApi.CareerDTO) {
               <div class="flex justify-between items-center mb-4">
                 <span class="font-bold text-slate-700 dark:text-gray-300">{{ proj.name || `${$t('page.resume.projects')} ${index + 1}` }}</span>
                 <div class="flex items-center gap-2">
-                  <NSwitch v-model:value="proj.visible" size="small" />
                   <NPopconfirm @positive-click="handleDeleteProj(proj.id)">
                     <template #trigger>
                       <NButton size="tiny" quaternary type="error">{{ $t('page.resume.delete') }}</NButton>
@@ -360,7 +358,6 @@ function careerEndTs(career: ResumeApi.CareerDTO) {
               <div class="flex justify-between items-center mb-4">
                 <span class="font-bold text-slate-700 dark:text-gray-300">{{ career.company || `${$t('page.resume.experience')} ${index + 1}` }}</span>
                 <div class="flex items-center gap-2">
-                  <NSwitch v-model:value="career.visible" size="small" />
                   <NPopconfirm @positive-click="handleDeleteCareer(career.id)">
                     <template #trigger>
                       <NButton size="tiny" quaternary type="error">{{ $t('page.resume.delete') }}</NButton>
@@ -426,7 +423,7 @@ function careerEndTs(career: ResumeApi.CareerDTO) {
         <NCollapseItem :title="$t('page.resume.skills')" name="skills">
           <div class="mb-4">
             <NFormItem :label="$t('page.resume.skillListName')">
-              <NInput v-model:value="resumeStore.resumeData.skill.name" />
+              <NInput v-model:value="resumeStore.resumeData.skill.id" />
             </NFormItem>
             <NAlert type="info" class="mt-2">{{ $t('page.resume.skillTip') }}</NAlert>
           </div>

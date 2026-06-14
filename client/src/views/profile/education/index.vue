@@ -44,7 +44,6 @@ onMounted(() => { loadData(); });
           <article v-for="(item, idx) in educationList" :key="item.id" class="list-row">
             <div class="row-no font-display">{{ String(idx + 1).padStart(2, '0') }}</div>
             <div class="row-content">
-              <div class="row-top"><h3 class="row-title">{{ item.school }}</h3><NTag v-if="!item.visible" size="small" type="warning" round>{{ $t('page.profile.common.hidden') }}</NTag></div>
               <p class="row-sub">{{ getDegreeText(item.degree) }} · {{ item.major }}</p>
               <p class="row-date">{{ item.startDate }} ~ {{ item.endDate || $t('page.profile.common.present') }}</p>
               <p v-if="item.gpa" class="row-gpa">{{ $t('page.profile.education.gpa') }}: {{ item.gpa }}</p>

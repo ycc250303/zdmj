@@ -1,34 +1,19 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { fetchGetResumeFullContentDetail } from '@/service/api/resume';
-import type { ResumeApi } from '@/service/api/resume';
+import { fetchGetResumeMeContent } from '@/service/api/resume';
 
-export const useResumeStore = defineStore('resume-editor', () => {
-  // 定义响应式状态
+export const useResumeLegacyStore = defineStore('resume-legacy', () => {
   const loading = ref(false);
-  
-  const resumeData = ref<any>({
-    basicInfo: {},
-    educations: [],
-    projects: []
-  });
+  const resumeData = ref<any>({ basicInfo: {}, educations: [], projects: [] });
 
-  // 定义获取数据的 Action
-  async function initResume(id: number) {
+  async function initResume(_id?: number) {
     loading.value = true;
     try {
-      const { data, error } = await fetchGetResumeFullContentDetail(id);
-      
+      const { data, error } = await fetchGetResumeMeContent();
       if (!error && data) {
         resumeData.value.educations = data.educations || [];
         resumeData.value.projects = data.projects || [];
-        resumeData.value.basicInfo = data.basicInfo || { 
-          name: '', 
-          intention: '', 
-          phone: '', 
-          email: '' 
-        };
-      
+        resumeData.value.basicInfo = data.personalInfo || { name: '', phone: '', email: '' };
       }
     } catch (err) {
       window.$message?.error('获取简历内容失败，请检查网络');
@@ -37,9 +22,5 @@ export const useResumeStore = defineStore('resume-editor', () => {
     }
   }
 
-  return {
-    loading,
-    resumeData,
-    initResume
-  };
+  return { loading, resumeData, initResume };
 });
