@@ -367,7 +367,14 @@ const local: App.I18n.Schema = {
       deleteFailed: 'Delete failed',
       createSuccess: 'Create successful',
       createFailed: 'Create failed',
-      sendFailed: 'Send message failed'
+      sendFailed: 'Send message failed',
+      knowledgePanelTitle: 'Knowledge Base',
+      knowledgePanelDesc: 'Choose documents for RAG retrieval in this chat',
+      collapseKnowledgePanel: 'Collapse knowledge panel',
+      expandKnowledgePanel: 'Expand knowledge panel',
+      knowledgeEmpty: 'No knowledge documents yet. Add them on the Knowledge page first.',
+      knowledgeRagEnabled: 'Enable RAG',
+      knowledgeNotEmbedded: 'Not embedded'
     },
     "profile": {
       "common": {

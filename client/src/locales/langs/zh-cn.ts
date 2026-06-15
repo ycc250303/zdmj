@@ -364,7 +364,14 @@ const local: App.I18n.Schema = {
       deleteFailed: '删除失败',
       createSuccess: '创建成功',
       createFailed: '创建失败',
-      sendFailed: '发送消息失败'
+      sendFailed: '发送消息失败',
+      knowledgePanelTitle: '知识库',
+      knowledgePanelDesc: '选择参与本对话 RAG 检索的文档',
+      collapseKnowledgePanel: '折叠知识库栏',
+      expandKnowledgePanel: '展开知识库栏',
+      knowledgeEmpty: '暂无知识文档，请先在知识库页添加',
+      knowledgeRagEnabled: '启用 RAG',
+      knowledgeNotEmbedded: '未向量化'
     },
     profile: {
       "common": {
