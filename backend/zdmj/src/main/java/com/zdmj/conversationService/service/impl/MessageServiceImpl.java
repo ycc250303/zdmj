@@ -30,7 +30,9 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -128,8 +130,9 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         AtomicInteger lastFlushedLen = new AtomicInteger(0);
 
         // 7.调用 AI 服务
+        List<Long> ragDocumentIds = resolveRagDocumentIds(dto);
         Flux<String> chatFlux = ragConfig.isEnabled()
-                ? knowledgeRagService.streamAnswer(dto.getConversationId(), dto.getMessage())
+                ? knowledgeRagService.streamAnswer(dto.getConversationId(), dto.getMessage(), ragDocumentIds)
                 : chatUtil.chatStreamInConversation(
                         dto.getConversationId(),
                         dto.getMessage(),
@@ -280,6 +283,37 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
             throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
         }
         return conversation;
+    }
+
+    /**
+     * 解析本次 RAG 参与的知识文档 ID。
+     * 请求体优先；否则读取会话 config.ragDocumentIds；均未配置时返回 null（检索全部文档）。
+     */
+    private List<Long> resolveRagDocumentIds(MessageDTO dto) {
+        if (dto.getRagDocumentIds() != null) {
+            return dto.getRagDocumentIds();
+        }
+        Conversation conversation = conversationService.getById(dto.getConversationId());
+        if (conversation == null || conversation.getConfig() == null) {
+            return null;
+        }
+        return parseRagDocumentIds(conversation.getConfig().get("ragDocumentIds"));
+    }
+
+    private List<Long> parseRagDocumentIds(Object raw) {
+        if (raw == null) {
+            return null;
+        }
+        if (!(raw instanceof List<?> list)) {
+            return null;
+        }
+        List<Long> ids = new ArrayList<>(list.size());
+        for (Object item : list) {
+            if (item instanceof Number number) {
+                ids.add(number.longValue());
+            }
+        }
+        return ids;
     }
 
     /**

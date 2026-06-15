@@ -61,6 +61,25 @@
       LIMIT #{limit}
   </select>
 
+  <select id="searchBySimilarityInDocuments" resultType="com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO">
+      SELECT
+          kv.id,
+          kv.document_id AS documentId,
+          kv.chunk_index AS chunkIndex,
+          kv.content,
+          kv.metadata,
+          (1 - (kv.embedding <![CDATA[ <=> ]]> CAST(#{queryEmbedding} AS vector))) AS score
+      FROM knowledge_vectors kv
+      WHERE kv.user_id = #{userId}
+        AND kv.knowledge_id = #{knowledgeId}
+        AND kv.document_id IN
+      <foreach collection="documentIds" item="did" open="(" separator="," close=")">
+        #{did}
+      </foreach>
+      ORDER BY kv.embedding <![CDATA[ <=> ]]> CAST(#{queryEmbedding} AS vector)
+      LIMIT #{limit}
+  </select>
+
   <select id="selectChunksByDocuments" resultType="com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO">
     SELECT
         kv.id,

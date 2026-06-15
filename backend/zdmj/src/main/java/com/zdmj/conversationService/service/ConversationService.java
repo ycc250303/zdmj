@@ -5,6 +5,7 @@ import com.zdmj.conversationService.dto.ConversationDTO;
 import com.zdmj.conversationService.entity.Conversation;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 会话 Service 骨架
@@ -42,6 +43,15 @@ public interface ConversationService extends IService<Conversation> {
      * @return 更新后的会话
      */
     Conversation updateTitle(Long id, String title);
+
+    /**
+     * 更新会话配置（合并写入，保留未传入字段）
+     *
+     * @param id     会话ID
+     * @param config 配置片段
+     * @return 更新后的会话
+     */
+    Conversation updateConfig(Long id, Map<String, Object> config);
 
     /**
      * 删除会话
