@@ -371,7 +371,9 @@ const local: App.I18n.Schema = {
       expandKnowledgePanel: '展开知识库栏',
       knowledgeEmpty: '暂无知识文档，请先在知识库页添加',
       knowledgeRagEnabled: '启用 RAG',
-      knowledgeNotEmbedded: '未向量化'
+      knowledgeNotEmbedded: '未向量化',
+      systemKnowledgeTitle: '系统知识库',
+      systemKnowledgeDesc: '开启后将检索平台内置求职与工程知识'
     },
     profile: {
       "common": {
@@ -949,6 +951,7 @@ const local: App.I18n.Schema = {
       typeAll: '全部',
       typeProjectDoc: '项目文档',
       typeGithub: 'GitHub 代码',
+      typeGithubUnsupported: 'GitHub 仓库类型暂不支持，请使用项目文档',
       embeddingPending: '等待中',
       embeddingRunning: '向量化中...',
       embeddingSuccess: '已向量化',
