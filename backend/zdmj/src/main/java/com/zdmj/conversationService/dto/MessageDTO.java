@@ -26,7 +26,13 @@ public class MessageDTO {
 
     /**
      * 参与 RAG 检索的知识文档 ID 列表。
-     * null 表示沿用会话 config；空列表表示本次不启用 RAG。
+     * null 表示沿用会话 config；空列表表示本次不检索用户私有文档。
      */
     private List<Long> ragDocumentIds;
+
+    /**
+     * 是否检索系统知识库（scope=2）。
+     * null 表示沿用会话 config.useSystemKnowledge。
+     */
+    private Boolean useSystemKnowledge;
 }

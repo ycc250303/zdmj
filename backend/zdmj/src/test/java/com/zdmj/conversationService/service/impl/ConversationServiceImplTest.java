@@ -9,6 +9,10 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.conversationService.dto.ConversationDTO;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.mapper.ConversationMapper;
+import com.zdmj.conversationService.support.ConversationContextSupport;
+import com.zdmj.resumeService.dto.ResumeContentDTO;
+import com.zdmj.resumeService.dto.ResumePersonalInfoDTO;
+import com.zdmj.resumeService.service.ResumeService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,13 +24,17 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ConversationServiceImplTest {
@@ -35,12 +43,15 @@ class ConversationServiceImplTest {
     private ConversationMapper conversationMapper;
     @Mock
     private RedisUtil redisUtil;
+    @Mock
+    private ResumeService resumeService;
 
     private ConversationServiceImpl conversationService;
 
     @BeforeEach
     void setUp() {
-        conversationService = spy(new ConversationServiceImpl(conversationMapper, redisUtil));
+        conversationService = spy(new ConversationServiceImpl(conversationMapper, redisUtil, resumeService));
+        lenient().when(resumeService.getMyResumeContent()).thenReturn(new ResumeContentDTO());
         UserHolder.set(UserContext.of(1L, "u1"));
     }
 
@@ -61,7 +72,26 @@ class ConversationServiceImplTest {
         assertEquals(1L, actual.getUserId());
         assertEquals(0, actual.getMessageCount());
         assertEquals("gpt", actual.getConfig().get("model"));
+        assertFalse(Boolean.TRUE.equals(actual.getConfig().get(ConversationContextSupport.CONFIG_USE_SYSTEM_KNOWLEDGE)));
         verify(conversationService).save(any(Conversation.class));
+    }
+
+    @Test
+    void createConversation_shouldInjectResumeContext() {
+        ResumeContentDTO resume = new ResumeContentDTO();
+        ResumePersonalInfoDTO personal = new ResumePersonalInfoDTO();
+        personal.setName("测试用户");
+        resume.setPersonalInfo(personal);
+        when(resumeService.getMyResumeContent()).thenReturn(resume);
+        doReturn(true).when(conversationService).save(any(Conversation.class));
+
+        Conversation out = conversationService.create(new ConversationDTO());
+        Conversation actual = Objects.requireNonNull(out);
+
+        assertTrue(actual.getContext().stream()
+                .anyMatch(item -> ConversationContextSupport.CONTEXT_TYPE_RESUME.equals(item.get("type"))));
+        assertTrue(String.valueOf(actual.getContext().get(0).get("content")).contains("测试用户"));
+        verify(resumeService).getMyResumeContent();
     }
 
     @Test

@@ -12,10 +12,10 @@
 
 用法示例：
   export DASHSCOPE_API_KEY=sk-xxx
+  export PG_HOST=127.0.0.1 PG_USER=zdmj PG_PASSWORD=your-password
   python sql/import_system_knowledge.py \\
     --scope 3 \\
-    --source-dir backend/zdmj/src/main/resources/prompts/study \\
-    --pg-host 111.229.81.45
+    --source-dir backend/zdmj/src/main/resources/prompts/study
 
   # 仅预览分块，不写库
   python sql/import_system_knowledge.py --scope 3 --source-dir ./study --dry-run
@@ -387,11 +387,11 @@ def main() -> int:
     parser.add_argument("--source-dir", type=Path, required=True, help="Markdown 根目录")
     parser.add_argument("--dry-run", action="store_true", help="只分块预览，不写库不调 API")
     parser.add_argument("--verify-query", type=str, default="", help="导入后用该问句做一次向量检索抽检")
-    parser.add_argument("--pg-host", default=os.getenv("PG_HOST", os.getenv("APP_REMOTE_HOST", "111.229.81.45")))
+    parser.add_argument("--pg-host", default=os.getenv("PG_HOST", "127.0.0.1"))
     parser.add_argument("--pg-port", type=int, default=int(os.getenv("PG_PORT", "5432")))
-    parser.add_argument("--pg-db", default=os.getenv("PG_DB", "zdmj"))
+    parser.add_argument("--pg-db", default=os.getenv("PG_DATABASE", os.getenv("PG_DB", "zdmj")))
     parser.add_argument("--pg-user", default=os.getenv("PG_USER", "zdmj"))
-    parser.add_argument("--pg-password", default=os.getenv("PG_PASSWORD", "zdmj"))
+    parser.add_argument("--pg-password", default=os.getenv("PG_PASSWORD", ""))
     args = parser.parse_args()
 
     source_dir = args.source_dir.resolve()
@@ -408,6 +408,9 @@ def main() -> int:
     api_key = os.getenv("DASHSCOPE_API_KEY") or os.getenv("SPRING_AI_OPENAI_API_KEY")
     if not args.dry_run and not api_key:
         print("请设置 DASHSCOPE_API_KEY", file=sys.stderr)
+        return 1
+    if not args.dry_run and not args.pg_password:
+        print("请设置 PG_PASSWORD 或传入 --pg-password", file=sys.stderr)
         return 1
 
     client = OpenAI(api_key=api_key, base_url=EMBED_BASE_URL) if not args.dry_run else None

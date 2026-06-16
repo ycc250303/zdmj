@@ -374,7 +374,9 @@ const local: App.I18n.Schema = {
       expandKnowledgePanel: 'Expand knowledge panel',
       knowledgeEmpty: 'No knowledge documents yet. Add them on the Knowledge page first.',
       knowledgeRagEnabled: 'Enable RAG',
-      knowledgeNotEmbedded: 'Not embedded'
+      knowledgeNotEmbedded: 'Not embedded',
+      systemKnowledgeTitle: 'System Knowledge',
+      systemKnowledgeDesc: 'Include built-in career and engineering knowledge in retrieval'
     },
     "profile": {
       "common": {
@@ -753,6 +755,7 @@ const local: App.I18n.Schema = {
       typeAll: 'All',
       typeProjectDoc: 'Project Doc',
       typeGithub: 'GitHub Code',
+      typeGithubUnsupported: 'GitHub repository type is not supported yet. Please use project documents.',
       embeddingPending: 'Pending',
       embeddingRunning: 'Vectorizing...',
       embeddingSuccess: 'Vectorized',

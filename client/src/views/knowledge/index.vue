@@ -27,8 +27,8 @@ const searchParams = reactive({
 
 const knowledgeTypeOptions = computed(() => [
   { label: $t('page.knowledge.typeAll'), value: undefined },
-  { label: $t('page.knowledge.typeProjectDoc'), value: 1 },
-  { label: $t('page.knowledge.typeGithub'), value: 2 }
+  { label: $t('page.knowledge.typeProjectDoc'), value: 1 }
+  // type=2 GitHub 暂不支持
   // type=3 DeepWiki 暂不支持
 ]);
 
@@ -98,6 +98,10 @@ function handleAddNew() {
 }
 
 function handleEdit(item: KnowledgeApi.KnowledgeDocumentUpdate) {
+  if (item.type === 2) {
+    window.$message?.warning($t('page.knowledge.typeGithubUnsupported'));
+    return;
+  }
   currentEditData.value = { ...item };
   isEditing.value = true;
 }
@@ -217,7 +221,12 @@ onMounted(() => {
                 <NButton size="small" tertiary type="info" @click="handleViewDetail(item.id!)">
                   {{ $t('page.knowledge.viewDetail') }}
                 </NButton>
-                <NButton size="small" secondary @click="handleEdit(item as KnowledgeApi.KnowledgeDocumentUpdate)">
+                <NButton
+                  v-if="item.type !== 2"
+                  size="small"
+                  secondary
+                  @click="handleEdit(item as KnowledgeApi.KnowledgeDocumentUpdate)"
+                >
                   {{ $t('page.profile.common.edit') }}
                 </NButton>
                 <NPopconfirm @positive-click="handleDelete(item.id!)">

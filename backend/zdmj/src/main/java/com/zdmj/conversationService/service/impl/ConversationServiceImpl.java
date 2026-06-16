@@ -10,11 +10,14 @@ import com.zdmj.conversationService.dto.ConversationDTO;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.service.ConversationService;
+import com.zdmj.conversationService.support.ConversationContextSupport;
+import com.zdmj.resumeService.service.ResumeService;
 
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +32,7 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
 
     private final ConversationMapper conversationMapper;
     private final RedisUtil redisUtil;
+    private final ResumeService resumeService;
 
     @Override
     public boolean updateById(Conversation entity) {
@@ -46,10 +50,32 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         Long userId = UserHolder.requireUserId();
 
         Conversation conversation = new Conversation();
-        // 避免启动阶段依赖 MapStruct 生成 Bean，手动映射必要字段
         if (conversationDTO != null) {
-            conversation.setConfig(conversationDTO.getConfig());
-            conversation.setContext(conversationDTO.getContext());
+            Map<String, Object> config = conversationDTO.getConfig() == null
+                    ? new HashMap<>()
+                    : new HashMap<>(conversationDTO.getConfig());
+            config.putIfAbsent(ConversationContextSupport.CONFIG_USE_SYSTEM_KNOWLEDGE, false);
+            conversation.setConfig(config);
+
+            List<Map<String, Object>> contextList = conversationDTO.getContext() == null
+                    ? new ArrayList<>()
+                    : new ArrayList<>(conversationDTO.getContext());
+            boolean hasResume = contextList.stream()
+                    .anyMatch(item -> item != null
+                            && ConversationContextSupport.CONTEXT_TYPE_RESUME.equals(String.valueOf(item.get("type"))));
+            if (!hasResume) {
+                ConversationContextSupport.buildResumeContextEntry(resumeService.getMyResumeContent())
+                        .ifPresent(contextList::add);
+            }
+            conversation.setContext(contextList.isEmpty() ? null : contextList);
+        } else {
+            Map<String, Object> config = new HashMap<>();
+            config.put(ConversationContextSupport.CONFIG_USE_SYSTEM_KNOWLEDGE, false);
+            conversation.setConfig(config);
+            List<Map<String, Object>> contextList = new ArrayList<>();
+            ConversationContextSupport.buildResumeContextEntry(resumeService.getMyResumeContent())
+                    .ifPresent(contextList::add);
+            conversation.setContext(contextList.isEmpty() ? null : contextList);
         }
         conversation.setUserId(userId);
         conversation.setMessageCount(0);

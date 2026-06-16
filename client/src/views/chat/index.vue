@@ -139,6 +139,7 @@ const knowledgeDocuments = ref<KnowledgeApi.KnowledgeDocumentDTO[]>([]);
 const knowledgeLoading = ref(false);
 const knowledgePanelCollapsed = ref(false);
 const enabledRagDocumentIds = ref<number[]>([]);
+const useSystemKnowledge = ref(false);
 const knowledgePanelWidth = ref(DEFAULT_KNOWLEDGE_PANEL_WIDTH);
 const isResizingKnowledgePanel = ref(false);
 
@@ -202,19 +203,28 @@ const getConversationRagDocumentIds = (conversationId: number | null): number[] 
   return raw.map(Number).filter(id => !Number.isNaN(id));
 };
 
+const getConversationUseSystemKnowledge = (conversationId: number | null): boolean => {
+  if (!conversationId) return false;
+  const conversation = conversations.value.find(item => item.id === conversationId);
+  if (!conversation?.config) return false;
+  return Boolean(conversation.config.useSystemKnowledge);
+};
+
 const syncRagSelectionFromConversation = () => {
   const allIds = getAllKnowledgeDocumentIds();
   const saved = getConversationRagDocumentIds(currentConversationId.value);
   enabledRagDocumentIds.value = saved === null
     ? [...allIds]
     : saved.filter(id => allIds.includes(id));
+  useSystemKnowledge.value = getConversationUseSystemKnowledge(currentConversationId.value);
 };
 
 const persistRagSelection = async () => {
   if (!currentConversationId.value) return;
 
   const { data, error } = await fetchUpdateConversationConfig(currentConversationId.value, {
-    ragDocumentIds: enabledRagDocumentIds.value
+    ragDocumentIds: enabledRagDocumentIds.value,
+    useSystemKnowledge: useSystemKnowledge.value
   });
 
   if (!error && data) {
@@ -238,6 +248,11 @@ const handleToggleRagDocument = async (documentId: number, enabled: boolean) => 
   } else {
     enabledRagDocumentIds.value = enabledRagDocumentIds.value.filter(id => id !== documentId);
   }
+  await persistRagSelection();
+};
+
+const handleToggleSystemKnowledge = async (enabled: boolean) => {
+  useSystemKnowledge.value = enabled;
   await persistRagSelection();
 };
 
@@ -393,7 +408,8 @@ const handleSend = async () => {
   const requestData = {
     conversationId: currentConversationId.value!,
     message: userText,
-    ragDocumentIds: enabledRagDocumentIds.value
+    ragDocumentIds: enabledRagDocumentIds.value,
+    useSystemKnowledge: useSystemKnowledge.value
   };
   console.log('发送消息请求:', requestData);
 
@@ -774,6 +790,24 @@ onMounted(() => {
 
       <n-scrollbar class="flex-1">
         <div class="px-2 py-2">
+          <div class="px-3 py-2.5 mb-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-200/40">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0 flex-1">
+                <div class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ $t('page.chat.systemKnowledgeTitle') }}
+                </div>
+                <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                  {{ $t('page.chat.systemKnowledgeDesc') }}
+                </div>
+              </div>
+              <n-switch
+                :value="useSystemKnowledge"
+                size="small"
+                @update:value="handleToggleSystemKnowledge"
+              />
+            </div>
+          </div>
+
           <div v-if="knowledgeLoading" class="flex justify-center py-8">
             <n-spin size="small" />
           </div>

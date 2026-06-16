@@ -9,9 +9,6 @@ import {
 import type { KnowledgeApi } from '@/service/api/knowledge';
 import { $t } from '@/locales';
 
-// 获取$t函数的引用
-const t = $t;
-
 interface Props {
   initialData?: KnowledgeApi.KnowledgeDocumentUpdate;
 }
@@ -26,7 +23,7 @@ const isDragging = ref(false);
 
 const formData = reactive<KnowledgeApi.KnowledgeDocumentCreate>({
   title: '',
-  type: 2,
+  type: 1,
   content: ''
 });
 
@@ -46,7 +43,7 @@ const rules = computed<FormRules>(() => ({
   title: [{ required: true, message: '请输入文档标题', trigger: 'blur' }],
   type: [{ required: true, type: 'number', message: '请选择知识类型', trigger: 'change' }],
   content: [
-    { required: true, message: '请输入内容链接', trigger: 'blur' },
+    { required: true, message: '请上传 PDF 或 Markdown 文件', trigger: ['blur', 'change'] },
     {
       validator: (_rule, value) => {
         if (value && !value.startsWith('http://') && !value.startsWith('https://')) {
@@ -60,17 +57,12 @@ const rules = computed<FormRules>(() => ({
 }));
 
 const knowledgeTypeOptions = [
-  { label: '项目文档（PDF/MD）', value: 1 },
-  { label: 'GitHub 仓库代码', value: 2 }
+  { label: '项目文档（PDF/MD）', value: 1 }
+  // type=2 GitHub 暂不支持
   // type=3 DeepWiki 暂不支持
 ];
 
-const contentPlaceholder = computed(() => {
-  if (formData.type === 1) {
-    return t('page.knowledge.inputUrlPlaceholder');
-  }
-  return t('page.knowledge.githubRepoPlaceholder');
-});
+const showTypeSelector = computed(() => knowledgeTypeOptions.length > 1);
 
 async function handleFileChange(options: { fileList: UploadFileInfo[] }) {
   const file = options.fileList[0];
@@ -176,14 +168,6 @@ async function handleSubmit() {
       }
     }
 
-    // type=2 时验证 GitHub 链接
-    if (formData.type === 2) {
-      if (!formData.content.includes('github.com')) {
-        window.$message?.error('GitHub 链接类型必须是 GitHub 仓库链接');
-        return;
-      }
-    }
-
     loading.value = true;
 
     if (props.initialData?.id) {
@@ -241,7 +225,7 @@ onMounted(() => {
         <NInput v-model:value="formData.title" :placeholder="$t('page.knowledge.docTitlePlaceholder')" size="large" />
       </NFormItem>
 
-      <NFormItem :label="$t('page.knowledge.type')" path="type">
+      <NFormItem v-if="showTypeSelector" :label="$t('page.knowledge.type')" path="type">
         <NRadioGroup v-model:value="formData.type">
           <NSpace>
             <NRadio v-for="option in knowledgeTypeOptions" :key="option.value" :value="option.value">
@@ -251,8 +235,8 @@ onMounted(() => {
         </NRadioGroup>
       </NFormItem>
 
-      <!-- type=1 项目文档：显示上传组件 -->
-      <NFormItem v-if="formData.type === 1" :label="$t('page.knowledge.uploadFile')" path="content">
+      <!-- 项目文档：显示上传组件 -->
+      <NFormItem :label="$t('page.knowledge.uploadFile')" path="content">
         <div class="w-full space-y-4">
           <NUpload
             :file-list="fileList"
@@ -275,28 +259,7 @@ onMounted(() => {
               <p class="text-xs text-gray-400">{{ $t('page.knowledge.uploadTip') }}</p>
             </div>
           </NUpload>
-          <NDivider class="!my-2">{{ $t('page.knowledge.orInputUrl') }}</NDivider>
-          <NInput
-            v-model:value="formData.content"
-            :placeholder="$t('page.knowledge.inputUrlPlaceholder')"
-          >
-            <template #prefix>
-              <span class="text-gray-400">🔗</span>
-            </template>
-          </NInput>
         </div>
-      </NFormItem>
-
-      <!-- type=2 GitHub 代码：只显示 URL 输入框 -->
-      <NFormItem v-else-if="formData.type === 2" :label="$t('page.knowledge.githubRepoLink')" path="content">
-        <NInput v-model:value="formData.content" :placeholder="contentPlaceholder">
-          <template #prefix>
-            <span class="text-gray-400">🐙</span>
-          </template>
-        </NInput>
-        <template #feedback>
-          <p class="text-gray-400 text-xs mt-1">{{ $t('page.knowledge.githubRepoExample') }}</p>
-        </template>
       </NFormItem>
 
       <div class="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-100">

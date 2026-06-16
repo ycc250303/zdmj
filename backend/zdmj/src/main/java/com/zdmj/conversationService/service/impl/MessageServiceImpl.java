@@ -20,6 +20,7 @@ import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.service.ConversationService;
 import com.zdmj.conversationService.service.MessageService;
+import com.zdmj.conversationService.support.ConversationContextSupport;
 import com.zdmj.knowledgeService.service.KnowledgeRagService;
 
 import lombok.RequiredArgsConstructor;
@@ -64,7 +65,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Flux<ServerSentEvent<String>> createStream(MessageDTO dto) {
-        requireConversationAccess(dto.getConversationId());
+        Conversation conversation = requireConversationAccess(dto.getConversationId());
         Long userId = UserHolder.requireUserId();
 
         // 1.原子递增消息计数
@@ -130,14 +131,21 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         AtomicInteger lastFlushedLen = new AtomicInteger(0);
 
         // 7.调用 AI 服务
-        List<Long> ragDocumentIds = resolveRagDocumentIds(dto);
+        List<Long> ragDocumentIds = resolveRagDocumentIds(dto, conversation);
+        boolean useSystemKnowledge = ConversationContextSupport.resolveUseSystemKnowledge(dto, conversation);
+        Map<String, Object> promptVars = ConversationContextSupport.buildChatPromptVars(conversation);
         Flux<String> chatFlux = ragConfig.isEnabled()
-                ? knowledgeRagService.streamAnswer(dto.getConversationId(), dto.getMessage(), ragDocumentIds)
+                ? knowledgeRagService.streamAnswer(
+                        dto.getConversationId(),
+                        dto.getMessage(),
+                        ragDocumentIds,
+                        useSystemKnowledge,
+                        promptVars)
                 : chatUtil.chatStreamInConversation(
                         dto.getConversationId(),
                         dto.getMessage(),
                         PromptNames.SYSTEM,
-                        null);
+                        promptVars);
         chatFlux.doOnNext(chunk -> {
             if (chunk == null || chunk.isEmpty()) {
                 return;
@@ -289,11 +297,10 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
      * 解析本次 RAG 参与的知识文档 ID。
      * 请求体优先；否则读取会话 config.ragDocumentIds；均未配置时返回 null（检索全部文档）。
      */
-    private List<Long> resolveRagDocumentIds(MessageDTO dto) {
+    private List<Long> resolveRagDocumentIds(MessageDTO dto, Conversation conversation) {
         if (dto.getRagDocumentIds() != null) {
             return dto.getRagDocumentIds();
         }
-        Conversation conversation = conversationService.getById(dto.getConversationId());
         if (conversation == null || conversation.getConfig() == null) {
             return null;
         }
