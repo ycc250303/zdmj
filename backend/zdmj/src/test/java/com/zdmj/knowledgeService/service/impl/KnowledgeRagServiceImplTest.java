@@ -26,6 +26,7 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.common.ai.prompt.PromptNames;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
+import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
@@ -54,7 +55,7 @@ class KnowledgeRagServiceImplTest {
         when(chatUtil.chatStreamInConversation(11L, " hi ", PromptNames.SYSTEM, null))
                 .thenReturn(Flux.just("fallback"));
 
-        List<String> chunks = service.streamAnswer(11L, " hi ", null).collectList().block();
+        List<String> chunks = service.streamAnswer(11L, " hi ", null, false, null).collectList().block();
 
         assertEquals(List.of("fallback"), chunks);
         verify(chatUtil).chatStreamInConversation(11L, " hi ", PromptNames.SYSTEM, null);
@@ -67,7 +68,8 @@ class KnowledgeRagServiceImplTest {
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.streamAnswer(12L, "hello", null));
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.streamAnswer(12L, "hello", null, false, null));
 
         assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
         verify(chatUtil, never()).chatStreamInConversation(any(), any(), any(), any());
@@ -86,7 +88,7 @@ class KnowledgeRagServiceImplTest {
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
 
-        List<String> chunks = service.streamAnswer(13L, "hello", null).collectList().block();
+        List<String> chunks = service.streamAnswer(13L, "hello", null, false, null).collectList().block();
 
         assertEquals(List.of("fallback-system"), chunks);
         verify(chatUtil).chatStreamInConversation(13L, "hello", PromptNames.SYSTEM, null);
@@ -122,7 +124,7 @@ class KnowledgeRagServiceImplTest {
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
 
-        List<String> chunks = service.streamAnswer(14L, "hello question", null).collectList().block();
+        List<String> chunks = service.streamAnswer(14L, "hello question", null, false, null).collectList().block();
 
         assertEquals(List.of("rag-answer"), chunks);
         verify(chatUtil).chatStreamInConversation(eq(14L), eq("hello question"),
@@ -160,7 +162,7 @@ class KnowledgeRagServiceImplTest {
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
 
-        List<String> chunks = service.streamAnswer(15L, "raw question", null).collectList().block();
+        List<String> chunks = service.streamAnswer(15L, "raw question", null, false, null).collectList().block();
 
         assertEquals(List.of("rewritten-rag-answer"), chunks);
         verify(chatUtil).chatOnce(eq("raw question"), eq(PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE), any());
@@ -176,10 +178,48 @@ class KnowledgeRagServiceImplTest {
         when(chatUtil.chatStreamInConversation(16L, "hello", PromptNames.SYSTEM, null))
                 .thenReturn(Flux.just("no-rag"));
 
-        List<String> chunks = service.streamAnswer(16L, "hello", List.of()).collectList().block();
+        List<String> chunks = service.streamAnswer(16L, "hello", List.of(), false, null).collectList().block();
 
         assertEquals(List.of("no-rag"), chunks);
         verify(chatUtil).chatStreamInConversation(16L, "hello", PromptNames.SYSTEM, null);
         verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
+    }
+
+    @Test
+    @SuppressWarnings("null")
+    void streamAnswerSystemKnowledgeOnly_shouldSearchSystemKbWhenUserDocsDisabled() {
+        UserHolder.set(UserContext.of(404L, "u"));
+        ragConfig.setEnabled(true);
+        ragConfig.getRewrite().setEnabled(false);
+        when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(504L);
+        when(knowledgeBasesService.findKnowledgeBaseIdByScope(KnowledgeScopeEnum.SYSTEM.getCode())).thenReturn(11L);
+        when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.5,0.6]");
+        when(embeddingModel.embed(anyString())).thenReturn(new float[] {0.5f, 0.6f});
+
+        KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO();
+        hit.setId(3L);
+        hit.setDocumentId(902L);
+        hit.setChunkIndex(0);
+        hit.setScore(0.88);
+        hit.setContent("系统库片段");
+        when(knowledgeVectorMapper.searchBySimilarity(
+                KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.5,0.6]", ragConfig.getSearch().getTopkMedium()))
+                .thenReturn(List.of(hit));
+        when(knowledgeVectorMapper.selectChunksByDocuments(
+                eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(11L), any()))
+                .thenReturn(List.of(hit));
+        when(chatUtil.chatStreamInConversation(eq(17L), eq("system only"),
+                eq(PromptNames.KNOWLEDGEBASE_RAG_SYSTEM), any()))
+                .thenReturn(Flux.just("system-rag"));
+
+        KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
+                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
+
+        List<String> chunks = service.streamAnswer(17L, "system only", List.of(), true, null).collectList().block();
+
+        assertEquals(List.of("system-rag"), chunks);
+        verify(knowledgeVectorMapper).searchBySimilarity(
+                KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.5,0.6]", ragConfig.getSearch().getTopkMedium());
+        verify(knowledgeVectorMapper, never()).searchBySimilarity(eq(404L), eq(504L), any(), anyInt());
     }
 }
