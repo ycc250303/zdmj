@@ -1,0 +1,2 @@
+-- 岗位来源链接（字符串，可为空字符串）
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS link VARCHAR(500) NOT NULL DEFAULT '';

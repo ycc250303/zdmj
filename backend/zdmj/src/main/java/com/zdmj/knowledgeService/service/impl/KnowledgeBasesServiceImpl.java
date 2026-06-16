@@ -59,6 +59,11 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
     }
 
     @Override
+    public Long findKnowledgeBaseIdByScope(int scope) {
+        return knowledgeBasesMapper.selectKnowledgeIdByScope(scope);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public Long getOrCreateKnowledgeBaseId() {
         Long userId = UserHolder.requireUserId();

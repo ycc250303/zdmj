@@ -157,6 +157,9 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
         if (job.getKeywords() == null) {
             job.setKeywords(new ArrayList<>());
         }
+        if (job.getLink() == null) {
+            job.setLink("");
+        }
     }
 
     /**

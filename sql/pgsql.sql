@@ -571,7 +571,7 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     user_id BIGINT NOT NULL DEFAULT 0,
     -- 用户ID（逻辑外键：users.id）
     scope SMALLINT NOT NULL DEFAULT 1,
-    -- 知识库范围（枚举：1=USER用户私有/2=SYSTEM系统通用）
+    -- 知识库范围（枚举：1=USER用户私有/2=SYSTEM系统通用/3=学习路线）
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
@@ -592,7 +592,7 @@ CREATE TABLE IF NOT EXISTS knowledge_documents (
     user_id BIGINT NOT NULL DEFAULT 0,
     -- 用户ID（逻辑外键：users.id）
     type SMALLINT NOT NULL,
-    -- 来源类型（枚举：1=上传文件/2=GitHub仓库/3=DeepWiki）
+    -- 来源类型（枚举：1=上传pdf文件/2=GitHub仓库/3=DeepWiki/4=markdown）
     content TEXT NOT NULL,
     -- 来源地址
     title VARCHAR(500),

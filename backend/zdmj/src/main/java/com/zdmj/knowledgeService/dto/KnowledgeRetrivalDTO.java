@@ -35,4 +35,9 @@ public class KnowledgeRetrivalDTO {
      * 文档块元数据
      */
     private Map<String, Object> metadata;
+
+    /**
+     * 文档分类（来自 knowledge_documents.metadata.docCategory，检索时 JOIN 填充）
+     */
+    private String docCategory;
 }

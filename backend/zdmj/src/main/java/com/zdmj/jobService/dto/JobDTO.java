@@ -88,9 +88,8 @@ public class JobDTO {
     private Integer salaryType;
 
     /**
-     * 岗位链接（创建、更新时不能为空）
+     * 岗位链接（选填，未传时写入空字符串）
      */
-    @NotBlank(message = "岗位链接不能为空", groups = { CreateGroup.class, UpdateGroup.class })
     private String link;
 
     /**

@@ -138,6 +138,26 @@ class JobServiceImplTest {
         assertNotNull(created.getContent());
         assertNotNull(created.getRequirements());
         assertNotNull(created.getKeywords());
+        assertEquals("", created.getLink());
+        verify(jobService).save(any(Job.class));
+    }
+
+    @Test
+    void create_save_whenLinkProvided_shouldPersistLink() {
+        JobDTO dto = new JobDTO();
+        dto.setCompanyName("ZDMJ");
+        dto.setJobName("Java");
+        dto.setDescription("desc");
+        dto.setLink("https://example.com/jobs/1");
+        Company company = new Company();
+        company.setId(88L);
+        company.setName("ZDMJ");
+        doReturn(company).when(companyMapper).selectOne(any());
+        doReturn(true).when(jobService).save(any(Job.class));
+
+        Job created = jobService.create(dto);
+
+        assertEquals("https://example.com/jobs/1", created.getLink());
         verify(jobService).save(any(Job.class));
     }
 

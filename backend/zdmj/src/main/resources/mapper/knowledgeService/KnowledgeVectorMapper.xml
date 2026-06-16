@@ -53,8 +53,10 @@
           kv.chunk_index AS chunkIndex,
           kv.content,
           kv.metadata,
+          kd.metadata->>'docCategory' AS docCategory,
           (1 - (kv.embedding <![CDATA[ <=> ]]> CAST(#{queryEmbedding} AS vector))) AS score
       FROM knowledge_vectors kv
+      LEFT JOIN knowledge_documents kd ON kd.id = kv.document_id
       WHERE kv.user_id = #{userId}
         AND kv.knowledge_id = #{knowledgeId}
       ORDER BY kv.embedding <![CDATA[ <=> ]]> CAST(#{queryEmbedding} AS vector)

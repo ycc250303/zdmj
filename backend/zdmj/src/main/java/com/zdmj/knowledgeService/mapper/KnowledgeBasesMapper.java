@@ -29,4 +29,9 @@ public interface KnowledgeBasesMapper extends BaseMapper<KnowledgeBases> {
          * @return 知识库ID
          */
         Long selectKnowledgeIdByUserId(@Param("userId") Long userId);
+
+        /**
+         * 按 scope 查询知识库 ID（系统库 scope=2/3 全局唯一一条）。
+         */
+        Long selectKnowledgeIdByScope(@Param("scope") int scope);
 }

@@ -27,6 +27,13 @@ public interface KnowledgeBasesService {
     Long getOrCreateKnowledgeBaseId();
 
     /**
+     * 按 scope 查找知识库 ID；不存在时返回 {@code null}（不自动创建系统库）。
+     *
+     * @param scope {@link com.zdmj.knowledgeService.enums.KnowledgeScopeEnum#getCode()}
+     */
+    Long findKnowledgeBaseIdByScope(int scope);
+
+    /**
      * 更新知识库
      *
      * @return 返回更新后的知识库实体
