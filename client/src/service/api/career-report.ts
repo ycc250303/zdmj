@@ -20,6 +20,9 @@ export namespace CareerReportApi {
     snippet?: string;
     url?: string;
     score?: number;
+    documentId?: number;
+    chunkIndex?: number;
+    metadata?: Record<string, unknown>;
     [key: string]: any;
   }
 

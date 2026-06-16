@@ -761,15 +761,17 @@ const local: App.I18n.Schema = {
         duties: "每行输入一条职责",
         requirements: "每行输入一条要求",
         keywords: "每行输入一个关键词",
-        link: "请输入岗位链接，例如：BOSS直聘、拉勾等",
+        link: "选填，请输入岗位来源链接",
         companyIntro: "请输入公司介绍（可选）",
-        industries: "每行输入一个行业"
+        industries: "每行输入一个行业",
+        industriesSelect: "请选择公司行业（可多选、可搜索）"
       },
       tips: {
         dutiesFormat: "每行输入一条岗位职责，例如：负责后端系统设计与开发",
         requirementsFormat: "每行输入一条岗位要求，例如：本科及以上学历",
         keywordsFormat: "支持使用逗号、空格或换行分隔关键词",
-        industriesFormat: "每行输入一个行业标签"
+        industriesFormat: "每行输入一个行业标签",
+        linkOptional: "选填，可填写 BOSS 直聘、拉勾等来源页面链接"
       },
       empty: "暂无岗位数据",
       createFirst: "创建第一个岗位",

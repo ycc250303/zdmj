@@ -89,6 +89,14 @@ function formatSalary(job: JobApi.JobListItem): string {
   return `${job.salaryMin}-${job.salaryMax} ${typeLabel}`;
 }
 
+function normalizeJobLink(link?: string | null): string | null {
+  const trimmed = link?.trim();
+  if (!trimmed) {
+    return null;
+  }
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
 async function loadJobDetail() {
   if (!jobId.value) {
     window.$message?.error($t('page.jobs.loadFailed'));
@@ -327,6 +335,62 @@ async function handleGenerateMatch() {
 }
 
 // --- 职业发展报告：生成 / 润色 / 完整性检查 ---
+async function refreshJobAnalysisAfterReport() {
+  await Promise.all([
+    loadMatchResult(),
+    loadCapabilityProfile(),
+    loadCareerGraph(),
+  ]);
+}
+
+function isPlaceholderDocTitle(title: string): boolean {
+  return /^文档\s*#\d+$/.test(title.trim());
+}
+
+function parseTitleFromSnippet(snippet?: string): string {
+  if (!snippet?.trim()) return '';
+  const match = snippet.match(/#\s*([^#·]+?)(?:\s*##|\s*·|$)/);
+  return match?.[1]?.trim() || '';
+}
+
+function normalizeKnowledgeSource(
+  src: CareerReportApi.KnowledgeSource,
+  index: number
+): { title: string; snippet: string; url?: string } {
+  const meta = (src.metadata ?? {}) as Record<string, unknown>;
+  const file = String(meta.documentTitle ?? meta.sourceFile ?? meta.content ?? '').trim();
+  let title =
+    src.title?.trim() ||
+    (file ? file.replace(/\.md$/i, '') : '') ||
+    parseTitleFromSnippet(src.snippet);
+  if (!title || isPlaceholderDocTitle(title)) {
+    const fromSnippet = parseTitleFromSnippet(src.snippet);
+    if (fromSnippet) title = fromSnippet;
+  }
+  if (!title || isPlaceholderDocTitle(title)) {
+    title = src.documentId != null ? `学习路线 #${src.documentId}` : `来源 ${index + 1}`;
+  }
+  const scoreText =
+    src.score != null && !Number.isNaN(Number(src.score))
+      ? `相似度 ${(Number(src.score) * 100).toFixed(1)}%`
+      : '';
+  const chunkText = src.chunkIndex != null ? `块 #${src.chunkIndex}` : '';
+  const snippet = src.snippet?.trim() || [scoreText, chunkText].filter(Boolean).join(' · ');
+  return { title, snippet, url: src.url };
+}
+
+const knowledgeSourcesDisplay = computed(() => {
+  const raw = careerReport.value?.knowledgeSources;
+  if (!Array.isArray(raw)) return [];
+  return raw.map((src, i) => normalizeKnowledgeSource(src, i));
+});
+
+async function applyCareerReportSuccess(data: CareerReportApi.CareerReport) {
+  careerReport.value = data;
+  careerReportDrawerVisible.value = true;
+  await refreshJobAnalysisAfterReport();
+}
+
 function openCareerReportDrawer() {
   careerReportDrawerVisible.value = true;
   // 抽屉打开时刷新一次，避免他端更新
@@ -391,8 +455,7 @@ async function handleGenerateCareerReport() {
     };
     const { data, error } = await fetchGenerateCareerReport(jobId.value, payload);
     if (!error && data) {
-      careerReport.value = data;
-      careerReportDrawerVisible.value = true;
+      await applyCareerReportSuccess(data);
       window.$message?.success($t('page.jobs.careerReport.generateSuccess') as string);
       return;
     }
@@ -401,8 +464,7 @@ async function handleGenerateCareerReport() {
       window.$message?.warning($t('page.jobs.careerReport.gatewayTimeoutFallback') as string, { duration: 6000 });
       const polled = await pollLatestCareerReport(120_000, 5_000, baseline);
       if (polled) {
-        careerReport.value = polled;
-        careerReportDrawerVisible.value = true;
+        await applyCareerReportSuccess(polled);
         window.$message?.success($t('page.jobs.careerReport.generateSuccess') as string);
       } else {
         window.$message?.error($t('page.jobs.careerReport.gatewayTimeoutHint') as string, { duration: 8000 });
@@ -418,8 +480,7 @@ async function handleGenerateCareerReport() {
       window.$message?.warning($t('page.jobs.careerReport.gatewayTimeoutFallback') as string, { duration: 6000 });
       const polled = await pollLatestCareerReport(120_000, 5_000, baseline);
       if (polled) {
-        careerReport.value = polled;
-        careerReportDrawerVisible.value = true;
+        await applyCareerReportSuccess(polled);
         window.$message?.success($t('page.jobs.careerReport.generateSuccess') as string);
       } else {
         window.$message?.error($t('page.jobs.careerReport.gatewayTimeoutHint') as string, { duration: 8000 });
@@ -595,14 +656,41 @@ interface EvaluationMetric {
   deadline: string;
 }
 
+function toEvidenceStringArray(val: unknown): string[] {
+  if (Array.isArray(val)) return val.map(String).map(s => s.trim()).filter(Boolean);
+  if (typeof val === 'string' && val.trim()) return [val.trim()];
+  return [];
+}
+
 const evidenceData = computed(() => {
   const raw = careerReport.value?.reportContent?.evidence;
-  if (!raw || typeof raw !== 'object') return null;
-  return {
-    industry: Array.isArray(raw.industryEvidence) ? (raw.industryEvidence as string[]) : [],
-    technical: Array.isArray(raw.technicalEvidence) ? (raw.technicalEvidence as string[]) : [],
-    communication: Array.isArray(raw.communicationEvidence) ? (raw.communicationEvidence as string[]) : [],
-  };
+  if (raw == null) return null;
+
+  if (Array.isArray(raw)) {
+    const technical = toEvidenceStringArray(raw);
+    if (!technical.length) return null;
+    return { industry: [] as string[], technical, communication: [] as string[], sourceNote: '' };
+  }
+
+  if (typeof raw !== 'object') return null;
+
+  const r = raw as Record<string, unknown>;
+  const industry = toEvidenceStringArray(r.industryEvidence);
+  const technical = toEvidenceStringArray(r.technicalEvidence);
+  const communication = toEvidenceStringArray(r.communicationEvidence);
+
+  if (!technical.length && r.gapAnalysis != null) {
+    technical.push(...toEvidenceStringArray(r.gapAnalysis));
+  }
+  if (!industry.length && r.actionPlanRationale != null) {
+    industry.push(...toEvidenceStringArray(r.actionPlanRationale));
+  }
+
+  const sourceNote = typeof r.source === 'string' ? r.source.trim() : '';
+
+  if (!industry.length && !technical.length && !communication.length && !sourceNote) return null;
+
+  return { industry, technical, communication, sourceNote };
 });
 
 const actionPlanData = computed(() => {
@@ -647,15 +735,41 @@ const careerGoalsData = computed(() => {
 const evaluationPlanData = computed(() => {
   const raw = careerReport.value?.reportContent?.evaluationPlan;
   if (!raw || typeof raw !== 'object') return null;
-  const metrics: EvaluationMetric[] = Array.isArray(raw.quantitativeMetrics)
-    ? raw.quantitativeMetrics.map((m: any) => ({
-        metric: m?.metric || '',
-        target: m?.target || '',
-        deadline: m?.deadline || '',
-      }))
+
+  const cycles: string[] = [];
+  if (Array.isArray((raw as any).evaluationCycle)) {
+    cycles.push(...(raw as any).evaluationCycle.map(String).filter(Boolean));
+  } else if (typeof (raw as any).cycle === 'string' && (raw as any).cycle.trim()) {
+    cycles.push((raw as any).cycle.trim());
+  } else if (Array.isArray((raw as any).cycles)) {
+    cycles.push(...(raw as any).cycles.map(String).filter(Boolean));
+  }
+
+  const rawMetrics = (raw as any).quantitativeMetrics ?? (raw as any).metrics;
+  const metrics: EvaluationMetric[] = Array.isArray(rawMetrics)
+    ? rawMetrics
+        .map((m: any) => {
+          if (typeof m === 'string') {
+            return { metric: m.trim(), target: '', deadline: '' };
+          }
+          return {
+            metric: String(m?.metric ?? m?.name ?? '').trim(),
+            target: String(m?.target ?? m?.goal ?? '').trim(),
+            deadline: String(m?.deadline ?? m?.dueDate ?? '').trim(),
+          };
+        })
+        .filter((m: EvaluationMetric) => m.metric || m.target || m.deadline)
     : [];
-  const cycles: string[] = Array.isArray(raw.evaluationCycle) ? raw.evaluationCycle : [];
-  return { cycles, metrics };
+
+  const qualitative: string[] = Array.isArray((raw as any).qualitativeAssessment)
+    ? (raw as any).qualitativeAssessment.map(String).filter(Boolean)
+    : [];
+
+  if (!cycles.length && !metrics.length && !qualitative.length) return null;
+
+  const metricsStructured = metrics.some(m => m.target || m.deadline);
+
+  return { cycles, metrics, qualitative, metricsStructured };
 });
 
 const careerExplorationData = computed(() => {
@@ -769,6 +883,20 @@ onMounted(() => {
               <div class="flex items-center justify-between py-2 border-b border-slate-100 dark:border-gray-700">
                 <span class="text-slate-600 dark:text-gray-400">{{ $t('page.jobs.location') }}</span>
                 <span class="font-semibold text-slate-800 dark:text-gray-200">{{ formatJobLocation(jobDetail.location) }}</span>
+              </div>
+              <div
+                v-if="normalizeJobLink(jobDetail.link)"
+                class="flex items-center justify-between gap-4 py-2 border-b border-slate-100 dark:border-gray-700"
+              >
+                <span class="shrink-0 text-slate-600 dark:text-gray-400">{{ $t('page.jobs.jobLink') }}</span>
+                <a
+                  :href="normalizeJobLink(jobDetail.link)!"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="font-semibold text-blue-600 hover:underline truncate text-right"
+                >
+                  {{ jobDetail.link }}
+                </a>
               </div>
               <div class="flex items-center justify-between py-2">
                 <span class="text-slate-600 dark:text-gray-400">{{ $t('page.jobs.salaryInfo') }}</span>
@@ -1150,6 +1278,12 @@ onMounted(() => {
                 </ul>
               </div>
             </div>
+            <p
+              v-if="evidenceData.sourceNote"
+              class="mt-3 pt-3 border-t border-slate-200 dark:border-gray-700 text-xs text-slate-500 dark:text-gray-400"
+            >
+              {{ evidenceData.sourceNote }}
+            </p>
           </NCard>
 
           <!-- actionPlan：短期 / 中期行动计划 -->
@@ -1350,12 +1484,19 @@ onMounted(() => {
               </div>
             </div>
 
-            <!-- 量化指标表 -->
+            <!-- 量化指标 -->
             <div v-if="evaluationPlanData.metrics.length">
               <div class="text-xs font-semibold text-slate-600 dark:text-gray-400 mb-2 flex items-center gap-1.5">
                 <span>📈</span> 量化指标
               </div>
-              <div class="overflow-x-auto">
+              <!-- LLM 返回字符串数组时：目标/截止已写在描述句内，用列表展示 -->
+              <ul
+                v-if="!evaluationPlanData.metricsStructured"
+                class="space-y-2 text-sm text-slate-700 dark:text-gray-300 list-disc pl-5"
+              >
+                <li v-for="(m, i) in evaluationPlanData.metrics" :key="'met-li-'+i">{{ m.metric }}</li>
+              </ul>
+              <div v-else class="overflow-x-auto">
                 <table class="w-full text-xs border-collapse">
                   <thead>
                     <tr class="bg-slate-100 dark:bg-gray-800/60">
@@ -1372,15 +1513,26 @@ onMounted(() => {
                     >
                       <td class="p-2.5 text-slate-700 dark:text-gray-300">{{ m.metric }}</td>
                       <td class="p-2.5 text-center">
-                        <NTag size="tiny" :type="m.target === '100%' || m.target === '达成' ? 'success' : 'warning'" round>
+                        <NTag v-if="m.target" size="tiny" :type="m.target === '100%' || m.target === '达成' ? 'success' : 'warning'" round>
                           {{ m.target }}
                         </NTag>
+                        <span v-else class="text-slate-400">-</span>
                       </td>
-                      <td class="p-2.5 text-right text-slate-600 dark:text-gray-400">{{ m.deadline }}</td>
+                      <td class="p-2.5 text-right text-slate-600 dark:text-gray-400">{{ m.deadline || '-' }}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
+            </div>
+
+            <!-- 定性评估 -->
+            <div v-if="evaluationPlanData.qualitative.length" class="mt-4">
+              <div class="text-xs font-semibold text-slate-600 dark:text-gray-400 mb-2 flex items-center gap-1.5">
+                <span>📝</span> 定性评估
+              </div>
+              <ul class="space-y-2 text-sm text-slate-700 dark:text-gray-300 list-disc pl-5">
+                <li v-for="(q, i) in evaluationPlanData.qualitative" :key="'qual-'+i">{{ q }}</li>
+              </ul>
             </div>
           </NCard>
 
@@ -1431,19 +1583,19 @@ onMounted(() => {
 
         <!-- 知识来源 -->
         <NCard
-          v-if="careerReport && careerReport.knowledgeSources && careerReport.knowledgeSources.length"
+          v-if="knowledgeSourcesDisplay.length"
           size="small"
           :title="$t('page.jobs.careerReport.knowledgeSources')"
           class="mb-4 rounded-lg"
         >
-          <ul class="space-y-1 text-sm">
+          <ul class="space-y-2 text-sm">
             <li
-              v-for="(src, i) in careerReport.knowledgeSources"
+              v-for="(src, i) in knowledgeSourcesDisplay"
               :key="'ks-' + i"
               class="text-slate-700 dark:text-gray-300"
             >
-              <a v-if="src.url" :href="src.url" target="_blank" class="text-blue-500 hover:underline">{{ src.title || src.url }}</a>
-              <span v-else>{{ src.title || '-' }}</span>
+              <a v-if="src.url" :href="src.url" target="_blank" class="text-blue-500 hover:underline font-medium">{{ src.title }}</a>
+              <span v-else class="font-medium">{{ src.title }}</span>
               <span v-if="src.snippet" class="ml-2 text-slate-500 dark:text-gray-400">— {{ src.snippet }}</span>
             </li>
           </ul>

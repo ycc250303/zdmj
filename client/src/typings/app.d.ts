@@ -1047,12 +1047,14 @@ declare namespace App {
             link: string;
             companyIntro: string;
             industries: string;
+            industriesSelect: string;
           };
           tips: {
             dutiesFormat: string;
             requirementsFormat: string;
             keywordsFormat: string;
             industriesFormat: string;
+            linkOptional: string;
           };
           empty: string;
           createFirst: string;

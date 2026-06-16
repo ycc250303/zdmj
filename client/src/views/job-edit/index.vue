@@ -84,11 +84,6 @@ const formRules = computed(() => ({
     type: 'number' as const,
     message: $t('page.jobs.formValidation.salaryTypeRequired'),
     trigger: 'change'
-  },
-  link: {
-    required: true,
-    message: $t('page.jobs.formValidation.linkRequired'),
-    trigger: 'blur'
   }
 }));
 
@@ -110,7 +105,7 @@ async function loadJobDetail() {
         salaryMin: data.salaryMin,
         salaryMax: data.salaryMax,
         salaryType: data.salaryType,
-        link: data.link
+        link: data.link ?? ''
       });
 
       // 设置数组字段
@@ -311,8 +306,11 @@ onMounted(() => {
           </NCard>
 
           <NCard :title="$t('page.jobs.otherInfo')" class="mb-4 rounded-xl">
-            <NFormItem :label="$t('page.jobs.jobLink')" path="link">
-              <NInput v-model:value="formData.link" :placeholder="$t('page.jobs.placeholders.link')" />
+            <NFormItem :label="$t('page.jobs.jobLink')">
+              <NInput v-model:value="formData.link" :placeholder="$t('page.jobs.placeholders.link')" clearable />
+              <template #feedback>
+                <span class="text-xs text-slate-500">{{ $t('page.jobs.tips.linkOptional') }}</span>
+              </template>
             </NFormItem>
 
             <NFormItem :label="$t('page.jobs.companyIntro')">

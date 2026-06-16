@@ -830,15 +830,17 @@ const local: App.I18n.Schema = {
         duties: "Enter one responsibility per line",
         requirements: "Enter one requirement per line",
         keywords: "Enter one keyword per line",
-        link: "Please enter job link, e.g.: BOSS Zhipin, Lagou, etc.",
+        link: "Optional. Enter job source URL",
         companyIntro: "Please enter company introduction (optional)",
-        industries: "Enter one industry per line"
+        industries: "Enter one industry per line",
+        industriesSelect: "Select company industries (multi-select, searchable)"
       },
       tips: {
         dutiesFormat: "Enter one responsibility per line, e.g.: Responsible for backend system design and development",
         requirementsFormat: "Enter one requirement per line, e.g.: Bachelor degree or above",
         keywordsFormat: "Support comma, space or newline to separate keywords",
-        industriesFormat: "Enter one industry tag per line"
+        industriesFormat: "Enter one industry tag per line",
+        linkOptional: "Optional. e.g. BOSS Zhipin or Lagou job page URL"
       },
       empty: "No job data",
       createFirst: "Create first job",

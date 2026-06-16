@@ -8,6 +8,7 @@ import {
   type JobApi
 } from '@/service/api/job';
 import { formatJobLocation, isInternJob } from '@/utils/job-display';
+import { COMPANY_INDUSTRY_SELECT_OPTIONS } from '@/constants/company-industries';
 
 defineOptions({ name: 'jobs' });
 
@@ -29,8 +30,10 @@ const filterForm = reactive({
   salaryType: null as number | null,
   filterSalaryMin: null as number | null,
   filterSalaryMax: null as number | null,
-  industriesText: ''
+  industries: [] as string[]
 });
+
+const industryOptions = COMPANY_INDUSTRY_SELECT_OPTIONS;
 
 const employmentOptions = computed(() => [
   { label: $t('page.jobs.filterAll'), value: null },
@@ -90,10 +93,7 @@ function buildQuery(): JobApi.JobPageQuery {
     query.filterSalaryMax = filterForm.filterSalaryMax;
   }
 
-  const industries = filterForm.industriesText
-    .split(/[\n,，]/)
-    .map(item => item.trim())
-    .filter(Boolean);
+  const industries = filterForm.industries.map(item => item.trim()).filter(Boolean);
   if (industries.length > 0) query.industries = industries;
 
   return query;
@@ -143,7 +143,7 @@ function handleResetFilters() {
   filterForm.salaryType = null;
   filterForm.filterSalaryMin = null;
   filterForm.filterSalaryMax = null;
-  filterForm.industriesText = '';
+  filterForm.industries = [];
   pagination.page = 1;
   loadJobData();
 }
@@ -237,10 +237,14 @@ onMounted(() => {
           </NGridItem>
           <NGridItem :span="8">
             <motion.div class="text-sm mb-1 text-slate-600 dark:text-gray-400">{{ $t('page.jobs.companyIndustry') }}</motion.div>
-            <NInput
-              v-model:value="filterForm.industriesText"
+            <NSelect
+              v-model:value="filterForm.industries"
+              :options="industryOptions"
+              multiple
+              filterable
               clearable
-              :placeholder="$t('page.jobs.placeholders.industries')"
+              max-tag-count="responsive"
+              :placeholder="$t('page.jobs.placeholders.industriesSelect')"
             />
           </NGridItem>
           <NGridItem :span="8">
