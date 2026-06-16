@@ -31,11 +31,12 @@ if (savedPwd) sessionStorage.removeItem('new_password');
 
 const rules = computed<Record<keyof FormModel, App.Global.FormRule[]>>(() => {
   // inside computed to make locale reactive, if not apply i18n, you can define it without computed
-  const { formRules } = useFormRules();
+  const { formRules, createRequiredRule } = useFormRules();
 
   return {
     userName: formRules.userName,
-    password: formRules.pwd
+    // 登录仅校验非空，格式/正确性由后端返回「用户名或密码错误」
+    password: [createRequiredRule($t('form.pwd.required'))]
   };
 });
 
