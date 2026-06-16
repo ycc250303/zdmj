@@ -13,7 +13,7 @@ spring:
     # 时区配置：确保Java的LocalDateTime与PostgreSQL的TIMESTAMP WITH TIME ZONE正确转换
     # Asia/Shanghai: 中国时区（UTC+8）
     # 当数据库使用TIMESTAMP WITH TIME ZONE时，PostgreSQL会自动转换为连接时区
-    url: jdbc:postgresql://${app.remote.host}:5432/zdmj?currentSchema=public&stringtype=unspecified&TimeZone=Asia/Shanghai
+    url: jdbc:postgresql://${app.remote.host}:5432/zdmj?currentSchema=public&stringtype=unspecified&TimeZone=Asia/Shanghai&sslmode=disable
     username: your-postgres-user
     password: your-postgres-password
   
