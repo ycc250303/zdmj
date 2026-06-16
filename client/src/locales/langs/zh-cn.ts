@@ -232,7 +232,7 @@ const local: App.I18n.Schema = {
     chat: 'AI 对话',
     'resume-import': '我的简历',
     'resumes-editor': '简历编辑器',
-    "profile_capability":'能力画像',
+    'capability-profile': '能力画像',
     'user-settings': '用户设置'
   },
   page: {
@@ -364,7 +364,14 @@ const local: App.I18n.Schema = {
       deleteFailed: '删除失败',
       createSuccess: '创建成功',
       createFailed: '创建失败',
-      sendFailed: '发送消息失败'
+      sendFailed: '发送消息失败',
+      knowledgePanelTitle: '知识库',
+      knowledgePanelDesc: '选择参与本对话 RAG 检索的文档',
+      collapseKnowledgePanel: '折叠知识库栏',
+      expandKnowledgePanel: '展开知识库栏',
+      knowledgeEmpty: '暂无知识文档，请先在知识库页添加',
+      knowledgeRagEnabled: '启用 RAG',
+      knowledgeNotEmbedded: '未向量化'
     },
     profile: {
       "common": {
@@ -754,15 +761,17 @@ const local: App.I18n.Schema = {
         duties: "每行输入一条职责",
         requirements: "每行输入一条要求",
         keywords: "每行输入一个关键词",
-        link: "请输入岗位链接，例如：BOSS直聘、拉勾等",
+        link: "选填，请输入岗位来源链接",
         companyIntro: "请输入公司介绍（可选）",
-        industries: "每行输入一个行业"
+        industries: "每行输入一个行业",
+        industriesSelect: "请选择公司行业（可多选、可搜索）"
       },
       tips: {
         dutiesFormat: "每行输入一条岗位职责，例如：负责后端系统设计与开发",
         requirementsFormat: "每行输入一条岗位要求，例如：本科及以上学历",
         keywordsFormat: "支持使用逗号、空格或换行分隔关键词",
-        industriesFormat: "每行输入一个行业标签"
+        industriesFormat: "每行输入一个行业标签",
+        linkOptional: "选填，可填写 BOSS 直聘、拉勾等来源页面链接"
       },
       empty: "暂无岗位数据",
       createFirst: "创建第一个岗位",

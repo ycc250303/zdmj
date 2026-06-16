@@ -18,6 +18,7 @@ import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.common.ai.prompt.PromptNames;
+import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.jobService.dto.JobCapabilityProfileDTO;
 import com.zdmj.jobService.dto.JobCareerGraphDTO;
 import com.zdmj.jobService.dto.JobListItemDTO;
@@ -26,6 +27,9 @@ import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobCareerGraphService;
 import com.zdmj.jobService.service.JobService;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
+import com.zdmj.knowledgeService.entity.KnowledgeDocument;
+import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
+import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
@@ -34,6 +38,11 @@ import com.zdmj.matchService.entity.JobStudentMatch;
 import com.zdmj.matchService.service.JobStudentMatchService;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileDTO;
 import com.zdmj.resumeService.service.StudentCapabilityProfileService;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -70,14 +79,21 @@ public class CareerDevelopmentReportServiceImpl
     /** 状态：完整性校验未通过 */
     private static final int STATUS_CHECK_FAILED = 4;
 
-    /** 报告生成时 RAG 检索 Top-K */
+    /** 报告生成时 RAG 检索 Top-K（合并多库后） */
     private static final int REPORT_RAG_TOP_K = 8;
+    /** 每个知识库单独召回的上限 */
+    private static final int REPORT_RAG_PER_SOURCE_TOP_K = 8;
     /** 报告生成时 RAG 最低相似度阈值 */
     private static final double REPORT_RAG_MIN_SCORE = 0.35;
 
     /** 优先命中的知识文档分类（metadata.docCategory） */
     private static final Set<String> CAREER_DOC_CATEGORY_WHITELIST =
             Set.of("learning_path", "career_planning", "industry_trend");
+
+    private static final DateTimeFormatter REPORT_DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+    private static final Pattern MARKDOWN_H1 = Pattern.compile("(?m)^#\\s+(.+?)\\s*$");
+    private static final Pattern PLACEHOLDER_DOC_TITLE = Pattern.compile("^文档 #\\d+$");
 
     private final ObjectMapper objectMapper;
     private final ChatUtil chatUtil;
@@ -88,6 +104,7 @@ public class CareerDevelopmentReportServiceImpl
     private final StudentCapabilityProfileService studentCapabilityProfileService;
     private final KnowledgeBasesService knowledgeBasesService;
     private final KnowledgeVectorMapper knowledgeVectorMapper;
+    private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeEmbeddingService knowledgeEmbeddingService;
     private final EmbeddingModel embeddingModel;
 
@@ -159,8 +176,12 @@ public class CareerDevelopmentReportServiceImpl
 
         Map<String, Object> vars = new LinkedHashMap<>();
         vars.put("instruction", req == null ? "" : safe(req.getInstruction()));
+        String currentDate = reportContextDate();
+        vars.put("currentDate", currentDate);
 
         String userMessage = "请对以下职业发展报告进行润色，保持结构不变，增强可执行性与可读性：\n"
+                + "## 当前日期（北京时间）\n" + currentDate + "\n\n"
+                + "若调整 evaluationPlan 中 quantitativeMetrics 的 deadline，具体日期（YYYY-MM-DD）不得早于当前日期。\n\n"
                 + toJson(currentContent);
         LlmReportPayload payload;
         try {
@@ -257,29 +278,66 @@ public class CareerDevelopmentReportServiceImpl
     }
 
     /**
-     * 从系统知识库检索与岗位/偏好相关的学习路径片段（向量相似度 + 文档分类过滤）。
+     * 从用户私有库（scope=1）与学习路线库（scope=3）检索相关片段（向量相似度 + 文档分类过滤）。
      */
     private List<KnowledgeRetrivalDTO> retrieveLearningPathHits(JobListItemDTO jobDetail, CareerReportGenerateRequest req) {
         Long userId = UserHolder.requireUserId();
-        Long knowledgeId = knowledgeBasesService.getOrCreateKnowledgeBaseId();
         String query = buildKnowledgeQuery(jobDetail, req);
         float[] vector = embedQueryText(query);
         if (vector == null) {
             return List.of();
         }
         String vec = knowledgeEmbeddingService.toPgVector(vector);
-        List<KnowledgeRetrivalDTO> hits =
-                knowledgeVectorMapper.searchBySimilarity(userId, knowledgeId, vec, REPORT_RAG_TOP_K);
-        if (hits == null || hits.isEmpty()) {
+
+        List<KnowledgeRetrivalDTO> merged = new ArrayList<>();
+        merged.addAll(searchKnowledgeVectors(userId, knowledgeBasesService.getOrCreateKnowledgeBaseId(), vec));
+
+        Long learningPathKbId = knowledgeBasesService.findKnowledgeBaseIdByScope(
+                KnowledgeScopeEnum.LEARNING_PATH.getCode());
+        if (learningPathKbId != null) {
+            merged.addAll(searchKnowledgeVectors(
+                    KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, learningPathKbId, vec));
+        } else {
+            log.debug("未找到 scope=3 学习路线知识库，报告 RAG 仅检索用户私有库");
+        }
+
+        if (merged.isEmpty()) {
             return List.of();
         }
+
+        List<KnowledgeRetrivalDTO> hits = rankAndLimitHits(merged, REPORT_RAG_TOP_K);
         List<KnowledgeRetrivalDTO> filtered = hits.stream()
                 .filter(h -> h.getScore() != null && h.getScore() >= REPORT_RAG_MIN_SCORE)
                 .filter(this::isCareerLearningDoc)
                 .collect(Collectors.toList());
-        return filtered.isEmpty() ? hits.stream()
+        if (!filtered.isEmpty()) {
+            return filtered;
+        }
+        return hits.stream()
                 .filter(h -> h.getScore() != null && h.getScore() >= REPORT_RAG_MIN_SCORE)
-                .collect(Collectors.toList()) : filtered;
+                .collect(Collectors.toList());
+    }
+
+    private List<KnowledgeRetrivalDTO> searchKnowledgeVectors(Long ownerUserId, Long knowledgeId, String queryEmbedding) {
+        if (knowledgeId == null) {
+            return List.of();
+        }
+        List<KnowledgeRetrivalDTO> hits = knowledgeVectorMapper.searchBySimilarity(
+                ownerUserId, knowledgeId, queryEmbedding, REPORT_RAG_PER_SOURCE_TOP_K);
+        return hits == null ? List.of() : hits;
+    }
+
+    private List<KnowledgeRetrivalDTO> rankAndLimitHits(List<KnowledgeRetrivalDTO> hits, int topK) {
+        Map<String, KnowledgeRetrivalDTO> deduped = new LinkedHashMap<>();
+        hits.stream()
+                .filter(h -> h.getScore() != null)
+                .sorted(Comparator.comparing(KnowledgeRetrivalDTO::getScore).reversed())
+                .forEach(h -> {
+                    String key = Objects.toString(h.getDocumentId(), "") + ":"
+                            + Objects.toString(h.getChunkIndex(), "");
+                    deduped.putIfAbsent(key, h);
+                });
+        return deduped.values().stream().limit(topK).collect(Collectors.toList());
     }
 
     private Map<String, Object> generateStructuredReport(JobListItemDTO jobDetail,
@@ -292,10 +350,16 @@ public class CareerDevelopmentReportServiceImpl
         Map<String, Object> vars = new LinkedHashMap<>();
         vars.put("userPreference", req == null ? "" : safe(req.getUserPreference()));
         vars.put("focus", req == null ? "" : safe(req.getFocus()));
+        String currentDate = reportContextDate();
+        vars.put("currentDate", currentDate);
 
         String ragContext = buildRagContext(ragHits);
         StringBuilder sb = new StringBuilder();
         sb.append("请生成结构化职业发展报告，严格输出 JSON。\n\n");
+        sb.append("## 当前日期（北京时间）\n").append(currentDate).append("\n\n");
+        sb.append("制定 evaluationPlan.quantitativeMetrics 的 deadline 时，必须以当前日期为基准：")
+                .append("若使用 YYYY-MM-DD，不得早于 ").append(currentDate)
+                .append("；短期建议 1~3 个月内，中期 3~6 个月内。\n\n");
         sb.append("## 岗位信息\n").append(toJson(jobDetail)).append("\n\n");
         sb.append("## 学生画像\n").append(toJson(studentProfile)).append("\n\n");
         sb.append("## 岗位画像\n").append(toJson(jobProfile)).append("\n\n");
@@ -407,7 +471,7 @@ public class CareerDevelopmentReportServiceImpl
         dto.setPromptName(entity.getPromptName());
         dto.setReportContent(readMap(entity.getReportContent()));
         dto.setQualityFlags(readMap(entity.getQualityFlags()));
-        dto.setKnowledgeSources(readListOfMap(entity.getKnowledgeSources()));
+        dto.setKnowledgeSources(enrichKnowledgeSources(readListOfMap(entity.getKnowledgeSources())));
         return dto;
     }
 
@@ -428,18 +492,28 @@ public class CareerDevelopmentReportServiceImpl
     }
 
     private boolean isCareerLearningDoc(KnowledgeRetrivalDTO dto) {
-        if (dto == null || dto.getMetadata() == null || dto.getMetadata().isEmpty()) {
+        if (dto == null) {
             return false;
+        }
+        String category = resolveDocCategory(dto);
+        if (!StringUtils.hasText(category)) {
+            return false;
+        }
+        return CAREER_DOC_CATEGORY_WHITELIST.contains(category.trim().toLowerCase(Locale.ROOT));
+    }
+
+    private String resolveDocCategory(KnowledgeRetrivalDTO dto) {
+        if (StringUtils.hasText(dto.getDocCategory())) {
+            return dto.getDocCategory();
+        }
+        if (dto.getMetadata() == null || dto.getMetadata().isEmpty()) {
+            return null;
         }
         Object category = dto.getMetadata().get("docCategory");
         if (category == null) {
             category = dto.getMetadata().get("category");
         }
-        if (category == null) {
-            return false;
-        }
-        return CAREER_DOC_CATEGORY_WHITELIST.contains(
-                String.valueOf(category).trim().toLowerCase(Locale.ROOT));
+        return category == null ? null : String.valueOf(category);
     }
 
     private String buildRagContext(List<KnowledgeRetrivalDTO> hits) {
@@ -462,16 +536,212 @@ public class CareerDevelopmentReportServiceImpl
         if (hits == null || hits.isEmpty()) {
             return List.of();
         }
+        Map<Long, KnowledgeDocument> docById = loadDocumentsByIds(hits.stream()
+                .map(KnowledgeRetrivalDTO::getDocumentId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList()));
         List<Map<String, Object>> out = new ArrayList<>();
         for (KnowledgeRetrivalDTO hit : hits) {
+            KnowledgeDocument doc = hit.getDocumentId() == null ? null : docById.get(hit.getDocumentId());
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("documentId", hit.getDocumentId());
             row.put("chunkIndex", hit.getChunkIndex());
             row.put("score", hit.getScore());
-            row.put("metadata", hit.getMetadata() == null ? Map.of() : hit.getMetadata());
+            row.put("title", resolveKnowledgeSourceTitle(hit, doc));
+            row.put("snippet", buildKnowledgeSourceSnippet(hit));
+            row.put("metadata", mergeSourceMetadata(hit, doc));
             out.add(row);
         }
         return out;
+    }
+
+    private List<Map<String, Object>> enrichKnowledgeSources(List<Map<String, Object>> sources) {
+        if (sources == null || sources.isEmpty()) {
+            return List.of();
+        }
+        List<Long> docIds = sources.stream()
+                .filter(this::needsKnowledgeSourceTitleEnrich)
+                .map(row -> toLong(row.get("documentId")))
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, KnowledgeDocument> docById = loadDocumentsByIds(docIds);
+        for (Map<String, Object> row : sources) {
+            if (!needsKnowledgeSourceTitleEnrich(row)) {
+                continue;
+            }
+            Long docId = toLong(row.get("documentId"));
+            KnowledgeDocument doc = docId == null ? null : docById.get(docId);
+            row.put("title", resolveStoredKnowledgeSourceTitle(row, doc));
+        }
+        return sources;
+    }
+
+    private boolean needsKnowledgeSourceTitleEnrich(Map<String, Object> row) {
+        Object title = row.get("title");
+        if (title == null || !StringUtils.hasText(String.valueOf(title))) {
+            return true;
+        }
+        return PLACEHOLDER_DOC_TITLE.matcher(String.valueOf(title).trim()).matches();
+    }
+
+    private String resolveStoredKnowledgeSourceTitle(Map<String, Object> row, KnowledgeDocument doc) {
+        String fromDoc = documentDisplayTitle(doc);
+        if (StringUtils.hasText(fromDoc)) {
+            return fromDoc;
+        }
+        Object snippet = row.get("snippet");
+        if (snippet != null) {
+            String fromSnippet = parseMarkdownHeadingTitle(String.valueOf(snippet));
+            if (StringUtils.hasText(fromSnippet)) {
+                return fromSnippet;
+            }
+        }
+        Object metadata = row.get("metadata");
+        if (metadata instanceof Map<?, ?> meta) {
+            String fromMeta = titleFromMetadataMap(meta);
+            if (StringUtils.hasText(fromMeta)) {
+                return fromMeta;
+            }
+        }
+        Long docId = toLong(row.get("documentId"));
+        return docId != null ? "学习路线 #" + docId : "知识片段";
+    }
+
+    private String resolveKnowledgeSourceTitle(KnowledgeRetrivalDTO hit, KnowledgeDocument doc) {
+        String fromDoc = documentDisplayTitle(doc);
+        if (StringUtils.hasText(fromDoc)) {
+            return fromDoc;
+        }
+        String fromMeta = hit.getMetadata() == null ? null : titleFromMetadataMap(hit.getMetadata());
+        if (StringUtils.hasText(fromMeta)) {
+            return fromMeta;
+        }
+        String fromChunk = parseMarkdownHeadingTitle(hit.getContent());
+        if (StringUtils.hasText(fromChunk)) {
+            return fromChunk;
+        }
+        Long docId = hit.getDocumentId();
+        return docId != null ? "学习路线 #" + docId : "知识片段";
+    }
+
+    private Map<Long, KnowledgeDocument> loadDocumentsByIds(List<Long> documentIds) {
+        if (documentIds == null || documentIds.isEmpty()) {
+            return Map.of();
+        }
+        List<KnowledgeDocument> docs = knowledgeDocumentMapper.selectBatchIds(documentIds);
+        if (docs == null || docs.isEmpty()) {
+            return Map.of();
+        }
+        return docs.stream()
+                .filter(doc -> doc.getId() != null)
+                .collect(Collectors.toMap(KnowledgeDocument::getId, doc -> doc, (a, b) -> a));
+    }
+
+    private static String documentDisplayTitle(KnowledgeDocument doc) {
+        if (doc == null) {
+            return null;
+        }
+        if (StringUtils.hasText(doc.getTitle())) {
+            return doc.getTitle().trim();
+        }
+        if (StringUtils.hasText(doc.getContent())) {
+            return filenameToLearningRouteTitle(doc.getContent());
+        }
+        return titleFromMetadataMap(doc.getMetadata());
+    }
+
+    private static String titleFromMetadataMap(Map<?, ?> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return null;
+        }
+        Object sourceFile = metadata.get("sourceFile");
+        if (sourceFile != null && StringUtils.hasText(String.valueOf(sourceFile))) {
+            return filenameToLearningRouteTitle(String.valueOf(sourceFile));
+        }
+        Object content = metadata.get("content");
+        if (content != null && StringUtils.hasText(String.valueOf(content))) {
+            return filenameToLearningRouteTitle(String.valueOf(content));
+        }
+        return null;
+    }
+
+    private static Map<String, Object> mergeSourceMetadata(KnowledgeRetrivalDTO hit, KnowledgeDocument doc) {
+        Map<String, Object> merged = new LinkedHashMap<>();
+        if (doc != null && doc.getMetadata() != null) {
+            merged.putAll(doc.getMetadata());
+        }
+        if (hit.getMetadata() != null) {
+            merged.putAll(hit.getMetadata());
+        }
+        if (doc != null && StringUtils.hasText(doc.getTitle())) {
+            merged.putIfAbsent("documentTitle", doc.getTitle());
+        }
+        if (doc != null && StringUtils.hasText(doc.getContent())) {
+            merged.putIfAbsent("sourceFile", doc.getContent());
+        }
+        return merged;
+    }
+
+    private static String filenameToLearningRouteTitle(String file) {
+        String name = file == null ? "" : file.trim();
+        if (name.endsWith(".md")) {
+            name = name.substring(0, name.length() - 3);
+        }
+        return name;
+    }
+
+    private static String parseMarkdownHeadingTitle(String text) {
+        if (!StringUtils.hasText(text)) {
+            return null;
+        }
+        Matcher matcher = MARKDOWN_H1.matcher(text.trim());
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        int hashIdx = text.indexOf("# ");
+        if (hashIdx >= 0) {
+            String tail = text.substring(hashIdx + 2);
+            int end = tail.indexOf(" ## ");
+            if (end < 0) {
+                end = tail.indexOf('·');
+            }
+            if (end < 0) {
+                end = Math.min(tail.length(), 40);
+            }
+            return tail.substring(0, end).trim();
+        }
+        return null;
+    }
+
+    private static Long toLong(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        try {
+            return Long.parseLong(String.valueOf(value));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private String buildKnowledgeSourceSnippet(KnowledgeRetrivalDTO hit) {
+        List<String> parts = new ArrayList<>();
+        if (hit.getScore() != null) {
+            parts.add(String.format(Locale.ROOT, "相似度 %.1f%%", hit.getScore() * 100));
+        }
+        if (hit.getChunkIndex() != null) {
+            parts.add("块 #" + hit.getChunkIndex());
+        }
+        if (StringUtils.hasText(hit.getContent())) {
+            String compact = hit.getContent().trim().replaceAll("\\s+", " ");
+            parts.add(compact.length() > 80 ? compact.substring(0, 80) + "…" : compact);
+        }
+        return String.join(" · ", parts);
     }
 
     /**
@@ -651,6 +921,11 @@ public class CareerDevelopmentReportServiceImpl
 
     private static String safe(String value) {
         return StringUtils.hasText(value) ? value.trim() : "";
+    }
+
+    /** 报告生成/润色使用的「今天」日期（Asia/Shanghai，yyyy-MM-dd）。 */
+    private static String reportContextDate() {
+        return LocalDate.now(DateTimeUtil.getDefaultZoneId()).format(REPORT_DATE_FMT);
     }
 
     private static List<String> mergeList(List<String> left, List<String> right) {

@@ -4,6 +4,8 @@
 # Task
 对输入的职业发展报告进行润色，提升表达清晰度、可执行性和专业度，同时保持原有结构与核心结论不变。
 
+**当前日期（北京时间）**：${currentDate}。润色时若涉及 evaluationPlan 的 deadline，具体日期不得早于 ${currentDate}。
+
 # Output Rules
 1. 只输出 JSON 对象，不要输出 Markdown。
 2. 顶层仅输出 `reportContent`。

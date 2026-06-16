@@ -1,6 +1,7 @@
 package com.zdmj.conversationService.controller;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -77,6 +78,19 @@ public class ConversationController {
     public Result<Conversation> updateTitle(@PathVariable Long id, @RequestParam("title") String title) {
         Conversation conversation = conversationService.updateTitle(id, title);
         return Result.success("会话标题修改成功", conversation);
+    }
+
+    /**
+     * 更新会话配置
+     *
+     * @param id     会话ID
+     * @param config 配置片段
+     * @return 更新后的会话
+     */
+    @PutMapping("/{id}/config")
+    public Result<Conversation> updateConfig(@PathVariable Long id, @RequestBody Map<String, Object> config) {
+        Conversation conversation = conversationService.updateConfig(id, config);
+        return Result.success("会话配置更新成功", conversation);
     }
 
     /**

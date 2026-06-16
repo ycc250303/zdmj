@@ -20,6 +20,7 @@ declare module "@elegant-router/types" {
     "403": "/403";
     "404": "/404";
     "500": "/500";
+    "capability-profile": "/capability-profile";
     "chat": "/chat";
     "home": "/home";
     "iframe-page": "/iframe-page/:url";
@@ -29,8 +30,6 @@ declare module "@elegant-router/types" {
     "knowledge": "/knowledge";
     "login": "/login/:module(pwd-login|code-login|register|reset-pwd|bind-wechat)?";
     "portal": "/portal";
-    "profile": "/profile";
-    "profile_capability": "/profile/capability";
     "resume-import": "/resume-import";
     "resumes-editor": "/resumes-editor";
     "user-settings": "/user-settings";
@@ -68,6 +67,7 @@ declare module "@elegant-router/types" {
     | "403"
     | "404"
     | "500"
+    | "capability-profile"
     | "chat"
     | "home"
     | "iframe-page"
@@ -77,7 +77,6 @@ declare module "@elegant-router/types" {
     | "knowledge"
     | "login"
     | "portal"
-    | "profile"
     | "resume-import"
     | "resumes-editor"
     | "user-settings"
@@ -102,6 +101,7 @@ declare module "@elegant-router/types" {
     | "500"
     | "iframe-page"
     | "login"
+    | "capability-profile"
     | "chat"
     | "home"
     | "job-detail"
@@ -109,7 +109,6 @@ declare module "@elegant-router/types" {
     | "jobs"
     | "knowledge"
     | "portal"
-    | "profile_capability"
     | "resume-import"
     | "resumes-editor"
     | "user-settings"

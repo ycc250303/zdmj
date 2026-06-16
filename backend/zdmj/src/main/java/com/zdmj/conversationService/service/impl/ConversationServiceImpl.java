@@ -15,7 +15,9 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 会话 Service 实现骨架
@@ -101,6 +103,31 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         }
 
         conversation.setTitle(title.trim());
+        boolean updated = updateById(conversation);
+        if (!updated) {
+            throw new BusinessException(ErrorCode.CONVERSATION_UPDATE_FAILED);
+        }
+        redisUtil.set(RedisConstants.CONVERSATION_KEY + id, conversation, RedisConstants.CONVERSATION_TTL);
+        return conversation;
+    }
+
+    @Override
+    public Conversation updateConfig(Long id, Map<String, Object> config) {
+        if (config == null || config.isEmpty()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "会话配置不能为空");
+        }
+        Long userId = UserHolder.requireUserId();
+        Conversation conversation = getById(id);
+        if (!conversation.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.NO_PERMISSION);
+        }
+
+        Map<String, Object> merged = conversation.getConfig() == null
+                ? new HashMap<>()
+                : new HashMap<>(conversation.getConfig());
+        merged.putAll(config);
+        conversation.setConfig(merged);
+
         boolean updated = updateById(conversation);
         if (!updated) {
             throw new BusinessException(ErrorCode.CONVERSATION_UPDATE_FAILED);

@@ -92,14 +92,19 @@ def parse_salary_range_fallback(text: str) -> Tuple[Optional[int], Optional[int]
 
 
 def map_salary_type(value) -> int:
-    """薪资单位 -> jobs.salary_type：1=日薪/2=月薪/3=年薪。"""
+    """薪资单位 -> jobs.salary_type：1=日薪/实习，2=月薪/全职，3=年薪。
+
+    Excel「薪资单位(月/日)」常见取值：day、month；亦兼容中文 日/月/年。
+    """
     if pd.isna(value):
         return 2
     s = str(value).strip().lower()
-    if "日" in s:
+    if s in ("day",) or "日" in s:
         return 1
-    if "年" in s:
+    if s in ("year",) or "年" in s:
         return 3
+    if s in ("month",) or "月" in s:
+        return 2
     return 2
 
 

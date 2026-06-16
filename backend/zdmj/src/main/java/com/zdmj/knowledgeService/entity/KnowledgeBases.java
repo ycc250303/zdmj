@@ -25,7 +25,7 @@ public class KnowledgeBases extends BaseEntity {
     private Long userId;
 
     /**
-     * 知识库范围：1=USER 用户私有，2=SYSTEM 系统通用
+     * 知识库范围：1=USER 用户私有，2=SYSTEM 系统通用，3=LEARNING_PATH 学习路线
      */
     private Integer scope;
 }

@@ -9,4 +9,8 @@
 
     <!-- 根据用户ID查询知识库ID -->
     <select id="selectKnowledgeIdByUserId" resultType="java.lang.Long"> SELECT id FROM knowledge_bases WHERE user_id = #{userId} and scope = 1 </select>
+
+    <select id="selectKnowledgeIdByScope" resultType="java.lang.Long">
+        SELECT id FROM knowledge_bases WHERE scope = #{scope} ORDER BY id LIMIT 1
+    </select>
 </mapper>

@@ -230,7 +230,7 @@ const local: App.I18n.Schema = {
     portal: 'portal',
     'resume-import': 'My Resume',
     'resumes-editor': 'Resume Editor',
-    "profile_capability": 'Capability Profile',
+    'capability-profile': 'Capability Profile',
     "knowledge": 'Knowledge Base',
     "chat": 'AI Chat',
     "jobs": 'Jobs',
@@ -367,7 +367,14 @@ const local: App.I18n.Schema = {
       deleteFailed: 'Delete failed',
       createSuccess: 'Create successful',
       createFailed: 'Create failed',
-      sendFailed: 'Send message failed'
+      sendFailed: 'Send message failed',
+      knowledgePanelTitle: 'Knowledge Base',
+      knowledgePanelDesc: 'Choose documents for RAG retrieval in this chat',
+      collapseKnowledgePanel: 'Collapse knowledge panel',
+      expandKnowledgePanel: 'Expand knowledge panel',
+      knowledgeEmpty: 'No knowledge documents yet. Add them on the Knowledge page first.',
+      knowledgeRagEnabled: 'Enable RAG',
+      knowledgeNotEmbedded: 'Not embedded'
     },
     "profile": {
       "common": {
@@ -823,15 +830,17 @@ const local: App.I18n.Schema = {
         duties: "Enter one responsibility per line",
         requirements: "Enter one requirement per line",
         keywords: "Enter one keyword per line",
-        link: "Please enter job link, e.g.: BOSS Zhipin, Lagou, etc.",
+        link: "Optional. Enter job source URL",
         companyIntro: "Please enter company introduction (optional)",
-        industries: "Enter one industry per line"
+        industries: "Enter one industry per line",
+        industriesSelect: "Select company industries (multi-select, searchable)"
       },
       tips: {
         dutiesFormat: "Enter one responsibility per line, e.g.: Responsible for backend system design and development",
         requirementsFormat: "Enter one requirement per line, e.g.: Bachelor degree or above",
         keywordsFormat: "Support comma, space or newline to separate keywords",
-        industriesFormat: "Enter one industry tag per line"
+        industriesFormat: "Enter one industry tag per line",
+        linkOptional: "Optional. e.g. BOSS Zhipin or Lagou job page URL"
       },
       empty: "No job data",
       createFirst: "Create first job",

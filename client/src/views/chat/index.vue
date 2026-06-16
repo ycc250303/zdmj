@@ -7,8 +7,11 @@ import {
   fetchDeleteConversation,
   fetchGetConversations,
   fetchGetMessages,
-  fetchChatStream
+  fetchChatStream,
+  fetchUpdateConversationConfig
 } from '@/service/api/conversation';
+import { fetchGetKnowledgeDocumentList } from '@/service/api/knowledge';
+import type { KnowledgeApi } from '@/service/api/knowledge';
 import { marked } from 'marked';
 import hljs from 'highlight.js/lib/core';
 import bash from 'highlight.js/lib/languages/bash';
@@ -74,10 +77,185 @@ const sending = ref(false);
 const scrollRef = ref<any>(null);
 const sidebarCollapsed = ref(false);
 
+const SIDEBAR_WIDTH_KEY = 'chat-sidebar-width';
+const DEFAULT_SIDEBAR_WIDTH = 260;
+const MIN_SIDEBAR_WIDTH = 200;
+const MAX_SIDEBAR_WIDTH = 480;
+
+const sidebarWidth = ref(DEFAULT_SIDEBAR_WIDTH);
+const isResizingSidebar = ref(false);
+
+const clampSidebarWidth = (width: number) =>
+  Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, width));
+
+const loadSidebarWidth = () => {
+  const saved = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
+  if (!Number.isNaN(saved) && saved > 0) {
+    sidebarWidth.value = clampSidebarWidth(saved);
+  }
+};
+
+const persistSidebarWidth = () => {
+  localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth.value));
+};
+
 // 切换侧边栏折叠状态
 const toggleSidebar = () => {
   sidebarCollapsed.value = !sidebarCollapsed.value;
 };
+
+const startSidebarResize = (event: MouseEvent) => {
+  event.preventDefault();
+  isResizingSidebar.value = true;
+
+  const startX = event.clientX;
+  const startWidth = sidebarWidth.value;
+
+  const handleMouseMove = (moveEvent: MouseEvent) => {
+    sidebarWidth.value = clampSidebarWidth(startWidth + moveEvent.clientX - startX);
+  };
+
+  const handleMouseUp = () => {
+    isResizingSidebar.value = false;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    persistSidebarWidth();
+  };
+
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+  document.addEventListener('mousemove', handleMouseMove);
+  document.addEventListener('mouseup', handleMouseUp);
+};
+
+const KNOWLEDGE_PANEL_WIDTH_KEY = 'chat-knowledge-panel-width';
+const DEFAULT_KNOWLEDGE_PANEL_WIDTH = 280;
+const MIN_KNOWLEDGE_PANEL_WIDTH = 220;
+const MAX_KNOWLEDGE_PANEL_WIDTH = 420;
+
+const knowledgeDocuments = ref<KnowledgeApi.KnowledgeDocumentDTO[]>([]);
+const knowledgeLoading = ref(false);
+const knowledgePanelCollapsed = ref(false);
+const enabledRagDocumentIds = ref<number[]>([]);
+const knowledgePanelWidth = ref(DEFAULT_KNOWLEDGE_PANEL_WIDTH);
+const isResizingKnowledgePanel = ref(false);
+
+const clampKnowledgePanelWidth = (width: number) =>
+  Math.min(MAX_KNOWLEDGE_PANEL_WIDTH, Math.max(MIN_KNOWLEDGE_PANEL_WIDTH, width));
+
+const loadKnowledgePanelWidth = () => {
+  const saved = Number(localStorage.getItem(KNOWLEDGE_PANEL_WIDTH_KEY));
+  if (!Number.isNaN(saved) && saved > 0) {
+    knowledgePanelWidth.value = clampKnowledgePanelWidth(saved);
+  }
+};
+
+const persistKnowledgePanelWidth = () => {
+  localStorage.setItem(KNOWLEDGE_PANEL_WIDTH_KEY, String(knowledgePanelWidth.value));
+};
+
+const toggleKnowledgePanel = () => {
+  knowledgePanelCollapsed.value = !knowledgePanelCollapsed.value;
+};
+
+const startKnowledgePanelResize = (event: MouseEvent) => {
+  event.preventDefault();
+  isResizingKnowledgePanel.value = true;
+
+  const startX = event.clientX;
+  const startWidth = knowledgePanelWidth.value;
+
+  const handleMouseMove = (moveEvent: MouseEvent) => {
+    knowledgePanelWidth.value = clampKnowledgePanelWidth(startWidth + startX - moveEvent.clientX);
+  };
+
+  const handleMouseUp = () => {
+    isResizingKnowledgePanel.value = false;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    persistKnowledgePanelWidth();
+  };
+
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+  document.addEventListener('mousemove', handleMouseMove);
+  document.addEventListener('mouseup', handleMouseUp);
+};
+
+const getAllKnowledgeDocumentIds = () =>
+  knowledgeDocuments.value
+    .map(item => item.id)
+    .filter((id): id is number => id != null);
+
+const getConversationRagDocumentIds = (conversationId: number | null): number[] | null => {
+  if (!conversationId) return null;
+  const conversation = conversations.value.find(item => item.id === conversationId);
+  if (!conversation?.config || !('ragDocumentIds' in conversation.config)) {
+    return null;
+  }
+  const raw = conversation.config.ragDocumentIds;
+  if (!Array.isArray(raw)) return null;
+  return raw.map(Number).filter(id => !Number.isNaN(id));
+};
+
+const syncRagSelectionFromConversation = () => {
+  const allIds = getAllKnowledgeDocumentIds();
+  const saved = getConversationRagDocumentIds(currentConversationId.value);
+  enabledRagDocumentIds.value = saved === null
+    ? [...allIds]
+    : saved.filter(id => allIds.includes(id));
+};
+
+const persistRagSelection = async () => {
+  if (!currentConversationId.value) return;
+
+  const { data, error } = await fetchUpdateConversationConfig(currentConversationId.value, {
+    ragDocumentIds: enabledRagDocumentIds.value
+  });
+
+  if (!error && data) {
+    const index = conversations.value.findIndex(item => item.id === currentConversationId.value);
+    if (index >= 0) {
+      conversations.value[index] = data;
+    }
+  }
+};
+
+const isRagDocumentEnabled = (documentId?: number) => {
+  if (documentId == null) return false;
+  return enabledRagDocumentIds.value.includes(documentId);
+};
+
+const handleToggleRagDocument = async (documentId: number, enabled: boolean) => {
+  if (enabled) {
+    if (!enabledRagDocumentIds.value.includes(documentId)) {
+      enabledRagDocumentIds.value = [...enabledRagDocumentIds.value, documentId];
+    }
+  } else {
+    enabledRagDocumentIds.value = enabledRagDocumentIds.value.filter(id => id !== documentId);
+  }
+  await persistRagSelection();
+};
+
+const loadKnowledgeDocuments = async () => {
+  knowledgeLoading.value = true;
+  try {
+    const { data, error } = await fetchGetKnowledgeDocumentList({ page: 1, limit: 100 });
+    if (!error && data) {
+      knowledgeDocuments.value = data.list || [];
+      syncRagSelectionFromConversation();
+    }
+  } finally {
+    knowledgeLoading.value = false;
+  }
+};
+
+const knowledgeEmbeddingReady = (item: KnowledgeApi.KnowledgeDocumentDTO) =>
+  item.embeddingStatus === 'SUCCESS';
 
 // 获取会话列表
 const loadConversations = async () => {
@@ -119,6 +297,7 @@ const handleSelectConversation = async (id: number) => {
 
   currentConversationId.value = id;
   loading.value = true;
+  syncRagSelectionFromConversation();
 
   try {
     const { data, error } = await fetchGetMessages({ conversationId: id, page: 1, limit: 100 });
@@ -211,7 +390,11 @@ const handleSend = async () => {
   };
   messageList.value.push(tempAiMsg);
 
-  const requestData = { conversationId: currentConversationId.value!, message: userText };
+  const requestData = {
+    conversationId: currentConversationId.value!,
+    message: userText,
+    ragDocumentIds: enabledRagDocumentIds.value
+  };
   console.log('发送消息请求:', requestData);
 
   let hasReceivedContent = false;
@@ -284,6 +467,9 @@ const formatMessageContent = (content: string) => {
 const isCenteredLayout = computed(() => messageList.value.length === 0 && !loading.value);
 
 onMounted(() => {
+  loadSidebarWidth();
+  loadKnowledgePanelWidth();
+  loadKnowledgeDocuments();
   loadConversations();
 });
 </script>
@@ -293,7 +479,9 @@ onMounted(() => {
     <!-- 侧边栏：会话列表 -->
     <div
       v-show="!sidebarCollapsed"
-      class="h-full w-260px flex-shrink-0 flex flex-col bg-gray-50 dark:bg-dark-100 border-r border-gray-200 dark:border-gray-700 transition-all duration-300"
+      class="relative h-full flex-shrink-0 flex flex-col bg-gray-50 dark:bg-dark-100 border-r border-gray-200 dark:border-gray-700"
+      :class="{ 'transition-all duration-300': !isResizingSidebar }"
+      :style="{ width: `${sidebarWidth}px` }"
     >
       <!-- 新对话按钮和折叠按钮 -->
       <div class="p-3 flex gap-2">
@@ -333,7 +521,7 @@ onMounted(() => {
           >
             <div class="flex justify-between items-center gap-2 w-full">
               <div
-                class="flex flex-col gap-0.5 flex-1 min-w-0 pr-2 max-w-[180px]"
+                class="flex flex-col gap-0.5 flex-1 min-w-0 pr-2"
                 @click="handleSelectConversation(item.id)"
               >
                 <span class="text-sm font-medium truncate block" :class="currentConversationId === item.id ? 'text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'" :title="item.title || $t('page.chat.newChat')">
@@ -355,6 +543,12 @@ onMounted(() => {
           </div>
         </div>
       </n-scrollbar>
+
+      <div
+        class="sidebar-resize-handle"
+        :class="{ 'sidebar-resize-handle--active': isResizingSidebar }"
+        @mousedown="startSidebarResize"
+      />
     </div>
 
     <!-- 主区域：对话详情 -->
@@ -373,6 +567,22 @@ onMounted(() => {
             </n-button>
           </template>
           {{ $t('page.chat.expandChatList') }}
+        </n-tooltip>
+      </div>
+
+      <div v-if="knowledgePanelCollapsed" class="absolute right-2 top-2 z-10">
+        <n-tooltip placement="bottom">
+          <template #trigger>
+            <n-button quaternary circle @click="toggleKnowledgePanel" class="!text-gray-500 hover:!text-gray-700">
+              <template #icon>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="11 17 16 12 11 7"></polyline>
+                  <polyline points="18 17 23 12 18 7"></polyline>
+                </svg>
+              </template>
+            </n-button>
+          </template>
+          {{ $t('page.chat.expandKnowledgePanel') }}
         </n-tooltip>
       </div>
 
@@ -524,10 +734,132 @@ onMounted(() => {
         </div>
       </transition>
     </div>
+
+    <!-- 右侧：知识库 RAG 选择 -->
+    <div
+      v-show="!knowledgePanelCollapsed"
+      class="relative h-full flex-shrink-0 flex flex-col bg-gray-50 dark:bg-dark-100 border-l border-gray-200 dark:border-gray-700"
+      :class="{ 'transition-all duration-300': !isResizingKnowledgePanel }"
+      :style="{ width: `${knowledgePanelWidth}px` }"
+    >
+      <div
+        class="sidebar-resize-handle sidebar-resize-handle--left"
+        :class="{ 'sidebar-resize-handle--active': isResizingKnowledgePanel }"
+        @mousedown="startKnowledgePanelResize"
+      />
+
+      <div class="p-3 border-b border-gray-200 dark:border-gray-700 flex items-start justify-between gap-2">
+        <div class="min-w-0">
+          <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 m-0">
+            {{ $t('page.chat.knowledgePanelTitle') }}
+          </h3>
+          <p class="text-xs text-gray-400 dark:text-gray-500 mt-1 mb-0">
+            {{ $t('page.chat.knowledgePanelDesc') }}
+          </p>
+        </div>
+        <n-tooltip placement="bottom">
+          <template #trigger>
+            <n-button quaternary circle @click="toggleKnowledgePanel" class="!text-gray-500 hover:!text-gray-700">
+              <template #icon>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="13 17 18 12 13 7"></polyline>
+                  <polyline points="6 17 11 12 6 7"></polyline>
+                </svg>
+              </template>
+            </n-button>
+          </template>
+          {{ $t('page.chat.collapseKnowledgePanel') }}
+        </n-tooltip>
+      </div>
+
+      <n-scrollbar class="flex-1">
+        <div class="px-2 py-2">
+          <div v-if="knowledgeLoading" class="flex justify-center py-8">
+            <n-spin size="small" />
+          </div>
+
+          <div
+            v-else-if="knowledgeDocuments.length === 0"
+            class="px-3 py-6 text-xs text-gray-400 dark:text-gray-500 text-center leading-relaxed"
+          >
+            {{ $t('page.chat.knowledgeEmpty') }}
+          </div>
+
+          <template v-else>
+            <div
+              v-for="item in knowledgeDocuments"
+              :key="item.id"
+              class="px-3 py-2.5 rounded-lg mb-1 border border-transparent hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
+            >
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0 flex-1">
+                  <div class="text-sm font-medium text-gray-700 dark:text-gray-300 truncate" :title="item.title">
+                    {{ item.title }}
+                  </div>
+                  <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    <span v-if="knowledgeEmbeddingReady(item)">{{ item.embeddingStatus }}</span>
+                    <span v-else class="text-amber-600 dark:text-amber-400">{{ $t('page.chat.knowledgeNotEmbedded') }}</span>
+                  </div>
+                </div>
+                <n-switch
+                  :value="isRagDocumentEnabled(item.id)"
+                  :disabled="!knowledgeEmbeddingReady(item) || item.id == null"
+                  size="small"
+                  @update:value="(enabled: boolean) => item.id != null && handleToggleRagDocument(item.id, enabled)"
+                />
+              </div>
+            </div>
+          </template>
+        </div>
+      </n-scrollbar>
+    </div>
   </div>
 </template>
 
 <style scoped>
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  z-index: 10;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.sidebar-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 2px;
+  width: 2px;
+  height: 100%;
+  border-radius: 1px;
+  background-color: transparent;
+  transition: background-color 0.2s ease;
+}
+
+.sidebar-resize-handle:hover::after,
+.sidebar-resize-handle--active::after {
+  background-color: rgb(59 130 246 / 0.55);
+}
+
+.dark .sidebar-resize-handle:hover::after,
+.dark .sidebar-resize-handle--active::after {
+  background-color: rgb(96 165 250 / 0.65);
+}
+
+.sidebar-resize-handle--left {
+  right: auto;
+  left: -3px;
+}
+
+.sidebar-resize-handle--left::after {
+  left: auto;
+  right: 2px;
+}
+
 /* 新对话按钮内容居中 */
 :deep(.n-button__content) {
   justify-content: center !important;

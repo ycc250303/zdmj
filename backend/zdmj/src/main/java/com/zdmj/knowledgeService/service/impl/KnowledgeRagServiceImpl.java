@@ -48,9 +48,14 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
     private final KnowledgeVectorMapper knowledgeVectorMapper;
     private final ChatUtil chatUtil;
 
-    public Flux<String> streamAnswer(Long conversationId, String userMessage) {
+    public Flux<String> streamAnswer(Long conversationId, String userMessage, List<Long> ragDocumentIds) {
         if (!ragConfig.isEnabled()) {
             // 总开关关闭时退回普通对话
+            return chatUtil.chatStreamInConversation(conversationId, userMessage, PromptNames.SYSTEM, null);
+        }
+
+        // 显式传入空列表：用户关闭全部知识文档的 RAG
+        if (ragDocumentIds != null && ragDocumentIds.isEmpty()) {
             return chatUtil.chatStreamInConversation(conversationId, userMessage, PromptNames.SYSTEM, null);
         }
 
@@ -73,7 +78,8 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         double minScore = rawString.length() <= s.getShortQueryLength() ? s.getMinScoreShort() : s.getMinScoreDefault();
 
         // 5.检索并过滤（合并原文/改写两路召回；再将涉及文档展开为全部分块，避免 Top-K 漏掉同文档关键段）
-        List<KnowledgeRetrivalDTO> retrivals = retrieve(rawString, rewrittenText, userId, knowledgeId, topK, minScore);
+        List<KnowledgeRetrivalDTO> retrivals = retrieve(rawString, rewrittenText, userId, knowledgeId, topK, minScore,
+                ragDocumentIds);
         retrivals = expandHitsToFullDocuments(userId, knowledgeId, retrivals);
 
         if (retrivals.isEmpty()) {
@@ -143,12 +149,14 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
      * @return 检索结果
      */
     private List<KnowledgeRetrivalDTO> retrieve(String rawText, String rewrittenText, Long userId, Long knowledgeId,
-            int topK, double minScore) {
-        List<KnowledgeRetrivalDTO> primary = searchAndFilter(rawText, userId, knowledgeId, topK, minScore);
+            int topK, double minScore, List<Long> ragDocumentIds) {
+        List<KnowledgeRetrivalDTO> primary = searchAndFilter(rawText, userId, knowledgeId, topK, minScore,
+                ragDocumentIds);
         if (rawText.equals(rewrittenText)) {
             return mergeAndSort(primary);
         }
-        List<KnowledgeRetrivalDTO> secondary = searchAndFilter(rewrittenText, userId, knowledgeId, topK, minScore);
+        List<KnowledgeRetrivalDTO> secondary = searchAndFilter(rewrittenText, userId, knowledgeId, topK, minScore,
+                ragDocumentIds);
         List<KnowledgeRetrivalDTO> combined = new ArrayList<>(primary.size() + secondary.size());
         combined.addAll(primary);
         combined.addAll(secondary);
@@ -193,13 +201,19 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
      * @return 查询结果
      */
     private List<KnowledgeRetrivalDTO> searchAndFilter(String queryText, Long userId, Long knowledgeId,
-            int topK, double minScore) {
+            int topK, double minScore, List<Long> ragDocumentIds) {
         float[] vector = embedQueryText(queryText);
         if (vector == null) {
             return List.of();
         }
         String vecString = knowledgeEmbeddingService.toPgVector(vector);
-        List<KnowledgeRetrivalDTO> raw = knowledgeVectorMapper.searchBySimilarity(userId, knowledgeId, vecString, topK);
+        List<KnowledgeRetrivalDTO> raw;
+        if (ragDocumentIds == null || ragDocumentIds.isEmpty()) {
+            raw = knowledgeVectorMapper.searchBySimilarity(userId, knowledgeId, vecString, topK);
+        } else {
+            raw = knowledgeVectorMapper.searchBySimilarityInDocuments(userId, knowledgeId, ragDocumentIds, vecString,
+                    topK);
+        }
         if (raw == null || raw.isEmpty()) {
             return List.of();
         }

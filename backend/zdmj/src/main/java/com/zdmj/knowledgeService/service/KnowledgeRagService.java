@@ -1,5 +1,7 @@
 package com.zdmj.knowledgeService.service;
 
+import java.util.List;
+
 import reactor.core.publisher.Flux;
 
 /**
@@ -8,5 +10,5 @@ import reactor.core.publisher.Flux;
  */
 public interface KnowledgeRagService {
 
-    Flux<String> streamAnswer(Long conversationId, String userMessage);
+    Flux<String> streamAnswer(Long conversationId, String userMessage, List<Long> ragDocumentIds);
 }

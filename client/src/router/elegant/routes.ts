@@ -40,6 +40,16 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
+    name: 'capability-profile',
+    path: '/capability-profile',
+    component: 'layout.base$view.capability-profile',
+    meta: {
+      title: 'capability-profile',
+      i18nKey: 'route.capability-profile',
+      order: 3
+    }
+  },
+  {
     name: 'chat',
     path: '/chat',
     component: 'layout.base$view.chat',
@@ -129,26 +139,6 @@ export const generatedRoutes: GeneratedRoute[] = [
       title: 'portal',
       i18nKey: 'route.portal'
     }
-  },
-  {
-    name: 'profile',
-    path: '/profile',
-    component: 'layout.base',
-    meta: {
-      title: 'profile',
-      i18nKey: 'route.profile'
-    },
-    children: [
-      {
-        name: 'profile_capability',
-        path: '/profile/capability',
-        component: 'view.profile_capability',
-        meta: {
-          title: 'profile_capability',
-          i18nKey: 'route.profile_capability'
-        }
-      }
-    ]
   },
   {
     name: 'resume-import',

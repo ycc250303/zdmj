@@ -29,6 +29,8 @@ export namespace ConversationApi {
   export interface MessageDTO {
     conversationId: number;
     message: string;
+    /** 参与 RAG 检索的知识文档 ID；空数组表示不启用 RAG */
+    ragDocumentIds?: number[];
   }
 
   /** 消息实体 */
@@ -78,6 +80,15 @@ export function fetchUpdateConversationTitle(id: number, title: string) {
     url: `/conversations/${id}/title`, 
     method: 'put',
     params: { title }
+  });
+}
+
+/** 更新会话配置 */
+export function fetchUpdateConversationConfig(id: number, config: Record<string, any>) {
+  return request<ConversationApi.Conversation>({
+    url: `/conversations/${id}/config`,
+    method: 'put',
+    data: config
   });
 }
 
