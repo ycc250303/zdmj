@@ -303,17 +303,10 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
                     break;
                 }
                 String body = item.getContent().trim();
-                String header = String.format("[docId=%s chunk=%s score=%.3f]%n",
-                        item.getDocumentId(), item.getChunkIndex(),
-                        item.getScore() == null ? 0.0 : item.getScore());
                 int maxPiece = Math.min(perChunkCeiling, remaining);
-                String piece = header + body;
+                String piece = body;
                 if (piece.length() > maxPiece) {
-                    int maxBody = maxPiece - header.length();
-                    if (maxBody < 1) {
-                        maxBody = Math.min(body.length(), Math.max(1, remaining - header.length()));
-                    }
-                    piece = header + body.substring(0, Math.min(maxBody, body.length())) + "...(truncated)";
+                    piece = body.substring(0, Math.min(maxPiece, body.length())) + "...(truncated)";
                 }
                 context.add(piece);
                 remaining -= piece.length();
