@@ -347,7 +347,7 @@ const local: App.I18n.Schema = {
       hello: '你好，',
       enterConsole: '进入控制台',
       loginSystem: '登录系统',
-      heroTitle: '欢迎来到 SmartHire\n智能求职导航',
+      heroTitle: '欢迎来到 职点迷津\n智能求职导航',
       heroDesc: '面向软件工程大学生的智能、高效、一站式求职解决方案',
       actionEnter: '进入控制台',
       actionLogin: '立即登录体验'
