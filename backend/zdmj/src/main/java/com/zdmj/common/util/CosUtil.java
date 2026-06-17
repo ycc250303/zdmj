@@ -8,6 +8,7 @@ import com.qcloud.cos.exception.CosClientException;
 import com.qcloud.cos.exception.CosServiceException;
 import com.qcloud.cos.model.COSObjectSummary;
 import com.qcloud.cos.model.COSObject;
+import com.qcloud.cos.model.GetObjectMetadataRequest;
 import com.qcloud.cos.model.GetObjectRequest;
 import com.qcloud.cos.model.ListObjectsRequest;
 import com.qcloud.cos.model.ObjectListing;

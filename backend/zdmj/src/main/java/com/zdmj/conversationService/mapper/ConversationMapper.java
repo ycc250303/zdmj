@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 会话 Mapper 骨架
@@ -43,4 +44,17 @@ public interface ConversationMapper extends BaseMapper<Conversation> {
             @Param("conversationId") Long conversationId,
             @Param("userId") Long userId,
             @Param("title") String title);
+
+    /**
+     * 仅更新会话 config，避免回写 Redis 缓存中过期的 message_count / last_message_at。
+     *
+     * @param conversationId 会话ID
+     * @param userId         用户ID（权限隔离）
+     * @param config         合并后的完整 config
+     * @return 影响行数
+     */
+    int updateConfigByIdAndUserId(
+            @Param("conversationId") Long conversationId,
+            @Param("userId") Long userId,
+            @Param("config") Map<String, Object> config);
 }

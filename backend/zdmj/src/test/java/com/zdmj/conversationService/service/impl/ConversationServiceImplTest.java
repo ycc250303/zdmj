@@ -20,6 +20,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -195,14 +197,24 @@ class ConversationServiceImplTest {
         Conversation owned = new Conversation();
         owned.setId(15L);
         owned.setUserId(1L);
+        owned.setMessageCount(4);
         doReturn(owned).when(conversationService).getById(15L);
-        doReturn(true).when(conversationService).updateById(owned);
+        doReturn(1).when(conversationMapper).updateTitleByIdAndUserId(15L, 1L, "new title");
+        Conversation refreshed = new Conversation();
+        refreshed.setId(15L);
+        refreshed.setUserId(1L);
+        refreshed.setTitle("new title");
+        refreshed.setMessageCount(4);
+        doReturn(refreshed).when(conversationMapper).selectById(15L);
 
         Conversation out = conversationService.updateTitle(15L, "  new title  ");
 
         assertEquals("new title", out.getTitle());
-        verify(conversationService).updateById(owned);
-        verify(redisUtil).set(eq(RedisConstants.CONVERSATION_KEY + 15L), eq(owned), eq(RedisConstants.CONVERSATION_TTL));
+        assertEquals(4, out.getMessageCount());
+        verify(conversationMapper).updateTitleByIdAndUserId(15L, 1L, "new title");
+        verify(conversationMapper).selectById(15L);
+        verify(conversationService, never()).updateById(any(Conversation.class));
+        verify(redisUtil).set(eq(RedisConstants.CONVERSATION_KEY + 15L), eq(refreshed), eq(RedisConstants.CONVERSATION_TTL));
     }
 
     @Test
@@ -225,13 +237,13 @@ class ConversationServiceImplTest {
         owned.setId(17L);
         owned.setUserId(1L);
         doReturn(owned).when(conversationService).getById(17L);
-        doReturn(false).when(conversationService).updateById(owned);
+        doReturn(0).when(conversationMapper).updateTitleByIdAndUserId(17L, 1L, "updated");
 
         BusinessException ex = assertThrows(BusinessException.class, () -> conversationService.updateTitle(17L, "updated"));
 
         assertEquals(ErrorCode.CONVERSATION_UPDATE_FAILED.getCode(), ex.getCode());
         assertEquals(ErrorCode.CONVERSATION_UPDATE_FAILED.getMessage(), ex.getMessage());
-        verify(conversationService).updateById(owned);
+        verify(conversationMapper).updateTitleByIdAndUserId(17L, 1L, "updated");
     }
 
     @Test
@@ -263,5 +275,34 @@ class ConversationServiceImplTest {
         assertEquals(ErrorCode.NO_PERMISSION.getMessage(), ex.getMessage());
         verify(conversationService, never()).removeById(22L);
         verify(redisUtil, never()).delete(any());
+    }
+
+    @Test
+    void updateConfig_shouldMergeConfigWithoutUsingUpdateById() {
+        Conversation owned = new Conversation();
+        owned.setId(23L);
+        owned.setUserId(1L);
+        owned.setMessageCount(0);
+        owned.setConfig(new HashMap<>(Map.of("useSystemKnowledge", false)));
+        doReturn(owned).when(conversationService).getById(23L);
+        doReturn(1).when(conversationMapper).updateConfigByIdAndUserId(eq(23L), eq(1L), any());
+        Conversation refreshed = new Conversation();
+        refreshed.setId(23L);
+        refreshed.setUserId(1L);
+        refreshed.setMessageCount(6);
+        refreshed.setConfig(Map.of(
+                "useSystemKnowledge", true,
+                "ragDocumentIds", List.of(1L, 2L)));
+        doReturn(refreshed).when(conversationMapper).selectById(23L);
+
+        Conversation out = conversationService.updateConfig(23L, Map.of(
+                "ragDocumentIds", List.of(1L, 2L),
+                "useSystemKnowledge", true));
+
+        assertEquals(6, out.getMessageCount());
+        assertTrue(Boolean.TRUE.equals(out.getConfig().get("useSystemKnowledge")));
+        verify(conversationMapper).updateConfigByIdAndUserId(eq(23L), eq(1L), any());
+        verify(conversationService, never()).updateById(any(Conversation.class));
+        verify(redisUtil).set(eq(RedisConstants.CONVERSATION_KEY + 23L), eq(refreshed), eq(RedisConstants.CONVERSATION_TTL));
     }
 }

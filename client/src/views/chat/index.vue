@@ -140,6 +140,7 @@ const knowledgeLoading = ref(false);
 const knowledgePanelCollapsed = ref(false);
 const enabledRagDocumentIds = ref<number[]>([]);
 const useSystemKnowledge = ref(false);
+const ragSelectionSyncedForConversationId = ref<number | null>(null);
 const knowledgePanelWidth = ref(DEFAULT_KNOWLEDGE_PANEL_WIDTH);
 const isResizingKnowledgePanel = ref(false);
 
@@ -211,28 +212,42 @@ const getConversationUseSystemKnowledge = (conversationId: number | null): boole
 };
 
 const syncRagSelectionFromConversation = () => {
+  if (!currentConversationId.value) return;
+
   const allIds = getAllKnowledgeDocumentIds();
   const saved = getConversationRagDocumentIds(currentConversationId.value);
   enabledRagDocumentIds.value = saved === null
     ? [...allIds]
     : saved.filter(id => allIds.includes(id));
   useSystemKnowledge.value = getConversationUseSystemKnowledge(currentConversationId.value);
+  ragSelectionSyncedForConversationId.value = currentConversationId.value;
 };
 
+const buildConversationConfig = () => ({
+  ragDocumentIds: enabledRagDocumentIds.value,
+  useSystemKnowledge: useSystemKnowledge.value
+});
+
 const persistRagSelection = async () => {
-  if (!currentConversationId.value) return;
+  if (!currentConversationId.value) return true;
 
-  const { data, error } = await fetchUpdateConversationConfig(currentConversationId.value, {
-    ragDocumentIds: enabledRagDocumentIds.value,
-    useSystemKnowledge: useSystemKnowledge.value
-  });
+  const { data, error } = await fetchUpdateConversationConfig(
+    currentConversationId.value,
+    buildConversationConfig()
+  );
 
-  if (!error && data) {
-    const index = conversations.value.findIndex(item => item.id === currentConversationId.value);
-    if (index >= 0) {
-      conversations.value[index] = data;
-    }
+  if (error || !data) {
+    message.error('知识库选择保存失败');
+    syncRagSelectionFromConversation();
+    return false;
   }
+
+  const index = conversations.value.findIndex(item => item.id === currentConversationId.value);
+  if (index >= 0) {
+    conversations.value[index] = data;
+  }
+  ragSelectionSyncedForConversationId.value = currentConversationId.value;
+  return true;
 };
 
 const isRagDocumentEnabled = (documentId?: number) => {
@@ -262,7 +277,12 @@ const loadKnowledgeDocuments = async () => {
     const { data, error } = await fetchGetKnowledgeDocumentList({ page: 1, limit: 100 });
     if (!error && data) {
       knowledgeDocuments.value = data.list || [];
-      syncRagSelectionFromConversation();
+      if (
+        currentConversationId.value != null
+        && ragSelectionSyncedForConversationId.value !== currentConversationId.value
+      ) {
+        syncRagSelectionFromConversation();
+      }
     }
   } finally {
     knowledgeLoading.value = false;
@@ -286,7 +306,7 @@ const loadConversations = async () => {
 
 // 新��会话
 const handleNewChat = async () => {
-  const { data, error } = await fetchCreateConversation({ config: {}, context: [] });
+  const { data, error } = await fetchCreateConversation({ config: buildConversationConfig(), context: [] });
   if (!error && data) {
     // 重新加载会话列表
     const { data: convData, error: convError } = await fetchGetConversations();
@@ -364,7 +384,7 @@ const handleSend = async () => {
 
   // 如果没有当前会话，先创建一个
   if (!currentConversationId.value) {
-    const { data, error } = await fetchCreateConversation({ config: {}, context: [] });
+    const { data, error } = await fetchCreateConversation({ config: buildConversationConfig(), context: [] });
     if (!error && data && data.id) {
       // 创建成功后，先选中这个新会话，确保所有数据都加载完成
       await handleSelectConversation(data.id);
@@ -376,6 +396,11 @@ const handleSend = async () => {
 
   const userText = inputText.value.trim();
   inputText.value = '';
+
+  if (!(await persistRagSelection())) {
+    inputText.value = userText;
+    return;
+  }
 
   // 添加用户消息到列表
   const tempUserMsg: ConversationApi.Message & { thinking?: boolean } = {
@@ -408,8 +433,7 @@ const handleSend = async () => {
   const requestData = {
     conversationId: currentConversationId.value!,
     message: userText,
-    ragDocumentIds: enabledRagDocumentIds.value,
-    useSystemKnowledge: useSystemKnowledge.value
+    ...buildConversationConfig()
   };
   console.log('发送消息请求:', requestData);
 
