@@ -52,6 +52,12 @@ export const request = createFlatRequest(
       const errorBody = normalizeErrorResponse(response.data as ApiErrorBody);
       const responseCode = errorBody.code;
 
+      // 业务接口可在 config 中带 _silent: true 时，跳过全局错误 toast（由调用方自己决定如何反馈）
+      const silent = (response.config as any)?._silent === true;
+      if (silent) {
+        return null;
+      }
+
       function handleLogout() {
         authStore.resetStore();
       }
@@ -115,6 +121,12 @@ export const request = createFlatRequest(
 
       if (shouldForceLogout(httpStatus, backendErrorCode)) {
         void forceLogout();
+        return;
+      }
+
+      // 调用方设置 _silent 时不弹全局 toast
+      const silent = (error.config as any)?._silent === true;
+      if (silent) {
         return;
       }
 

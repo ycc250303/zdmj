@@ -589,6 +589,31 @@ declare namespace App {
           heroDesc: string;
           actionEnter: string;
           actionLogin: string;
+          eyebrow: string;
+          subhero: string;
+          stats: {
+            agents: { value: string; label: string };
+            knowledge: { value: string; label: string };
+            roles: { value: string; label: string };
+            uptime: { value: string; label: string };
+          };
+          modules: {
+            title: string;
+            subtitle: string;
+            agent: { tag: string; title: string; desc: string };
+            knowledge: { tag: string; title: string; desc: string };
+            resume: { tag: string; title: string; desc: string };
+            role: { tag: string; title: string; desc: string };
+          };
+          pillars: {
+            title: string;
+            subtitle: string;
+            list: Array<{ k: string; v: string }>;
+          };
+          footer: {
+            tag: string;
+            note: string;
+          };
         };
         chat: {
           newChat: string;

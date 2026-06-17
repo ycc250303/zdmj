@@ -1,6 +1,6 @@
 const local: App.I18n.Schema = {
   system: {
-    title: 'CareerGuidance',
+    title: '"职"点迷津',
     updateTitle: 'System Version Update Notification',
     updateContent: 'A new version of the system has been detected. Do you want to refresh the page immediately?',
     updateConfirm: 'Refresh immediately',
@@ -106,8 +106,8 @@ const local: App.I18n.Schema = {
           desc: 'Compact layout preset for small screens'
         },
         azir: {
-          name: "Azir's Preset",
-          desc: 'It is a cold and elegant preset that Azir likes'
+          name: 'Mute Preset',
+          desc: 'A muted Morandi palette for low-distraction work'
         }
       }
     },
@@ -292,31 +292,31 @@ const local: App.I18n.Schema = {
     },
     home: {
       hero: {
-        badge: '✨ AI Career Assistant',
-        title: 'Find Your Dream Job with AI',
-        subtitle: 'Smart chat, knowledge base, and resume generation — an all-in-one job hunting solution',
-        startChat: 'Start Chat',
-        exploreKnowledge: 'Explore Knowledge'
+        badge: '"ZhiDian" · Career navigation for CS students',
+        title: 'A career compass for CS students',
+        subtitle: 'Upload resumes, build a knowledge base, talk to AI — see role pulse and capability gaps clearly.',
+        startChat: 'Open dialogue',
+        exploreKnowledge: 'Browse knowledge'
       },
       quickActions: {
-        title: 'Quick Start',
-        subtitle: 'Choose a feature and begin your intelligent career journey'
+        title: 'Modules',
+        subtitle: 'Pick a module to start your job preparation.'
       },
       aiChat: {
-        title: 'AI Chat',
-        description: 'Real-time conversations with AI assistant for career guidance'
+        title: 'AI dialogue',
+        description: 'Streaming AI chat with optional RAG to cite content from your knowledge base.'
       },
       knowledge: {
-        title: 'Knowledge Base',
-        description: 'Upload study materials and let AI help you retrieve and understand them'
+        title: 'Knowledge base',
+        description: 'Upload PDF / Markdown materials, auto-chunked and embedded into pgvector for retrieval.'
       },
       resume: {
-        title: 'Resume Generation',
-        description: 'Quickly create professional resumes highlighting your skills'
+        title: 'Resume analysis',
+        description: 'Parse a PDF resume into structured fields, generate a capability profile, and export to PDF.'
       },
       jobs: {
-        title: 'Job Positions',
-        description: 'Browse and manage job positions, generate job capability profiles'
+        title: 'Role profile',
+        description: 'Decompose a JD into a role profile, match against your capability profile, surface gaps and paths.'
       },
       features: {
         title: 'Core Features',
@@ -346,14 +346,60 @@ const local: App.I18n.Schema = {
       }
     },
     portal: {
-      title: 'Career Guidance',
+      title: '"职"点迷津',
       hello: 'Hello, ',
-      enterConsole: 'Enter Console',
-      loginSystem: 'Login System',
-      heroTitle: 'Welcome to SmartHire\nIntelligent Career Navigation',
-      heroDesc: 'An intelligent, efficient, one-stop job hunting solution for software engineering students',
-      actionEnter: 'Enter Console',
-      actionLogin: 'Experience Now'
+      enterConsole: 'Enter workspace',
+      loginSystem: 'Sign in',
+      heroTitle: 'A career compass\nfor CS students',
+      heroDesc: 'An intelligent career assistant for software engineering students — upload resumes, build a private knowledge base, chat with AI, analyse capability gaps, and trace job-progression paths.',
+      actionEnter: 'Enter workspace',
+      actionLogin: 'Get started',
+      eyebrow: 'For software engineering students · Career navigation',
+      subhero: 'We unify resume analysis, role profiling, knowledge-base Q&A and career-graph discovery into one workspace, so every step of your job preparation is clearer.',
+      stats: {
+        agents: { value: '', label: '' },
+        knowledge: { value: '', label: '' },
+        roles: { value: '', label: '' },
+        uptime: { value: '', label: '' }
+      },
+      modules: {
+        title: 'What we built',
+        subtitle: 'Four real capabilities mapped to the four critical phases of job preparation.',
+        agent: {
+          tag: 'Dialogue',
+          title: 'Knowledge-grounded job-search Q&A',
+          desc: 'Chat with the AI assistant in streaming mode. Toggle RAG to cite your uploaded resumes, interview notes and study materials.'
+        },
+        knowledge: {
+          tag: 'Knowledge',
+          title: 'Private knowledge base with vector search',
+          desc: 'Upload PDFs and Markdown — chunked, embedded into pgvector, and retrieved on demand to participate in the dialogue.'
+        },
+        resume: {
+          tag: 'Resume',
+          title: 'Resume parsing & capability profile',
+          desc: 'Auto-extract education, projects and skills from a PDF resume; generate a student capability profile and export to PDF.'
+        },
+        role: {
+          tag: 'Role graph',
+          title: 'Job profile & matching analysis',
+          desc: 'Decompose a JD into a role profile, compare against your capability profile, and surface gaps and progression paths.'
+        }
+      },
+      pillars: {
+        title: 'Why "ZhiDian"',
+        subtitle: 'We focus on the real pain points students face during job preparation.',
+        list: [
+          { k: 'student-first', v: 'Designed for the actual job-prep workflow of CS students' },
+          { k: 'rag-grounded', v: 'Every AI answer can be grounded in your private knowledge' },
+          { k: 'ability-graph', v: 'A capability-profile spine connects resume, role and graph' },
+          { k: 'exportable', v: 'Profiles and resume analyses can be exported to PDF' }
+        ]
+      },
+      footer: {
+        tag: '"ZhiDian"',
+        note: 'An intelligent, all-in-one job-prep solution for software engineering students.'
+      }
     },
     chat: {
       newChat: 'New Chat',
@@ -602,7 +648,7 @@ const local: App.I18n.Schema = {
           "modernTemplate": "Modern",
           "myResumes": "My Resumes",
           "subtitle": "Aggregate your experiences globally and generate professional layouts with one click.",
-          "tagSmart": "SmartHire Standard",
+          "tagSmart": "Standard Resume",
           "statusReady": "Data Synchronized",
           "editResume": "Edit Resume",
           "emptyDesc": "You haven't generated a resume yet",

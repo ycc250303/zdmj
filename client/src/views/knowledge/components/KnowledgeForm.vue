@@ -209,7 +209,7 @@ onMounted(() => {
       </div>
       <NButton quaternary circle @click="emit('cancel')">
         <template #icon>
-          <span class="text-xl">✕</span>
+          <icon-carbon-close class="text-18px" />
         </template>
       </NButton>
     </div>
@@ -252,7 +252,9 @@ onMounted(() => {
               @dragleave="handleDragLeave"
               @drop="handleDrop"
             >
-              <span class="text-4xl mb-2" :class="isDragging ? 'text-blue-500' : 'text-gray-400'">☁️</span>
+              <span class="block mx-auto mb-2" :class="isDragging ? 'text-blue-500' : 'text-gray-400'">
+                <icon-carbon-cloud-upload class="text-32px mx-auto" />
+              </span>
               <p class="mb-1" :class="isDragging ? 'text-blue-600 font-medium' : 'text-gray-600'">
                 {{ isDragging ? $t('page.knowledge.dragUploadActive') : $t('page.knowledge.dragUpload') }}
               </p>

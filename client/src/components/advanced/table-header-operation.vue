@@ -62,7 +62,7 @@ function refresh() {
     </slot>
     <NButton size="small" @click="refresh">
       <template #icon>
-        <span class="text-icon">🔄</span>
+        <icon-carbon-renew class="text-icon" />
       </template>
       {{ $t('common.refresh') }}
     </NButton>

@@ -1,6 +1,6 @@
 const local: App.I18n.Schema = {
   system: {
-    title: '“职”点迷津',
+    title: '"职"点迷津',
     updateTitle: '系统版本更新通知',
     updateContent: '检测到系统有新版本发布，是否立即刷新页面？',
     updateConfirm: '立即刷新',
@@ -95,7 +95,7 @@ const local: App.I18n.Schema = {
         applySuccess: '预设应用成功',
         default: {
           name: '默认预设',
-          desc: 'Soybean 默认主题预设'
+          desc: '默认主题预设'
         },
         dark: {
           name: '暗色预设',
@@ -106,8 +106,8 @@ const local: App.I18n.Schema = {
           desc: '适用于小屏幕的紧凑布局预设'
         },
         azir: {
-          name: 'Azir的预设',
-          desc: '是 Azir 比较喜欢的莫兰迪色系冷淡风'
+          name: '冷淡风',
+          desc: '低饱和度的莫兰迪色系预设'
         }
       }
     },
@@ -223,17 +223,17 @@ const local: App.I18n.Schema = {
     404: '页面不存在',
     500: '服务器错误',
     'iframe-page': '外链页面',
-    home: '首页',
-    portal: '门户',
-    jobs: '岗位信息',
+    home: '工作台',
+    portal: '官网',
+    jobs: '岗位脉络',
     'job-detail': '岗位详情',
     'job-edit': '编辑岗位',
-    knowledge: '知识库',
-    chat: 'AI 对话',
+    knowledge: '知识容器',
+    chat: '智能体对话',
     'resume-import': '我的简历',
-    'resumes-editor': '简历编辑器',
+    'resumes-editor': '简历演化',
     'capability-profile': '能力画像',
-    'user-settings': '用户设置'
+    'user-settings': '账号设置'
   },
   page: {
     login: {
@@ -289,31 +289,31 @@ const local: App.I18n.Schema = {
     },
     home: {
       hero: {
-        badge: '✨ 智能求职助手',
-        title: '让 AI 助你找到理想工作',
-        subtitle: '智能对话、知识库管理、简历生成，一站式求职解决方案',
-        startChat: '开始对话',
-        exploreKnowledge: '探索知识库'
+        badge: '"职"点迷津 · 智能求职导航',
+        title: '为求职者，指点迷津',
+        subtitle: '上传简历、构建知识库、与 AI 对话，看清岗位脉络与能力短板。',
+        startChat: '进入对话',
+        exploreKnowledge: '浏览知识库'
       },
       quickActions: {
-        title: '快速开始',
-        subtitle: '选择一个功能，开始你的智能求职之旅'
+        title: '功能入口',
+        subtitle: '从下面任选一个模块开始你的求职准备'
       },
       aiChat: {
-        title: 'AI 对话',
-        description: '与智能助手实时对话，获取求职建议和职业指导'
+        title: '智能对话',
+        description: '与 AI 助手实时流式对话，可启用 RAG 引用知识库内容，提供有依据的求职建议。'
       },
       knowledge: {
         title: '知识库',
-        description: '上传学习资料，AI 助你快速检索和理解知识'
+        description: '上传 PDF / Markdown 等学习资料，自动切分、向量化（pgvector），按需召回参与对话。'
       },
       resume: {
-        title: '简历生成',
-        description: '快速创建专业简历，突出你的技能和经验'
+        title: '简历分析',
+        description: '上传 PDF 简历自动结构化解析，生成能力画像、识别短板，并支持 PDF 导出。'
       },
       jobs: {
-        title: '岗位信息',
-        description: '浏览和管理岗位信息，生成岗位能力画像'
+        title: '岗位画像',
+        description: '解构岗位 JD 生成岗位画像，与学生画像匹配分析，输出晋升路径与换岗路径。'
       },
       features: {
         title: '核心功能',
@@ -343,14 +343,60 @@ const local: App.I18n.Schema = {
       }
     },
     portal: {
-      title: '”职”点迷津',
+      title: '"职"点迷津',
       hello: '你好，',
-      enterConsole: '进入控制台',
-      loginSystem: '登录系统',
-      heroTitle: '欢迎来到 职点迷津\n智能求职导航',
-      heroDesc: '面向软件工程大学生的智能、高效、一站式求职解决方案',
-      actionEnter: '进入控制台',
-      actionLogin: '立即登录体验'
+      enterConsole: '进入工作台',
+      loginSystem: '登录账户',
+      heroTitle: '为求职者\n指点迷津',
+      heroDesc: '面向软件工程大学生的智能求职助手 —— 上传简历、构建知识库、与 AI 对话，自动分析能力短板，看清岗位脉络与晋升路径。',
+      actionEnter: '进入工作台',
+      actionLogin: '开始使用',
+      eyebrow: '面向软件工程大学生 · 智能求职导航',
+      subhero: '我们把简历分析、岗位画像、知识库问答和岗位关联图谱整合到一个工作台中，帮助同学们在准备求职的每一步都更清晰。',
+      stats: {
+        agents: { value: '', label: '' },
+        knowledge: { value: '', label: '' },
+        roles: { value: '', label: '' },
+        uptime: { value: '', label: '' }
+      },
+      modules: {
+        title: '我们做了什么',
+        subtitle: '围绕求职准备的四个核心环节，每一个模块都对应一个真实的功能能力。',
+        agent: {
+          tag: '智能对话',
+          title: '基于知识库的求职问答',
+          desc: '与 AI 助手实时流式对话，可启用 RAG 引用你上传的简历、面经与笔记，提供有依据的求职建议。'
+        },
+        knowledge: {
+          tag: '知识容器',
+          title: '私有知识库与向量检索',
+          desc: '上传 PDF、Markdown 等学习资料，自动切分、向量化入库（pgvector），按相关度召回参与对话。'
+        },
+        resume: {
+          tag: '简历分析',
+          title: '简历解析与能力画像',
+          desc: '上传 PDF 简历自动结构化提取教育、项目、技能等信息，生成学生就业能力画像，并支持导出 PDF。'
+        },
+        role: {
+          tag: '岗位图谱',
+          title: '岗位画像与匹配分析',
+          desc: '解构岗位 JD 生成岗位画像，与学生画像进行匹配分析，输出能力差距、垂直晋升与换岗路径。'
+        }
+      },
+      pillars: {
+        title: '为什么是"职"点迷津',
+        subtitle: '我们更关心同学们在求职准备中的真实痛点。',
+        list: [
+          { k: 'student-first', v: '面向软件工程大学生的真实求职场景设计' },
+          { k: 'rag-grounded', v: '所有 AI 回答均可基于个人知识库进行引用追溯' },
+          { k: 'ability-graph', v: '从简历到岗位，全流程围绕"能力画像"展开' },
+          { k: 'exportable', v: '画像与简历分析结果支持一键导出 PDF' }
+        ]
+      },
+      footer: {
+        tag: '"职"点迷津',
+        note: '面向软件工程大学生的智能、高效、一站式求职解决方案。'
+      }
     },
     chat: {
       newChat: '新对话',
@@ -599,7 +645,7 @@ const local: App.I18n.Schema = {
       "modernTemplate": "简约版",
       "myResumes": "我的简历",
       "subtitle": "全局聚合您的个人经历，一键生成企业级排版格式。",
-      "tagSmart": "SmartHire 标准简历",
+      "tagSmart": "标准简历",
       "statusReady": "数据已就绪",
       "editResume": "进入简历编辑器",
       "emptyDesc": "您还没有生成过简历",

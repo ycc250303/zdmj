@@ -352,7 +352,8 @@ export function fetchGetResumeFullContentList() {
 
 /** 获取当前用户简历完整内容（不存在则后端自动创建） */
 export function fetchGetMyResumeContent() {
-  return request<ResumeApi.ResumeContentDTO>({ url: '/resumes/me/content', method: 'get' });
+  // _silent: 关闭全局错误 toast；新用户尚无简历是正常情况，由页面自行降级到导入流程
+  return request<ResumeApi.ResumeContentDTO>({ url: '/resumes/me/content', method: 'get', _silent: true } as any);
 }
 
 /** 全量保存当前用户简历内容 */

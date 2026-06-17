@@ -228,7 +228,6 @@ const gradId = `csc-grad-${Math.random().toString(36).slice(2, 8)}`;
       <!-- ============ Minimal 模式：环形大评分卡 ============ -->
       <template v-if="isMinimal">
         <div class="relative z-10 text-emerald-700 font-semibold flex items-center gap-2">
-          <span class="text-lg">🏆</span>
           <span>{{ totalLabel }}</span>
         </div>
 
@@ -281,7 +280,6 @@ const gradId = `csc-grad-${Math.random().toString(36).slice(2, 8)}`;
       <template v-else>
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2 text-emerald-700 font-semibold">
-            <span class="text-lg">📝</span>
             <span>{{ summaryLabel }}</span>
           </div>
           <span v-if="generatedAt" class="text-xs text-slate-500">{{ generatedAt }}</span>
@@ -313,7 +311,6 @@ const gradId = `csc-grad-${Math.random().toString(36).slice(2, 8)}`;
 
         <div v-if="hasStrengths" class="flex-1">
           <div class="text-emerald-700 font-semibold text-sm mb-3 flex items-center gap-1">
-            <span>✨</span>
             <span>{{ strengthsLabel }}</span>
             <span class="text-xs text-slate-400 font-normal ml-1">({{ strengths!.length }})</span>
           </div>
@@ -337,7 +334,6 @@ const gradId = `csc-grad-${Math.random().toString(36).slice(2, 8)}`;
     <!-- 右侧：雷达图 + 各维度进度条 -->
     <div class="bg-white border border-slate-200 rounded-2xl p-6 flex flex-col gap-5">
       <div class="flex items-center gap-2 text-slate-700 font-semibold">
-        <span class="text-lg">🎯</span>
         <span>多维度评分</span>
       </div>
 

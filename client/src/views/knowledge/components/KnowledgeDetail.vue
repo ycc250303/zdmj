@@ -26,12 +26,11 @@ const showModal = computed({
   set: (val) => emit('update:show', val)
 });
 
-// 向量化状态映射
-const embeddingStatusLabels: Record<string, { text: string; type: 'success' | 'warning' | 'error' | 'default'; icon: string }> = {
-  PENDING: { text: '等待中', type: 'default', icon: '🕐' },
-  RUNNING: { text: '向量化中...', type: 'warning', icon: '⏳' },
-  SUCCESS: { text: '已向量化', type: 'success', icon: '✅' },
-  FAILED: { text: '向量化失败', type: 'error', icon: '⚠️' }
+const embeddingStatusLabels: Record<string, { text: string; type: 'success' | 'warning' | 'error' | 'default' }> = {
+  PENDING: { text: '等待中', type: 'default' },
+  RUNNING: { text: '向量化中...', type: 'warning' },
+  SUCCESS: { text: '已向量化', type: 'success' },
+  FAILED: { text: '向量化失败', type: 'error' }
 };
 
 async function loadDetail() {
@@ -73,13 +72,12 @@ const buttonText = computed(() => {
 });
 
 const buttonIcon = computed(() => {
-  if (!detail.value?.content) return '↗';
-  if (isGitHubUrl(detail.value.content)) return '🐙';
-  if (isPdfUrl(detail.value.content)) return '⬇️';
-  return '↗';
+  if (!detail.value?.content) return '';
+  if (isGitHubUrl(detail.value.content)) return 'github';
+  if (isPdfUrl(detail.value.content)) return 'download';
+  return 'open';
 });
 
-// 向量化状态信息
 const embeddingInfo = computed(() => {
   if (!detail.value) return null;
 
@@ -90,7 +88,6 @@ const embeddingInfo = computed(() => {
     status,
     statusText: statusInfo.text,
     statusType: statusInfo.type,
-    statusIcon: statusInfo.icon,
     lastEmbeddedAt: detail.value.lastEmbeddedAt,
     lastError: detail.value.lastError
   };
@@ -154,10 +151,7 @@ watch(
           </h3>
           <NDescriptions :column="1" bordered label-placement="left" label-style="width: 120px">
             <NDescriptionsItem :label="$t('page.knowledge.status')">
-              <NTag :type="embeddingInfo.statusType" size="small">
-                <template #icon>
-                  <div :class="embeddingInfo.statusIcon"></div>
-                </template>
+              <NTag :type="embeddingInfo.statusType" size="small" round>
                 {{ embeddingInfo.statusText }}
               </NTag>
             </NDescriptionsItem>
@@ -178,7 +172,10 @@ watch(
       <div class="flex justify-end gap-3">
         <NButton type="primary" @click="handleDownloadContent">
           <template #icon>
-            <div :class="buttonIcon"></div>
+            <icon-carbon-launch v-if="buttonIcon === 'open'" class="text-14px" />
+            <icon-carbon-download v-else-if="buttonIcon === 'download'" class="text-14px" />
+            <icon-carbon-logo-github v-else-if="buttonIcon === 'github'" class="text-14px" />
+            <icon-carbon-arrow-up-right v-else class="text-14px" />
           </template>
           {{ buttonText }}
         </NButton>

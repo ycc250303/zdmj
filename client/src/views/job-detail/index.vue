@@ -51,8 +51,7 @@ const checkingCareerReport = ref(false);
 const careerReportDrawerVisible = ref(false);
 const careerReportGenerateForm = ref<CareerReportApi.CareerReportGenerateReq>({
   userPreference: '',
-  focus: ''
-});
+  focus: ''});
 const careerReportPolishInstruction = ref('');
 const careerReportCheckResult = ref<CareerReportApi.CareerReportCheck | null>(null);
 
@@ -273,7 +272,7 @@ function getTransitionDifficultyLabel(difficulty?: string): string {
   }
 }
 
-function getTransitionDifficultyType(difficulty?: string): 'success' | 'warning' | 'error' | 'default' {
+function getTransitionDifficultyType(difficulty?: string): 'success'| 'warning'| 'error'| 'default'{
   switch ((difficulty || '').toLowerCase()) {
     case 'easy': return 'success';
     case 'medium': return 'warning';
@@ -375,7 +374,7 @@ function normalizeKnowledgeSource(
       ? `相似度 ${(Number(src.score) * 100).toFixed(1)}%`
       : '';
   const chunkText = src.chunkIndex != null ? `块 #${src.chunkIndex}` : '';
-  const snippet = src.snippet?.trim() || [scoreText, chunkText].filter(Boolean).join(' · ');
+  const snippet = src.snippet?.trim() || [scoreText, chunkText].filter(Boolean).join('· ');
   return { title, snippet, url: src.url };
 }
 
@@ -405,7 +404,7 @@ function isGatewayTimeout(errLike: any): boolean {
   const status = errLike?.response?.status ?? errLike?.status;
   if (status === 504 || status === 502) return true;
   // axios 自身超时
-  if (errLike?.code === 'ECONNABORTED' || /timeout/i.test(errLike?.message || '')) return true;
+  if (errLike?.code === 'ECONNABORTED'|| /timeout/i.test(errLike?.message || '')) return true;
   return false;
 }
 
@@ -573,7 +572,7 @@ function getCareerReportStatusLabel(status?: number): string {
   }
 }
 
-function getCareerReportStatusType(status?: number): 'default' | 'info' | 'success' | 'warning' | 'error' {
+function getCareerReportStatusType(status?: number): 'default'| 'info'| 'success'| 'warning'| 'error'{
   switch (status) {
     case 1: return 'default';
     case 2: return 'success';
@@ -631,7 +630,7 @@ function renderSectionValue(value: any): string {
   if (typeof value === 'string') return value;
   if (Array.isArray(value)) {
     // 数组：如果是字符串数组直接 join，对象数组 JSON 化
-    if (value.every(v => typeof v === 'string' || typeof v === 'number')) {
+    if (value.every(v => typeof v === 'string'|| typeof v === 'number')) {
       return value.map(String).join('\n');
     }
     return JSON.stringify(value, null, 2);
@@ -658,7 +657,7 @@ interface EvaluationMetric {
 
 function toEvidenceStringArray(val: unknown): string[] {
   if (Array.isArray(val)) return val.map(String).map(s => s.trim()).filter(Boolean);
-  if (typeof val === 'string' && val.trim()) return [val.trim()];
+  if (typeof val === 'string'&& val.trim()) return [val.trim()];
   return [];
 }
 
@@ -669,7 +668,7 @@ const evidenceData = computed(() => {
   if (Array.isArray(raw)) {
     const technical = toEvidenceStringArray(raw);
     if (!technical.length) return null;
-    return { industry: [] as string[], technical, communication: [] as string[], sourceNote: '' };
+    return { industry: [] as string[], technical, communication: [] as string[], sourceNote: ''};
   }
 
   if (typeof raw !== 'object') return null;
@@ -686,7 +685,7 @@ const evidenceData = computed(() => {
     industry.push(...toEvidenceStringArray(r.actionPlanRationale));
   }
 
-  const sourceNote = typeof r.source === 'string' ? r.source.trim() : '';
+  const sourceNote = typeof r.source === 'string'? r.source.trim() : '';
 
   if (!industry.length && !technical.length && !communication.length && !sourceNote) return null;
 
@@ -739,7 +738,7 @@ const evaluationPlanData = computed(() => {
   const cycles: string[] = [];
   if (Array.isArray((raw as any).evaluationCycle)) {
     cycles.push(...(raw as any).evaluationCycle.map(String).filter(Boolean));
-  } else if (typeof (raw as any).cycle === 'string' && (raw as any).cycle.trim()) {
+  } else if (typeof (raw as any).cycle === 'string'&& (raw as any).cycle.trim()) {
     cycles.push((raw as any).cycle.trim());
   } else if (Array.isArray((raw as any).cycles)) {
     cycles.push(...(raw as any).cycles.map(String).filter(Boolean));
@@ -750,7 +749,7 @@ const evaluationPlanData = computed(() => {
     ? rawMetrics
         .map((m: any) => {
           if (typeof m === 'string') {
-            return { metric: m.trim(), target: '', deadline: '' };
+            return { metric: m.trim(), target: '', deadline: ''};
           }
           return {
             metric: String(m?.metric ?? m?.name ?? '').trim(),
@@ -802,7 +801,7 @@ onMounted(() => {
     loadJobDetail();
   } else {
     window.$message?.error($t('page.jobs.formValidation.jobNameRequired'));
-    router.push({ name: 'jobs' });
+    router.push({ name: 'jobs'});
   }
 });
 </script>
@@ -820,11 +819,11 @@ onMounted(() => {
         </div>
         <div class="flex gap-3">
           <NButton @click="handleGenerateMatch" :loading="generatingMatch">
-            <template #icon><span>🎯</span></template>
+            
             {{ matchResult ? $t('page.jobs.reanalyzeMatch') : $t('page.jobs.analyzeMatch') }}
           </NButton>
           <NButton @click="handleGenerateProfile" :loading="generatingProfile">
-            <template #icon><span>🧠</span></template>
+            
             {{ capabilityProfile ? $t('page.jobs.regenerateProfile') : $t('page.jobs.generateProfile') }}
           </NButton>
           <NButton
@@ -833,7 +832,7 @@ onMounted(() => {
             @click="openCareerGraphDrawer"
             :loading="loadingCareerGraph"
           >
-            <template #icon><span>🗺️</span></template>
+            <template #icon><span>️</span></template>
             {{ careerGraph ? $t('page.jobs.careerGraph.view') : $t('page.jobs.careerGraph.entry') }}
           </NButton>
           <NButton
@@ -842,11 +841,11 @@ onMounted(() => {
             @click="openCareerReportDrawer"
             :loading="loadingCareerReport"
           >
-            <template #icon><span>📑</span></template>
+            
             {{ careerReport ? $t('page.jobs.careerReport.view') : $t('page.jobs.careerReport.entry') }}
           </NButton>
           <NButton type="primary" @click="handleEdit">
-            <template #icon><span>✏️</span></template>
+            <template #icon><span>️</span></template>
             {{ $t('page.jobs.edit') }}
           </NButton>
         </div>
@@ -962,7 +961,7 @@ onMounted(() => {
                 :loading="generatingProfile"
                 @click="handleGenerateProfile"
               >
-                <template #icon><span>🔄</span></template>
+                
               </NButton>
             </template>
 
@@ -970,7 +969,7 @@ onMounted(() => {
               <!-- 岗位类型 -->
               <div v-if="capabilityProfile.targetRoleType">
                 <h4 class="font-semibold text-slate-800 dark:text-gray-200 mb-2 flex items-center gap-2">
-                  <span class="text-blue-500">💼</span>
+                  
                   {{ $t('page.jobs.jobName') + $t('page.jobs.jobType') }}
                 </h4>
                 <p class="text-slate-700 dark:text-gray-300">{{ capabilityProfile.targetRoleType }}</p>
@@ -979,7 +978,7 @@ onMounted(() => {
               <!-- 专业技能 -->
               <div v-if="capabilityProfile.professionalSkills">
                 <h4 class="font-semibold text-slate-800 dark:text-gray-200 mb-2 flex items-center gap-2">
-                  <span class="text-blue-500">💻</span>
+                  
                   {{ $t('page.jobs.technicalSkills') }}
                 </h4>
                 <p class="text-slate-700 dark:text-gray-300 whitespace-pre-wrap">{{ capabilityProfile.professionalSkills }}</p>
@@ -988,7 +987,7 @@ onMounted(() => {
               <!-- 证书 -->
               <div v-if="capabilityProfile.certificates">
                 <h4 class="font-semibold text-slate-800 dark:text-gray-200 mb-2 flex items-center gap-2">
-                  <span class="text-purple-500">🎓</span>
+                  
                   {{ $t('page.jobs.certificateRequired') }}
                 </h4>
                 <p class="text-slate-700 dark:text-gray-300 whitespace-pre-wrap">{{ capabilityProfile.certificates }}</p>
@@ -998,7 +997,7 @@ onMounted(() => {
               <div class="grid grid-cols-1 gap-3">
                 <div v-if="capabilityProfile.innovationAbility" class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
                   <div class="font-medium text-slate-800 dark:text-gray-200 mb-1 flex items-center gap-2">
-                    <span class="text-blue-500">💡</span>
+                    
                     {{ $t('page.jobs.innovationAbility') }}
                   </div>
                   <p class="text-sm text-slate-700 dark:text-gray-300">{{ capabilityProfile.innovationAbility }}</p>
@@ -1006,7 +1005,7 @@ onMounted(() => {
 
                 <div v-if="capabilityProfile.learningAbility" class="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
                   <div class="font-medium text-slate-800 dark:text-gray-200 mb-1 flex items-center gap-2">
-                    <span class="text-green-500">🎓</span>
+                    
                     {{ $t('page.jobs.learningAbility') }}
                   </div>
                   <p class="text-sm text-slate-700 dark:text-gray-300">{{ capabilityProfile.learningAbility }}</p>
@@ -1014,7 +1013,7 @@ onMounted(() => {
 
                 <div v-if="capabilityProfile.pressureResistance" class="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-lg">
                   <div class="font-medium text-slate-800 dark:text-gray-200 mb-1 flex items-center gap-2">
-                    <span class="text-orange-500">🛡️</span>
+                    <span class="text-orange-500">️</span>
                     {{ $t('page.jobs.pressureResistance') }}
                   </div>
                   <p class="text-sm text-slate-700 dark:text-gray-300">{{ capabilityProfile.pressureResistance }}</p>
@@ -1022,7 +1021,7 @@ onMounted(() => {
 
                 <div v-if="capabilityProfile.communicationAbility" class="bg-cyan-50 dark:bg-cyan-900/20 p-3 rounded-lg">
                   <div class="font-medium text-slate-800 dark:text-gray-200 mb-1 flex items-center gap-2">
-                    <span class="text-cyan-500">🗣️</span>
+                    <span class="text-cyan-500">️</span>
                     {{ $t('page.jobs.communicationAbility') }}
                   </div>
                   <p class="text-sm text-slate-700 dark:text-gray-300">{{ capabilityProfile.communicationAbility }}</p>
@@ -1030,7 +1029,7 @@ onMounted(() => {
 
                 <div v-if="capabilityProfile.practicalAbility" class="bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-lg">
                   <div class="font-medium text-slate-800 dark:text-gray-200 mb-1 flex items-center gap-2">
-                    <span class="text-indigo-500">🔨</span>
+                    
                     {{ $t('page.jobs.practicalAbility') }}
                   </div>
                   <p class="text-sm text-slate-700 dark:text-gray-300">{{ capabilityProfile.practicalAbility }}</p>
@@ -1045,7 +1044,7 @@ onMounted(() => {
                 </h4>
                 <ul class="space-y-1">
                   <li v-for="(strength, idx) in capabilityProfile.strengths" :key="idx" class="text-sm text-slate-700 dark:text-gray-300 flex items-start gap-2">
-                    <span class="text-green-500">✓</span>
+                    
                     <span>{{ strength }}</span>
                   </li>
                 </ul>
@@ -1054,12 +1053,12 @@ onMounted(() => {
               <!-- 缺失技能 -->
               <div v-if="capabilityProfile.missingSkills && capabilityProfile.missingSkills.length > 0">
                 <h4 class="font-semibold text-slate-800 dark:text-gray-200 mb-2 flex items-center gap-2">
-                  <span class="text-red-500">⚠️</span>
+                  <span class="text-red-500">️</span>
                   {{ $t('page.jobs.missingSkills') }}
                 </h4>
                 <ul class="space-y-1">
                   <li v-for="(skill, idx) in capabilityProfile.missingSkills" :key="idx" class="text-sm text-slate-700 dark:text-gray-300 flex items-start gap-2">
-                    <span class="text-red-500">✗</span>
+                    
                     <span>{{ skill }}</span>
                   </li>
                 </ul>
@@ -1068,7 +1067,7 @@ onMounted(() => {
               <!-- 证据不足项 -->
               <div v-if="capabilityProfile.weakEvidenceItems && capabilityProfile.weakEvidenceItems.length > 0">
                 <h4 class="font-semibold text-slate-800 dark:text-gray-200 mb-2 flex items-center gap-2">
-                  <span class="text-orange-500">❓</span>
+                  
                   {{ $t('page.jobs.weakEvidenceItems') }}
                 </h4>
                 <ul class="space-y-1">
@@ -1082,7 +1081,7 @@ onMounted(() => {
               <!-- 总结 -->
               <div v-if="capabilityProfile.summary" class="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
                 <h4 class="font-semibold text-slate-800 dark:text-gray-200 mb-2 flex items-center gap-2">
-                  <span class="text-blue-600">📝</span>
+                  
                   {{ $t('page.jobs.summary') }}
                 </h4>
                 <p class="text-slate-700 dark:text-gray-300 italic">{{ capabilityProfile.summary }}</p>
@@ -1092,7 +1091,7 @@ onMounted(() => {
             <NEmpty v-else :description="$t('page.jobs.noProfile')" class="py-8">
               <template #extra>
                 <NButton type="primary" :loading="generatingProfile" @click="handleGenerateProfile">
-                  <template #icon><span>🧠</span></template>
+                  
                   {{ $t('page.jobs.generateProfile') }}
                 </NButton>
               </template>
@@ -1121,7 +1120,7 @@ onMounted(() => {
                 {{ $t('page.jobs.careerReport.statusLabel') }}：{{ getCareerReportStatusLabel(careerReport.status) }}
               </NTag>
               <NTag type="info" round size="small">
-                {{ $t('page.jobs.careerReport.version') }} v{{ careerReport.version ?? '-' }}
+                {{ $t('page.jobs.careerReport.version') }} v{{ careerReport.version ?? '-'}}
               </NTag>
               <NTag v-if="careerReport.latest" type="success" round size="small">
                 {{ $t('page.jobs.careerReport.latest') }}
@@ -1138,7 +1137,7 @@ onMounted(() => {
               :loading="generatingCareerReport"
               @click="handleGenerateCareerReport"
             >
-              <template #icon><span>{{ careerReport ? '🔄' : '✨' }}</span></template>
+              <template #icon><span>{{ careerReport ? '': ''}}</span></template>
               {{ careerReport ? $t('page.jobs.careerReport.regenerate') : $t('page.jobs.careerReport.generate') }}
             </NButton>
             <NButton
@@ -1147,7 +1146,7 @@ onMounted(() => {
               :loading="checkingCareerReport"
               @click="handleCheckCareerReportIntegrity"
             >
-              <template #icon><span>✅</span></template>
+              
               {{ $t('page.jobs.careerReport.check') }}
             </NButton>
           </div>
@@ -1166,7 +1165,7 @@ onMounted(() => {
         <!-- 生成偏好（生成 / 重新生成 都可填）-->
         <NCard
           size="small"
-          :title="$t('page.jobs.careerReport.userPreferenceLabel') + ' / ' + $t('page.jobs.careerReport.focusLabel')"
+          :title="$t('page.jobs.careerReport.userPreferenceLabel') + '/ '+ $t('page.jobs.careerReport.focusLabel')"
           class="mb-4 rounded-lg"
         >
           <div class="space-y-2">
@@ -1195,10 +1194,10 @@ onMounted(() => {
           <div class="space-y-2 text-sm">
             <div class="flex items-center gap-2 flex-wrap">
               <NTag
-                :type="careerReportCheckResult.passed ? 'success' : 'error'"
+                :type="careerReportCheckResult.passed ? 'success': 'error'"
                 size="small"
               >
-                {{ careerReportCheckResult.passed ? '✅ 通过' : '❌ 未通过' }}
+                {{ careerReportCheckResult.passed ? '通过': '未通过'}}
               </NTag>
               <NTag v-if="careerReportCheckResult.completenessScore != null" type="warning" size="small">
                 {{ $t('page.jobs.careerReport.completenessScore') }}：{{ careerReportCheckResult.completenessScore }}/100
@@ -1211,7 +1210,7 @@ onMounted(() => {
               <span class="font-medium">{{ $t('page.jobs.careerReport.missingSections') }}：</span>
               <NTag
                 v-for="s in careerReportCheckResult.missingSections"
-                :key="'miss-' + s"
+                :key="'miss-'+ s"
                 size="small"
                 type="warning"
                 class="ml-1"
@@ -1222,13 +1221,13 @@ onMounted(() => {
             <div v-if="careerReportCheckResult.nonActionableItems && careerReportCheckResult.nonActionableItems.length">
               <span class="font-medium">{{ $t('page.jobs.careerReport.nonActionableItems') }}：</span>
               <ul class="list-disc list-inside text-slate-700 dark:text-gray-300">
-                <li v-for="(it, i) in careerReportCheckResult.nonActionableItems" :key="'nai-' + i">{{ it }}</li>
+                <li v-for="(it, i) in careerReportCheckResult.nonActionableItems" :key="'nai-'+ i">{{ it }}</li>
               </ul>
             </div>
             <div v-if="careerReportCheckResult.weakEvidenceItems && careerReportCheckResult.weakEvidenceItems.length">
               <span class="font-medium">{{ $t('page.jobs.careerReport.weakEvidenceItems') }}：</span>
               <ul class="list-disc list-inside text-slate-700 dark:text-gray-300">
-                <li v-for="(it, i) in careerReportCheckResult.weakEvidenceItems" :key="'wei-' + i">{{ it }}</li>
+                <li v-for="(it, i) in careerReportCheckResult.weakEvidenceItems" :key="'wei-'+ i">{{ it }}</li>
               </ul>
             </div>
           </div>
@@ -1240,13 +1239,13 @@ onMounted(() => {
           <NCard
             v-if="evidenceData"
             size="small"
-            title="📋 证据支撑"
+            title=" 证据支撑"
             class="mb-4 rounded-lg"
           >
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-100 dark:border-blue-800/40">
                 <div class="flex items-center gap-1.5 mb-2 text-blue-700 dark:text-blue-400 font-semibold text-sm">
-                  <span>🏭</span> 行业证据
+                   行业证据
                 </div>
                 <ul class="space-y-1.5">
                   <li v-for="(item, i) in evidenceData.industry" :key="'ind-'+i" class="text-xs text-slate-700 dark:text-gray-300 flex items-start gap-1.5">
@@ -1257,7 +1256,7 @@ onMounted(() => {
               </div>
               <div class="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-3 border border-emerald-100 dark:border-emerald-800/40">
                 <div class="flex items-center gap-1.5 mb-2 text-emerald-700 dark:text-emerald-400 font-semibold text-sm">
-                  <span>💻</span> 技术证据
+                   技术证据
                 </div>
                 <ul class="space-y-1.5">
                   <li v-for="(item, i) in evidenceData.technical" :key="'tec-'+i" class="text-xs text-slate-700 dark:text-gray-300 flex items-start gap-1.5">
@@ -1268,7 +1267,7 @@ onMounted(() => {
               </div>
               <div class="bg-violet-50 dark:bg-violet-900/20 rounded-lg p-3 border border-violet-100 dark:border-violet-800/40">
                 <div class="flex items-center gap-1.5 mb-2 text-violet-700 dark:text-violet-400 font-semibold text-sm">
-                  <span>🗣️</span> 沟通证据
+                  <span>️</span> 沟通证据
                 </div>
                 <ul class="space-y-1.5">
                   <li v-for="(item, i) in evidenceData.communication" :key="'com-'+i" class="text-xs text-slate-700 dark:text-gray-300 flex items-start gap-1.5">
@@ -1290,13 +1289,13 @@ onMounted(() => {
           <NCard
             v-if="actionPlanData"
             size="small"
-            title="📅 行动计划"
+            title=" 行动计划"
             class="mb-4 rounded-lg"
           >
             <!-- 短期计划 -->
             <div v-if="actionPlanData.shortTerm.length" class="mb-4">
               <div class="flex items-center gap-2 mb-3">
-                <span class="text-orange-500 text-base">🎯</span>
+                
                 <span class="font-semibold text-slate-800 dark:text-gray-200">短期计划</span>
                 <NTag size="tiny" type="warning" round>近期执行</NTag>
               </div>
@@ -1316,11 +1315,11 @@ onMounted(() => {
                       <span class="font-medium">周期：</span>{{ t.cycle }}
                     </div>
                     <div class="flex items-center gap-1 text-xs text-slate-600 dark:text-gray-400">
-                      <span class="text-orange-400">📦</span>
+                      
                       <span class="font-medium">交付物：</span>{{ t.deliverable }}
                     </div>
                     <div class="flex items-center gap-1 text-xs text-slate-600 dark:text-gray-400">
-                      <span class="text-orange-400">✅</span>
+                      
                       <span class="font-medium">验证：</span>{{ t.verification }}
                     </div>
                   </div>
@@ -1331,7 +1330,7 @@ onMounted(() => {
             <!-- 中期计划 -->
             <div v-if="actionPlanData.midTerm.length">
               <div class="flex items-center gap-2 mb-3">
-                <span class="text-blue-500 text-base">🚀</span>
+                
                 <span class="font-semibold text-slate-800 dark:text-gray-200">中期计划</span>
                 <NTag size="tiny" type="info" round>持续成长</NTag>
               </div>
@@ -1351,11 +1350,11 @@ onMounted(() => {
                       <span class="font-medium">周期：</span>{{ t.cycle }}
                     </div>
                     <div class="flex items-center gap-1 text-xs text-slate-600 dark:text-gray-400">
-                      <span class="text-blue-400">📦</span>
+                      
                       <span class="font-medium">交付物：</span>{{ t.deliverable }}
                     </div>
                     <div class="flex items-center gap-1 text-xs text-slate-600 dark:text-gray-400">
-                      <span class="text-blue-400">✅</span>
+                      
                       <span class="font-medium">验证：</span>{{ t.verification }}
                     </div>
                   </div>
@@ -1368,18 +1367,18 @@ onMounted(() => {
           <NCard
             v-if="careerPathData"
             size="small"
-            title="🗺️ 职业路径"
+            title="️ 职业路径"
             class="mb-4 rounded-lg"
           >
             <!-- 入口 → 下一步 -->
             <div class="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 mb-4">
               <div class="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800/40 rounded-lg px-4 py-2.5 text-center min-w-[140px]">
-                <div class="text-xs text-indigo-500 dark:text-indigo-400 font-medium mb-0.5">🏭 入职起点</div>
+                <div class="text-xs text-indigo-500 dark:text-indigo-400 font-medium mb-0.5"> 入职起点</div>
                 <div class="text-sm font-semibold text-slate-800 dark:text-gray-200">{{ careerPathData.entryPoint }}</div>
               </div>
               <div class="text-indigo-400 text-xl transform sm:rotate-0 rotate-90">→</div>
               <div class="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800/40 rounded-lg px-4 py-2.5 text-center min-w-[140px]">
-                <div class="text-xs text-indigo-500 dark:text-indigo-400 font-medium mb-0.5">🚀 下一步发展</div>
+                <div class="text-xs text-indigo-500 dark:text-indigo-400 font-medium mb-0.5"> 下一步发展</div>
                 <div class="text-sm font-semibold text-slate-800 dark:text-gray-200">{{ careerPathData.nextStep }}</div>
               </div>
             </div>
@@ -1387,7 +1386,7 @@ onMounted(() => {
             <!-- 过渡逻辑 -->
             <div class="bg-slate-50 dark:bg-gray-800/40 rounded-lg p-3 mb-3">
               <div class="flex items-center gap-1.5 mb-1.5 text-slate-600 dark:text-gray-400 text-xs font-semibold">
-                <span>💡</span> 过渡逻辑
+                 过渡逻辑
               </div>
               <p class="text-sm text-slate-700 dark:text-gray-300 leading-relaxed">{{ careerPathData.transitionLogic }}</p>
             </div>
@@ -1395,7 +1394,7 @@ onMounted(() => {
             <!-- 备选路径 -->
             <div v-if="careerPathData.alternativePaths.length">
               <div class="flex items-center gap-1.5 mb-2 text-slate-600 dark:text-gray-400 text-xs font-semibold">
-                <span>🔄</span> 备选路径
+                 备选路径
               </div>
               <div class="flex flex-wrap gap-2">
                 <NTag
@@ -1415,7 +1414,7 @@ onMounted(() => {
           <NCard
             v-if="careerGoalsData"
             size="small"
-            title="🎯 职业目标"
+            title=" 职业目标"
             class="mb-4 rounded-lg"
           >
             <div class="relative">
@@ -1463,13 +1462,13 @@ onMounted(() => {
           <NCard
             v-if="evaluationPlanData"
             size="small"
-            title="📊 评估计划"
+            title=" 评估计划"
             class="mb-4 rounded-lg"
           >
             <!-- 评估周期 -->
             <div v-if="evaluationPlanData.cycles.length" class="mb-4">
               <div class="text-xs font-semibold text-slate-600 dark:text-gray-400 mb-2 flex items-center gap-1.5">
-                <span>📅</span> 评估周期
+                 评估周期
               </div>
               <div class="flex flex-wrap gap-2">
                 <NTag
@@ -1487,7 +1486,7 @@ onMounted(() => {
             <!-- 量化指标 -->
             <div v-if="evaluationPlanData.metrics.length">
               <div class="text-xs font-semibold text-slate-600 dark:text-gray-400 mb-2 flex items-center gap-1.5">
-                <span>📈</span> 量化指标
+                 量化指标
               </div>
               <!-- LLM 返回字符串数组时：目标/截止已写在描述句内，用列表展示 -->
               <ul
@@ -1513,12 +1512,12 @@ onMounted(() => {
                     >
                       <td class="p-2.5 text-slate-700 dark:text-gray-300">{{ m.metric }}</td>
                       <td class="p-2.5 text-center">
-                        <NTag v-if="m.target" size="tiny" :type="m.target === '100%' || m.target === '达成' ? 'success' : 'warning'" round>
+                        <NTag v-if="m.target" size="tiny" :type="m.target === '100%'|| m.target === '达成'? 'success': 'warning'" round>
                           {{ m.target }}
                         </NTag>
                         <span v-else class="text-slate-400">-</span>
                       </td>
-                      <td class="p-2.5 text-right text-slate-600 dark:text-gray-400">{{ m.deadline || '-' }}</td>
+                      <td class="p-2.5 text-right text-slate-600 dark:text-gray-400">{{ m.deadline || '-'}}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -1528,7 +1527,7 @@ onMounted(() => {
             <!-- 定性评估 -->
             <div v-if="evaluationPlanData.qualitative.length" class="mt-4">
               <div class="text-xs font-semibold text-slate-600 dark:text-gray-400 mb-2 flex items-center gap-1.5">
-                <span>📝</span> 定性评估
+                 定性评估
               </div>
               <ul class="space-y-2 text-sm text-slate-700 dark:text-gray-300 list-disc pl-5">
                 <li v-for="(q, i) in evaluationPlanData.qualitative" :key="'qual-'+i">{{ q }}</li>
@@ -1540,25 +1539,25 @@ onMounted(() => {
           <NCard
             v-if="careerExplorationData"
             size="small"
-            title="🔍 职业探索"
+            title=" 职业探索"
             class="mb-4 rounded-lg"
           >
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div class="bg-cyan-50 dark:bg-cyan-900/20 rounded-lg p-3 border border-cyan-100 dark:border-cyan-800/40">
                 <div class="flex items-center gap-1.5 mb-2 text-cyan-700 dark:text-cyan-400 font-semibold text-sm">
-                  <span>💼</span> 角色定位
+                   角色定位
                 </div>
                 <p class="text-xs text-slate-700 dark:text-gray-300 leading-relaxed">{{ careerExplorationData.roleClarity }}</p>
               </div>
               <div class="bg-teal-50 dark:bg-teal-900/20 rounded-lg p-3 border border-teal-100 dark:border-teal-800/40">
                 <div class="flex items-center gap-1.5 mb-2 text-teal-700 dark:text-teal-400 font-semibold text-sm">
-                  <span>🏭</span> 行业洞察
+                   行业洞察
                 </div>
                 <p class="text-xs text-slate-700 dark:text-gray-300 leading-relaxed">{{ careerExplorationData.industryInsight }}</p>
               </div>
               <div class="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 border border-purple-100 dark:border-purple-800/40">
                 <div class="flex items-center gap-1.5 mb-2 text-purple-700 dark:text-purple-400 font-semibold text-sm">
-                  <span>📈</span> 市场定位
+                   市场定位
                 </div>
                 <p class="text-xs text-slate-700 dark:text-gray-300 leading-relaxed">{{ careerExplorationData.marketPositioning }}</p>
               </div>
@@ -1591,7 +1590,7 @@ onMounted(() => {
           <ul class="space-y-2 text-sm">
             <li
               v-for="(src, i) in knowledgeSourcesDisplay"
-              :key="'ks-' + i"
+              :key="'ks-'+ i"
               class="text-slate-700 dark:text-gray-300"
             >
               <a v-if="src.url" :href="src.url" target="_blank" class="text-blue-500 hover:underline font-medium">{{ src.title }}</a>
@@ -1622,7 +1621,7 @@ onMounted(() => {
                 :loading="polishingCareerReport"
                 @click="handlePolishCareerReport"
               >
-                <template #icon><span>🪄</span></template>
+                
                 {{ $t('page.jobs.careerReport.confirmPolish') }}
               </NButton>
             </div>
@@ -1654,7 +1653,7 @@ onMounted(() => {
             :loading="generatingCareerGraph"
             @click="handleGenerateCareerGraph"
           >
-            <template #icon><span>{{ careerGraph ? '🔄' : '✨' }}</span></template>
+            <template #icon><span>{{ careerGraph ? '': ''}}</span></template>
             {{ careerGraph ? $t('page.jobs.careerGraph.regenerate') : $t('page.jobs.careerGraph.generate') }}
           </NButton>
         </div>
@@ -1685,14 +1684,13 @@ onMounted(() => {
             <div class="space-y-4">
               <div
                 v-for="(node, idx) in sortedVerticalPath"
-                :key="'vp-' + idx"
+                :key="'vp-'+ idx"
                 class="relative pl-6"
               >
                 <div
                   class="absolute left-0 top-1.5 w-3 h-3 rounded-full border-2"
                   :class="node.current
-                    ? 'bg-indigo-500 border-indigo-500'
-                    : 'bg-white dark:bg-gray-800 border-indigo-300 dark:border-indigo-600'"
+                    ? 'bg-indigo-500 border-indigo-500': 'bg-white dark:bg-gray-800 border-indigo-300 dark:border-indigo-600'"
                 />
                 <div
                   v-if="idx < sortedVerticalPath.length - 1"
@@ -1701,8 +1699,7 @@ onMounted(() => {
                 <div
                   class="rounded-lg p-3 border"
                   :class="node.current
-                    ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800/40'
-                    : 'bg-slate-50 dark:bg-gray-800/40 border-slate-200 dark:border-gray-700'"
+                    ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800/40': 'bg-slate-50 dark:bg-gray-800/40 border-slate-200 dark:border-gray-700'"
                 >
                   <div class="flex items-center gap-2 flex-wrap mb-1">
                     <span class="font-semibold text-slate-800 dark:text-gray-200">{{ node.title }}</span>
@@ -1719,7 +1716,7 @@ onMounted(() => {
                       {{ $t('page.jobs.careerGraph.responsibilities') }}
                     </div>
                     <ul class="list-disc list-inside text-sm text-slate-700 dark:text-gray-300 space-y-0.5">
-                      <li v-for="(item, i) in node.responsibilities" :key="'resp-' + i">{{ item }}</li>
+                      <li v-for="(item, i) in node.responsibilities" :key="'resp-'+ i">{{ item }}</li>
                     </ul>
                   </div>
                   <div v-if="node.keyRequirements?.length">
@@ -1727,7 +1724,7 @@ onMounted(() => {
                       {{ $t('page.jobs.careerGraph.keyRequirements') }}
                     </div>
                     <div class="flex flex-wrap gap-1">
-                      <NTag v-for="(req, i) in node.keyRequirements" :key="'req-' + i" size="tiny" round>
+                      <NTag v-for="(req, i) in node.keyRequirements" :key="'req-'+ i" size="tiny" round>
                         {{ req }}
                       </NTag>
                     </div>
@@ -1746,7 +1743,7 @@ onMounted(() => {
             <div class="space-y-4">
               <div
                 v-for="(path, idx) in careerGraph.transitionPaths"
-                :key="'tp-' + idx"
+                :key="'tp-'+ idx"
                 class="rounded-lg p-3 border border-slate-200 dark:border-gray-700 bg-slate-50/60 dark:bg-gray-800/30"
               >
                 <div class="flex items-center gap-2 flex-wrap mb-2">
@@ -1771,7 +1768,7 @@ onMounted(() => {
                     {{ $t('page.jobs.careerGraph.bridgingSkills') }}
                   </div>
                   <div class="flex flex-wrap gap-1">
-                    <NTag v-for="(skill, i) in path.bridgingSkills" :key="'bs-' + i" size="tiny" type="warning" round>
+                    <NTag v-for="(skill, i) in path.bridgingSkills" :key="'bs-'+ i" size="tiny" type="warning" round>
                       {{ skill }}
                     </NTag>
                   </div>
@@ -1781,7 +1778,7 @@ onMounted(() => {
                     {{ $t('page.jobs.careerGraph.pathNodes') }}
                   </div>
                   <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-wrap">
-                    <template v-for="(node, nodeIdx) in path.nodes" :key="'tn-' + nodeIdx">
+                    <template v-for="(node, nodeIdx) in path.nodes" :key="'tn-'+ nodeIdx">
                       <div class="bg-white dark:bg-gray-800 rounded-lg px-3 py-2 border border-slate-200 dark:border-gray-700 min-w-[120px]">
                         <div class="text-sm font-medium text-slate-800 dark:text-gray-200">{{ node.title }}</div>
                         <p v-if="node.description" class="text-xs text-slate-600 dark:text-gray-400 mt-1">{{ node.description }}</p>
@@ -1804,7 +1801,7 @@ onMounted(() => {
             class="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 p-4 rounded-lg border border-indigo-200 dark:border-indigo-800"
           >
             <h4 class="font-semibold text-slate-800 dark:text-gray-200 mb-2 flex items-center gap-2">
-              <span class="text-indigo-600">📝</span>
+              
               {{ $t('page.jobs.summary') }}
             </h4>
             <p class="text-slate-700 dark:text-gray-300 italic">{{ careerGraph.summary }}</p>
@@ -1814,7 +1811,7 @@ onMounted(() => {
         <NEmpty v-else :description="$t('page.jobs.careerGraph.empty')" class="py-12">
           <template #extra>
             <NButton type="primary" :loading="generatingCareerGraph" @click="handleGenerateCareerGraph">
-              <template #icon><span>🗺️</span></template>
+              <template #icon><span>️</span></template>
               {{ $t('page.jobs.careerGraph.generate') }}
             </NButton>
           </template>

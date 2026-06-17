@@ -13,7 +13,7 @@ const resumeId = route.query.id as string;
 
 const zoomLevel = ref(1); 
 
-const storageKeyColor = `smarthire_resume_color_${resumeId}`;
+const storageKeyColor = `nova_resume_color_${resumeId}`;
 const savedColor = localStorage.getItem(storageKeyColor);
 const themeColor = ref(savedColor || '#2563eb');
 
@@ -21,7 +21,7 @@ watch(themeColor, (newColor) => {
   if (resumeId) localStorage.setItem(storageKeyColor, newColor);
 });
 
-const storageKeyTemplate = `smarthire_resume_template_${resumeId}`;
+const storageKeyTemplate = `nova_resume_template_${resumeId}`;
 const savedTemplate = localStorage.getItem(storageKeyTemplate);
 const activeTemplate = ref(savedTemplate || 'modern');
 
@@ -81,7 +81,7 @@ const handleExportPdf = () => {
     <!DOCTYPE html>
     <html>
       <head>
-        <title>简历导出 - ${resumeStore.personalInfo?.fullName || 'SmartHire'}</title>
+        <title>简历导出 - ${resumeStore.personalInfo?.fullName || '简历'}</title>
         ${styles}
         <style>
           /* 专门针对 iframe 内部的 A4 纸复位样式 */
@@ -145,9 +145,13 @@ const handleExportPdf = () => {
 
       <div class="flex items-center gap-6">
         <div class="flex items-center gap-3 w-48">
-          <span class="text-slate-400 dark:text-gray-500 cursor-pointer hover:text-blue-600" @click="zoomLevel -= 0.1">🔍-</span>
+          <span class="text-slate-400 dark:text-gray-500 cursor-pointer hover:text-blue-600 inline-flex items-center" @click="zoomLevel -= 0.1">
+            <icon-carbon-zoom-out class="text-16px" />
+          </span>
           <NSlider v-model:value="zoomLevel" :min="0.4" :max="1.5" :step="0.05" :tooltip="false" />
-          <span class="text-slate-400 dark:text-gray-500 cursor-pointer hover:text-blue-600" @click="zoomLevel += 0.1">🔍+</span>
+          <span class="text-slate-400 dark:text-gray-500 cursor-pointer hover:text-blue-600 inline-flex items-center" @click="zoomLevel += 0.1">
+            <icon-carbon-zoom-in class="text-16px" />
+          </span>
           <span class="text-xs font-bold text-slate-500 dark:text-gray-400 w-8">{{ Math.round(zoomLevel * 100) }}%</span>
         </div>
         <NButton type="primary" size="small" @click="handleExportPdf">

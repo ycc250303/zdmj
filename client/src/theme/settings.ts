@@ -1,16 +1,16 @@
 /** Default theme settings */
 export const themeSettings: App.Theme.ThemeSetting = {
-  themeScheme: 'light',
+  themeScheme: 'dark',
   grayscale: false,
   colourWeakness: false,
   recommendColor: false,
-  themeColor: '#646cff',
-  themeRadius: 6,
+  themeColor: '#7C5CFF',
+  themeRadius: 8,
   otherColor: {
-    info: '#2080f0',
-    success: '#52c41a',
-    warning: '#faad14',
-    error: '#f5222d'
+    info: '#22D3EE',
+    success: '#34D399',
+    warning: '#F59E0B',
+    error: '#FB7185'
   },
   isInfoFollowPrimary: true,
   layout: {
@@ -58,7 +58,7 @@ export const themeSettings: App.Theme.ThemeSetting = {
   },
   watermark: {
     visible: false,
-    text: 'SoybeanAdmin',
+    text: 'zdmj',
     enableUserName: false,
     enableTime: false,
     timeFormat: 'YYYY-MM-DD HH:mm'
@@ -79,9 +79,15 @@ export const themeSettings: App.Theme.ThemeSetting = {
     },
     dark: {
       colors: {
-        container: 'rgb(28, 28, 28)',
-        layout: 'rgb(18, 18, 18)',
-        'base-text': 'rgb(224, 224, 224)'
+        container: 'rgb(11, 14, 28)',
+        layout: 'rgb(5, 6, 13)',
+        inverted: 'rgb(8, 10, 22)',
+        'base-text': 'rgb(230, 233, 244)'
+      },
+      boxShadow: {
+        header: '0 1px 0 0 rgba(255, 255, 255, 0.04)',
+        sider: '1px 0 0 0 rgba(255, 255, 255, 0.04)',
+        tab: '0 1px 0 0 rgba(255, 255, 255, 0.04)'
       }
     }
   }

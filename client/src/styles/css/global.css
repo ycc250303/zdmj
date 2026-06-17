@@ -2,6 +2,24 @@
 @import './nprogress.css';
 @import './transition.css';
 
+:root {
+  --nova-bg-deep: #05060d;
+  --nova-bg-soft: #0b0e1c;
+  --nova-violet: #7c5cff;
+  --nova-cyan: #22d3ee;
+  --nova-coral: #fb7185;
+  --nova-mint: #34d399;
+  --nova-text: #e6e9f4;
+  --nova-text-soft: #a4adc8;
+  --nova-text-faded: #717a96;
+  --nova-border: rgba(255, 255, 255, 0.08);
+  --nova-border-strong: rgba(255, 255, 255, 0.16);
+  --nova-glass: rgba(255, 255, 255, 0.04);
+  --nova-glass-strong: rgba(255, 255, 255, 0.08);
+  --nova-shadow: 0 32px 80px -32px rgba(15, 18, 40, 0.6),
+    0 8px 24px -16px rgba(124, 92, 255, 0.35);
+}
+
 html,
 body,
 #app {
@@ -12,4 +30,63 @@ body,
 html {
   overflow-x: hidden;
   color: rgb(var(--base-text-color));
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: 'Inter', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    sans-serif;
+  letter-spacing: 0.005em;
+}
+
+.font-display {
+  font-family: 'Sora', 'Inter', 'PingFang SC', sans-serif;
+  letter-spacing: -0.018em;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, monospace;
+}
+
+/* shared glass card surface */
+.nova-glass {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
+  border: 1px solid var(--nova-border);
+  backdrop-filter: blur(22px) saturate(1.2);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
+  border-radius: 18px;
+}
+
+.nova-text-gradient {
+  background: linear-gradient(120deg, #ffffff 0%, #c9c4ff 30%, #93f1ff 65%, #ffd9d9 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+@keyframes nova-float {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(-6px); }
+}
+
+@keyframes nova-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes nova-pulse-ring {
+  0%   { transform: scale(0.8); opacity: 0.65; }
+  80%  { transform: scale(1.6); opacity: 0; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+/* Hide outline on form controls inside login glass */
+.nova-glass input:focus,
+.nova-glass textarea:focus {
+  outline: none;
 }

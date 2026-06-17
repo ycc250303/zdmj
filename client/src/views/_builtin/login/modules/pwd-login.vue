@@ -23,7 +23,7 @@ const savedUser = sessionStorage.getItem('new_username');
 const savedPwd = sessionStorage.getItem('new_password');
 
 const model: FormModel = reactive({
-  userName: savedUser || 'Soybean', 
+  userName: savedUser || 'admin',
   password: savedPwd || '123456'
 });
 if (savedUser) sessionStorage.removeItem('new_username');

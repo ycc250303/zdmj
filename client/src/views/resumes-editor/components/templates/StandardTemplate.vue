@@ -24,15 +24,23 @@ const props = defineProps<Props>();
         <h2 class="theme-section-title">{{ $t('page.resume.contact', 'Contact') }}</h2>
         <div class="flex flex-col gap-3 text-sm text-slate-600 font-medium">
           <div v-if="props.personal?.email" class="flex items-center gap-2">
-            <span class="text-lg text-slate-400">✉️</span>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" class="text-slate-400 shrink-0">
+              <rect x="3" y="5" width="18" height="14" rx="2" />
+              <path d="m3 7 9 6 9-6" />
+            </svg>
             <span class="break-all">{{ props.personal.email }}</span>
           </div>
           <div v-if="props.personal?.phone" class="flex items-center gap-2">
-            <span class="text-lg text-slate-400">📞</span>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" class="text-slate-400 shrink-0">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.86 19.86 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.86 19.86 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92Z" />
+            </svg>
             <span>{{ props.personal.phone }}</span>
           </div>
           <div v-if="props.personal?.homepageUrl" class="flex items-center gap-2">
-            <span class="text-lg text-slate-400">🔗</span>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400 shrink-0">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
             <a :href="props.personal.homepageUrl" target="_blank" class="break-all hover:text-blue-600 truncate">{{ props.personal.homepageUrl.replace(/^https?:\/\//, '') }}</a>
           </div>
         </div>
@@ -81,8 +89,8 @@ const props = defineProps<Props>();
 
       <section v-if="props.data.careers && props.data.careers.length" class="mb-8">
         <div class="flex items-center gap-2 mb-4">
-          <span class="text-2xl theme-text">💼</span>
-          <h2 class="text-xl font-black text-slate-800">{{ $t('page.resume.experience', 'Experience') }}</h2>
+          <span class="theme-bg" style="display:inline-block;width:18px;height:2px;border-radius:2px"></span>
+          <h2 class="text-xl font-black text-slate-800 uppercase tracking-wide">{{ $t('page.resume.experience', 'Experience') }}</h2>
         </div>
         
         <div class="flex flex-col gap-6 relative">
@@ -104,8 +112,8 @@ const props = defineProps<Props>();
 
       <section v-if="props.data.projects && props.data.projects.length">
         <div class="flex items-center gap-2 mb-4">
-          <span class="text-2xl theme-text">🚀</span>
-          <h2 class="text-xl font-black text-slate-800">{{ $t('page.resume.projects', 'Projects') }}</h2>
+          <span class="theme-bg" style="display:inline-block;width:18px;height:2px;border-radius:2px"></span>
+          <h2 class="text-xl font-black text-slate-800 uppercase tracking-wide">{{ $t('page.resume.projects', 'Projects') }}</h2>
         </div>
         
         <div class="flex flex-col gap-6 relative">

@@ -134,13 +134,10 @@ const applyPreset = ({ themeScheme, grayscale, colourWeakness, layout, watermark
             :title="key"
           />
         </div>
-        <div class="flex items-center gap-1">
-          <div class="text-lg">
-            {{ preset.themeScheme === 'dark' ? '🌙' : '☀️' }}
-          </div>
-          <div class="text-lg">
-            {{ preset.grayscale ? '🎨' : '' }}
-          </div>
+        <div class="flex items-center gap-1.5 text-icon">
+          <icon-carbon-asleep v-if="preset.themeScheme === 'dark'" class="text-16px" />
+          <icon-carbon-light v-else class="text-16px" />
+          <icon-carbon-color-palette v-if="preset.grayscale" class="text-16px" />
         </div>
       </div>
     </div>
