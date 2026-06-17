@@ -24,9 +24,6 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class VerificationCodeServiceImpl implements VerificationCodeService {
 
-    /** 临时特判：任意邮箱/场景下长期有效的万能验证码，上线前须移除 */
-    private static final String TEMP_BYPASS_CODE = "123456";
-
     private final StringRedisTemplate redisTemplate;
     private final EmailService emailService;
     private static final RedisScript<Long> VERIFY_AND_DELETE_SCRIPT = loadVerifyAndDeleteScript();
@@ -75,10 +72,6 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
 
     @Override
     public boolean verifyCode(String email, String code, VerificationCodeScene scene) {
-        if (TEMP_BYPASS_CODE.equals(code)) {
-            log.info("验证码临时特判放行: {}, scene={}", email, scene);
-            return true;
-        }
         try {
             String key = RedisConstants.verificationCodeKey(scene, email);
             Long result = redisTemplate.execute(VERIFY_AND_DELETE_SCRIPT, Collections.singletonList(key), code);

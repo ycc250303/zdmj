@@ -17,7 +17,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -99,19 +98,6 @@ class VerificationCodeServiceImplTest {
         assertEquals(true, result);
         verify(valueOperations).set(eq(key), anyString(), anyLong(), eq(TimeUnit.SECONDS));
         verify(emailService).sendEmail(eq(email), eq("重置密码验证码"), anyString());
-    }
-
-    @Test
-    void verifyCode_whenBypassCode_shouldReturnTrueWithoutRedis() {
-        String email = "test@demo.com";
-
-        boolean result = verificationCodeService.verifyCode(email, "123456", VerificationCodeScene.REGISTER);
-
-        assertTrue(result);
-        verify(redisTemplate, never()).execute(
-                org.mockito.ArgumentMatchers.<RedisScript<Long>>any(),
-                org.mockito.ArgumentMatchers.anyList(),
-                anyString());
     }
 
     @Test
