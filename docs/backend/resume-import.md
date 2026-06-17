@@ -13,8 +13,9 @@
 
 ## 模型与配置
 
-- 固定使用 `ModelEnum.DEEPSEEK_FLASH`（**忽略**用户 LLM 自配）
-- API Key：`DEEPSEEK_API_KEY`（优先）或 `SPRING_AI_OPENAI_API_KEY` 兜底
+- 优先使用 `ModelEnum.DEEPSEEK_FLASH`（**忽略**用户 LLM 自配）；未配置 `DEEPSEEK_API_KEY` 时回退平台默认模型（`AL_MODEL` / DashScope）
+- API Key：`DEEPSEEK_API_KEY`（DeepSeek 场景）或 `SPRING_AI_OPENAI_API_KEY` / `DASHSCOPE_API_KEY`（回退场景）
+- Docker Compose 须映射 `DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}`
 - 提示词：`classpath:prompts/resume-import-parse.md`
 
 ## 限流

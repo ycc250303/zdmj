@@ -178,6 +178,25 @@ public class UserLlmRouter {
     }
 
     /**
+     * 简历 PDF/文本结构化识别所用平台模型：优先 DeepSeek；未配置 {@code DEEPSEEK_API_KEY} 时回退平台默认模型（DashScope）。
+     */
+    public ModelEnum resolveResumeImportModel() {
+        if (StringUtils.hasText(deepseekApiKey)) {
+            return ModelEnum.DEEPSEEK_FLASH;
+        }
+        if (!StringUtils.hasText(platformApiKey)) {
+            throw new BusinessException(ErrorCode.USER_LLM_NOT_CONFIGURED.getCode(),
+                    "平台大模型 API Key 未配置，请配置 DEEPSEEK_API_KEY 或 SPRING_AI_OPENAI_API_KEY");
+        }
+        try {
+            return ModelEnum.fromCode(platformModel);
+        } catch (BusinessException ex) {
+            log.warn("平台默认模型 {} 不在 ModelEnum 目录，简历识别回退 {}", platformModel, ModelEnum.QWEN_PLUS.code());
+            return ModelEnum.QWEN_PLUS;
+        }
+    }
+
+    /**
      * 列出可选模型（来自 {@link ModelEnum} 静态目录）
      *
      * @return code + displayName 列表
@@ -325,9 +344,7 @@ public class UserLlmRouter {
 
     private String resolvePlatformApiKey(ModelEnum model) {
         if (model == ModelEnum.DEEPSEEK_FLASH || model == ModelEnum.DEEPSEEK_PRO) {
-            if (StringUtils.hasText(deepseekApiKey)) {
-                return deepseekApiKey;
-            }
+            return StringUtils.hasText(deepseekApiKey) ? deepseekApiKey : null;
         }
         return platformApiKey;
     }
