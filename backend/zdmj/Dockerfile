@@ -3,13 +3,16 @@
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /app
 
-# 复制 pom.xml 和源代码
+# 复制 pom.xml、Maven 配置和源代码
 COPY pom.xml .
+COPY .mvn ./.mvn
 COPY src ./src
 
 # 直接打包：避免 dependency:go-offline 在 JDK 21 下解析旧版 evosuite 依赖时
 # 触发 com.sun:tools.jar 缺失，导致构建失败
-RUN mvn -B -ntp clean package -Dmaven.test.skip=true
+# .mvn/maven.config 已指向国内镜像 settings，缓解服务器直连 Central 的 SSL 问题
+RUN mvn -B -ntp clean package -Dmaven.test.skip=true \
+    || mvn -B -ntp clean package -Dmaven.test.skip=true
 
 # 阶段2: 运行应用
 FROM eclipse-temurin:21-jre-alpine
