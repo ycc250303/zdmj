@@ -16,11 +16,12 @@ on:
       - 'deploy/sync_server_code.sh'
       - 'deploy/docker-compose.yml'
       - '.github/workflows/cd_backend.yml'
+      - '.github/scripts/ssh_run.sh'
   workflow_dispatch:
 
 concurrency:
-  group: cd-deploy-${{ github.ref }}
-  cancel-in-progress: true
+  group: zdmj-server-deploy
+  cancel-in-progress: false
 
 env:
   SERVER_HOST: 111.229.81.45
@@ -51,69 +52,44 @@ jobs:
               - 'deploy/sync_server_code.sh'
               - 'deploy/docker-compose.yml'
               - '.github/workflows/cd_backend.yml'
-
-  sync-server-code:
-    name: Sync Code on Server
-    runs-on: ubuntu-latest
-    needs: detect-changes
-    timeout-minutes: 10
-    if: needs.detect-changes.outputs.java == 'true' || github.event_name == 'workflow_dispatch'
-    steps:
-      - name: Pull latest code on server
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ env.SERVER_HOST }}
-          username: ${{ env.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          timeout: 60s
-          command_timeout: 10m
-          script: |
-            set -euo pipefail
-            APP_DIR="${{ env.APP_DIR }}"
-            DEPLOY_BRANCH="${{ env.DEPLOY_BRANCH }}"
-            LOCK_FILE="${APP_DIR}/.git/deploy.lock"
-            mkdir -p "$(dirname "$LOCK_FILE")"
-            (
-              flock -w 300 9 || { echo "Timed out waiting for git sync lock"; exit 1; }
-              cd "$APP_DIR"
-              git fetch --prune origin
-              git checkout "$DEPLOY_BRANCH"
-              git reset --hard "origin/$DEPLOY_BRANCH"
-              git rev-parse --short HEAD
-            ) 9>"$LOCK_FILE"
-            cd "$APP_DIR"
-            ls -lah deploy
+              - '.github/scripts/ssh_run.sh'
 
   deploy-java:
     name: Deploy Java Service on Server
     runs-on: ubuntu-latest
-    needs: [detect-changes, sync-server-code]
+    needs: detect-changes
     timeout-minutes: 30
     if: needs.detect-changes.outputs.java == 'true' || github.event_name == 'workflow_dispatch'
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Deploy backend
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ env.SERVER_HOST }}
-          username: ${{ env.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          timeout: 60s
-          command_timeout: 30m
-          script: |
-            set -euo pipefail
-            echo "whoami=$(whoami)"
-            echo "hostname=$(hostname)"
-            cd "${{ env.APP_DIR }}"
-            pwd
-            ls -lah deploy
-            chmod +x "${{ env.APP_DIR }}/deploy/deploy_backend.sh"
-            "${{ env.APP_DIR }}/deploy/deploy_backend.sh"
-            echo "== Docker usage before cleanup =="
-            docker system df || true
-            echo "== Cleanup old Docker cache/images (${{ env.DOCKER_CLEANUP_UNTIL }}) =="
-            docker builder prune -af --filter "until=${{ env.DOCKER_CLEANUP_UNTIL }}" || true
-            docker image prune -af --filter "until=${{ env.DOCKER_CLEANUP_UNTIL }}" || true
-            echo "== Docker usage after cleanup =="
-            docker system df || true
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          bash .github/scripts/ssh_run.sh \
+            "${{ env.SERVER_HOST }}" \
+            "${{ env.SERVER_USER }}" \
+            22 \
+            4 \
+            20 \
+            1800 \
+            <<EOF
+          set -euo pipefail
+          echo "whoami=\$(whoami)"
+          echo "hostname=\$(hostname)"
+          cd "${{ env.APP_DIR }}"
+          pwd
+          ls -lah deploy
+          chmod +x "${{ env.APP_DIR }}/deploy/deploy_backend.sh"
+          "${{ env.APP_DIR }}/deploy/deploy_backend.sh"
+          echo "== Docker usage before cleanup =="
+          docker system df || true
+          echo "== Cleanup old Docker cache/images (${{ env.DOCKER_CLEANUP_UNTIL }}) =="
+          docker builder prune -af --filter "until=${{ env.DOCKER_CLEANUP_UNTIL }}" || true
+          docker image prune -af --filter "until=${{ env.DOCKER_CLEANUP_UNTIL }}" || true
+          echo "== Docker usage after cleanup =="
+          docker system df || true
+          EOF

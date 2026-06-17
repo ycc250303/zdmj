@@ -8,11 +8,12 @@ on:
       - 'deploy/deploy_frontend.sh'
       - 'deploy/sync_server_code.sh'
       - '.github/workflows/cd_frontend.yml'
+      - '.github/scripts/ssh_run.sh'
   workflow_dispatch:
 
 concurrency:
-  group: cd-frontend-${{ github.ref }}
-  cancel-in-progress: true
+  group: zdmj-server-deploy
+  cancel-in-progress: false
 
 env:
   SERVER_HOST: 111.229.81.45
@@ -21,75 +22,48 @@ env:
   DEPLOY_BRANCH: main
 
 jobs:
-  sync-server-code:
-    name: Sync Code on Server
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Pull latest code on server
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ env.SERVER_HOST }}
-          username: ${{ env.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          timeout: 60s
-          command_timeout: 10m
-          script: |
-            set -euo pipefail
-            APP_DIR="${{ env.APP_DIR }}"
-            DEPLOY_BRANCH="${{ env.DEPLOY_BRANCH }}"
-            LOCK_FILE="${APP_DIR}/.git/deploy.lock"
-            mkdir -p "$(dirname "$LOCK_FILE")"
-            (
-              flock -w 300 9 || { echo "Timed out waiting for git sync lock"; exit 1; }
-              cd "$APP_DIR"
-              git fetch --prune origin
-              git checkout "$DEPLOY_BRANCH"
-              git reset --hard "origin/$DEPLOY_BRANCH"
-              git rev-parse --short HEAD
-            ) 9>"$LOCK_FILE"
-            cd "$APP_DIR"
-            ls -lah
-            ls -lah deploy
-
   deploy-frontend:
     name: Deploy Frontend on Server
     runs-on: ubuntu-latest
-    needs: sync-server-code
     timeout-minutes: 20
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Deploy frontend
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ env.SERVER_HOST }}
-          username: ${{ env.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          timeout: 60s
-          command_timeout: 20m
-          script: |
-            set -euo pipefail
-            echo "whoami=$(whoami)"
-            echo "hostname=$(hostname)"
-            cd "${{ env.APP_DIR }}"
-            pwd
-            ls -lah
-            ls -lah deploy
-            chmod +x /opt/zdmj/zdmj/deploy/deploy_frontend.sh
-            /opt/zdmj/zdmj/deploy/deploy_frontend.sh
-            echo "== Disk usage after frontend deploy =="
-            df -h
-            echo "== Cleanup pnpm store =="
-            if [ -s "/root/.nvm/nvm.sh" ]; then
-              # shellcheck disable=SC1091
-              . "/root/.nvm/nvm.sh"
-              nvm use 20 >/dev/null || true
-            fi
-            if command -v pnpm >/dev/null 2>&1; then
-              pnpm store prune || true
-            else
-              echo "pnpm not found, skip pnpm store prune"
-            fi
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          bash .github/scripts/ssh_run.sh \
+            "${{ env.SERVER_HOST }}" \
+            "${{ env.SERVER_USER }}" \
+            22 \
+            4 \
+            20 \
+            1200 \
+            <<EOF
+          set -euo pipefail
+          echo "whoami=\$(whoami)"
+          echo "hostname=\$(hostname)"
+          cd "${{ env.APP_DIR }}"
+          pwd
+          ls -lah
+          ls -lah deploy
+          chmod +x /opt/zdmj/zdmj/deploy/deploy_frontend.sh
+          /opt/zdmj/zdmj/deploy/deploy_frontend.sh
+          echo "== Disk usage after frontend deploy =="
+          df -h
+          echo "== Cleanup pnpm store =="
+          if [ -s "/root/.nvm/nvm.sh" ]; then
+            # shellcheck disable=SC1091
+            . "/root/.nvm/nvm.sh"
+            nvm use 20 >/dev/null || true
+          fi
+          if command -v pnpm >/dev/null 2>&1; then
+            pnpm store prune || true
+          else
+            echo "pnpm not found, skip pnpm store prune"
+          fi
+          EOF
