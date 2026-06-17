@@ -128,13 +128,12 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
             throw new BusinessException(ErrorCode.NO_PERMISSION);
         }
 
-        conversation.setTitle(title.trim());
-        boolean updated = updateById(conversation);
-        if (!updated) {
+        String trimmedTitle = title.trim();
+        int rows = conversationMapper.updateTitleByIdAndUserId(id, userId, trimmedTitle);
+        if (rows != 1) {
             throw new BusinessException(ErrorCode.CONVERSATION_UPDATE_FAILED);
         }
-        redisUtil.set(RedisConstants.CONVERSATION_KEY + id, conversation, RedisConstants.CONVERSATION_TTL);
-        return conversation;
+        return refreshConversationCache(id);
     }
 
     @Override
@@ -152,14 +151,24 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
                 ? new HashMap<>()
                 : new HashMap<>(conversation.getConfig());
         merged.putAll(config);
-        conversation.setConfig(merged);
 
-        boolean updated = updateById(conversation);
-        if (!updated) {
+        int rows = conversationMapper.updateConfigByIdAndUserId(id, userId, merged);
+        if (rows != 1) {
             throw new BusinessException(ErrorCode.CONVERSATION_UPDATE_FAILED);
         }
-        redisUtil.set(RedisConstants.CONVERSATION_KEY + id, conversation, RedisConstants.CONVERSATION_TTL);
-        return conversation;
+        return refreshConversationCache(id);
+    }
+
+    /**
+     * 从数据库重新加载会话并回填 Redis，避免局部更新后缓存字段（如 message_count）过期。
+     */
+    private Conversation refreshConversationCache(Long id) {
+        Conversation refreshed = conversationMapper.selectById(id);
+        if (refreshed == null) {
+            throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
+        }
+        redisUtil.set(RedisConstants.CONVERSATION_KEY + id, refreshed, RedisConstants.CONVERSATION_TTL);
+        return refreshed;
     }
 
     @Override

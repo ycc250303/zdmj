@@ -26,4 +26,12 @@
         WHERE id = #{conversationId}
           AND user_id = #{userId}
     </update>
+
+    <update id="updateConfigByIdAndUserId" parameterType="map">
+        UPDATE conversations
+        SET config = #{config, typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
+            updated_at = NOW()
+        WHERE id = #{conversationId}
+          AND user_id = #{userId}
+    </update>
 </mapper>
