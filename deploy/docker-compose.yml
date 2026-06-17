@@ -73,6 +73,7 @@ services:
       SPRING_AI_OPENAI_BASE_URL: https://dashscope.aliyuncs.com/compatible-mode
       AL_MODEL: ${AL_MODEL:-qwen3.6-plus}
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
       COS_SECRET_ID: ${COS_SECRET_ID}
       COS_SECRET_KEY: ${COS_SECRET_KEY}
       COS_REGION: ${COS_REGION}

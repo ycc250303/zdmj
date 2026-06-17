@@ -7,7 +7,8 @@ import com.qcloud.cos.auth.COSCredentials;
 import com.qcloud.cos.exception.CosClientException;
 import com.qcloud.cos.exception.CosServiceException;
 import com.qcloud.cos.model.COSObjectSummary;
-import com.qcloud.cos.model.GetObjectMetadataRequest;
+import com.qcloud.cos.model.COSObject;
+import com.qcloud.cos.model.GetObjectRequest;
 import com.qcloud.cos.model.ListObjectsRequest;
 import com.qcloud.cos.model.ObjectListing;
 import com.qcloud.cos.model.ObjectMetadata;
@@ -186,6 +187,42 @@ public class CosUtil {
     public static String getFileUrl(String key) {
         ensureInitialized();
         return String.format("https://%s.cos.%s.myqcloud.com/%s", staticBucketName, staticRegion, key);
+    }
+
+    /**
+     * 判断 URL 是否指向当前应用配置的 COS 存储桶。
+     */
+    public static boolean isManagedCosUrl(String sourceUri) {
+        if (isBlank(sourceUri) || staticBucketName == null || staticRegion == null) {
+            return false;
+        }
+        try {
+            URI uri = URI.create(sourceUri.trim());
+            String host = uri.getHost();
+            if (isBlank(host)) {
+                return false;
+            }
+            String expectedHost = staticBucketName + ".cos." + staticRegion + ".myqcloud.com";
+            return expectedHost.equalsIgnoreCase(host);
+        } catch (Exception ignore) {
+            return false;
+        }
+    }
+
+    /**
+     * 从 COS URL 读取对象流（使用 SDK 鉴权，适用于私有桶）。
+     * 调用方须关闭返回的 InputStream。
+     */
+    public static InputStream openInputStreamFromUrl(String sourceUri) {
+        ensureInitialized();
+        String key = extractKeyFromUrl(sourceUri);
+        if (isBlank(key)) {
+            throw new RuntimeException("无法从 URL 解析 COS 对象键");
+        }
+        return execute("读取文件", () -> {
+            COSObject cosObject = cosClient.getObject(new GetObjectRequest(staticBucketName, key));
+            return cosObject.getObjectContent();
+        });
     }
 
     public static String extractKeyFromUrl(String sourceUri) {

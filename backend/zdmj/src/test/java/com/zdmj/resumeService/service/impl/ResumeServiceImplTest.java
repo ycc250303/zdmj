@@ -6,6 +6,7 @@ import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.common.ai.ModelEnum;
+import com.zdmj.common.ai.UserLlmRouter;
 import com.zdmj.common.ai.prompt.PromptNames;
 import com.zdmj.resumeService.dto.ResumeContentDTO;
 import com.zdmj.resumeService.dto.ResumeDTO;
@@ -47,6 +48,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -71,6 +73,8 @@ class ResumeServiceImplTest {
     @Mock
     private ChatUtil chatUtil;
     @Mock
+    private UserLlmRouter userLlmRouter;
+    @Mock
     private EducationService educationService;
     @Mock
     private CareerService careerService;
@@ -89,9 +93,11 @@ class ResumeServiceImplTest {
     @BeforeEach
     void setUp() {
         resumeService = spy(new ResumeServiceImpl(
-                educationMapper, projectExperienceMapper, careerMapper, awardMapper, skillMapper, userMapper, chatUtil, objectMapper,
+                educationMapper, projectExperienceMapper, careerMapper, awardMapper, skillMapper, userMapper, chatUtil,
+                userLlmRouter, objectMapper,
                 educationService, careerService, awardService, projectExperienceService, skillService, validator));
         ReflectionTestUtils.setField(Objects.requireNonNull(resumeService), "baseMapper", resumeMapper);
+        lenient().doReturn(ModelEnum.DEEPSEEK_FLASH).when(userLlmRouter).resolveResumeImportModel();
     }
 
     @AfterEach

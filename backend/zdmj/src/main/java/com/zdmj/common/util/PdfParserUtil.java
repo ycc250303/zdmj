@@ -18,12 +18,19 @@ public class PdfParserUtil {
             throw new RuntimeException("PDF解析失败：文件地址不能为空");
         }
         try {
-            try (InputStream inputStream = URI.create(url.trim()).toURL().openStream()) {
+            try (InputStream inputStream = openPdfInputStream(url.trim())) {
                 return normalize(TIKA.parseToString(inputStream));
             }
         } catch (Exception e) {
             throw new RuntimeException("PDF解析失败：" + e.getMessage(), e);
         }
+    }
+
+    private static InputStream openPdfInputStream(String url) throws Exception {
+        if (CosUtil.isManagedCosUrl(url)) {
+            return CosUtil.openInputStreamFromUrl(url);
+        }
+        return URI.create(url).toURL().openStream();
     }
 
     public static String extractTextFromLocalPath(String path) {

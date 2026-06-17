@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.common.ai.LlmInputLimits;
 import com.zdmj.common.ai.ModelEnum;
+import com.zdmj.common.ai.UserLlmRouter;
 import com.zdmj.common.ai.prompt.PromptNames;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.ErrorCode;
@@ -69,6 +70,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     private final SkillMapper skillMapper;
     private final UserMapper userMapper;
     private final ChatUtil chatUtil;
+    private final UserLlmRouter userLlmRouter;
     private final ObjectMapper objectMapper;
     private final EducationService educationService;
     private final CareerService careerService;
@@ -451,6 +453,8 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         String sourceText = resolveImportSourceText(request);
         sourceText = preprocessImportText(sourceText, warnings);
 
+        ModelEnum importModel = userLlmRouter.resolveResumeImportModel();
+        log.info("简历识别：使用平台模型 {}", importModel.code());
         ResumeImportParseResultDTO parsed;
         try {
             parsed = chatUtil.chatStructuredOnceWithPlatformModel(
@@ -458,7 +462,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
                     PromptNames.RESUME_IMPORT_PARSE,
                     null,
                     ResumeImportParseResultDTO.class,
-                    ModelEnum.DEEPSEEK_FLASH);
+                    importModel);
         } catch (BusinessException e) {
             throw e;
         } catch (IllegalStateException e) {
