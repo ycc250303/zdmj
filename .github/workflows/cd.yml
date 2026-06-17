@@ -1,0 +1,185 @@
+# CD 工作流：前后端统一部署，共享 zdmj-server-deploy 并发组，避免 git/SSH 冲突。
+# 实际部署逻辑见 deploy/deploy_backend.sh、deploy/deploy_frontend.sh
+# 前置要求：GitHub Secrets 配置 SSH_PRIVATE_KEY，公钥已写入服务器 ~/.ssh/authorized_keys
+
+name: CD - Deploy
+
+on:
+  push:
+    branches: [main, new-f]
+    paths:
+      - 'backend/zdmj/**'
+      - 'client/**'
+      - 'deploy/**'
+      - '.github/workflows/cd.yml'
+      - '.github/scripts/ssh_run.sh'
+  workflow_dispatch:
+    inputs:
+      deploy_backend:
+        description: 部署后端（仅 main）
+        type: boolean
+        default: false
+      deploy_frontend_main:
+        description: 部署 main 前端（:80）
+        type: boolean
+        default: false
+      deploy_frontend_new_f:
+        description: 部署 new-f 前端（:1234）
+        type: boolean
+        default: false
+
+concurrency:
+  group: zdmj-server-deploy
+  cancel-in-progress: false
+
+env:
+  SERVER_HOST: 111.229.81.45
+  SERVER_USER: root
+  APP_DIR_MAIN: /opt/zdmj/zdmj
+  APP_DIR_NEW_F: /opt/zdmj/zdmj-new-f
+  DOCKER_CLEANUP_UNTIL: 168h
+
+jobs:
+  detect-changes:
+    name: Detect Changed Paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      java: ${{ steps.filter.outputs.java }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            java:
+              - 'backend/zdmj/**'
+              - 'deploy/deploy_backend.sh'
+              - 'deploy/sync_server_code.sh'
+              - 'deploy/docker-compose.yml'
+            frontend:
+              - 'client/**'
+              - 'deploy/deploy_frontend.sh'
+              - 'deploy/nginx.conf'
+              - 'deploy/nginx-new-f.conf'
+              - 'deploy/sync_server_code.sh'
+
+  deploy:
+    name: Deploy on Server
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    timeout-minutes: 45
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.ref == 'refs/heads/main' && (needs.detect-changes.outputs.java == 'true' || needs.detect-changes.outputs.frontend == 'true')) ||
+      (github.ref == 'refs/heads/new-f' && needs.detect-changes.outputs.frontend == 'true')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Resolve deploy targets
+        id: targets
+        run: |
+          set -euo pipefail
+          deploy_java=false
+          deploy_frontend_main=false
+          deploy_frontend_new_f=false
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            [[ "${{ inputs.deploy_backend }}" == "true" ]] && deploy_java=true
+            [[ "${{ inputs.deploy_frontend_main }}" == "true" ]] && deploy_frontend_main=true
+            [[ "${{ inputs.deploy_frontend_new_f }}" == "true" ]] && deploy_frontend_new_f=true
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            [[ "${{ needs.detect-changes.outputs.java }}" == "true" ]] && deploy_java=true
+            [[ "${{ needs.detect-changes.outputs.frontend }}" == "true" ]] && deploy_frontend_main=true
+          elif [[ "${{ github.ref }}" == "refs/heads/new-f" ]]; then
+            [[ "${{ needs.detect-changes.outputs.frontend }}" == "true" ]] && deploy_frontend_new_f=true
+          fi
+
+          echo "deploy_java=${deploy_java}" >> "$GITHUB_OUTPUT"
+          echo "deploy_frontend_main=${deploy_frontend_main}" >> "$GITHUB_OUTPUT"
+          echo "deploy_frontend_new_f=${deploy_frontend_new_f}" >> "$GITHUB_OUTPUT"
+          echo "java=${deploy_java}, frontend_main=${deploy_frontend_main}, frontend_new_f=${deploy_frontend_new_f}"
+
+      - name: Deploy on server
+        if: |
+          steps.targets.outputs.deploy_java == 'true' ||
+          steps.targets.outputs.deploy_frontend_main == 'true' ||
+          steps.targets.outputs.deploy_frontend_new_f == 'true'
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          DEPLOY_JAVA: ${{ steps.targets.outputs.deploy_java }}
+          DEPLOY_FRONTEND_MAIN: ${{ steps.targets.outputs.deploy_frontend_main }}
+          DEPLOY_FRONTEND_NEW_F: ${{ steps.targets.outputs.deploy_frontend_new_f }}
+        run: |
+          set -euo pipefail
+          bash .github/scripts/ssh_run.sh \
+            "${{ env.SERVER_HOST }}" \
+            "${{ env.SERVER_USER }}" \
+            22 \
+            4 \
+            20 \
+            2700 \
+            <<EOF
+          set -euo pipefail
+          echo "whoami=\$(whoami)"
+          echo "hostname=\$(hostname)"
+          APP_DIR_MAIN="${{ env.APP_DIR_MAIN }}"
+          APP_DIR_NEW_F="${{ env.APP_DIR_NEW_F }}"
+          DEPLOY_JAVA="${DEPLOY_JAVA}"
+          DEPLOY_FRONTEND_MAIN="${DEPLOY_FRONTEND_MAIN}"
+          DEPLOY_FRONTEND_NEW_F="${DEPLOY_FRONTEND_NEW_F}"
+
+          if [[ "\$DEPLOY_JAVA" == "true" ]]; then
+            echo "== Deploy backend (main) =="
+            cd "\$APP_DIR_MAIN"
+            chmod +x "\$APP_DIR_MAIN/deploy/deploy_backend.sh"
+            "\$APP_DIR_MAIN/deploy/deploy_backend.sh"
+            echo "== Docker usage before cleanup =="
+            docker system df || true
+            echo "== Cleanup old Docker cache/images (${{ env.DOCKER_CLEANUP_UNTIL }}) =="
+            docker builder prune -af --filter "until=${{ env.DOCKER_CLEANUP_UNTIL }}" || true
+            docker image prune -af --filter "until=${{ env.DOCKER_CLEANUP_UNTIL }}" || true
+            echo "== Docker usage after cleanup =="
+            docker system df || true
+          fi
+
+          if [[ "\$DEPLOY_FRONTEND_MAIN" == "true" ]]; then
+            echo "== Deploy frontend (main :80) =="
+            cd "\$APP_DIR_MAIN"
+            chmod +x "\$APP_DIR_MAIN/deploy/deploy_frontend.sh"
+            APP_DIR="\$APP_DIR_MAIN" DEPLOY_BRANCH=main DIST_DIR=/usr/share/nginx/html \
+              "\$APP_DIR_MAIN/deploy/deploy_frontend.sh"
+            echo "== Disk usage after frontend deploy =="
+            df -h
+          fi
+
+          if [[ "\$DEPLOY_FRONTEND_NEW_F" == "true" ]]; then
+            echo "== Deploy frontend (new-f :1234) =="
+            chmod +x "\$APP_DIR_MAIN/deploy/sync_server_code.sh"
+            APP_DIR="\$APP_DIR_NEW_F" DEPLOY_BRANCH=new-f \
+              "\$APP_DIR_MAIN/deploy/sync_server_code.sh"
+            chmod +x "\$APP_DIR_NEW_F/deploy/deploy_frontend.sh"
+            APP_DIR="\$APP_DIR_NEW_F" DEPLOY_BRANCH=new-f \
+              DIST_DIR=/usr/share/nginx/html-new-f INSTALL_NGINX_NEW_F=true \
+              "\$APP_DIR_NEW_F/deploy/deploy_frontend.sh"
+          fi
+
+          if [[ "\$DEPLOY_FRONTEND_MAIN" == "true" || "\$DEPLOY_FRONTEND_NEW_F" == "true" ]]; then
+            echo "== Cleanup pnpm store =="
+            if [ -s "/root/.nvm/nvm.sh" ]; then
+              # shellcheck disable=SC1091
+              . "/root/.nvm/nvm.sh"
+              nvm use 20 >/dev/null || true
+            fi
+            if command -v pnpm >/dev/null 2>&1; then
+              pnpm store prune || true
+            else
+              echo "pnpm not found, skip pnpm store prune"
+            fi
+          fi
+          EOF
