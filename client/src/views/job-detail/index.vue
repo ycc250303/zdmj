@@ -6,6 +6,7 @@ import {
   fetchGetJobDetail,
   fetchGetJobCapabilityProfile,
   fetchGenerateJobCapabilityProfile,
+  fetchGetJobCareerGraph,
   type JobApi
 } from '@/service/api/job';
 import {
@@ -53,6 +54,9 @@ const showProfile = ref(false);
 const careerReportDrawerVisible = ref(false);
 const careerReportCheckResult = ref<CareerReportApi.CareerReportCheck | null>(null);
 
+// 职业路径图谱（独立于 CareerReport）
+const careerGraph = ref<JobApi.JobCareerGraph | null>(null);
+
 function extractApiError(errLike: any, fallback: string): string {
   const resp = errLike?.response?.data;
   const msg: string = resp?.msg || resp?.message || errLike?.message || fallback;
@@ -74,6 +78,7 @@ async function loadJobDetail() {
       loadCapabilityProfile();
       loadMatchResult();
       loadCareerReport();
+      loadCareerGraph();
     } else {
       window.$message?.error($t('page.jobs.loadFailed'));
       router.back();
@@ -106,6 +111,14 @@ async function loadCareerReport() {
     if (!error && data) careerReport.value = data; else careerReport.value = null;
   } catch { careerReport.value = null; }
   finally { loadingCareerReport.value = false; }
+}
+
+async function loadCareerGraph() {
+  if (!jobId.value) return;
+  try {
+    const { data, error } = await fetchGetJobCareerGraph(jobId.value);
+    if (!error && data) careerGraph.value = data; else careerGraph.value = null;
+  } catch { careerGraph.value = null; }
 }
 
 async function handleGenerateProfile() {
@@ -295,6 +308,7 @@ onMounted(() => {
     <CareerReportDrawer
       v-model:visible="careerReportDrawerVisible"
       :career-report="careerReport"
+      :career-graph="careerGraph"
       :generating-report="generatingCareerReport"
       :polishing-report="polishingCareerReport"
       :checking-report="checkingCareerReport"

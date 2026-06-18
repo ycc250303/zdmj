@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { CareerReportApi } from '@/service/api/career-report';
+import type { JobApi } from '@/service/api/job';
 import { $t } from '@/locales';
 import { NDrawer, NDrawerContent, NInput, NButton, NCard, NTag, NEmpty } from 'naive-ui';
 import CareerReportHeader from './CareerReportHeader.vue';
@@ -15,6 +16,7 @@ defineOptions({ name: 'CareerReportDrawer' });
 interface Props {
   visible: boolean;
   careerReport: CareerReportApi.CareerReport | null;
+  careerGraph: JobApi.JobCareerGraph | null;
   generatingReport: boolean;
   polishingReport: boolean;
   checkingReport: boolean;
@@ -118,6 +120,26 @@ const actionPlanData = computed<ActionPlanData | null>(() => {
 });
 
 const careerPathData = computed<CareerPathData | null>(() => {
+  const g = props.careerGraph;
+  if (g?.verticalPath?.length) {
+    const vp = g.verticalPath;
+    const curIdx = vp.findIndex(n => n.current);
+    const cur = curIdx >= 0 ? vp[curIdx] : vp[0];
+    const next = curIdx >= 0 && curIdx + 1 < vp.length ? vp[curIdx + 1] : null;
+    const transitions = (g.transitionPaths || []).map(p => ({
+      name: p.name || '',
+      targetRole: p.targetRole || '',
+      reason: p.reason || '',
+      difficulty: p.difficulty || '',
+      bridgingSkills: p.bridgingSkills || [],
+    }));
+    return {
+      currentLevel: cur?.title || '',
+      nextLevel: next?.title || '',
+      transitionPaths: transitions,
+    };
+  }
+  // fallback: careerReport 中的 careerPath
   const raw = props.careerReport?.reportContent?.careerPath;
   if (!raw || typeof raw !== 'object') return null;
   return {

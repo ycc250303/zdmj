@@ -99,11 +99,31 @@ export namespace JobApi {
     summary?: string; // 一句话总结
   }
 
-  // 岗位关系图谱（对应后端 JobCareerGraphDTO，结构按需扩展）
+  // 岗位关系图谱（对应后端 JobCareerGraphDTO）
+  export interface CareerGraphNode {
+    level?: number;
+    title?: string;
+    description?: string;
+    responsibilities?: string[];
+    keyRequirements?: string[];
+    typicalYears?: string;
+    current?: boolean;
+  }
+  export interface CareerTransitionPath {
+    name?: string;
+    targetRole?: string;
+    difficulty?: string;
+    reason?: string;
+    bridgingSkills?: string[];
+    nodes?: { title?: string; roleType?: string; description?: string }[];
+  }
   export interface JobCareerGraph {
-    nodes?: any[];
-    edges?: any[];
-    [key: string]: any;
+    jobId?: number;
+    targetRoleType?: string;
+    currentNode?: { level?: number; title?: string; roleType?: string; description?: string };
+    verticalPath?: CareerGraphNode[];
+    transitionPaths?: CareerTransitionPath[];
+    summary?: string;
   }
 }
 
