@@ -4,6 +4,7 @@ set -euo pipefail
 APP_DIR="${APP_DIR:-/opt/zdmj/zdmj}"
 DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
 DIST_DIR="${DIST_DIR:-/usr/share/nginx/html}"
+
 NGINX_SITE_CONF="${NGINX_SITE_CONF:-}"
 NGINX_SITE_NAME="${NGINX_SITE_NAME:-}"
 # 兼容旧变量
@@ -11,6 +12,7 @@ if [[ "${INSTALL_NGINX_NEW_F:-false}" == "true" ]]; then
   NGINX_SITE_CONF=deploy/nginx-new-f.conf
   NGINX_SITE_NAME=zdmj-new-f
 fi
+NGINX_EXTRA_SITE="${NGINX_EXTRA_SITE:-}"
 
 cd "$APP_DIR"
 
