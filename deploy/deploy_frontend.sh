@@ -4,7 +4,7 @@ set -euo pipefail
 APP_DIR="${APP_DIR:-/opt/zdmj/zdmj}"
 DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
 DIST_DIR="${DIST_DIR:-/usr/share/nginx/html}"
-INSTALL_NGINX_NEW_F="${INSTALL_NGINX_NEW_F:-false}"
+NGINX_EXTRA_SITE="${NGINX_EXTRA_SITE:-}"
 
 cd "$APP_DIR"
 
@@ -47,10 +47,12 @@ echo "== 3) 部署前端 =="
 sudo mkdir -p "$DIST_DIR"
 sudo rsync -av --delete dist/ "$DIST_DIR"/
 
-if [[ "$INSTALL_NGINX_NEW_F" == "true" ]]; then
-  echo "== 3.1) 安装 new-f Nginx 站点 (:1234) =="
-  sudo cp "$APP_DIR/deploy/nginx-new-f.conf" /etc/nginx/sites-available/zdmj-new-f
-  sudo ln -sf /etc/nginx/sites-available/zdmj-new-f /etc/nginx/sites-enabled/zdmj-new-f
+if [[ -n "$NGINX_EXTRA_SITE" ]]; then
+  echo "== 3.1) 安装 Nginx 站点 (${NGINX_EXTRA_SITE}) =="
+  nginx_conf="$APP_DIR/deploy/nginx-${NGINX_EXTRA_SITE}.conf"
+  nginx_site="zdmj-${NGINX_EXTRA_SITE}"
+  sudo cp "$nginx_conf" "/etc/nginx/sites-available/${nginx_site}"
+  sudo ln -sf "/etc/nginx/sites-available/${nginx_site}" "/etc/nginx/sites-enabled/${nginx_site}"
 fi
 
 sudo nginx -t
