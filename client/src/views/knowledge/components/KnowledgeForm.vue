@@ -199,20 +199,21 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="max-w-3xl mx-auto bg-white p-8 rounded-xl border border-gray-100 shadow-sm">
-    <div class="flex justify-between items-center mb-8">
+  <div class="nova-form">
+    <header class="nova-form__head">
       <div>
-        <h2 class="text-2xl font-bold text-gray-800">
+        <span class="nova-eyebrow">// knowledge</span>
+        <h2 class="nova-form__title">
           {{ props.initialData ? $t('page.profile.common.edit') : $t('page.profile.common.add') }}
         </h2>
-        <p class="text-gray-500 mt-1 text-sm">{{ $t('page.profile.common.requiredDesc') }}</p>
+        <p class="nova-form__sub">{{ $t('page.profile.common.requiredDesc') }}</p>
       </div>
       <NButton quaternary circle @click="emit('cancel')">
         <template #icon>
           <icon-carbon-close class="text-18px" />
         </template>
       </NButton>
-    </div>
+    </header>
 
     <NForm
       ref="formRef"
@@ -220,6 +221,7 @@ onMounted(() => {
       :rules="rules"
       label-placement="top"
       require-mark-placement="right-hanging"
+      class="nova-form__body"
     >
       <NFormItem :label="$t('page.knowledge.docTitle')" path="title">
         <NInput v-model:value="formData.title" :placeholder="$t('page.knowledge.docTitlePlaceholder')" size="large" />
@@ -235,9 +237,8 @@ onMounted(() => {
         </NRadioGroup>
       </NFormItem>
 
-      <!-- 项目文档：显示上传组件 -->
       <NFormItem :label="$t('page.knowledge.uploadFile')" path="content">
-        <div class="w-full space-y-4">
+        <div class="w-full">
           <NUpload
             :file-list="fileList"
             :max="1"
@@ -246,30 +247,155 @@ onMounted(() => {
             @remove="handleFileRemove"
           >
             <div
-              class="upload-area border-2 border-dashed rounded-lg p-8 text-center transition-all cursor-pointer"
-              :class="isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400'"
+              class="nova-drop"
+              :class="{ 'nova-drop--active': isDragging }"
               @dragover="handleDragOver"
               @dragleave="handleDragLeave"
               @drop="handleDrop"
             >
-              <span class="block mx-auto mb-2" :class="isDragging ? 'text-blue-500' : 'text-gray-400'">
-                <icon-carbon-cloud-upload class="text-32px mx-auto" />
+              <span class="nova-drop__icon">
+                <icon-carbon-cloud-upload class="text-28px" />
               </span>
-              <p class="mb-1" :class="isDragging ? 'text-blue-600 font-medium' : 'text-gray-600'">
+              <p class="nova-drop__label">
                 {{ isDragging ? $t('page.knowledge.dragUploadActive') : $t('page.knowledge.dragUpload') }}
               </p>
-              <p class="text-xs text-gray-400">{{ $t('page.knowledge.uploadTip') }}</p>
+              <p class="nova-drop__hint">{{ $t('page.knowledge.uploadTip') }}</p>
             </div>
           </NUpload>
         </div>
       </NFormItem>
 
-      <div class="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-100">
+      <footer class="nova-form__footer">
         <NButton size="large" @click="emit('cancel')">{{ $t('page.profile.common.cancel') }}</NButton>
         <NButton size="large" type="primary" :loading="loading" @click="handleSubmit">
           {{ $t('page.profile.common.save') }}
         </NButton>
-      </div>
+      </footer>
     </NForm>
   </div>
 </template>
+
+<style scoped>
+.nova-form {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 28px 32px 32px;
+  border-radius: 22px;
+  border: 1px solid var(--nova-border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.012) 100%);
+  box-shadow: 0 28px 80px -36px rgba(10, 12, 30, 0.7);
+  color: var(--nova-text);
+}
+
+.nova-form__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.nova-eyebrow {
+  display: inline-block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: var(--nova-violet);
+  text-transform: lowercase;
+  margin-bottom: 4px;
+}
+
+.nova-form__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  background: linear-gradient(120deg, #fff 0%, #c9c4ff 60%, #93f1ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.nova-form__sub {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--nova-text-faded);
+  letter-spacing: 0.02em;
+}
+
+.nova-form__body :deep(.n-form-item-label) {
+  color: var(--nova-text);
+  font-weight: 500;
+}
+
+.nova-form__body :deep(.n-form-item-label__text) {
+  color: var(--nova-text);
+}
+
+.nova-form__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 28px;
+  padding-top: 22px;
+  border-top: 1px solid var(--nova-border);
+}
+
+.nova-drop {
+  position: relative;
+  border: 1.5px dashed var(--nova-border-strong);
+  border-radius: 16px;
+  padding: 36px 24px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.025);
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+  cursor: pointer;
+}
+
+.nova-drop:hover {
+  border-color: rgba(124, 92, 255, 0.55);
+  background: rgba(124, 92, 255, 0.06);
+}
+
+.nova-drop--active {
+  border-color: var(--nova-violet);
+  background: rgba(124, 92, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.nova-drop__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: rgba(124, 92, 255, 0.12);
+  border: 1px solid rgba(124, 92, 255, 0.3);
+  color: var(--nova-violet);
+  margin-bottom: 10px;
+}
+
+.nova-drop--active .nova-drop__icon {
+  background: rgba(124, 92, 255, 0.22);
+  border-color: rgba(124, 92, 255, 0.55);
+}
+
+.nova-drop__label {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--nova-text);
+}
+
+.nova-drop--active .nova-drop__label {
+  color: #fff;
+}
+
+.nova-drop__hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--nova-text-faded);
+  letter-spacing: 0.02em;
+}
+</style>

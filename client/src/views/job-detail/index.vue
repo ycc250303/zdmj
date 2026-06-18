@@ -817,35 +817,28 @@ onMounted(() => {
           </NButton>
           <h1 class="text-2xl font-bold text-slate-800 dark:text-gray-200">{{ $t('page.jobs.viewDetail') }}</h1>
         </div>
-        <div class="flex gap-3">
-          <NButton @click="handleGenerateMatch" :loading="generatingMatch">
-            
+        <div class="nova-toolbar">
+          <NButton class="nova-toolbar__btn" :loading="generatingMatch" @click="handleGenerateMatch">
             {{ matchResult ? $t('page.jobs.reanalyzeMatch') : $t('page.jobs.analyzeMatch') }}
           </NButton>
-          <NButton @click="handleGenerateProfile" :loading="generatingProfile">
-            
+          <NButton class="nova-toolbar__btn" :loading="generatingProfile" @click="handleGenerateProfile">
             {{ capabilityProfile ? $t('page.jobs.regenerateProfile') : $t('page.jobs.generateProfile') }}
           </NButton>
           <NButton
-            type="info"
-            ghost
-            @click="openCareerGraphDrawer"
+            class="nova-toolbar__btn nova-toolbar__btn--accent"
             :loading="loadingCareerGraph"
+            @click="openCareerGraphDrawer"
           >
-            <template #icon><span>️</span></template>
             {{ careerGraph ? $t('page.jobs.careerGraph.view') : $t('page.jobs.careerGraph.entry') }}
           </NButton>
           <NButton
-            type="info"
-            ghost
-            @click="openCareerReportDrawer"
+            class="nova-toolbar__btn nova-toolbar__btn--accent"
             :loading="loadingCareerReport"
+            @click="openCareerReportDrawer"
           >
-            
             {{ careerReport ? $t('page.jobs.careerReport.view') : $t('page.jobs.careerReport.entry') }}
           </NButton>
-          <NButton type="primary" @click="handleEdit">
-            <template #icon><span>️</span></template>
+          <NButton type="primary" class="nova-toolbar__btn" @click="handleEdit">
             {{ $t('page.jobs.edit') }}
           </NButton>
         </div>
@@ -1811,7 +1804,6 @@ onMounted(() => {
         <NEmpty v-else :description="$t('page.jobs.careerGraph.empty')" class="py-12">
           <template #extra>
             <NButton type="primary" :loading="generatingCareerGraph" @click="handleGenerateCareerGraph">
-              <template #icon><span>️</span></template>
               {{ $t('page.jobs.careerGraph.generate') }}
             </NButton>
           </template>
@@ -1820,3 +1812,38 @@ onMounted(() => {
     </NDrawer>
   </NSpin>
 </template>
+
+<style scoped>
+.nova-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.nova-toolbar__btn {
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+
+.nova-toolbar__btn :deep(.n-button__content) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  text-align: center;
+}
+
+.nova-toolbar__btn--accent {
+  --n-color: rgba(124, 92, 255, 0.12) !important;
+  --n-color-hover: rgba(124, 92, 255, 0.22) !important;
+  --n-color-pressed: rgba(124, 92, 255, 0.3) !important;
+  --n-text-color: #d8d2ff !important;
+  --n-text-color-hover: #ffffff !important;
+  --n-text-color-pressed: #ffffff !important;
+  --n-border: 1px solid rgba(124, 92, 255, 0.45) !important;
+  --n-border-hover: 1px solid rgba(124, 92, 255, 0.7) !important;
+  --n-border-pressed: 1px solid rgba(124, 92, 255, 0.85) !important;
+  --n-border-focus: 1px solid rgba(124, 92, 255, 0.7) !important;
+}
+</style>
