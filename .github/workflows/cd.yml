@@ -6,10 +6,7 @@ name: CD - Deploy
 
 on:
   push:
-    branches:
-      - main
-      - new-f
-      - frontend/xhr
+    branches: [main, new-f, frontend/xhr]
     paths:
       - 'backend/zdmj/**'
       - 'client/**'
@@ -184,7 +181,8 @@ jobs:
               "\$APP_DIR_MAIN/deploy/sync_server_code.sh"
             chmod +x "\$APP_DIR_NEW_F/deploy/deploy_frontend.sh"
             APP_DIR="\$APP_DIR_NEW_F" DEPLOY_BRANCH=new-f \
-              DIST_DIR=/usr/share/nginx/html-new-f NGINX_EXTRA_SITE=new-f \
+              DIST_DIR=/usr/share/nginx/html-new-f \
+              NGINX_SITE_CONF=deploy/nginx-new-f.conf NGINX_SITE_NAME=zdmj-new-f \
               "\$APP_DIR_NEW_F/deploy/deploy_frontend.sh"
           fi
 
@@ -195,7 +193,8 @@ jobs:
               "\$APP_DIR_MAIN/deploy/sync_server_code.sh"
             chmod +x "\$APP_DIR_FRONTEND_XHR/deploy/deploy_frontend.sh"
             APP_DIR="\$APP_DIR_FRONTEND_XHR" DEPLOY_BRANCH=frontend/xhr \
-              DIST_DIR=/usr/share/nginx/html-frontend-xhr NGINX_EXTRA_SITE=frontend-xhr \
+              DIST_DIR=/usr/share/nginx/html-frontend-xhr \
+              NGINX_SITE_CONF=deploy/nginx-frontend-xhr.conf NGINX_SITE_NAME=zdmj-frontend-xhr \
               "\$APP_DIR_FRONTEND_XHR/deploy/deploy_frontend.sh"
           fi
 
