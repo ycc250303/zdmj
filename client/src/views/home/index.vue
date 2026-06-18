@@ -276,8 +276,12 @@ function go(route: string) {
   min-height: calc(100% + 32px);
   margin: -16px;
   color: var(--nova-text);
-  background: var(--nova-bg-deep);
-  overflow: hidden;
+  background:
+    radial-gradient(ellipse 110% 60% at 50% 0%, rgba(124, 92, 255, 0.18), transparent 70%),
+    radial-gradient(ellipse 90% 50% at 85% 100%, rgba(34, 211, 238, 0.12), transparent 70%),
+    radial-gradient(ellipse 80% 50% at 15% 100%, rgba(251, 113, 133, 0.10), transparent 70%),
+    linear-gradient(180deg, #070a1a 0%, #0a0e22 45%, #080b1c 100%);
+  overflow-x: hidden;
   border-radius: 0;
 }
 
@@ -411,17 +415,18 @@ function go(route: string) {
 .nova-bento-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-rows: 200px;
+  grid-auto-rows: minmax(220px, auto);
   gap: 16px;
+  align-content: start;
+  align-self: start;
 }
 
 .nova-bento {
   position: relative;
   padding: 24px;
   border-radius: 20px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+  background: linear-gradient(180deg, rgba(20, 24, 44, 0.85), rgba(12, 16, 32, 0.78));
   border: 1px solid var(--nova-border);
-  backdrop-filter: blur(22px) saturate(1.1);
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -506,10 +511,6 @@ function go(route: string) {
   font-size: 13.5px;
   color: var(--nova-text-soft);
   line-height: 1.65;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 /* ============ Feed ============ */
@@ -517,12 +518,13 @@ function go(route: string) {
   position: relative;
   padding: 24px;
   border-radius: 20px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018));
+  background: linear-gradient(180deg, rgba(20, 24, 44, 0.82), rgba(12, 16, 32, 0.74));
   border: 1px solid var(--nova-border);
-  backdrop-filter: blur(22px) saturate(1.1);
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
+  align-self: start;
+}
+
+.nova-feed__head {
+  margin-bottom: 18px;
 }
 
 .nova-feed__title {
@@ -543,10 +545,6 @@ function go(route: string) {
   list-style: none;
   padding: 0;
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  counter-reset: step;
 }
 
 .nova-feed__step {
@@ -555,11 +553,16 @@ function go(route: string) {
   grid-template-columns: 44px 1fr;
   gap: 14px;
   padding: 14px 14px 14px 12px;
+  margin-bottom: 12px;
   border-radius: 14px;
   border: 1px solid var(--nova-border);
   background: rgba(255, 255, 255, 0.025);
   cursor: pointer;
   transition: border-color 0.3s ease, transform 0.3s ease, background 0.3s ease;
+}
+
+.nova-feed__step:last-child {
+  margin-bottom: 0;
 }
 
 .nova-feed__step:hover {

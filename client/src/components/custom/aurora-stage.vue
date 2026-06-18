@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { onMounted, onBeforeUnmount, ref, computed } from 'vue';
+import { computed } from 'vue';
 
 defineOptions({ name: 'AuroraStage' });
 
@@ -20,11 +20,6 @@ const props = withDefaults(defineProps<Props>(), {
   grid: true
 });
 
-const stageRef = ref<HTMLDivElement | null>(null);
-const px = ref(0);
-const py = ref(0);
-let raf = 0;
-
 const palette = computed<string[]>(() => {
   if (props.palette?.length) return props.palette;
   switch (props.variant) {
@@ -37,40 +32,16 @@ const palette = computed<string[]>(() => {
   }
 });
 
-function handleMove(e: MouseEvent) {
-  if (raf) cancelAnimationFrame(raf);
-  raf = requestAnimationFrame(() => {
-    const rect = stageRef.value?.getBoundingClientRect();
-    if (!rect) return;
-    const x = (e.clientX - rect.left) / rect.width - 0.5;
-    const y = (e.clientY - rect.top) / rect.height - 0.5;
-    px.value = x;
-    py.value = y;
-  });
-}
-
-onMounted(() => {
-  window.addEventListener('pointermove', handleMove, { passive: true });
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener('pointermove', handleMove);
-  if (raf) cancelAnimationFrame(raf);
-});
-
 const stageStyle = computed(() => ({
   '--aurora-1': palette.value[0],
   '--aurora-2': palette.value[1] ?? palette.value[0],
   '--aurora-3': palette.value[2] ?? palette.value[1] ?? palette.value[0],
-  '--aurora-4': palette.value[3] ?? palette.value[0],
-  '--mx': px.value.toFixed(3),
-  '--my': py.value.toFixed(3)
+  '--aurora-4': palette.value[3] ?? palette.value[0]
 }) as Record<string, string>);
 </script>
 
 <template>
   <div
-    ref="stageRef"
     class="aurora-stage"
     :class="[`aurora-stage--${variant}`, { 'aurora-stage--vignette': vignette }]"
     :style="stageStyle"
@@ -80,14 +51,10 @@ const stageStyle = computed(() => ({
       <span class="aurora-stage__orb aurora-stage__orb--1" />
       <span class="aurora-stage__orb aurora-stage__orb--2" />
       <span class="aurora-stage__orb aurora-stage__orb--3" />
-      <span class="aurora-stage__orb aurora-stage__orb--4" />
-    </div>
-    <div class="aurora-stage__beams">
-      <span class="aurora-stage__beam aurora-stage__beam--a" />
-      <span class="aurora-stage__beam aurora-stage__beam--b" />
+      <span v-if="variant !== 'panel'" class="aurora-stage__orb aurora-stage__orb--4" />
     </div>
     <div v-if="grid" class="aurora-stage__grid" />
-    <div class="aurora-stage__noise" />
+    <div v-if="variant === 'portal'" class="aurora-stage__noise" />
     <div v-if="vignette" class="aurora-stage__vignette" />
   </div>
 </template>
@@ -99,7 +66,6 @@ const stageStyle = computed(() => ({
   overflow: hidden;
   pointer-events: none;
   isolation: isolate;
-  background: #05060d;
 }
 
 .aurora-stage__base {
@@ -115,7 +81,6 @@ const stageStyle = computed(() => ({
 }
 
 .aurora-stage__orbs,
-.aurora-stage__beams,
 .aurora-stage__grid,
 .aurora-stage__noise,
 .aurora-stage__vignette {
@@ -127,10 +92,8 @@ const stageStyle = computed(() => ({
 .aurora-stage__orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.85;
-  mix-blend-mode: screen;
-  will-change: transform;
+  filter: blur(55px);
+  opacity: 0.7;
 }
 
 .aurora-stage__orb--1 {
@@ -140,7 +103,6 @@ const stageStyle = computed(() => ({
   top: -18vmax;
   background: radial-gradient(circle at 35% 35%, var(--aurora-1) 0%, transparent 65%);
   animation: orb-drift-1 22s ease-in-out infinite alternate;
-  transform: translate3d(calc(var(--mx, 0) * 30px), calc(var(--my, 0) * 30px), 0);
 }
 
 .aurora-stage__orb--2 {
@@ -150,7 +112,6 @@ const stageStyle = computed(() => ({
   top: -10vmax;
   background: radial-gradient(circle at 50% 50%, var(--aurora-2) 0%, transparent 65%);
   animation: orb-drift-2 26s ease-in-out infinite alternate;
-  transform: translate3d(calc(var(--mx, 0) * -36px), calc(var(--my, 0) * 24px), 0);
 }
 
 .aurora-stage__orb--3 {
@@ -160,7 +121,6 @@ const stageStyle = computed(() => ({
   bottom: -22vmax;
   background: radial-gradient(circle at 50% 50%, var(--aurora-3) 0%, transparent 65%);
   animation: orb-drift-3 28s ease-in-out infinite alternate;
-  transform: translate3d(calc(var(--mx, 0) * 24px), calc(var(--my, 0) * -28px), 0);
 }
 
 .aurora-stage__orb--4 {
@@ -170,7 +130,6 @@ const stageStyle = computed(() => ({
   bottom: -22vmax;
   background: radial-gradient(circle at 50% 50%, var(--aurora-4) 0%, transparent 65%);
   animation: orb-drift-4 30s ease-in-out infinite alternate;
-  transform: translate3d(calc(var(--mx, 0) * -22px), calc(var(--my, 0) * -22px), 0);
 }
 
 @keyframes orb-drift-1 {
@@ -191,40 +150,6 @@ const stageStyle = computed(() => ({
 @keyframes orb-drift-4 {
   0%   { transform: translate3d(0, 0, 0) scale(1); }
   100% { transform: translate3d(7vmax, -8vmax, 0) scale(1.1); }
-}
-
-/* ---------------- Conic light beams ---------------- */
-.aurora-stage__beam {
-  position: absolute;
-  width: 130%;
-  height: 130%;
-  top: -15%;
-  left: -15%;
-  background: conic-gradient(
-    from 90deg at 50% 50%,
-    transparent 0deg,
-    rgba(124, 92, 255, 0.18) 60deg,
-    transparent 120deg,
-    rgba(34, 211, 238, 0.14) 180deg,
-    transparent 240deg,
-    rgba(251, 113, 133, 0.16) 300deg,
-    transparent 360deg
-  );
-  mix-blend-mode: screen;
-  filter: blur(40px);
-  opacity: 0.5;
-  animation: beam-spin 60s linear infinite;
-}
-
-.aurora-stage__beam--b {
-  animation-direction: reverse;
-  animation-duration: 80s;
-  opacity: 0.35;
-  filter: blur(70px);
-}
-
-@keyframes beam-spin {
-  to { transform: rotate(360deg); }
 }
 
 /* ---------------- Perspective grid ---------------- */
@@ -253,6 +178,21 @@ const stageStyle = computed(() => ({
 /* ---------------- Variant tweaks ---------------- */
 .aurora-stage--auth .aurora-stage__orb--1 { left: -10vmax; top: -25vmax; }
 .aurora-stage--auth .aurora-stage__orb--3 { right: -22vmax; bottom: -10vmax; }
-.aurora-stage--panel .aurora-stage__base { filter: saturate(0.9); }
-.aurora-stage--panel .aurora-stage__orb { opacity: 0.55; filter: blur(110px); }
+.aurora-stage--panel .aurora-stage__base {
+  filter: saturate(0.85);
+  opacity: 0.7;
+}
+.aurora-stage--panel .aurora-stage__orb {
+  opacity: 0.4;
+  filter: blur(60px);
+}
+.aurora-stage--panel .aurora-stage__grid {
+  opacity: 0.35;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora-stage__orb {
+    animation: none !important;
+  }
+}
 </style>

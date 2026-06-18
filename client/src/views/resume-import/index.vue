@@ -27,6 +27,34 @@ const isEditing = ref(false);
 const resume = ref<ResumeApi.ResumeContentDTO | null>(null);
 const draft = ref<ResumeContentDraft | null>(null);
 const uploadFileList = ref<UploadFileInfo[]>([]);
+const pdfInputRef = ref<HTMLInputElement | null>(null);
+
+function triggerPdfPick() {
+  pdfInputRef.value?.click();
+}
+
+async function onPdfFilePicked(event: Event) {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file) return;
+  await handlePdfUpload({
+    file: {
+      id: 'manual-' + Date.now(),
+      name: file.name,
+      status: 'pending',
+      percentage: 0,
+      file,
+      type: file.type,
+      thumbnailUrl: null,
+      url: null,
+      fullPath: null,
+      batchId: null
+    } as unknown as UploadFileInfo,
+    onFinish: () => {},
+    onError: () => {}
+  } as UploadCustomRequestOptions);
+  if (pdfInputRef.value) pdfInputRef.value.value = '';
+}
 
 async function loadResume() {
   loading.value = true;
@@ -252,20 +280,25 @@ onMounted(() => {
             上传一份 PDF 简历，系统会自动解析教育经历、项目、技能等信息，<br />
             生成结构化简历与你的能力画像。
           </p>
-          <NUpload
-            :show-file-list="false"
-            :file-list="uploadFileList"
-            :custom-request="handlePdfUpload"
-            accept="application/pdf"
+          <input
+            ref="pdfInputRef"
+            type="file"
+            accept="application/pdf,.pdf"
+            class="hidden"
+            @change="onPdfFilePicked"
+          />
+          <NButton
+            type="primary"
+            size="large"
+            :loading="importing"
             class="nova-resume-empty__upload"
+            @click="triggerPdfPick"
           >
-            <NButton type="primary" size="large" :loading="importing">
-              <template #icon>
-                <icon-carbon-upload class="text-16px" />
-              </template>
-              上传 PDF 简历
-            </NButton>
-          </NUpload>
+            <template #icon>
+              <icon-carbon-upload class="text-16px" />
+            </template>
+            上传 PDF 简历
+          </NButton>
           <p class="nova-resume-empty__hint font-mono">supported · application/pdf · ≤ 10MB</p>
         </div>
       </main>

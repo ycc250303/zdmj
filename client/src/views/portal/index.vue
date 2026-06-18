@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/store/modules/auth';
 import { useAppStore } from '@/store/modules/app';
@@ -113,29 +113,6 @@ const tickerItems = computed(() => {
   return [...items, ...items];
 });
 
-// Parallax for hero
-const tilt = ref({ x: 0, y: 0 });
-let raf = 0;
-function onPointerMove(e: PointerEvent) {
-  if (raf) cancelAnimationFrame(raf);
-  raf = requestAnimationFrame(() => {
-    const rx = (e.clientX / window.innerWidth - 0.5) * 8;
-    const ry = (e.clientY / window.innerHeight - 0.5) * 6;
-    tilt.value = { x: rx, y: ry };
-  });
-}
-
-onMounted(() => {
-  window.addEventListener('pointermove', onPointerMove, { passive: true });
-});
-onBeforeUnmount(() => {
-  window.removeEventListener('pointermove', onPointerMove);
-  if (raf) cancelAnimationFrame(raf);
-});
-
-const heroStyle = computed(() => ({
-  transform: `translate3d(${tilt.value.x}px, ${tilt.value.y}px, 0)`
-}));
 </script>
 
 <template>
@@ -181,7 +158,7 @@ const heroStyle = computed(() => ({
 
     <main class="nova-main">
       <!-- ============== HERO ============== -->
-      <section class="nova-hero" :style="heroStyle">
+      <section class="nova-hero">
         <div class="nova-hero__eyebrow">
           <span class="nova-hero__eyebrow-dot" />
           <span>{{ $t('page.portal.eyebrow') }}</span>
