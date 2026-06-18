@@ -1,19 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="/opt/zdmj/zdmj"
-DIST_DIR="/usr/share/nginx/html"
+APP_DIR="${APP_DIR:-/opt/zdmj/zdmj}"
+DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
+DIST_DIR="${DIST_DIR:-/usr/share/nginx/html}"
+NGINX_SITE_CONF="${NGINX_SITE_CONF:-}"
+NGINX_SITE_NAME="${NGINX_SITE_NAME:-}"
+# 兼容旧变量
+if [[ "${INSTALL_NGINX_NEW_F:-false}" == "true" ]]; then
+  NGINX_SITE_CONF=deploy/nginx-new-f.conf
+  NGINX_SITE_NAME=zdmj-new-f
+fi
 
 cd "$APP_DIR"
 
 echo "== 1) 更新代码 =="
 if [[ -f "$APP_DIR/deploy/sync_server_code.sh" ]]; then
   chmod +x "$APP_DIR/deploy/sync_server_code.sh"
-  "$APP_DIR/deploy/sync_server_code.sh"
+  APP_DIR="$APP_DIR" DEPLOY_BRANCH="$DEPLOY_BRANCH" "$APP_DIR/deploy/sync_server_code.sh"
 else
   git fetch --prune origin
-  git checkout main
-  git reset --hard origin/main
+  git checkout "$DEPLOY_BRANCH"
+  git reset --hard "origin/$DEPLOY_BRANCH"
 fi
 
 echo "== 2) 安装依赖 =="
@@ -42,8 +50,16 @@ pnpm install --frozen-lockfile
 pnpm build
 
 echo "== 3) 部署前端 =="
+sudo mkdir -p "$DIST_DIR"
 sudo rsync -av --delete dist/ "$DIST_DIR"/
+
+if [[ -n "$NGINX_SITE_CONF" && -n "$NGINX_SITE_NAME" ]]; then
+  echo "== 3.1) 安装 Nginx 站点 (${NGINX_SITE_NAME}) =="
+  sudo cp "$APP_DIR/$NGINX_SITE_CONF" "/etc/nginx/sites-available/$NGINX_SITE_NAME"
+  sudo ln -sf "/etc/nginx/sites-available/$NGINX_SITE_NAME" "/etc/nginx/sites-enabled/$NGINX_SITE_NAME"
+fi
+
 sudo nginx -t
 sudo systemctl reload nginx
 
-echo "Frontend deploy done."
+echo "Frontend deploy done (branch=${DEPLOY_BRANCH}, dist=${DIST_DIR})."

@@ -7,6 +7,30 @@ DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
 LOCK_FILE="${APP_DIR}/.git/deploy.lock"
 WAIT_SECONDS="${GIT_SYNC_LOCK_WAIT_SECONDS:-300}"
 
+ensure_repo() {
+  if [[ -d "$APP_DIR/.git" ]]; then
+    return 0
+  fi
+
+  local parent origin
+  parent="$(dirname "$APP_DIR")"
+  mkdir -p "$parent"
+
+  origin="${GIT_ORIGIN_URL:-}"
+  if [[ -z "$origin" && -d /opt/zdmj/zdmj/.git ]]; then
+    origin="$(git -C /opt/zdmj/zdmj remote get-url origin)"
+  fi
+  if [[ -z "$origin" ]]; then
+    echo "错误: $APP_DIR 不存在且无法推断 git origin"
+    exit 1
+  fi
+
+  echo "初始化仓库: git clone $origin -> $APP_DIR"
+  git clone "$origin" "$APP_DIR"
+  LOCK_FILE="${APP_DIR}/.git/deploy.lock"
+}
+
+ensure_repo
 mkdir -p "$(dirname "$LOCK_FILE")"
 
 (
