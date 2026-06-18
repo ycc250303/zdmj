@@ -165,8 +165,10 @@ export function buildDraftFromImportResult(
       homepageUrl: parsed.personalInfo?.homepageUrl ?? base.personalInfo?.homepageUrl,
       preferredWorkCity: parsed.personalInfo?.preferredWorkCity ?? base.personalInfo?.preferredWorkCity
     }),
+    // 导入流程下强制 skill.id=0：避免老账号引用了已被删除的孤儿技能记录，
+    // 触发后端 7005「技能不存在」。后端会按全量 content 重建/更新。
     skill: {
-      id: base.skill?.id ?? 0,
+      id: 0,
       content: parsedSkillContent
     },
     educations,
