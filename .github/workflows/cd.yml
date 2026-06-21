@@ -6,7 +6,7 @@ name: CD - Deploy
 
 on:
   push:
-    branches: [main, new-f]
+    branches: [main, new-f, frontend/xhr]
     paths:
       - 'backend/zdmj/**'
       - 'client/**'
@@ -27,6 +27,10 @@ on:
         description: 部署 new-f 前端（:1234）
         type: boolean
         default: false
+      deploy_frontend_xhr:
+        description: 部署 frontend/xhr 前端（:5678）
+        type: boolean
+        default: false
 
 concurrency:
   group: zdmj-server-deploy
@@ -37,6 +41,7 @@ env:
   SERVER_USER: root
   APP_DIR_MAIN: /opt/zdmj/zdmj
   APP_DIR_NEW_F: /opt/zdmj/zdmj-new-f
+  APP_DIR_FRONTEND_XHR: /opt/zdmj/zdmj-frontend-xhr
   DOCKER_CLEANUP_UNTIL: 168h
 
 jobs:
@@ -66,6 +71,7 @@ jobs:
               - 'deploy/deploy_frontend.sh'
               - 'deploy/nginx.conf'
               - 'deploy/nginx-new-f.conf'
+              - 'deploy/nginx-frontend-xhr.conf'
               - 'deploy/sync_server_code.sh'
 
   deploy:
@@ -76,7 +82,8 @@ jobs:
     if: |
       github.event_name == 'workflow_dispatch' ||
       (github.ref == 'refs/heads/main' && (needs.detect-changes.outputs.java == 'true' || needs.detect-changes.outputs.frontend == 'true')) ||
-      (github.ref == 'refs/heads/new-f' && needs.detect-changes.outputs.frontend == 'true')
+      (github.ref == 'refs/heads/new-f' && needs.detect-changes.outputs.frontend == 'true') ||
+      (github.ref == 'refs/heads/frontend/xhr' && needs.detect-changes.outputs.frontend == 'true')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -88,33 +95,40 @@ jobs:
           deploy_java=false
           deploy_frontend_main=false
           deploy_frontend_new_f=false
+          deploy_frontend_xhr=false
 
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             [[ "${{ inputs.deploy_backend }}" == "true" ]] && deploy_java=true
             [[ "${{ inputs.deploy_frontend_main }}" == "true" ]] && deploy_frontend_main=true
             [[ "${{ inputs.deploy_frontend_new_f }}" == "true" ]] && deploy_frontend_new_f=true
+            [[ "${{ inputs.deploy_frontend_xhr }}" == "true" ]] && deploy_frontend_xhr=true
           elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             [[ "${{ needs.detect-changes.outputs.java }}" == "true" ]] && deploy_java=true
             [[ "${{ needs.detect-changes.outputs.frontend }}" == "true" ]] && deploy_frontend_main=true
           elif [[ "${{ github.ref }}" == "refs/heads/new-f" ]]; then
             [[ "${{ needs.detect-changes.outputs.frontend }}" == "true" ]] && deploy_frontend_new_f=true
+          elif [[ "${{ github.ref }}" == "refs/heads/frontend/xhr" ]]; then
+            [[ "${{ needs.detect-changes.outputs.frontend }}" == "true" ]] && deploy_frontend_xhr=true
           fi
 
           echo "deploy_java=${deploy_java}" >> "$GITHUB_OUTPUT"
           echo "deploy_frontend_main=${deploy_frontend_main}" >> "$GITHUB_OUTPUT"
           echo "deploy_frontend_new_f=${deploy_frontend_new_f}" >> "$GITHUB_OUTPUT"
-          echo "java=${deploy_java}, frontend_main=${deploy_frontend_main}, frontend_new_f=${deploy_frontend_new_f}"
+          echo "deploy_frontend_xhr=${deploy_frontend_xhr}" >> "$GITHUB_OUTPUT"
+          echo "java=${deploy_java}, main=${deploy_frontend_main}, new_f=${deploy_frontend_new_f}, xhr=${deploy_frontend_xhr}"
 
       - name: Deploy on server
         if: |
           steps.targets.outputs.deploy_java == 'true' ||
           steps.targets.outputs.deploy_frontend_main == 'true' ||
-          steps.targets.outputs.deploy_frontend_new_f == 'true'
+          steps.targets.outputs.deploy_frontend_new_f == 'true' ||
+          steps.targets.outputs.deploy_frontend_xhr == 'true'
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           DEPLOY_JAVA: ${{ steps.targets.outputs.deploy_java }}
           DEPLOY_FRONTEND_MAIN: ${{ steps.targets.outputs.deploy_frontend_main }}
           DEPLOY_FRONTEND_NEW_F: ${{ steps.targets.outputs.deploy_frontend_new_f }}
+          DEPLOY_FRONTEND_XHR: ${{ steps.targets.outputs.deploy_frontend_xhr }}
         run: |
           set -euo pipefail
           bash .github/scripts/ssh_run.sh \
@@ -130,9 +144,11 @@ jobs:
           echo "hostname=\$(hostname)"
           APP_DIR_MAIN="${{ env.APP_DIR_MAIN }}"
           APP_DIR_NEW_F="${{ env.APP_DIR_NEW_F }}"
+          APP_DIR_FRONTEND_XHR="${{ env.APP_DIR_FRONTEND_XHR }}"
           DEPLOY_JAVA="${DEPLOY_JAVA}"
           DEPLOY_FRONTEND_MAIN="${DEPLOY_FRONTEND_MAIN}"
           DEPLOY_FRONTEND_NEW_F="${DEPLOY_FRONTEND_NEW_F}"
+          DEPLOY_FRONTEND_XHR="${DEPLOY_FRONTEND_XHR}"
 
           if [[ "\$DEPLOY_JAVA" == "true" ]]; then
             echo "== Deploy backend (main) =="
@@ -165,11 +181,24 @@ jobs:
               "\$APP_DIR_MAIN/deploy/sync_server_code.sh"
             chmod +x "\$APP_DIR_NEW_F/deploy/deploy_frontend.sh"
             APP_DIR="\$APP_DIR_NEW_F" DEPLOY_BRANCH=new-f \
-              DIST_DIR=/usr/share/nginx/html-new-f INSTALL_NGINX_NEW_F=true \
+              DIST_DIR=/usr/share/nginx/html-new-f \
+              NGINX_SITE_CONF=deploy/nginx-new-f.conf NGINX_SITE_NAME=zdmj-new-f \
               "\$APP_DIR_NEW_F/deploy/deploy_frontend.sh"
           fi
 
-          if [[ "\$DEPLOY_FRONTEND_MAIN" == "true" || "\$DEPLOY_FRONTEND_NEW_F" == "true" ]]; then
+          if [[ "\$DEPLOY_FRONTEND_XHR" == "true" ]]; then
+            echo "== Deploy frontend (frontend/xhr :5678) =="
+            chmod +x "\$APP_DIR_MAIN/deploy/sync_server_code.sh"
+            APP_DIR="\$APP_DIR_FRONTEND_XHR" DEPLOY_BRANCH=frontend/xhr \
+              "\$APP_DIR_MAIN/deploy/sync_server_code.sh"
+            chmod +x "\$APP_DIR_FRONTEND_XHR/deploy/deploy_frontend.sh"
+            APP_DIR="\$APP_DIR_FRONTEND_XHR" DEPLOY_BRANCH=frontend/xhr \
+              DIST_DIR=/usr/share/nginx/html-frontend-xhr \
+              NGINX_SITE_CONF=deploy/nginx-frontend-xhr.conf NGINX_SITE_NAME=zdmj-frontend-xhr \
+              "\$APP_DIR_FRONTEND_XHR/deploy/deploy_frontend.sh"
+          fi
+
+          if [[ "\$DEPLOY_FRONTEND_MAIN" == "true" || "\$DEPLOY_FRONTEND_NEW_F" == "true" || "\$DEPLOY_FRONTEND_XHR" == "true" ]]; then
             echo "== Cleanup pnpm store =="
             if [ -s "/root/.nvm/nvm.sh" ]; then
               # shellcheck disable=SC1091
