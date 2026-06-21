@@ -68,11 +68,14 @@ jobs:
               - 'deploy/docker-compose.yml'
             frontend:
               - 'client/**'
+              - 'client/Dockerfile'
               - 'deploy/deploy_frontend.sh'
+              - 'deploy/docker-compose.yml'
               - 'deploy/nginx.conf'
               - 'deploy/nginx-new-f.conf'
               - 'deploy/nginx-frontend-xhr.conf'
               - 'deploy/sync_server_code.sh'
+              - '.dockerignore'
 
   deploy:
     name: Deploy on Server
@@ -165,50 +168,39 @@ jobs:
           fi
 
           if [[ "\$DEPLOY_FRONTEND_MAIN" == "true" ]]; then
-            echo "== Deploy frontend (main :80) =="
+            echo "== Deploy frontend (main :80, Docker) =="
             cd "\$APP_DIR_MAIN"
             chmod +x "\$APP_DIR_MAIN/deploy/deploy_frontend.sh"
-            APP_DIR="\$APP_DIR_MAIN" DEPLOY_BRANCH=main DIST_DIR=/usr/share/nginx/html \
+            APP_DIR="\$APP_DIR_MAIN" DEPLOY_BRANCH=main FRONTEND_SERVICE=frontend-main \
               "\$APP_DIR_MAIN/deploy/deploy_frontend.sh"
             echo "== Disk usage after frontend deploy =="
             df -h
           fi
 
           if [[ "\$DEPLOY_FRONTEND_NEW_F" == "true" ]]; then
-            echo "== Deploy frontend (new-f :1234) =="
+            echo "== Deploy frontend (new-f :1234, Docker) =="
             chmod +x "\$APP_DIR_MAIN/deploy/sync_server_code.sh"
             APP_DIR="\$APP_DIR_NEW_F" DEPLOY_BRANCH=new-f \
               "\$APP_DIR_MAIN/deploy/sync_server_code.sh"
             chmod +x "\$APP_DIR_NEW_F/deploy/deploy_frontend.sh"
-            APP_DIR="\$APP_DIR_NEW_F" DEPLOY_BRANCH=new-f \
-              DIST_DIR=/usr/share/nginx/html-new-f \
-              NGINX_SITE_CONF=deploy/nginx-new-f.conf NGINX_SITE_NAME=zdmj-new-f \
+            APP_DIR="\$APP_DIR_NEW_F" DEPLOY_BRANCH=new-f FRONTEND_SERVICE=frontend-new-f \
               "\$APP_DIR_NEW_F/deploy/deploy_frontend.sh"
           fi
 
           if [[ "\$DEPLOY_FRONTEND_XHR" == "true" ]]; then
-            echo "== Deploy frontend (frontend/xhr :5678) =="
+            echo "== Deploy frontend (frontend/xhr :5678, Docker) =="
             chmod +x "\$APP_DIR_MAIN/deploy/sync_server_code.sh"
             APP_DIR="\$APP_DIR_FRONTEND_XHR" DEPLOY_BRANCH=frontend/xhr \
               "\$APP_DIR_MAIN/deploy/sync_server_code.sh"
             chmod +x "\$APP_DIR_FRONTEND_XHR/deploy/deploy_frontend.sh"
-            APP_DIR="\$APP_DIR_FRONTEND_XHR" DEPLOY_BRANCH=frontend/xhr \
-              DIST_DIR=/usr/share/nginx/html-frontend-xhr \
-              NGINX_SITE_CONF=deploy/nginx-frontend-xhr.conf NGINX_SITE_NAME=zdmj-frontend-xhr \
+            APP_DIR="\$APP_DIR_FRONTEND_XHR" DEPLOY_BRANCH=frontend/xhr FRONTEND_SERVICE=frontend-xhr \
               "\$APP_DIR_FRONTEND_XHR/deploy/deploy_frontend.sh"
           fi
 
           if [[ "\$DEPLOY_FRONTEND_MAIN" == "true" || "\$DEPLOY_FRONTEND_NEW_F" == "true" || "\$DEPLOY_FRONTEND_XHR" == "true" ]]; then
-            echo "== Cleanup pnpm store =="
-            if [ -s "/root/.nvm/nvm.sh" ]; then
-              # shellcheck disable=SC1091
-              . "/root/.nvm/nvm.sh"
-              nvm use 20 >/dev/null || true
-            fi
-            if command -v pnpm >/dev/null 2>&1; then
-              pnpm store prune || true
-            else
-              echo "pnpm not found, skip pnpm store prune"
-            fi
+            echo "== Docker frontend status =="
+            docker ps --filter "name=zdmj-frontend" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" || true
+            echo "== Cleanup old Docker build cache (${{ env.DOCKER_CLEANUP_UNTIL }}) =="
+            docker builder prune -af --filter "until=${{ env.DOCKER_CLEANUP_UNTIL }}" || true
           fi
           EOF

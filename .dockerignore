@@ -1,0 +1,11 @@
+# 前端镜像构建上下文（仓库根目录）忽略项
+.git
+**/.git
+**/.DS_Store
+**/node_modules
+client/dist
+client/node_modules
+backend/zdmj/target
+docs
+*.md
+第六组*

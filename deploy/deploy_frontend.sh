@@ -1,18 +1,21 @@
 #!/usr/bin/env bash
+# 方案 B：Docker 多阶段构建前端镜像并由 Nginx 容器提供服务。
+# 暂停宿主机 nginx（保留配置与安装，不卸载），避免端口冲突。
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/zdmj/zdmj}"
 DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
-DIST_DIR="${DIST_DIR:-/usr/share/nginx/html}"
+FRONTEND_SERVICE="${FRONTEND_SERVICE:-frontend-main}"
+COMPOSE_DIR="${COMPOSE_DIR:-$APP_DIR/deploy}"
+ENV_FILE="${ENV_FILE:-$APP_DIR/.env}"
 
-NGINX_SITE_CONF="${NGINX_SITE_CONF:-}"
-NGINX_SITE_NAME="${NGINX_SITE_NAME:-}"
-# 兼容旧变量
-if [[ "${INSTALL_NGINX_NEW_F:-false}" == "true" ]]; then
-  NGINX_SITE_CONF=deploy/nginx-new-f.conf
-  NGINX_SITE_NAME=zdmj-new-f
-fi
-NGINX_EXTRA_SITE="${NGINX_EXTRA_SITE:-}"
+case "$FRONTEND_SERVICE" in
+  frontend-main|frontend-new-f|frontend-xhr) ;;
+  *)
+    echo "错误: 未知 FRONTEND_SERVICE=$FRONTEND_SERVICE"
+    exit 1
+    ;;
+esac
 
 cd "$APP_DIR"
 
@@ -26,42 +29,36 @@ else
   git reset --hard "origin/$DEPLOY_BRANCH"
 fi
 
-echo "== 2) 安装依赖 =="
-cd client
+pause_host_nginx() {
+  if systemctl is-active --quiet nginx 2>/dev/null; then
+    echo "== 2) 暂停宿主机 nginx（保留 /etc/nginx 配置，可随时 systemctl start nginx 回滚） =="
+    systemctl stop nginx
+  else
+    echo "== 2) 宿主机 nginx 未运行，跳过 =="
+  fi
+}
 
-# SSH Action 默认是非交互 shell，nvm 可能不会自动加载
-PNPM_VERSION="10"
-if [ -s "/root/.nvm/nvm.sh" ]; then
-  # shellcheck disable=SC1091
-  . "/root/.nvm/nvm.sh"
-  nvm use 20
-fi
+pause_host_nginx
 
-if command -v corepack >/dev/null 2>&1; then
-  corepack enable
-  # pnpm 11+ 需要 Node >= 22.13（依赖 node:sqlite），服务器当前为 Node 20
-  corepack prepare "pnpm@${PNPM_VERSION}" --activate
-elif ! command -v pnpm >/dev/null 2>&1; then
-  npm install -g "pnpm@${PNPM_VERSION}"
-  hash -r
-fi
+echo "== 3) 构建并启动 Docker 前端 (${FRONTEND_SERVICE}) =="
+cd "$COMPOSE_DIR"
 
-node -v
-pnpm -v
-pnpm install --frozen-lockfile
-pnpm build
+compose() {
+  if [[ -f "$ENV_FILE" ]]; then
+    docker compose --env-file "$ENV_FILE" "$@"
+  else
+    docker compose "$@"
+  fi
+}
 
-echo "== 3) 部署前端 =="
-sudo mkdir -p "$DIST_DIR"
-sudo rsync -av --delete dist/ "$DIST_DIR"/
+compose build "$FRONTEND_SERVICE"
+compose up -d --no-deps --force-recreate "$FRONTEND_SERVICE"
+compose ps "$FRONTEND_SERVICE"
 
-if [[ -n "$NGINX_SITE_CONF" && -n "$NGINX_SITE_NAME" ]]; then
-  echo "== 3.1) 安装 Nginx 站点 (${NGINX_SITE_NAME}) =="
-  sudo cp "$APP_DIR/$NGINX_SITE_CONF" "/etc/nginx/sites-available/$NGINX_SITE_NAME"
-  sudo ln -sf "/etc/nginx/sites-available/$NGINX_SITE_NAME" "/etc/nginx/sites-enabled/$NGINX_SITE_NAME"
-fi
+CONTAINER_NAME="zdmj-${FRONTEND_SERVICE}"
 
-sudo nginx -t
-sudo systemctl reload nginx
+echo "== 4) 容器日志 =="
+sleep 3
+docker logs --tail 30 "$CONTAINER_NAME"
 
-echo "Frontend deploy done (branch=${DEPLOY_BRANCH}, dist=${DIST_DIR})."
+echo "Frontend docker deploy done (branch=${DEPLOY_BRANCH}, service=${FRONTEND_SERVICE})."
