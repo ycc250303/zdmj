@@ -16,9 +16,9 @@ COPY client/public ./public
 COPY client/src ./src
 COPY client/index.html client/vite.config.ts client/tsconfig.json client/uno.config.ts ./
 
-COPY client/.env.prod ./.env.prod
+COPY client/.env client/.env.prod ./
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts
 RUN pnpm build
 
 FROM nginx:1.24-alpine
