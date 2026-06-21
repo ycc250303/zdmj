@@ -60,6 +60,7 @@ jobs:
         id: filter
         uses: dorny/paths-filter@v3
         with:
+          base: ${{ github.event_name == 'push' && github.event.before || '' }}
           filters: |
             java:
               - 'backend/zdmj/**'
