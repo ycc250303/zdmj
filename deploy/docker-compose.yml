@@ -83,6 +83,48 @@ services:
       SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
 
+  frontend-main:
+    build:
+      context: ..
+      dockerfile: client/Dockerfile
+      args:
+        NGINX_CONF: deploy/nginx.conf
+    image: zdmj-frontend-main:latest
+    container_name: zdmj-frontend-main
+    restart: always
+    ports:
+      - "80:80"
+    networks:
+      - backend
+
+  frontend-new-f:
+    build:
+      context: ..
+      dockerfile: client/Dockerfile
+      args:
+        NGINX_CONF: deploy/nginx-new-f.conf
+    image: zdmj-frontend-new-f:latest
+    container_name: zdmj-frontend-new-f
+    restart: always
+    ports:
+      - "1234:1234"
+    networks:
+      - backend
+
+  frontend-xhr:
+    build:
+      context: ..
+      dockerfile: client/Dockerfile
+      args:
+        NGINX_CONF: deploy/nginx-frontend-xhr.conf
+    image: zdmj-frontend-xhr:latest
+    container_name: zdmj-frontend-xhr
+    restart: always
+    ports:
+      - "5678:5678"
+    networks:
+      - backend
+
 networks:
   backend:
     driver: bridge
