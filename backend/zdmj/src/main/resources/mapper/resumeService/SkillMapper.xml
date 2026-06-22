@@ -4,7 +4,7 @@
 
     <!-- 根据用户ID查询所有技能列表 -->
     <select id="selectByUserId" resultType="com.zdmj.resumeService.entity.Skill"> SELECT id,
-        user_id, name,content,created_at, updated_at FROM skills WHERE user_id = #{userId} ORDER BY
+        user_id, content, created_at, updated_at FROM skills WHERE user_id = #{userId} ORDER BY
         created_at DESC </select>
 
     <!-- 根据用户ID查询技能ID列表 -->
@@ -13,7 +13,7 @@
 
     <!-- 查询包含特定技能类型的技能 -->
     <select id="selectBySkillType" resultType="com.zdmj.resumeService.entity.Skill"> SELECT id,
-        user_id, name,content,created_at, updated_at FROM skills WHERE content @> '[{"type":
+        user_id, content, created_at, updated_at FROM skills WHERE content @> '[{"type":
         #{type}}]'::jsonb AND user_id = #{userId} </select>
     <select id="selectByResumeId" resultType="com.zdmj.resumeService.entity.Skill"></select>
 
