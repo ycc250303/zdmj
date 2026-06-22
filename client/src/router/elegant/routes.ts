@@ -212,5 +212,15 @@ export const generatedRoutes: GeneratedRoute[] = [
       i18nKey: 'route.resumes-editor',
       hideInMenu: true
     }
+  },
+  {
+    name: 'resume-import',
+    path: '/resume-import',
+    component: 'layout.base$view.resume-import',
+    meta: {
+      title: 'resume-import',
+      i18nKey: 'route.resume-import',
+      hideInMenu: true
+    }
   }
 ];

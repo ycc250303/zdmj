@@ -12,11 +12,15 @@ export namespace ResumeApi {
     content: string[];
   }
   export interface SkillCreate {
-    name: string;
     content: SkillItem[];
   }
   export interface SkillUpdate extends SkillCreate {
     id: number;
+  }
+  /** 技能列表项（与 GET /skills 返回结构对齐） */
+  export interface SkillSet {
+    id: number;
+    content: SkillItem[];
   }
 
   // --- 工作(实习)经历模块 ---
@@ -25,6 +29,7 @@ export namespace ResumeApi {
     position: string;
     startDate: string;
     endDate?: string;
+    visible?: boolean;
     details?: string;
   }
   export interface CareerUpdate extends CareerCreate {
@@ -35,9 +40,10 @@ export namespace ResumeApi {
   export interface EducationCreate {
     school: string;
     major: string;
-    degree: number;
+    degree: number; // 1:博士, 2:硕士, 3:本科, 4:大专, 5:高中, 6:其他
     startDate: string;
     endDate?: string;
+    visible?: boolean;
     gpa?: string;
   }
   export interface EducationUpdate extends EducationCreate {
@@ -55,14 +61,26 @@ export namespace ResumeApi {
     techStack?: string[];
     highlights?: string;
     url?: string;
+    visible?: boolean;
   }
   export interface ProjectUpdate extends ProjectCreate {
     id: number;
   }
 
+  // --- 获奖信息模块 ---
+  export interface AwardCreate {
+    /** 1=奖学金, 2=竞赛获奖, 3=其他类型 */
+    awardType: number;
+    name: string;
+    awardDate: string;
+    description?: string;
+  }
+  export interface AwardUpdate extends AwardCreate {
+    id: number;
+  }
+
   // --- 简历模块 ---
   export interface ResumeCreate {
-    name: string;
     skillId: number;
   }
   export interface ResumeUpdate extends ResumeCreate {
@@ -82,6 +100,7 @@ export namespace ResumeApi {
     degree: number;
     startDate: string;
     endDate?: string;
+    visible: boolean;
     gpa?: string;
   }
 
@@ -91,6 +110,7 @@ export namespace ResumeApi {
     position: string;
     startDate: string;
     endDate?: string;
+    visible: boolean;
     details?: string;
   }
 
@@ -105,6 +125,22 @@ export namespace ResumeApi {
     techStack?: string[];
     highlights?: string;
     url?: string;
+    visible: boolean;
+  }
+
+  export interface AwardDTO {
+    id: number;
+    awardType: number;
+    name: string;
+    awardDate: string;
+    description?: string;
+  }
+
+  export interface ResumePersonalInfo {
+    name?: string;
+    phone?: string;
+    homepageUrl?: string;
+    preferredWorkCity?: string;
   }
 
   export interface ResumeContentDTO {
@@ -113,14 +149,90 @@ export namespace ResumeApi {
     educations: EducationDTO[];
     careers: CareerDTO[];
     projects: ProjectDTO[];
-    awards?: any[];
-    personalInfo?: { name?: string; phone?: string; homepageUrl?: string };
+    awards: AwardDTO[];
+    personalInfo?: ResumePersonalInfo;
+  }
+
+  export interface ResumeContentSaveRequest {
+    skill: SkillCreate | SkillUpdate;
+    educations: Array<EducationCreate | EducationUpdate>;
+    careers: Array<CareerCreate | CareerUpdate>;
+    projects: Array<ProjectCreate | ProjectUpdate>;
+    awards: Array<AwardCreate | AwardUpdate>;
+    personalInfo?: ResumePersonalInfo;
+  }
+
+  /** 简历 PDF/文本识别结果 */
+  export interface ResumeImportPersonalInfo {
+    name?: string;
+    phone?: string;
+    email?: string;
+    major?: string;
+    homepageUrl?: string;
+    preferredWorkCity?: string;
+  }
+
+  export interface ResumeImportEducationItem {
+    school?: string;
+    major?: string;
+    degree?: number;
+    startDate?: string;
+    endDate?: string;
+    visible?: boolean;
+    gpa?: string;
+  }
+
+  export interface ResumeImportCareerItem {
+    company?: string;
+    position?: string;
+    startDate?: string;
+    endDate?: string;
+    visible?: boolean;
+    details?: string;
+  }
+
+  export interface ResumeImportProjectItem {
+    name?: string;
+    role?: string;
+    startDate?: string;
+    endDate?: string;
+    description?: string;
+    contribution?: string;
+    techStack?: string[];
+    highlights?: string;
+    url?: string;
+    visible?: boolean;
+  }
+
+  export interface ResumeImportAwardItem {
+    awardType?: number;
+    name?: string;
+    awardDate?: string;
+    description?: string;
+  }
+
+  export interface ResumeImportSkillItem {
+    content?: SkillItem[];
+  }
+
+  export interface ResumeImportParseResult {
+    personalInfo?: ResumeImportPersonalInfo;
+    educations?: ResumeImportEducationItem[];
+    careers?: ResumeImportCareerItem[];
+    projects?: ResumeImportProjectItem[];
+    awards?: ResumeImportAwardItem[];
+    skill?: ResumeImportSkillItem;
+    warnings?: string[];
+  }
+
+  export interface ResumeImportParseRequest {
+    pdfUrl?: string;
+    rawText?: string;
   }
 }
 
 /** * =====================================================================
  * API 请求封装区域
- * 规范：统一使用 request() 进行调用，返回 Promise 响应
  * =====================================================================
  */
 
@@ -192,7 +304,24 @@ export function fetchDeleteProject(id: number) {
   return request({ url: `/projects/${id}`, method: 'delete' });
 }
 
-// ==================== 5. 简历控制器 (Resumes) ====================
+// ==================== 5. 获奖信息控制器 (Awards) ====================
+export function fetchAddAward(data: ResumeApi.AwardCreate) {
+  return request({ url: '/awards', method: 'post', data });
+}
+export function fetchUpdateAward(data: ResumeApi.AwardUpdate) {
+  return request({ url: '/awards', method: 'put', data });
+}
+export function fetchGetAwardList() {
+  return request({ url: '/awards', method: 'get' });
+}
+export function fetchGetAwardDetail(id: number) {
+  return request({ url: `/awards/${id}`, method: 'get' });
+}
+export function fetchDeleteAward(id: number) {
+  return request({ url: `/awards/${id}`, method: 'delete' });
+}
+
+// ==================== 6. 简历控制器 (Resumes) ====================
 export function fetchAddResume(data: ResumeApi.ResumeCreate) {
   return request({ url: '/resumes', method: 'post', data });
 }
@@ -202,33 +331,46 @@ export function fetchUpdateResume(data: ResumeApi.ResumeUpdate) {
 export function fetchGetResumeList() {
   return request({ url: '/resumes', method: 'get' });
 }
+export function fetchGetResumeDetail(id: number) {
+  return request({ url: `/resumes/${id}`, method: 'get' });
+}
 export function fetchDeleteResume(id: number) {
   return request({ url: `/resumes/${id}`, method: 'delete' });
 }
 
-/** 获取当前用户的完整简历内容（新接口替代 /resumes/{id}/content） */
-export function fetchGetResumeMeContent() {
-  return request({ url: '/resumes/me/content', method: 'get' });
+export function fetchGetResumeFullContentDetail(id: number) {
+  return request({ url: `/resumes/${id}/content`, method: 'get' });
 }
 
-/** 全量保存简历内容 */
-export function fetchSaveResumeMeContent(data: ResumeApi.ResumeContentDTO) {
-  return request({ url: '/resumes/me/content', method: 'put', data });
-}
-
-/** 保留兼容：拉取所有简历完整内容列表 */
 export function fetchGetResumeFullContentList() {
   return request({ url: '/resumes/content', method: 'get' });
 }
 
-// --- 基本信息模块 DTO ---
+/** 获取当前用户简历完整内容（不存在则后端自动创建） */
+export function fetchGetMyResumeContent() {
+  return request<ResumeApi.ResumeContentDTO>({ url: '/resumes/me/content', method: 'get' });
+}
+
+/** 全量保存当前用户简历内容 */
+export function fetchSaveMyResumeContent(data: ResumeApi.ResumeContentSaveRequest) {
+  return request<ResumeApi.ResumeContentDTO>({ url: '/resumes/me/content', method: 'put', data });
+}
+
+/** 简历 PDF/文本结构化识别 */
+export function fetchParseResumeImport(data: ResumeApi.ResumeImportParseRequest) {
+  return request<ResumeApi.ResumeImportParseResult>({
+    url: '/resumes/import/parse',
+    method: 'post',
+    data
+  });
+}
+
+// --- 基本信息模块 ---
 export interface UserUpdateDTO {
   name?: string;
   phone?: string;
   homepageUrl?: string;
 }
-
-// 请求方法：更新当前登录用户的基本信息
 export function fetchUpdateUserInfo(data: UserUpdateDTO) {
   return request({ url: '/users/me', method: 'put', data });
 }
