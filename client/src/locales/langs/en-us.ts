@@ -477,6 +477,8 @@ const local: App.I18n.Schema = {
         phonePlaceholder: "Enter your contact number",
         homepageUrl: "Personal Homepage / Blog URL",
         homepageUrlPlaceholder: "Optional, e.g., GitHub or personal website",
+        preferredWorkCity: "Preferred Work City",
+        preferredWorkCityPlaceholder: "Optional, e.g., Beijing, Shanghai",
         updateSuccess: "Basic information saved successfully"
       },
       capability: {

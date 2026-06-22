@@ -182,17 +182,17 @@ export const generatedRoutes: GeneratedRoute[] = [
           title: 'profile_project',
           i18nKey: 'route.profile_project'
         }
-      },
-      {
-        name: 'profile_skill',
-        path: '/profile/skill',
-        component: 'view.profile_skill',
-        meta: {
-          title: 'profile_skill',
-          i18nKey: 'route.profile_skill'
-        }
       }
     ]
+  },
+  {
+    name: 'resume-import',
+    path: '/resume-import',
+    component: 'layout.base$view.resume-import',
+    meta: {
+      title: 'resume-import',
+      i18nKey: 'route.resume-import'
+    }
   },
   {
     name: 'resumes',
@@ -210,16 +210,6 @@ export const generatedRoutes: GeneratedRoute[] = [
     meta: {
       title: 'resumes-editor',
       i18nKey: 'route.resumes-editor',
-      hideInMenu: true
-    }
-  },
-  {
-    name: 'resume-import',
-    path: '/resume-import',
-    component: 'layout.base$view.resume-import',
-    meta: {
-      title: 'resume-import',
-      i18nKey: 'route.resume-import',
       hideInMenu: true
     }
   }

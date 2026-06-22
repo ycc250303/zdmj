@@ -32,8 +32,7 @@ export const views: Record<LastLevelRouteKey, RouteComponent | (() => Promise<Ro
   profile_career: () => import("@/views/profile/career/index.vue"),
   profile_education: () => import("@/views/profile/education/index.vue"),
   profile_project: () => import("@/views/profile/project/index.vue"),
-  profile_skill: () => import("@/views/profile/skill/index.vue"),
+  "resume-import": () => import("@/views/resume-import/index.vue"),
   "resumes-editor": () => import("@/views/resumes-editor/index.vue"),
   resumes: () => import("@/views/resumes/index.vue"),
-  "resume-import": () => import("@/views/resume-import/index.vue"),
 };

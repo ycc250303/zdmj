@@ -35,7 +35,7 @@ declare module "@elegant-router/types" {
     "profile_career": "/profile/career";
     "profile_education": "/profile/education";
     "profile_project": "/profile/project";
-    "profile_skill": "/profile/skill";
+    "resume-import": "/resume-import";
     "resumes": "/resumes";
     "resumes-editor": "/resumes-editor";
   };
@@ -82,6 +82,7 @@ declare module "@elegant-router/types" {
     | "login"
     | "portal"
     | "profile"
+    | "resume-import"
     | "resumes"
     | "resumes-editor"
   >;
@@ -117,7 +118,7 @@ declare module "@elegant-router/types" {
     | "profile_career"
     | "profile_education"
     | "profile_project"
-    | "profile_skill"
+    | "resume-import"
     | "resumes-editor"
     | "resumes"
   >;

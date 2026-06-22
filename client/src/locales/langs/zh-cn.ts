@@ -474,6 +474,8 @@ const local: App.I18n.Schema = {
         phonePlaceholder: '请输入常用的手机号码',
         homepageUrl: '个人主页/博客链接',
         homepageUrlPlaceholder: '选填，例如 GitHub 或个人博客地址',
+        preferredWorkCity: '期望工作城市',
+        preferredWorkCityPlaceholder: '选填，例如 北京、上海',
         updateSuccess: '基本信息保存成功'
       },
       capability: {

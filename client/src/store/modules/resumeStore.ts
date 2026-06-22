@@ -2,8 +2,8 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import {
-  fetchGetResumeMeContent,
-  fetchSaveResumeMeContent,
+  fetchGetMyResumeContent,
+  fetchSaveMyResumeContent,
   fetchUpdateUserInfo,
   ResumeApi
 } from '@/service/api/resume';
@@ -26,7 +26,7 @@ export const useResumeStore = defineStore('resume-editor', () => {
   async function initResumeData(_resumeId?: number) {
     isLoading.value = true;
     try {
-      const { data, error } = await fetchGetResumeMeContent();
+      const { data, error } = await fetchGetMyResumeContent();
       if (error || !data) throw new Error('简历不存在');
 
       resumeData.value = data as ResumeApi.ResumeContentDTO;
@@ -59,7 +59,7 @@ export const useResumeStore = defineStore('resume-editor', () => {
     isSaving.value = true;
     try {
       // 新接口：全量保存
-      const { error } = await fetchSaveResumeMeContent(resumeData.value);
+      const { error } = await fetchSaveMyResumeContent(resumeData.value);
       if (error) throw error;
 
       // 同步更新用户信息
