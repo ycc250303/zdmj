@@ -18,3 +18,4 @@ docs/backend/Prisma-AI功能分类-Spring-AI-vs-LangChain.md
 /docs/软管
 /.vscode
 /.agents/skills
+/.claude

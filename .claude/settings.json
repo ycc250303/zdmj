@@ -15,7 +15,10 @@
       "Bash(npx vite *)",
       "Bash(pnpm add *)",
       "WebFetch(domain:www.tasteskill.dev)",
-      "Bash(curl -sL \"https://www.tasteskill.dev/\")"
+      "Bash(curl -sL \"https://www.tasteskill.dev/\")",
+      "Bash(grep -n \"page\\\\.\\\\|^\\\\s*\\\\}\\\\s*$\" client/src/locales/langs/zh-cn.ts)",
+      "Bash(git stash *)",
+      "Bash(git pull *)"
     ]
   }
 }

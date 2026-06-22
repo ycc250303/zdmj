@@ -35,4 +35,5 @@ export const views: Record<LastLevelRouteKey, RouteComponent | (() => Promise<Ro
   profile_skill: () => import("@/views/profile/skill/index.vue"),
   "resumes-editor": () => import("@/views/resumes-editor/index.vue"),
   resumes: () => import("@/views/resumes/index.vue"),
+  "resume-import": () => import("@/views/resume-import/index.vue"),
 };
