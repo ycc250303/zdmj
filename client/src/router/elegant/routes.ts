@@ -132,6 +132,16 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
+    name: 'matches',
+    path: '/matches',
+    component: 'layout.base$view.matches',
+    meta: {
+      title: 'matches',
+      i18nKey: 'route.matches',
+      order: 5
+    }
+  },
+  {
     name: 'portal',
     path: '/portal',
     component: 'layout.base$view.portal',

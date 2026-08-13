@@ -1,20 +1,24 @@
 package com.zdmj.matchService.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.common.model.PageDTO;
 import com.zdmj.jobService.dto.JobCapabilityProfileDTO;
 import com.zdmj.jobService.dto.JobListItemDTO;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobService;
 import com.zdmj.matchService.dto.DimensionMatchDTO;
 import com.zdmj.matchService.dto.JobStudentMatchDTO;
+import com.zdmj.matchService.dto.JobStudentMatchListItemDTO;
 import com.zdmj.matchService.entity.JobStudentMatch;
 import com.zdmj.matchService.enums.MatchDimension;
+import com.zdmj.matchService.mapper.JobStudentMatchMapper;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileDTO;
 import com.zdmj.resumeService.service.StudentCapabilityProfileService;
 
@@ -25,7 +29,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -67,6 +75,8 @@ class JobStudentMatchServiceImplTest {
     private StudentCapabilityProfileService studentCapabilityProfileService;
     @Mock
     private ChatUtil chatUtil;
+    @Mock
+    private JobStudentMatchMapper matchMapper;
 
     private JobStudentMatchServiceImpl matchService;
 
@@ -78,6 +88,7 @@ class JobStudentMatchServiceImplTest {
                 studentCapabilityProfileService,
                 chatUtil,
                 new ObjectMapper()));
+        ReflectionTestUtils.setField(matchService, "baseMapper", matchMapper);
         UserHolder.set(new UserContext(USER_ID, "tester", "tester@example.com"));
     }
 
@@ -257,6 +268,47 @@ class JobStudentMatchServiceImplTest {
 
         // FRONTEND 默认 0.20 / 0.45 / 0.15 / 0.20，总和 1.0
         assertEquals(0, weights.getProfessionalSkill().compareTo(new java.math.BigDecimal("0.45")));
+    }
+
+    @Test
+    void getMyPage_shouldNormalizePagingAndDelegateToMapper() {
+        JobStudentMatchListItemDTO item = new JobStudentMatchListItemDTO();
+        item.setId(1L);
+        item.setJobId(11L);
+        item.setJobName("Java 后端");
+        item.setCompanyName("ZDMJ");
+        item.setOverallScore(82);
+        item.setKeySkillMatchRate(new BigDecimal("0.7500"));
+        item.setSummary("可投递");
+        item.setUpdatedAt(LocalDateTime.of(2026, 8, 13, 12, 0));
+
+        Page<JobStudentMatchListItemDTO> mpPage = new Page<>(1, 20);
+        mpPage.setRecords(List.of(item));
+        mpPage.setTotal(1);
+        doReturn(mpPage).when(matchMapper).selectMyMatchPage(any(Page.class), eq(USER_ID));
+
+        PageDTO<JobStudentMatchListItemDTO> page = matchService.getMyPage(null, null);
+
+        assertEquals(1, page.getPage());
+        assertEquals(20, page.getLimit());
+        assertEquals(1L, page.getTotal());
+        assertEquals(1, page.getList().size());
+        assertEquals(11L, page.getList().get(0).getJobId());
+        verify(matchMapper).selectMyMatchPage(any(Page.class), eq(USER_ID));
+    }
+
+    @Test
+    void getMyPage_whenLimitTooLarge_shouldCapAt100() {
+        Page<JobStudentMatchListItemDTO> mpPage = new Page<>(1, 100);
+        mpPage.setRecords(List.of());
+        mpPage.setTotal(0);
+        doReturn(mpPage).when(matchMapper).selectMyMatchPage(any(Page.class), eq(USER_ID));
+
+        PageDTO<JobStudentMatchListItemDTO> page = matchService.getMyPage(1, 500);
+
+        assertEquals(100, page.getLimit());
+        assertTrue(page.getList().isEmpty());
+        verify(matchMapper).selectMyMatchPage(any(Page.class), eq(USER_ID));
     }
 
     // ========================================================

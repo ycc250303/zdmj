@@ -1,6 +1,7 @@
 package com.zdmj.matchService.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,6 +11,8 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.ai.PromptUtil.JobRole;
+import com.zdmj.common.model.PageDTO;
+import com.zdmj.common.model.PageRequests;
 import com.zdmj.jobService.dto.JobCapabilityProfileDTO;
 import com.zdmj.jobService.dto.JobListItemDTO;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
@@ -17,6 +20,7 @@ import com.zdmj.jobService.service.JobService;
 import com.zdmj.matchService.dto.DimensionMatchDTO;
 import com.zdmj.matchService.dto.JobStudentMatchDTO;
 import com.zdmj.matchService.dto.JobStudentMatchGenerateRequest;
+import com.zdmj.matchService.dto.JobStudentMatchListItemDTO;
 import com.zdmj.matchService.dto.MatchWeightConfigDTO;
 import com.zdmj.matchService.entity.JobStudentMatch;
 import com.zdmj.matchService.enums.MatchDimension;
@@ -62,6 +66,15 @@ public class JobStudentMatchServiceImpl
     // ============================================================
     // 公共接口
     // ============================================================
+
+    @Override
+    public PageDTO<JobStudentMatchListItemDTO> getMyPage(Integer page, Integer limit) {
+        Long userId = UserHolder.requireUserId();
+        PageRequests.Normalized paging = PageRequests.normalize(page, limit);
+        IPage<JobStudentMatchListItemDTO> result =
+                baseMapper.selectMyMatchPage(PageRequests.toPage(paging), userId);
+        return PageDTO.from(result);
+    }
 
     @Override
     public JobStudentMatchDTO getOrNull(Long jobId) {

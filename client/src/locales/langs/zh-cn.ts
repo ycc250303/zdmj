@@ -226,6 +226,7 @@ const local: App.I18n.Schema = {
     home: '首页',
     portal: '门户',
     jobs: '岗位信息',
+    matches: '我的匹配',
     'job-detail': '岗位详情',
     'job-edit': '编辑岗位',
     knowledge: '知识库',
@@ -889,6 +890,15 @@ const local: App.I18n.Schema = {
         pathNodes: "路径节点",
         current: "当前"
       }
+    },
+    matches: {
+      title: '我的匹配',
+      goJobs: '去岗位列表',
+      overallScore: '综合分',
+      keySkillRate: '关键技能',
+      updatedAt: '最近匹配',
+      noSummary: '暂无匹配摘要',
+      empty: '暂无匹配记录，去岗位详情发起一次匹配吧'
     },
     knowledge: {
       title: '知识库管理',

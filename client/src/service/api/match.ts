@@ -50,6 +50,33 @@ export namespace MatchApi {
   export interface JobStudentMatchGenerateReq {
     weights?: MatchWeightConfig; // 可选自定义权重
   }
+
+  // 匹配记录列表项（对应 JobStudentMatchListItemDTO）
+  export interface JobStudentMatchListItem {
+    id?: number;
+    jobId?: number;
+    jobName?: string;
+    companyName?: string;
+    overallScore?: number;
+    keySkillMatchRate?: number;
+    summary?: string;
+    updatedAt?: string;
+  }
+
+  // 分页查询参数
+  export interface MatchPageQuery extends Api.Common.PageQueryParams {}
+}
+
+/**
+ * 分页查询当前用户已匹配过的岗位记录
+ * 后端：GET /matches?page=&limit=
+ */
+export function fetchGetMyMatchPage(params?: MatchApi.MatchPageQuery) {
+  return request<Api.Common.PageDTO<MatchApi.JobStudentMatchListItem>>({
+    url: '/matches',
+    method: 'get',
+    params
+  });
 }
 
 /**

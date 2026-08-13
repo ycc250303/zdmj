@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zdmj.matchService.mapper.JobStudentMatchMapper">
+
+    <select id="selectMyMatchPage" resultType="com.zdmj.matchService.dto.JobStudentMatchListItemDTO">
+        SELECT
+            m.id,
+            m.job_id AS jobId,
+            j.job_name AS jobName,
+            j.company_name AS companyName,
+            m.overall_score AS overallScore,
+            m.key_skill_match_rate AS keySkillMatchRate,
+            m.summary,
+            m.updated_at AS updatedAt
+        FROM job_student_matches m
+        INNER JOIN jobs j ON m.job_id = j.id
+        WHERE m.user_id = #{userId}
+        ORDER BY m.updated_at DESC
+    </select>
+
+</mapper>

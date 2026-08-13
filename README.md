@@ -135,7 +135,7 @@ zdmj/
 │   └── deploy.sh                       # 部署脚本
 ├── sql/                                # 数据库脚本
 ├── docs/                               # 项目文档
-├── tools/                              # 开发辅助工具
+├── .cursor/skills/                     # Cursor Agent Skills
 └── README.md
 ```
 

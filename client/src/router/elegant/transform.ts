@@ -175,6 +175,7 @@ const routeMap: RouteMap = {
   "jobs": "/jobs",
   "knowledge": "/knowledge",
   "login": "/login/:module(pwd-login|code-login|register|reset-pwd|bind-wechat)?",
+  "matches": "/matches",
   "portal": "/portal",
   "resume-import": "/resume-import",
   "resumes-editor": "/resumes-editor",

@@ -1,8 +1,10 @@
 package com.zdmj.matchService.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.zdmj.common.model.PageDTO;
 import com.zdmj.matchService.dto.JobStudentMatchDTO;
 import com.zdmj.matchService.dto.JobStudentMatchGenerateRequest;
+import com.zdmj.matchService.dto.JobStudentMatchListItemDTO;
 import com.zdmj.matchService.dto.MatchWeightConfigDTO;
 import com.zdmj.matchService.entity.JobStudentMatch;
 
@@ -16,6 +18,15 @@ import com.zdmj.matchService.entity.JobStudentMatch;
  * </ul>
  */
 public interface JobStudentMatchService extends IService<JobStudentMatch> {
+
+    /**
+     * 分页查询当前用户已匹配过的岗位记录（仅最新一次；岗位已删则不返回）。
+     *
+     * @param page  页码（从 1 开始，可空）
+     * @param limit 每页条数（可空）
+     * @return 分页列表
+     */
+    PageDTO<JobStudentMatchListItemDTO> getMyPage(Integer page, Integer limit);
 
     /**
      * 仅查询当前用户与该岗位的最新匹配结果；不存在返回 null。

@@ -2,11 +2,13 @@ package com.zdmj.matchService.controller;
 
 import com.zdmj.common.annotation.RateLimit;
 import com.zdmj.common.ai.LlmRateLimits;
+import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.Result;
 
 import java.util.concurrent.TimeUnit;
 import com.zdmj.matchService.dto.JobStudentMatchDTO;
 import com.zdmj.matchService.dto.JobStudentMatchGenerateRequest;
+import com.zdmj.matchService.dto.JobStudentMatchListItemDTO;
 import com.zdmj.matchService.dto.MatchWeightConfigDTO;
 import com.zdmj.matchService.service.JobStudentMatchService;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -30,6 +33,20 @@ import org.springframework.web.bind.annotation.RestController;
 public class JobStudentMatchController {
 
     private final JobStudentMatchService matchService;
+
+    /**
+     * 分页查询当前用户已匹配过的岗位记录（按最近匹配时间倒序；岗位已删则不返回）。
+     *
+     * @param page  页码（从 1 开始）
+     * @param limit 每页条数
+     * @return 分页列表
+     */
+    @GetMapping
+    public Result<PageDTO<JobStudentMatchListItemDTO>> getMyPage(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer limit) {
+        return Result.success("查询匹配记录成功", matchService.getMyPage(page, limit));
+    }
 
     /**
      * 仅查询当前用户与该岗位的最新匹配结果（不触发 LLM 生成；不存在返回 null）。

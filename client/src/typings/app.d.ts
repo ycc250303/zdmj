@@ -1171,6 +1171,15 @@ declare namespace App {
             current: string;
           };
         };
+        matches: {
+          title: string;
+          goJobs: string;
+          overallScore: string;
+          keySkillRate: string;
+          updatedAt: string;
+          noSummary: string;
+          empty: string;
+        };
       };
       form: {
         required: string;

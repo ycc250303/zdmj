@@ -6,7 +6,7 @@
 ### 脚本约定（与 `pgsql.sql` 一致）
 
 - **扩展**：`vector`（pgvector）；`pg_trgm`（岗位/公司名称模糊搜索 GIN 索引）；`hnsw` 在部分环境不存在独立扩展，若初始化失败可注释 `CREATE EXTENSION hnsw`。
-- **删表顺序**（与脚本 `DROP TABLE` 自上而下一致）：`users` → `user_profiles` → `user_behavior_logs` → `educations` → `skills` → `careers` → `project_experiences` → `resumes` → `resume_matches` → `jobs` → `companies` → `knowledge_documents` → `knowledge_bases` → `knowledge_vectors` → `knowledge_vector_tasks` → `conversations` → `messages` → `SPRING_AI_CHAT_MEMORY`。
+- **删表顺序**（与脚本 `DROP TABLE` 自上而下一致）：`users` → `user_profiles` → `user_behavior_logs` → `educations` → `skills` → `careers` → `project_experiences` → `resumes` → `resume_matches` → `job_student_matches` / 相关岗位侧表 → `jobs` → `companies` → `knowledge_documents` → `knowledge_bases` → `knowledge_vectors` → `knowledge_vector_tasks` → `conversations` → `messages` → `SPRING_AI_CHAT_MEMORY`。
 - **知识库模型（当前）**：每用户**一个** `scope=1` 的用户私有库；全系统**一个** `scope=2` 的系统默认库。`knowledge_bases` **仅存标识**（`user_id`、`scope`）；向量化状态、分块数等均在 **`knowledge_documents`**。
 - **系统库占位**：`knowledge_bases` / `knowledge_documents` / `knowledge_vectors` 在系统场景下 `user_id` 约定为 `0`（与真实用户 ID 区分）。
 
@@ -214,6 +214,30 @@
 | `updated_at`   | `TIMESTAMP`    | 更新时间     | `DEFAULT CURRENT_TIMESTAMP` | -                                                                                              |
 
 **索引**：`idx_companies_name`、`idx_companies_name_trgm` — `GIN (name gin_trgm_ops)`；`idx_jobs_company_name_trgm` — `GIN (company_name gin_trgm_ops)`（jobs 冗余字段）；`idx_companies_size`、`idx_companies_type`、`idx_companies_industries`。
+
+### 3.3 表 `job_student_matches`
+
+人岗匹配分析表：每一行表示「某用户 × 某岗位」的**最新一次**匹配结果；`(user_id, job_id)` 唯一，重新分析覆盖写。
+
+| 字段名称 | 字段类型 | 字段含义 | 约束 | 枚举/JSON字段含义 |
+| --- | --- | --- | --- | --- |
+| `id` | `BIGSERIAL` | 匹配ID | `PK` | - |
+| `user_id` | `BIGINT` | 学生用户ID | `NOT NULL`，逻辑外键 `users.id` | - |
+| `job_id` | `BIGINT` | 岗位ID | `NOT NULL`，逻辑外键 `jobs.id` | - |
+| `overall_score` | `INTEGER` | 综合匹配度 | `NOT NULL DEFAULT 0` | 0~100 |
+| `basic_score` / `professional_skill_score` / `professional_quality_score` / `development_potential_score` | `INTEGER` | 四维评分 | `NOT NULL DEFAULT 0` | 0~100 |
+| `weights` | `JSONB` | 权重快照 | `NOT NULL DEFAULT '{}'` | `basic` / `professionalSkill` / … |
+| `dimension_detail` | `JSONB` | 四维对比明细 | `NOT NULL DEFAULT '{}'` | 每维含 score/gap/evidence 等 |
+| `matched_highlights` / `critical_gaps` / `matched_keywords` / `missing_keywords` | `JSONB` | 亮点/差距/关键词 | 默认 `[]` | 字符串数组 |
+| `key_skill_match_rate` | `NUMERIC(5,4)` | 关键技能匹配率 | `NOT NULL DEFAULT 0` | 0~1 |
+| `summary` | `TEXT` | 一句话总结 | 可空 | - |
+| `target_role_type` | `VARCHAR(64)` | 岗位类型 | `NOT NULL DEFAULT 'default'` | 如 `java-backend` |
+| `prompt_name` | `VARCHAR(128)` | 使用的提示词名 | `NOT NULL` | 如 `job-student-match/default` |
+| `created_at` / `updated_at` | `TIMESTAMP` | 创建/更新时间 | `DEFAULT CURRENT_TIMESTAMP` | 列表按 `updated_at DESC` |
+
+**索引**：`uk_job_student_matches_user_job` UNIQUE `(user_id, job_id)`；`idx_job_student_matches_user_id`；`idx_job_student_matches_job_id`；`idx_job_student_matches_role_type`。
+
+**列表 API**：`GET /matches?page=&limit=`（当前用户，INNER JOIN `jobs`，岗位已删不返回）。
 
 ## 4 知识库模块
 

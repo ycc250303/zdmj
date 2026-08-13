@@ -29,6 +29,7 @@ declare module "@elegant-router/types" {
     "jobs": "/jobs";
     "knowledge": "/knowledge";
     "login": "/login/:module(pwd-login|code-login|register|reset-pwd|bind-wechat)?";
+    "matches": "/matches";
     "portal": "/portal";
     "resume-import": "/resume-import";
     "resumes-editor": "/resumes-editor";
@@ -76,6 +77,7 @@ declare module "@elegant-router/types" {
     | "jobs"
     | "knowledge"
     | "login"
+    | "matches"
     | "portal"
     | "resume-import"
     | "resumes-editor"
@@ -108,6 +110,7 @@ declare module "@elegant-router/types" {
     | "job-edit"
     | "jobs"
     | "knowledge"
+    | "matches"
     | "portal"
     | "resume-import"
     | "resumes-editor"

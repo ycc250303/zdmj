@@ -234,6 +234,7 @@ const local: App.I18n.Schema = {
     "knowledge": 'Knowledge Base',
     "chat": 'AI Chat',
     "jobs": 'Jobs',
+    matches: 'My Matches',
     "job-detail": 'Job Details',
     "job-edit": 'Edit Job',
     'user-settings': 'User Settings'
@@ -959,6 +960,15 @@ const local: App.I18n.Schema = {
         pathNodes: "Path Nodes",
         current: "Current"
       }
+    },
+    matches: {
+      title: 'My Matches',
+      goJobs: 'Browse Jobs',
+      overallScore: 'Score',
+      keySkillRate: 'Key Skills',
+      updatedAt: 'Last Matched',
+      noSummary: 'No summary',
+      empty: 'No match records yet. Analyze a job from the job detail page.'
     }
   },
   form: {

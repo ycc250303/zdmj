@@ -27,6 +27,7 @@ export const views: Record<LastLevelRouteKey, RouteComponent | (() => Promise<Ro
   "job-edit": () => import("@/views/job-edit/index.vue"),
   jobs: () => import("@/views/jobs/index.vue"),
   knowledge: () => import("@/views/knowledge/index.vue"),
+  matches: () => import("@/views/matches/index.vue"),
   portal: () => import("@/views/portal/index.vue"),
   "resume-import": () => import("@/views/resume-import/index.vue"),
   "resumes-editor": () => import("@/views/resumes-editor/index.vue"),
