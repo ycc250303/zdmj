@@ -1,8 +1,6 @@
 package com.zdmj.conversationService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.zdmj.common.cache.RedisConstants;
-import com.zdmj.common.cache.RedisUtil;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -31,19 +29,7 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         implements ConversationService {
 
     private final ConversationMapper conversationMapper;
-    private final RedisUtil redisUtil;
     private final ResumeService resumeService;
-
-    @Override
-    public boolean updateById(Conversation entity) {
-        boolean updated = super.updateById(entity);
-        if (!updated || entity == null || entity.getId() == null) {
-            return updated;
-        }
-        // 保证 conversation:{id} 缓存与数据库一致，避免 messageCount 等字段读到旧值
-        redisUtil.set(RedisConstants.CONVERSATION_KEY + entity.getId(), entity, RedisConstants.CONVERSATION_TTL);
-        return updated;
-    }
 
     @Override
     public Conversation create(ConversationDTO conversationDTO) {
@@ -92,21 +78,12 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         if (id == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "会话ID不能为空");
         }
-        String key = RedisConstants.CONVERSATION_KEY + id;
-        Conversation conversation = redisUtil.get(key, Conversation.class);
-        if (conversation != null) {
-            if (!conversation.getUserId().equals(UserHolder.requireUserId())) {
-                throw new BusinessException(ErrorCode.NO_PERMISSION);
-            }
-            return conversation;
-        }
-        conversation = conversationMapper.selectById(id);
+        Conversation conversation = conversationMapper.selectById(id);
         if (conversation == null) {
             throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
         } else if (!conversation.getUserId().equals(UserHolder.requireUserId())) {
             throw new BusinessException(ErrorCode.NO_PERMISSION);
         }
-        redisUtil.set(key, conversation, RedisConstants.CONVERSATION_TTL);
         return conversation;
     }
 
@@ -133,7 +110,7 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         if (rows != 1) {
             throw new BusinessException(ErrorCode.CONVERSATION_UPDATE_FAILED);
         }
-        return refreshConversationCache(id);
+        return requireById(id);
     }
 
     @Override
@@ -156,18 +133,15 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         if (rows != 1) {
             throw new BusinessException(ErrorCode.CONVERSATION_UPDATE_FAILED);
         }
-        return refreshConversationCache(id);
+        return requireById(id);
     }
 
-    /**
-     * 从数据库重新加载会话并回填 Redis，避免局部更新后缓存字段（如 message_count）过期。
-     */
-    private Conversation refreshConversationCache(Long id) {
+    /** 局部更新后从数据库重新加载，保证返回最新字段。 */
+    private Conversation requireById(Long id) {
         Conversation refreshed = conversationMapper.selectById(id);
         if (refreshed == null) {
             throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
         }
-        redisUtil.set(RedisConstants.CONVERSATION_KEY + id, refreshed, RedisConstants.CONVERSATION_TTL);
         return refreshed;
     }
 
@@ -182,6 +156,5 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         if (!deleted) {
             throw new BusinessException(ErrorCode.CONVERSATION_DELETE_FAILED);
         }
-        redisUtil.delete(RedisConstants.CONVERSATION_KEY + id);
     }
 }

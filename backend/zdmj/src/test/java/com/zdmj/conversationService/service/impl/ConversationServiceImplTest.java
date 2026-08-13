@@ -1,7 +1,5 @@
 package com.zdmj.conversationService.service.impl;
 
-import com.zdmj.common.cache.RedisConstants;
-import com.zdmj.common.cache.RedisUtil;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
@@ -44,15 +42,13 @@ class ConversationServiceImplTest {
     @Mock
     private ConversationMapper conversationMapper;
     @Mock
-    private RedisUtil redisUtil;
-    @Mock
     private ResumeService resumeService;
 
     private ConversationServiceImpl conversationService;
 
     @BeforeEach
     void setUp() {
-        conversationService = spy(new ConversationServiceImpl(conversationMapper, redisUtil, resumeService));
+        conversationService = spy(new ConversationServiceImpl(conversationMapper, resumeService));
         lenient().when(resumeService.getMyResumeContent()).thenReturn(new ResumeContentDTO());
         UserHolder.set(UserContext.of(1L, "u1"));
     }
@@ -129,22 +125,7 @@ class ConversationServiceImplTest {
     }
 
     @Test
-    void getById_cacheHitAuthorized_shouldReturnConversation() {
-        Conversation cached = new Conversation();
-        cached.setId(10L);
-        cached.setUserId(1L);
-        doReturn(cached).when(redisUtil).get(RedisConstants.CONVERSATION_KEY + 10L, Conversation.class);
-
-        Conversation out = conversationService.getById(10L);
-
-        assertEquals(10L, out.getId());
-        verify(redisUtil).get(RedisConstants.CONVERSATION_KEY + 10L, Conversation.class);
-        verify(conversationMapper, never()).selectById(any());
-    }
-
-    @Test
-    void getById_dbHitAuthorized_shouldReturnAndBackfillCache() {
-        doReturn(null).when(redisUtil).get(RedisConstants.CONVERSATION_KEY + 11L, Conversation.class);
+    void getById_dbHitAuthorized_shouldReturnConversation() {
         Conversation db = new Conversation();
         db.setId(11L);
         db.setUserId(1L);
@@ -154,26 +135,24 @@ class ConversationServiceImplTest {
 
         assertEquals(11L, out.getId());
         verify(conversationMapper).selectById(11L);
-        verify(redisUtil).set(eq(RedisConstants.CONVERSATION_KEY + 11L), eq(db), eq(RedisConstants.CONVERSATION_TTL));
     }
 
     @Test
     void getById_noPermission_shouldThrow1003() {
-        Conversation cached = new Conversation();
-        cached.setId(12L);
-        cached.setUserId(2L);
-        doReturn(cached).when(redisUtil).get(RedisConstants.CONVERSATION_KEY + 12L, Conversation.class);
+        Conversation other = new Conversation();
+        other.setId(12L);
+        other.setUserId(2L);
+        doReturn(other).when(conversationMapper).selectById(12L);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> conversationService.getById(12L));
 
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         assertEquals(ErrorCode.NO_PERMISSION.getMessage(), ex.getMessage());
-        verify(conversationMapper, never()).selectById(any());
+        verify(conversationMapper).selectById(12L);
     }
 
     @Test
     void login_getById_notFound_shouldThrow9003() {
-        doReturn(null).when(redisUtil).get(RedisConstants.CONVERSATION_KEY + 13L, Conversation.class);
         doReturn(null).when(conversationMapper).selectById(13L);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> conversationService.getById(13L));
@@ -214,7 +193,6 @@ class ConversationServiceImplTest {
         verify(conversationMapper).updateTitleByIdAndUserId(15L, 1L, "new title");
         verify(conversationMapper).selectById(15L);
         verify(conversationService, never()).updateById(any(Conversation.class));
-        verify(redisUtil).set(eq(RedisConstants.CONVERSATION_KEY + 15L), eq(refreshed), eq(RedisConstants.CONVERSATION_TTL));
     }
 
     @Test
@@ -259,7 +237,6 @@ class ConversationServiceImplTest {
         assertEquals(ErrorCode.CONVERSATION_DELETE_FAILED.getCode(), ex.getCode());
         assertEquals(ErrorCode.CONVERSATION_DELETE_FAILED.getMessage(), ex.getMessage());
         verify(conversationService).removeById(21L);
-        verify(redisUtil, never()).delete(any());
     }
 
     @Test
@@ -274,7 +251,6 @@ class ConversationServiceImplTest {
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         assertEquals(ErrorCode.NO_PERMISSION.getMessage(), ex.getMessage());
         verify(conversationService, never()).removeById(22L);
-        verify(redisUtil, never()).delete(any());
     }
 
     @Test
@@ -303,6 +279,5 @@ class ConversationServiceImplTest {
         assertTrue(Boolean.TRUE.equals(out.getConfig().get("useSystemKnowledge")));
         verify(conversationMapper).updateConfigByIdAndUserId(eq(23L), eq(1L), any());
         verify(conversationService, never()).updateById(any(Conversation.class));
-        verify(redisUtil).set(eq(RedisConstants.CONVERSATION_KEY + 23L), eq(refreshed), eq(RedisConstants.CONVERSATION_TTL));
     }
 }
