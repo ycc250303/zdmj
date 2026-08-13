@@ -11,7 +11,7 @@ on:
       # - main
     paths:
       - 'backend/zdmj/**'
-      - 'tools/ai-unit-test-loop/**'
+      - '.cursor/skills/ai-unit-test-loop/**'
       - '.github/workflows/ci_java.yml'
   # 当创建或更新PR到backend或main分支时触发
   pull_request:
@@ -20,7 +20,7 @@ on:
       # - main
     paths:
       - 'backend/zdmj/**'
-      - 'tools/ai-unit-test-loop/**'
+      - '.cursor/skills/ai-unit-test-loop/**'
       - '.github/workflows/ci_java.yml'
 
 jobs:
@@ -76,14 +76,18 @@ jobs:
         continue-on-error: true
         working-directory: ./backend/zdmj
         run: |
-          python3 ../../tools/ai-unit-test-loop/scripts/coverage_gate.py \
+          python3 ../../.cursor/skills/ai-unit-test-loop/scripts/coverage_gate.py \
             --jacoco-xml target/site/jacoco/jacoco.xml \
             --class-prefix com/zdmj/userAuthService/service/impl/,com/zdmj/userAuthService/util/ \
             --line-min 0.70 \
             --branch-min 0.55 \
             --condition-min 0.55
-          python3 ../../tools/ai-unit-test-loop/scripts/path_gate.py \
-            --manifest ../../tools/ai-unit-test-loop/path-matrix/user-auth-paths.json \
+          python3 ../../.cursor/skills/ai-unit-test-loop/scripts/path_gate.py \
+            --spec src/test/resources/test-loop/spec-user-auth.json \
+            --target-classes UserServiceImpl,VerificationCodeServiceImpl,EmailServiceImpl,JwtUtil,VerificationCodeSceneResolver \
+            --scan-tests src/test/java/com/zdmj/userAuthService \
+            --manifest-out target/testloop/path-matrix.json \
+            --path-count-min 6 \
             --surefire-dir target/surefire-reports
 
       # 步骤6: 失败归因（测试失败时）
@@ -93,7 +97,7 @@ jobs:
         continue-on-error: true
         working-directory: ./backend/zdmj
         run: |
-          python3 ../../tools/ai-unit-test-loop/scripts/triage_failures.py --surefire-dir target/surefire-reports
+          python3 ../../.cursor/skills/ai-unit-test-loop/scripts/triage_failures.py --surefire-dir target/surefire-reports
 
       # 步骤7: 反投机审计（仅在测试通过后执行）
       - name: Audit test quality
@@ -102,7 +106,7 @@ jobs:
         continue-on-error: true
         working-directory: ./backend/zdmj
         run: |
-          python3 ../../tools/ai-unit-test-loop/scripts/audit_quality.py --test-root src/test/java/com/zdmj/userAuthService --risk-pass 80
+          python3 ../../.cursor/skills/ai-unit-test-loop/scripts/audit_quality.py --test-root src/test/java/com/zdmj/userAuthService --risk-pass 80
 
       # 步骤8: 失败提醒与统一退出
       # 在日志和 Summary 明确提示失败原因，并让 CI 最终失败
