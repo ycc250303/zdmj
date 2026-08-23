@@ -40,3 +40,6 @@ docs/backend/prompt-security.md
 /docs/项目管理报告
 /backend/zdmj/src/main/resources/study
 /backend/zdmj/src/main/resources/system-knowledge
+/backend/zdmj/target
+/.pytest_cache
+/.cursor

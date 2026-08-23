@@ -111,20 +111,6 @@ services:
     networks:
       - backend
 
-  frontend-xhr:
-    build:
-      context: ..
-      dockerfile: client/Dockerfile
-      args:
-        NGINX_CONF: deploy/nginx-frontend-xhr.conf
-    image: zdmj-frontend-xhr:latest
-    container_name: zdmj-frontend-xhr
-    restart: always
-    ports:
-      - "5678:5678"
-    networks:
-      - backend
-
 networks:
   backend:
     driver: bridge

@@ -10,7 +10,7 @@ COMPOSE_DIR="${COMPOSE_DIR:-$APP_DIR/deploy}"
 ENV_FILE="${ENV_FILE:-$APP_DIR/.env}"
 
 case "$FRONTEND_SERVICE" in
-  frontend-main|frontend-new-f|frontend-xhr) ;;
+  frontend-main|frontend-new-f) ;;
   *)
     echo "错误: 未知 FRONTEND_SERVICE=$FRONTEND_SERVICE"
     exit 1
