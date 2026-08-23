@@ -31,10 +31,9 @@ COPY ${NGINX_CONF} /etc/nginx/conf.d/default.conf
 # Docker 网络内反代后端；统一静态根目录；去掉未替换的 server_name 占位符
 RUN sed -i \
     -e 's|127.0.0.1:8080|zdmj-backend:8080|g' \
-    -e 's|/usr/share/nginx/html-new-f|/usr/share/nginx/html|g' \
     -e 's|\${SERVER_NAME}|_|g' \
     /etc/nginx/conf.d/default.conf
 
-EXPOSE 80 1234
+EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]

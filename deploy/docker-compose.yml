@@ -97,20 +97,6 @@ services:
     networks:
       - backend
 
-  frontend-new-f:
-    build:
-      context: ..
-      dockerfile: client/Dockerfile
-      args:
-        NGINX_CONF: deploy/nginx-new-f.conf
-    image: zdmj-frontend-new-f:latest
-    container_name: zdmj-frontend-new-f
-    restart: always
-    ports:
-      - "1234:1234"
-    networks:
-      - backend
-
 networks:
   backend:
     driver: bridge
