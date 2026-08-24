@@ -23,7 +23,7 @@ const savedUser = sessionStorage.getItem('new_username');
 const savedPwd = sessionStorage.getItem('new_password');
 
 const model: FormModel = reactive({
-  userName: savedUser || 'Soybean', 
+  userName: savedUser || 'testUser',
   password: savedPwd || '123456'
 });
 if (savedUser) sessionStorage.removeItem('new_username');
@@ -35,7 +35,7 @@ const rules = computed<Record<keyof FormModel, App.Global.FormRule[]>>(() => {
 
   return {
     userName: formRules.userName,
-    // 登录仅校验非空，格式/正确性由后端返回「用户名或密码错误」
+    // 登录仅校验非空；账号不存在或密码错误由后端分别返回提示
     password: [createRequiredRule($t('form.pwd.required'))]
   };
 });

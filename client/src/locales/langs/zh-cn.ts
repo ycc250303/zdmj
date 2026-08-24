@@ -895,7 +895,6 @@ const local: App.I18n.Schema = {
       title: '我的匹配',
       goJobs: '去岗位列表',
       overallScore: '综合分',
-      keySkillRate: '关键技能',
       updatedAt: '最近匹配',
       noSummary: '暂无匹配摘要',
       empty: '暂无匹配记录，去岗位详情发起一次匹配吧'

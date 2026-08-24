@@ -58,7 +58,6 @@ export namespace MatchApi {
     jobName?: string;
     companyName?: string;
     overallScore?: number;
-    keySkillMatchRate?: number;
     summary?: string;
     updatedAt?: string;
   }

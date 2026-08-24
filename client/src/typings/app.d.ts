@@ -1175,7 +1175,6 @@ declare namespace App {
           title: string;
           goJobs: string;
           overallScore: string;
-          keySkillRate: string;
           updatedAt: string;
           noSummary: string;
           empty: string;

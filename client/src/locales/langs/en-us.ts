@@ -965,7 +965,6 @@ const local: App.I18n.Schema = {
       title: 'My Matches',
       goJobs: 'Browse Jobs',
       overallScore: 'Score',
-      keySkillRate: 'Key Skills',
       updatedAt: 'Last Matched',
       noSummary: 'No summary',
       empty: 'No match records yet. Analyze a job from the job detail page.'

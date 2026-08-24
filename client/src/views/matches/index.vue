@@ -54,11 +54,6 @@ function formatScore(score?: number) {
   return score == null ? '-' : String(score);
 }
 
-function formatSkillRate(rate?: number) {
-  if (rate == null) return '-';
-  return `${Math.round(rate * 100)}%`;
-}
-
 function formatUpdatedAt(value?: string) {
   if (!value) return '-';
   return value.replace('T', ' ').slice(0, 19);
@@ -95,9 +90,6 @@ onMounted(() => {
                 </h3>
                 <NTag type="success" size="small">
                   {{ $t('page.matches.overallScore') }} {{ formatScore(item.overallScore) }}
-                </NTag>
-                <NTag type="info" size="small">
-                  {{ $t('page.matches.keySkillRate') }} {{ formatSkillRate(item.keySkillMatchRate) }}
                 </NTag>
               </div>
               <div class="mb-2 text-sm text-slate-600 dark:text-gray-400">
