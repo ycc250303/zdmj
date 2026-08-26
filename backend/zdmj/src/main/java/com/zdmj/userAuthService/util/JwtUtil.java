@@ -3,6 +3,8 @@ package com.zdmj.userAuthService.util;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
@@ -11,8 +13,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * JWT工具类（密钥由 {@link com.zdmj.common.config.JwtConfig} 从项目根目录 .env 注入）。
+ * JWT工具类（密钥来自 {@code app.jwt.secret}，对应项目根目录 .env 的 JWT_SECRET）。
  */
+@Component
 public class JwtUtil {
 
     private static volatile String secret;
@@ -21,6 +24,14 @@ public class JwtUtil {
      * Token过期时间（毫秒）- 7天
      */
     private static final long EXPIRATION_TIME = 7 * 24 * 60 * 60 * 1000L;
+
+    /**
+     * Spring 启动时注入密钥；单元测试也可直接调用 {@link #initSecret(String)}。
+     */
+    @Value("${app.jwt.secret}")
+    public void setJwtSecret(String jwtSecret) {
+        initSecret(jwtSecret);
+    }
 
     /**
      * 应用启动或单元测试前注入密钥。
