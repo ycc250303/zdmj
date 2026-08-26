@@ -10,9 +10,9 @@ import com.zdmj.careerReportService.entity.CareerDevelopmentReport;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.ai.ChatUtil;
-import com.zdmj.jobService.dto.JobCapabilityProfileDTO;
-import com.zdmj.jobService.dto.JobCareerGraphDTO;
-import com.zdmj.jobService.dto.JobListItemDTO;
+import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
+import com.zdmj.jobService.dto.JobCareerGraphResponse;
+import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.entity.JobCareerGraph;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobCareerGraphService;
@@ -306,8 +306,8 @@ class CareerDevelopmentReportServiceImplTest {
         assertEquals(32L, result.getId());
     }
 
-    private static JobListItemDTO buildJob() {
-        JobListItemDTO dto = new JobListItemDTO();
+    private static JobListItemResponse buildJob() {
+        JobListItemResponse dto = new JobListItemResponse();
         dto.setId(10L);
         dto.setJobName("Java后端");
         dto.setDescription("负责后端开发");
@@ -323,8 +323,8 @@ class CareerDevelopmentReportServiceImplTest {
         return dto;
     }
 
-    private static JobCapabilityProfileDTO buildJobProfile() {
-        JobCapabilityProfileDTO dto = new JobCapabilityProfileDTO();
+    private static JobCapabilityProfileResponse buildJobProfile() {
+        JobCapabilityProfileResponse dto = new JobCapabilityProfileResponse();
         dto.setProfessionalSkills("Java/Spring");
         dto.setTargetRoleType("java-backend");
         return dto;
@@ -336,8 +336,8 @@ class CareerDevelopmentReportServiceImplTest {
         return dto;
     }
 
-    private static JobCareerGraphDTO buildGraph() {
-        JobCareerGraphDTO dto = new JobCareerGraphDTO();
+    private static JobCareerGraphResponse buildGraph() {
+        JobCareerGraphResponse dto = new JobCareerGraphResponse();
         dto.setSummary("路径清晰");
         return dto;
     }

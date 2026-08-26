@@ -5,8 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
-import com.zdmj.jobService.dto.JobCapabilityProfileDTO;
-import com.zdmj.jobService.dto.JobListItemDTO;
+import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
+import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.entity.JobCapabilityProfile;
 import com.zdmj.jobService.service.JobService;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,20 +49,20 @@ class JobCapabilityProfileServiceImplTest {
         Long jobId = 11L;
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
         doThrow(new RuntimeException("llm down")).when(chatUtil)
-                .chatStructuredOnce(any(), any(), eq(null), eq(JobCapabilityProfileDTO.class));
+                .chatStructuredOnce(any(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> profileService.getJobCapabilityProfile(jobId));
 
         assertEquals(ErrorCode.JOB_CAPABILITY_PROFILE_GENERATION_FAILED.getCode(), ex.getCode());
         verify(jobService).getDetail(jobId);
-        verify(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCapabilityProfileDTO.class));
+        verify(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
         verify(profileService, never()).save(any(JobCapabilityProfile.class));
     }
 
     @Test
     void profile_generate_update_whenExisting_shouldUpdateAndReturnDto() {
         Long jobId = 12L;
-        JobCapabilityProfileDTO aiResult = new JobCapabilityProfileDTO();
+        JobCapabilityProfileResponse aiResult = new JobCapabilityProfileResponse();
         aiResult.setProfessionalSkills("Java/Spring");
         aiResult.setSummary("summary");
         aiResult.setStrengths(List.of("基础扎实"));
@@ -72,11 +72,11 @@ class JobCapabilityProfileServiceImplTest {
         existing.setId(900L);
 
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(aiResult).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCapabilityProfileDTO.class));
+        doReturn(aiResult).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
         doReturn(existing).when(profileService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(profileService).updateById(any(JobCapabilityProfile.class));
 
-        JobCapabilityProfileDTO result = profileService.getJobCapabilityProfile(jobId);
+        JobCapabilityProfileResponse result = profileService.getJobCapabilityProfile(jobId);
 
         assertEquals("Java/Spring", result.getProfessionalSkills());
         assertEquals("summary", result.getSummary());
@@ -88,7 +88,7 @@ class JobCapabilityProfileServiceImplTest {
     @Test
     void profile_generate_create_whenNoExisting_shouldSaveAndReturnDto() {
         Long jobId = 17L;
-        JobCapabilityProfileDTO aiResult = new JobCapabilityProfileDTO();
+        JobCapabilityProfileResponse aiResult = new JobCapabilityProfileResponse();
         aiResult.setProfessionalSkills("Python/FastAPI");
         aiResult.setSummary("new-profile");
         aiResult.setStrengths(List.of("工程化"));
@@ -96,11 +96,11 @@ class JobCapabilityProfileServiceImplTest {
         aiResult.setWeakEvidenceItems(List.of("高并发"));
 
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(aiResult).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCapabilityProfileDTO.class));
+        doReturn(aiResult).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
         doReturn(null).when(profileService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(profileService).save(any(JobCapabilityProfile.class));
 
-        JobCapabilityProfileDTO result = profileService.getJobCapabilityProfile(jobId);
+        JobCapabilityProfileResponse result = profileService.getJobCapabilityProfile(jobId);
 
         assertEquals("Python/FastAPI", result.getProfessionalSkills());
         assertEquals("new-profile", result.getSummary());
@@ -115,7 +115,7 @@ class JobCapabilityProfileServiceImplTest {
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
         doReturn(null).when(profileService).getOne(any(LambdaQueryWrapper.class));
 
-        JobCapabilityProfileDTO result = profileService.getJobCapabilityProfileOrNull(jobId);
+        JobCapabilityProfileResponse result = profileService.getJobCapabilityProfileOrNull(jobId);
 
         assertNull(result);
         verify(jobService).getDetail(jobId);
@@ -146,7 +146,7 @@ class JobCapabilityProfileServiceImplTest {
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
         doReturn(entity).when(profileService).getOne(any(LambdaQueryWrapper.class));
 
-        JobCapabilityProfileDTO result = profileService.getJobCapabilityProfileOrNull(jobId);
+        JobCapabilityProfileResponse result = profileService.getJobCapabilityProfileOrNull(jobId);
 
         assertNotNull(result);
         assertEquals("Java", result.getProfessionalSkills());
@@ -170,7 +170,7 @@ class JobCapabilityProfileServiceImplTest {
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
         doReturn(entity).when(profileService).getOne(any(LambdaQueryWrapper.class));
 
-        JobCapabilityProfileDTO result = profileService.getJobCapabilityProfileOrNull(jobId);
+        JobCapabilityProfileResponse result = profileService.getJobCapabilityProfileOrNull(jobId);
 
         assertEquals("Golang", result.getProfessionalSkills());
         assertEquals("broken-json", result.getSummary());
@@ -180,8 +180,8 @@ class JobCapabilityProfileServiceImplTest {
         verify(profileService).getOne(any(LambdaQueryWrapper.class));
     }
 
-    private JobListItemDTO buildJobDetail() {
-        JobListItemDTO dto = new JobListItemDTO();
+    private JobListItemResponse buildJobDetail() {
+        JobListItemResponse dto = new JobListItemResponse();
         dto.setJobName("Java后端");
         dto.setCompanyName("ZDMJ");
         dto.setDescription("Java Spring MySQL Redis");

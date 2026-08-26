@@ -5,7 +5,7 @@ import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.ai.prompt.PromptNames;
 import com.zdmj.common.ai.PromptUtil.JobRole;
-import com.zdmj.jobService.dto.JobListItemDTO;
+import com.zdmj.jobService.dto.JobListItemResponse;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -71,7 +71,7 @@ public final class JobAnalysisSupport {
         return Math.min(0.95, 0.35 + hit * 0.1);
     }
 
-    public static String buildJobContext(JobListItemDTO job, String intro) {
+    public static String buildJobContext(JobListItemResponse job, String intro) {
         return """
                 %s
                 岗位名称：%s

@@ -7,12 +7,12 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 
 /**
- * 岗位分页列表项
+ * 岗位列表/详情响应
  */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class JobListItemDTO {
+public class JobListItemResponse {
 
     /**
      * 岗位ID

@@ -8,9 +8,10 @@ import com.zdmj.common.cache.RedisUtil;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.model.PageDTO;
-import com.zdmj.jobService.dto.JobDTO;
-import com.zdmj.jobService.dto.JobListItemDTO;
+import com.zdmj.jobService.dto.JobRequest;
+import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.dto.JobPageQueryDTO;
+import com.zdmj.jobService.dto.JobResponse;
 import com.zdmj.jobService.entity.Company;
 import com.zdmj.jobService.entity.Job;
 import com.zdmj.jobService.enums.JobEmploymentEnum;
@@ -76,7 +77,7 @@ class JobServiceImplTest {
         Long jobId = 102L;
         String key = RedisConstants.JOB_DETAIL_KEY + jobId;
         doReturn(false).when(redisUtil).isNullValue(key);
-        doReturn(null).when(redisUtil).get(key, JobListItemDTO.class);
+        doReturn(null).when(redisUtil).get(key, JobListItemResponse.class);
         doReturn(null).when(jobMapper).selectDetailById(jobId);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> jobService.getDetail(jobId));
@@ -89,15 +90,15 @@ class JobServiceImplTest {
     void getDetail_cache_hit_shouldReturnCachedAndSkipDb() {
         Long jobId = 103L;
         String key = RedisConstants.JOB_DETAIL_KEY + jobId;
-        JobListItemDTO cached = new JobListItemDTO();
+        JobListItemResponse cached = new JobListItemResponse();
         cached.setJobName("cached-java");
         doReturn(false).when(redisUtil).isNullValue(key);
-        doReturn(cached).when(redisUtil).get(key, JobListItemDTO.class);
+        doReturn(cached).when(redisUtil).get(key, JobListItemResponse.class);
 
-        JobListItemDTO result = jobService.getDetail(jobId);
+        JobListItemResponse result = jobService.getDetail(jobId);
 
         assertEquals("cached-java", result.getJobName());
-        verify(redisUtil).get(key, JobListItemDTO.class);
+        verify(redisUtil).get(key, JobListItemResponse.class);
         verify(jobMapper, never()).selectDetailById(any());
     }
 
@@ -105,14 +106,14 @@ class JobServiceImplTest {
     void getDetail_db_hit_shouldCacheAndReturnDbValue() {
         Long jobId = 104L;
         String key = RedisConstants.JOB_DETAIL_KEY + jobId;
-        JobListItemDTO dbValue = new JobListItemDTO();
+        JobListItemResponse dbValue = new JobListItemResponse();
         dbValue.setJobName("db-java");
         dbValue.setCompanyName("ACME");
         doReturn(false).when(redisUtil).isNullValue(key);
-        doReturn(null).when(redisUtil).get(key, JobListItemDTO.class);
+        doReturn(null).when(redisUtil).get(key, JobListItemResponse.class);
         doReturn(dbValue).when(jobMapper).selectDetailById(jobId);
 
-        JobListItemDTO result = jobService.getDetail(jobId);
+        JobListItemResponse result = jobService.getDetail(jobId);
 
         assertEquals("db-java", result.getJobName());
         assertEquals("ACME", result.getCompanyName());
@@ -122,7 +123,7 @@ class JobServiceImplTest {
 
     @Test
     void create_save_whenCompanyExists_shouldReuseCompanyAndInitLists() {
-        JobDTO dto = new JobDTO();
+        JobRequest dto = new JobRequest();
         dto.setCompanyName("ZDMJ");
         dto.setJobName("Java");
         dto.setDescription("desc");
@@ -132,7 +133,7 @@ class JobServiceImplTest {
         doReturn(company).when(companyMapper).selectOne(any());
         doReturn(true).when(jobService).save(any(Job.class));
 
-        Job created = jobService.create(dto);
+        JobResponse created = jobService.create(dto);
 
         assertEquals(88L, created.getCompanyId());
         assertNotNull(created.getContent());
@@ -144,7 +145,7 @@ class JobServiceImplTest {
 
     @Test
     void create_save_whenLinkProvided_shouldPersistLink() {
-        JobDTO dto = new JobDTO();
+        JobRequest dto = new JobRequest();
         dto.setCompanyName("ZDMJ");
         dto.setJobName("Java");
         dto.setDescription("desc");
@@ -155,7 +156,7 @@ class JobServiceImplTest {
         doReturn(company).when(companyMapper).selectOne(any());
         doReturn(true).when(jobService).save(any(Job.class));
 
-        Job created = jobService.create(dto);
+        JobResponse created = jobService.create(dto);
 
         assertEquals("https://example.com/jobs/1", created.getLink());
         verify(jobService).save(any(Job.class));
@@ -163,7 +164,7 @@ class JobServiceImplTest {
 
     @Test
     void update_notFound_shouldThrow10001() {
-        JobDTO dto = new JobDTO();
+        JobRequest dto = new JobRequest();
         dto.setId(404L);
         doReturn(null).when(jobMapper).selectById(404L);
 
@@ -187,7 +188,7 @@ class JobServiceImplTest {
 
     @Test
     void create_save_whenCompanyNotExists_shouldInsertCompany() {
-        JobDTO dto = new JobDTO();
+        JobRequest dto = new JobRequest();
         dto.setCompanyName("NEW");
         dto.setJobName("Backend");
         doReturn(null).when(companyMapper).selectOne(any());
@@ -198,7 +199,7 @@ class JobServiceImplTest {
         }).when(companyMapper).insert(any(Company.class));
         doReturn(true).when(jobService).save(any(Job.class));
 
-        Job created = jobService.create(dto);
+        JobResponse created = jobService.create(dto);
 
         assertEquals(900L, created.getCompanyId());
         verify(companyMapper).insert(any(Company.class));
@@ -207,7 +208,7 @@ class JobServiceImplTest {
 
     @Test
     void create_fail_whenCompanyInsertThrows_shouldPropagateFail() {
-        JobDTO dto = new JobDTO();
+        JobRequest dto = new JobRequest();
         dto.setCompanyName("BAD");
         dto.setJobName("Backend");
         doReturn(null).when(companyMapper).selectOne(any());
@@ -224,7 +225,7 @@ class JobServiceImplTest {
 
     @Test
     void update_notFound_shouldThrow10001AndSkipUpdate() {
-        JobDTO dto = new JobDTO();
+        JobRequest dto = new JobRequest();
         dto.setId(405L);
         doReturn(null).when(jobMapper).selectById(405L);
 
@@ -258,14 +259,14 @@ class JobServiceImplTest {
         query.setCompanySizes(List.of());
         query.setIndustries(List.of());
         query.setFundingTypes(List.of());
-        JobListItemDTO row = new JobListItemDTO();
+        JobListItemResponse row = new JobListItemResponse();
         row.setJobName("Java工程师");
-        Page<JobListItemDTO> mpPage = new Page<>(1, 100);
+        Page<JobListItemResponse> mpPage = new Page<>(1, 100);
         mpPage.setRecords(List.of(row));
         mpPage.setTotal(1);
         doReturn(mpPage).when(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
 
-        PageDTO<JobListItemDTO> page = jobService.getPage(query);
+        PageDTO<JobListItemResponse> page = jobService.getPage(query);
 
         assertEquals(1, page.getPage());
         assertEquals(100, page.getLimit());
@@ -276,14 +277,14 @@ class JobServiceImplTest {
 
     @Test
     void getDetail_getPage_whenQueryNull_shouldUseDefaultPageAndLimit() {
-        JobListItemDTO row = new JobListItemDTO();
+        JobListItemResponse row = new JobListItemResponse();
         row.setJobName("默认分页岗位");
-        Page<JobListItemDTO> mpPage = new Page<>(1, 20);
+        Page<JobListItemResponse> mpPage = new Page<>(1, 20);
         mpPage.setRecords(List.of(row));
         mpPage.setTotal(0);
         doReturn(mpPage).when(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
 
-        PageDTO<JobListItemDTO> page = jobService.getPage(null);
+        PageDTO<JobListItemResponse> page = jobService.getPage(null);
 
         assertEquals(1, page.getPage());
         assertEquals(20, page.getLimit());
@@ -302,7 +303,7 @@ class JobServiceImplTest {
         query.setCompanySizes(List.of());
         query.setIndustries(List.of());
         query.setFundingTypes(List.of());
-        Page<JobListItemDTO> mpPage = new Page<>(2, 10);
+        Page<JobListItemResponse> mpPage = new Page<>(2, 10);
         mpPage.setRecords(List.of());
         mpPage.setTotal(0);
         doReturn(mpPage).when(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
@@ -327,12 +328,12 @@ class JobServiceImplTest {
         JobPageQueryDTO query = new JobPageQueryDTO();
         query.setPage(-3);
         query.setLimit(-8);
-        Page<JobListItemDTO> mpPage = new Page<>(1, 20);
+        Page<JobListItemResponse> mpPage = new Page<>(1, 20);
         mpPage.setRecords(List.of());
         mpPage.setTotal(5);
         doReturn(mpPage).when(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
 
-        PageDTO<JobListItemDTO> page = jobService.getPage(query);
+        PageDTO<JobListItemResponse> page = jobService.getPage(query);
 
         assertEquals(1, page.getPage());
         assertEquals(20, page.getLimit());
@@ -347,7 +348,7 @@ class JobServiceImplTest {
         query.setSalaryType(3);
         query.setFilterSalaryMin(200000);
         query.setFilterSalaryMax(500000);
-        Page<JobListItemDTO> mpPage = new Page<>(1, 20);
+        Page<JobListItemResponse> mpPage = new Page<>(1, 20);
         mpPage.setRecords(List.of());
         mpPage.setTotal(0);
         doReturn(mpPage).when(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
@@ -370,7 +371,7 @@ class JobServiceImplTest {
         query.setSalaryType(2);
         query.setFilterSalaryMin(15000);
         query.setFilterSalaryMax(30000);
-        Page<JobListItemDTO> mpPage = new Page<>(1, 20);
+        Page<JobListItemResponse> mpPage = new Page<>(1, 20);
         mpPage.setRecords(List.of());
         mpPage.setTotal(0);
         doReturn(mpPage).when(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
@@ -391,7 +392,7 @@ class JobServiceImplTest {
     void getPage_whenInternEmployment_shouldSetResolvedSalaryTypeOne() {
         JobPageQueryDTO query = new JobPageQueryDTO();
         query.setEmployment(JobEmploymentEnum.INTERN);
-        Page<JobListItemDTO> mpPage = new Page<>(1, 20);
+        Page<JobListItemResponse> mpPage = new Page<>(1, 20);
         mpPage.setRecords(List.of());
         mpPage.setTotal(0);
         doReturn(mpPage).when(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
@@ -411,7 +412,7 @@ class JobServiceImplTest {
         JobPageQueryDTO query = new JobPageQueryDTO();
         query.setFilterSalaryMin(10000);
         query.setFilterSalaryMax(20000);
-        Page<JobListItemDTO> mpPage = new Page<>(1, 20);
+        Page<JobListItemResponse> mpPage = new Page<>(1, 20);
         mpPage.setRecords(List.of());
         mpPage.setTotal(0);
         doReturn(mpPage).when(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));

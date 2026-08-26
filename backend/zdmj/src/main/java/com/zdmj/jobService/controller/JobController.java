@@ -19,12 +19,12 @@ import java.util.concurrent.TimeUnit;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.Result;
 import com.zdmj.common.model.UpdateGroup;
-import com.zdmj.jobService.dto.JobListItemDTO;
-import com.zdmj.jobService.dto.JobCapabilityProfileDTO;
-import com.zdmj.jobService.dto.JobCareerGraphDTO;
-import com.zdmj.jobService.dto.JobDTO;
+import com.zdmj.jobService.dto.JobListItemResponse;
+import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
+import com.zdmj.jobService.dto.JobCareerGraphResponse;
+import com.zdmj.jobService.dto.JobRequest;
+import com.zdmj.jobService.dto.JobResponse;
 import com.zdmj.jobService.dto.JobPageQueryDTO;
-import com.zdmj.jobService.entity.Job;
 import com.zdmj.jobService.enums.JobEmploymentEnum;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobCareerGraphService;
@@ -52,7 +52,7 @@ public class JobController {
      * @return 岗位详情
      */
     @GetMapping("/{id}")
-    public Result<JobListItemDTO> getById(@PathVariable Long id) {
+    public Result<JobListItemResponse> getById(@PathVariable Long id) {
         return Result.success("查询岗位成功", jobService.getDetail(id));
     }
 
@@ -65,7 +65,7 @@ public class JobController {
      * }</pre>
      */
     @GetMapping
-    public Result<PageDTO<JobListItemDTO>> getPage(
+    public Result<PageDTO<JobListItemResponse>> getPage(
             @RequestParam(required = false) String page,
             @RequestParam(required = false) String limit,
             @RequestParam(required = false) String companySizes,
@@ -99,19 +99,19 @@ public class JobController {
      * @return 创建的岗位
      */
     @PostMapping
-    public Result<Job> create(@Validated(CreateGroup.class) @RequestBody JobDTO dto) {
-        return Result.success("创建岗位成功", jobService.create(dto));
+    public Result<JobResponse> create(@Validated(CreateGroup.class) @RequestBody JobRequest request) {
+        return Result.success("创建岗位成功", jobService.create(request));
     }
 
     /**
      * 更新岗位
-     * 
-     * @param dto 岗位DTO
+     *
+     * @param request 岗位请求
      * @return 更新的岗位
      */
     @PutMapping
-    public Result<Job> update(@Validated(UpdateGroup.class) @RequestBody JobDTO dto) {
-        return Result.success("更新岗位成功", jobService.update(dto));
+    public Result<JobResponse> update(@Validated(UpdateGroup.class) @RequestBody JobRequest request) {
+        return Result.success("更新岗位成功", jobService.update(request));
     }
 
     /**
@@ -133,7 +133,7 @@ public class JobController {
      * @return 岗位能力画像或 null
      */
     @GetMapping("/capability-profile")
-    public Result<JobCapabilityProfileDTO> queryJobCapabilityProfileByParam(@RequestParam Long id) {
+    public Result<JobCapabilityProfileResponse> queryJobCapabilityProfileByParam(@RequestParam Long id) {
         return Result.success("查询岗位能力画像成功", jobCapabilityProfileService.getJobCapabilityProfileOrNull(id));
     }
 
@@ -146,7 +146,7 @@ public class JobController {
     @RateLimit(dimension = RateLimit.Dimension.USER, count = LlmRateLimits.JOB_CAPABILITY_PROFILE_PER_MIN,
             interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/{id}/capability-profile")
-    public Result<JobCapabilityProfileDTO> getJobCapabilityProfile(@PathVariable Long id) {
+    public Result<JobCapabilityProfileResponse> getJobCapabilityProfile(@PathVariable Long id) {
         return Result.success("获取岗位能力画像成功", jobCapabilityProfileService.getJobCapabilityProfile(id));
     }
 
@@ -163,7 +163,7 @@ public class JobController {
      * @return 岗位关联图谱或 null
      */
         @GetMapping("/{id}/career-graph")
-        public Result<JobCareerGraphDTO> queryJobCareerGraph(@PathVariable Long id) {
+        public Result<JobCareerGraphResponse> queryJobCareerGraph(@PathVariable Long id) {
             return Result.success("查询岗位关联图谱成功", jobCareerGraphService.getOrNull(id));
         }
     
@@ -176,7 +176,7 @@ public class JobController {
         @RateLimit(dimension = RateLimit.Dimension.USER, count = LlmRateLimits.JOB_CAREER_GRAPH_PER_MIN, interval = 1,
                 timeUnit = TimeUnit.MINUTES)
         @PostMapping("/{id}/career-graph")
-        public Result<JobCareerGraphDTO> generateJobCareerGraph(@PathVariable Long id) {
+        public Result<JobCareerGraphResponse> generateJobCareerGraph(@PathVariable Long id) {
             return Result.success("生成岗位关联图谱成功", jobCareerGraphService.generate(id));
         }
 }

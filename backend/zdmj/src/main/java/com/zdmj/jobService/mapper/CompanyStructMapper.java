@@ -3,7 +3,7 @@ package com.zdmj.jobService.mapper;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
-import com.zdmj.jobService.dto.JobDTO;
+import com.zdmj.jobService.dto.JobRequest;
 import com.zdmj.jobService.entity.Company;
 import com.zdmj.jobService.enums.CompanySizeEnum;
 
@@ -20,6 +20,6 @@ public interface CompanyStructMapper {
     @Mapping(target = "introduction", source = "companyIntroduction")
     @Mapping(target = "sizeEnum", ignore = true)
     @Mapping(target = "typeEnum", ignore = true)
-    Company fromJobDto(JobDTO dto);
+    Company fromJobDto(JobRequest dto);
 }
 

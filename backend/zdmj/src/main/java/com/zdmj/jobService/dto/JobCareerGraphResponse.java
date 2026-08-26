@@ -17,7 +17,7 @@ import lombok.Data;
  */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class JobCareerGraphDTO {
+public class JobCareerGraphResponse {
 
     /** 岗位ID */
     private Long jobId;

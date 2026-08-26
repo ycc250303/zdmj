@@ -2,7 +2,7 @@ package com.zdmj.jobService.service.impl;
 
 import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.common.ai.PromptUtil.JobRole;
-import com.zdmj.jobService.dto.JobListItemDTO;
+import com.zdmj.jobService.dto.JobListItemResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -103,7 +103,7 @@ class JobAnalysisSupportTest {
 
     @Test
     void graph_buildJobContext_whenFieldsMissing_shouldRenderDefaultText() {
-        JobListItemDTO dto = new JobListItemDTO();
+        JobListItemResponse dto = new JobListItemResponse();
         dto.setJobName("  Java开发  ");
         dto.setJobDuties(Collections.emptyList());
         dto.setJobRequirements(List.of(" ", "熟悉Spring"));
@@ -118,7 +118,7 @@ class JobAnalysisSupportTest {
 
     @Test
     void graph_buildJobContext_whenListAllBlank_shouldRenderNotProvided() {
-        JobListItemDTO dto = new JobListItemDTO();
+        JobListItemResponse dto = new JobListItemResponse();
         dto.setJobName("后端开发");
         dto.setJobDuties(List.of(" ", "   "));
         dto.setJobRequirements(List.of("", "\t"));

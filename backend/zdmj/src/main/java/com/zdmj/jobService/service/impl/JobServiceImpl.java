@@ -5,9 +5,10 @@ import com.zdmj.common.cache.RedisUtil;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.cache.RedisConstants;
-import com.zdmj.jobService.dto.JobListItemDTO;
-import com.zdmj.jobService.dto.JobDTO;
+import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.dto.JobPageQueryDTO;
+import com.zdmj.jobService.dto.JobRequest;
+import com.zdmj.jobService.dto.JobResponse;
 import com.zdmj.jobService.entity.Company;
 import com.zdmj.jobService.entity.Job;
 import com.zdmj.jobService.enums.JobEmploymentEnum;
@@ -18,6 +19,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.PageRequests;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -34,16 +36,16 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
     private final RedisUtil redisCacheUtil;
 
     @Override
-    public JobListItemDTO getDetail(Long id) {
+    public JobListItemResponse getDetail(Long id) {
         String key = RedisConstants.JOB_DETAIL_KEY + id;
         if (redisCacheUtil.isNullValue(key)) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
-        JobListItemDTO cached = redisCacheUtil.get(key, JobListItemDTO.class);
+        JobListItemResponse cached = redisCacheUtil.get(key, JobListItemResponse.class);
         if (cached != null) {
             return cached;
         }
-        JobListItemDTO dto = baseMapper.selectDetailById(id);
+        JobListItemResponse dto = baseMapper.selectDetailById(id);
         if (dto == null) {
             redisCacheUtil.setNullValue(key, RedisConstants.JOB_DETAIL_NULL_TTL);
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
@@ -53,7 +55,7 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
     }
 
     @Override
-    public PageDTO<JobListItemDTO> getPage(JobPageQueryDTO query) {
+    public PageDTO<JobListItemResponse> getPage(JobPageQueryDTO query) {
         JobPageQueryDTO q = query != null ? query : new JobPageQueryDTO();
         PageRequests.Normalized paging = PageRequests.normalize(q.getPage(), q.getLimit());
 
@@ -113,17 +115,17 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Job create(JobDTO dto) {
+    public JobResponse create(JobRequest dto) {
         Company company = resolveCompanyByName(dto);
         Job job = new Job();
         fillJobFromDto(job, dto, company);
         save(job);
-        return job;
+        return convertToResponse(job);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Job update(JobDTO dto) {
+    public JobResponse update(JobRequest dto) {
         Job existing = baseMapper.selectById(dto.getId());
         if (existing == null) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
@@ -132,7 +134,7 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
         fillJobFromDto(existing, dto, company);
         updateById(existing);
         evictJobDetailCache(dto.getId());
-        return existing;
+        return convertToResponse(existing);
     }
 
     @Override
@@ -144,7 +146,7 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
         evictJobDetailCache(id);
     }
 
-    private void fillJobFromDto(Job job, JobDTO dto, Company company) {
+    private void fillJobFromDto(Job job, JobRequest dto, Company company) {
         patchJobFromDto(dto, job);
         job.setCompanyId(company.getId());
         job.setCompanyName(company.getName());
@@ -165,7 +167,7 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
     /**
      * 按公司名精确匹配，若不存在则自动创建
      */
-    private Company resolveCompanyByName(JobDTO dto) {
+    private Company resolveCompanyByName(JobRequest dto) {
         Company company = companyMapper.selectOne(
                 new LambdaQueryWrapper<Company>().eq(Company::getName, dto.getCompanyName()));
         if (company != null) {
@@ -181,7 +183,7 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
         return created;
     }
 
-    private void patchJobFromDto(JobDTO dto, Job job) {
+    private void patchJobFromDto(JobRequest dto, Job job) {
         if (dto.getJobName() != null) {
             job.setJobName(dto.getJobName());
         }
@@ -223,5 +225,11 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
         String key = RedisConstants.JOB_DETAIL_KEY + id;
         redisCacheUtil.delete(key);
         redisCacheUtil.deleteNullValue(key);
+    }
+
+    private JobResponse convertToResponse(Job job) {
+        JobResponse response = new JobResponse();
+        BeanUtils.copyProperties(job, response);
+        return response;
     }
 }

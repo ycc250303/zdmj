@@ -1,7 +1,7 @@
 package com.zdmj.jobService.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.zdmj.jobService.dto.JobCareerGraphDTO;
+import com.zdmj.jobService.dto.JobCareerGraphResponse;
 import com.zdmj.jobService.entity.JobCareerGraph;
 
 /**
@@ -26,7 +26,7 @@ public interface JobCareerGraphService extends IService<JobCareerGraph> {
      * @param jobId 岗位ID
      * @return 图谱 DTO 或 {@code null}
      */
-    JobCareerGraphDTO getOrNull(Long jobId);
+    JobCareerGraphResponse getOrNull(Long jobId);
 
     /**
      * 生成或重新生成岗位关联图谱（已有则覆盖写入 DB）。
@@ -34,5 +34,5 @@ public interface JobCareerGraphService extends IService<JobCareerGraph> {
      * @param jobId 岗位ID
      * @return 图谱 DTO
      */
-    JobCareerGraphDTO generate(Long jobId);
+    JobCareerGraphResponse generate(Long jobId);
 }

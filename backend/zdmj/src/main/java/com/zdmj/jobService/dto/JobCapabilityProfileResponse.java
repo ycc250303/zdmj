@@ -7,7 +7,7 @@ import lombok.Data;
 
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class JobCapabilityProfileDTO {
+public class JobCapabilityProfileResponse {
     /**
      * 岗位类型（展示用，使用提示词名称）
      */

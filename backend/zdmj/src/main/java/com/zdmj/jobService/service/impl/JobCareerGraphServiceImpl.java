@@ -9,8 +9,8 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.ai.PromptUtil.JobRole;
-import com.zdmj.jobService.dto.JobCareerGraphDTO;
-import com.zdmj.jobService.dto.JobListItemDTO;
+import com.zdmj.jobService.dto.JobCareerGraphResponse;
+import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.entity.JobCareerGraph;
 import com.zdmj.jobService.mapper.JobCareerGraphMapper;
 import com.zdmj.jobService.service.JobCareerGraphService;
@@ -70,7 +70,7 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
     private final ObjectMapper objectMapper;
 
     @Override
-    public JobCareerGraphDTO getOrNull(Long jobId) {
+    public JobCareerGraphResponse getOrNull(Long jobId) {
         jobService.getDetail(jobId);
         JobCareerGraph entity = getOne(
                 new LambdaQueryWrapper<JobCareerGraph>().eq(JobCareerGraph::getJobId, jobId));
@@ -78,8 +78,8 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
     }
 
     @Override
-    public JobCareerGraphDTO generate(Long jobId) {
-        JobListItemDTO jobDetail = jobService.getDetail(jobId);
+    public JobCareerGraphResponse generate(Long jobId) {
+        JobListItemResponse jobDetail = jobService.getDetail(jobId);
 
         String jobContext = JobAnalysisSupport.buildJobContext(
                 jobDetail,
@@ -89,9 +89,9 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
         String promptName = PromptUtil.getJobCareerGraphPromptName(role);
         log.info("生成岗位关联图谱: jobId={}, role={}, prompt={}", jobId, role, promptName);
 
-        JobCareerGraphDTO aiResult;
+        JobCareerGraphResponse aiResult;
         try {
-            aiResult = chatUtil.chatStructuredOnce(jobContext, promptName, null, JobCareerGraphDTO.class);
+            aiResult = chatUtil.chatStructuredOnce(jobContext, promptName, null, JobCareerGraphResponse.class);
         } catch (Exception e) {
             log.error("岗位关联图谱生成失败: jobId={}, role={}, prompt={}", jobId, role, promptName, e);
             throw new BusinessException(ErrorCode.JOB_CAREER_GRAPH_GENERATION_FAILED);
@@ -124,12 +124,12 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
     /**
      * 规范性校验：不满足任务书要求（垂直 ≥3、换岗 ≥5 且每条 ≥2 节点）则抛出业务异常。
      */
-    private void validateGraph(JobCareerGraphDTO dto) {
+    private void validateGraph(JobCareerGraphResponse dto) {
         if (dto == null) {
             throw new BusinessException(ErrorCode.JOB_CAREER_GRAPH_INVALID);
         }
-        List<JobCareerGraphDTO.VerticalPathNode> vertical = dto.getVerticalPath();
-        List<JobCareerGraphDTO.TransitionPath> transitions = dto.getTransitionPaths();
+        List<JobCareerGraphResponse.VerticalPathNode> vertical = dto.getVerticalPath();
+        List<JobCareerGraphResponse.TransitionPath> transitions = dto.getTransitionPaths();
 
         if (vertical == null || vertical.size() < MIN_VERTICAL_PATH_NODES) {
             log.warn("岗位图谱校验失败：垂直路径节点数不足，actual={}, min={}",
@@ -142,7 +142,7 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
             throw new BusinessException(ErrorCode.JOB_CAREER_GRAPH_INVALID);
         }
         for (int i = 0; i < transitions.size(); i++) {
-            JobCareerGraphDTO.TransitionPath path = transitions.get(i);
+            JobCareerGraphResponse.TransitionPath path = transitions.get(i);
             int nodeCount = path == null || path.getNodes() == null ? 0 : path.getNodes().size();
             if (nodeCount < MIN_NODES_PER_TRANSITION_PATH) {
                 log.warn("岗位图谱校验失败：第 {} 条换岗路径节点数不足，actual={}, min={}",
@@ -154,16 +154,16 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
 
     /**
      * 标记"当前岗位"节点：
-     * 若 {@link JobCareerGraphDTO#getCurrentNode()} 缺失 level，则取垂直路径中间层级作为起点；
+     * 若 {@link JobCareerGraphResponse#getCurrentNode()} 缺失 level，则取垂直路径中间层级作为起点；
      * 同时在 {@code verticalPath} 中对应节点的 {@code current} 置为 true，便于前端可视化。
      */
-    private void markCurrentNode(JobCareerGraphDTO dto) {
-        List<JobCareerGraphDTO.VerticalPathNode> vertical = dto.getVerticalPath();
-        JobCareerGraphDTO.CurrentNode current = dto.getCurrentNode();
+    private void markCurrentNode(JobCareerGraphResponse dto) {
+        List<JobCareerGraphResponse.VerticalPathNode> vertical = dto.getVerticalPath();
+        JobCareerGraphResponse.CurrentNode current = dto.getCurrentNode();
 
         int currentLevel = (current != null && current.getLevel() != null) ? current.getLevel() : -1;
         if (currentLevel < 0) {
-            for (JobCareerGraphDTO.VerticalPathNode node : vertical) {
+            for (JobCareerGraphResponse.VerticalPathNode node : vertical) {
                 if (Boolean.TRUE.equals(node.getCurrent()) && node.getLevel() != null) {
                     currentLevel = node.getLevel();
                     break;
@@ -176,12 +176,12 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
             currentLevel = fallback != null ? fallback : mid + 1;
         }
 
-        for (JobCareerGraphDTO.VerticalPathNode node : vertical) {
+        for (JobCareerGraphResponse.VerticalPathNode node : vertical) {
             node.setCurrent(node.getLevel() != null && node.getLevel() == currentLevel);
         }
 
         if (current == null) {
-            current = new JobCareerGraphDTO.CurrentNode();
+            current = new JobCareerGraphResponse.CurrentNode();
             dto.setCurrentNode(current);
         }
         if (current.getLevel() == null) {
@@ -197,7 +197,7 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
     }
 
     /** DTO → Entity（JSONB 列 JSON 文本化） */
-    private JobCareerGraph toEntity(JobCareerGraphDTO dto) {
+    private JobCareerGraph toEntity(JobCareerGraphResponse dto) {
         JobCareerGraph entity = new JobCareerGraph();
         entity.setSummary(dto.getSummary());
         entity.setCurrentNode(JobAnalysisSupport.toJson(
@@ -210,8 +210,8 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
     }
 
     /** Entity → DTO（JSONB 列回填为强类型对象） */
-    private JobCareerGraphDTO toDto(JobCareerGraph entity) {
-        JobCareerGraphDTO dto = new JobCareerGraphDTO();
+    private JobCareerGraphResponse toDto(JobCareerGraph entity) {
+        JobCareerGraphResponse dto = new JobCareerGraphResponse();
         dto.setJobId(entity.getJobId());
         dto.setTargetRoleType(StringUtils.hasText(entity.getTargetRoleType()) ? entity.getTargetRoleType()
                 : PromptUtil.getPromptDisplayType(entity.getPromptName()));
@@ -219,16 +219,16 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
         try {
             if (StringUtils.hasText(entity.getCurrentNode())) {
                 dto.setCurrentNode(
-                        objectMapper.readValue(entity.getCurrentNode(), JobCareerGraphDTO.CurrentNode.class));
+                        objectMapper.readValue(entity.getCurrentNode(), JobCareerGraphResponse.CurrentNode.class));
             }
             if (StringUtils.hasText(entity.getVerticalPath())) {
                 dto.setVerticalPath(objectMapper.readValue(entity.getVerticalPath(),
-                        new TypeReference<List<JobCareerGraphDTO.VerticalPathNode>>() {
+                        new TypeReference<List<JobCareerGraphResponse.VerticalPathNode>>() {
                         }));
             }
             if (StringUtils.hasText(entity.getTransitionPaths())) {
                 dto.setTransitionPaths(objectMapper.readValue(entity.getTransitionPaths(),
-                        new TypeReference<List<JobCareerGraphDTO.TransitionPath>>() {
+                        new TypeReference<List<JobCareerGraphResponse.TransitionPath>>() {
                         }));
             }
         } catch (Exception e) {

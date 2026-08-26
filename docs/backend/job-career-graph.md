@@ -57,7 +57,7 @@ GET /jobs/{id}/career-graph
 ```
 
 - 仅查询，不触发生成；命中时同步返回完整 DTO，未命中返回 `data:null`。
-- 响应：`Result<JobCareerGraphDTO>`，`msg = "查询岗位关联图谱成功"`。
+- 响应：`Result<JobCareerGraphResponse>`，`msg = "查询岗位关联图谱成功"`。
 
 ### 3.2 生成岗位关联图谱
 
@@ -67,9 +67,9 @@ POST /jobs/{id}/career-graph
 
 - 触发一次 LLM 生成（耗时 ~30-60s），若已有则覆盖写入。
 - 需认证（JWT，同 `POST /jobs/{id}/capability-profile`）。
-- 响应：`Result<JobCareerGraphDTO>`，`msg = "生成岗位关联图谱成功"`。
+- 响应：`Result<JobCareerGraphResponse>`，`msg = "生成岗位关联图谱成功"`。
 
-### 3.3 DTO 结构（`JobCareerGraphDTO`）
+### 3.3 DTO 结构（`JobCareerGraphResponse`）
 
 ```jsonc
 {
@@ -161,7 +161,7 @@ src/main/resources/prompts/job-career-graph/
 | Controller | `JobController#queryJobCareerGraph` / `#generateJobCareerGraph` |
 | Service | `JobCareerGraphService` / `JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper, JobCareerGraph>` |
 | Mapper / Entity | `JobCareerGraphMapper` / `JobCareerGraph`（`@TableName("job_career_graphs", autoResultMap=true)`） |
-| DTO | `JobCareerGraphDTO` 及嵌套静态类 `CurrentNode` / `VerticalPathNode` / `TransitionPath` / `TransitionNode` |
+| DTO | `JobCareerGraphResponse` 及嵌套静态类 `CurrentNode` / `VerticalPathNode` / `TransitionPath` / `TransitionNode` |
 | JSONB 处理 | `JsonbStringTypeHandler`（通用，与 `JobCapabilityProfile` 共用） |
 
 ### 5.4 与岗位能力画像的一致性

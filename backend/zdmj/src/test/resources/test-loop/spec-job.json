@@ -49,7 +49,7 @@
     },
     {
       "className": "JobServiceImpl",
-      "method": "update(JobDTO)",
+      "method": "update(JobRequest)",
       "givenWhenThen": {
         "given": [
           "岗位可能不存在",
@@ -408,7 +408,7 @@
     },
     {
       "className": "com.zdmj.jobService.service.impl.JobServiceImpl",
-      "method": "create(JobDTO dto)",
+      "method": "create(JobRequest dto)",
       "givenWhenThen": {
         "given": [
           "dto包含岗位信息和公司信息",
@@ -464,7 +464,7 @@
     },
     {
       "className": "com.zdmj.jobService.service.impl.JobServiceImpl",
-      "method": "update(JobDTO dto)",
+      "method": "update(JobRequest dto)",
       "givenWhenThen": {
         "given": [
           "dto包含岗位ID",

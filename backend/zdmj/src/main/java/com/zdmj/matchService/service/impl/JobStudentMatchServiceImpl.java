@@ -13,8 +13,8 @@ import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.ai.PromptUtil.JobRole;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.PageRequests;
-import com.zdmj.jobService.dto.JobCapabilityProfileDTO;
-import com.zdmj.jobService.dto.JobListItemDTO;
+import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
+import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobService;
 import com.zdmj.matchService.dto.DimensionMatchDTO;
@@ -99,11 +99,11 @@ public class JobStudentMatchServiceImpl
         }
 
         // 1. 岗位详情 + 岗位画像（缺失则自动生成）
-        JobListItemDTO jobDetail = jobService.getDetail(jobId);
+        JobListItemResponse jobDetail = jobService.getDetail(jobId);
         if (jobDetail == null) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
-        JobCapabilityProfileDTO jobProfile = jobCapabilityProfileService.getJobCapabilityProfileOrNull(jobId);
+        JobCapabilityProfileResponse jobProfile = jobCapabilityProfileService.getJobCapabilityProfileOrNull(jobId);
         if (jobProfile == null) {
             log.info("岗位画像缺失，自动生成: jobId={}", jobId);
             jobProfile = jobCapabilityProfileService.getJobCapabilityProfile(jobId);
@@ -170,7 +170,7 @@ public class JobStudentMatchServiceImpl
         if (jobId == null) {
             return MatchWeightResolver.defaultFor(JobRole.UNKNOWN);
         }
-        JobCapabilityProfileDTO profile = jobCapabilityProfileService.getJobCapabilityProfileOrNull(jobId);
+        JobCapabilityProfileResponse profile = jobCapabilityProfileService.getJobCapabilityProfileOrNull(jobId);
         JobRole role = profile == null ? JobRole.UNKNOWN
                 : PromptUtil.getJobRoleByString(profile.getTargetRoleType());
         return MatchWeightResolver.defaultFor(role);
@@ -184,8 +184,8 @@ public class JobStudentMatchServiceImpl
      * 把岗位详情 + 岗位画像 + 学生画像 + 权重 + 关键词拼成结构化的 user message，
      * Prompt 中通过 {weightsJson} 与 {jobKeywords} 取值，正文里用 Markdown 段落组织。
      */
-    private String buildUserMessage(JobListItemDTO jobDetail,
-                                    JobCapabilityProfileDTO jobProfile,
+    private String buildUserMessage(JobListItemResponse jobDetail,
+                                    JobCapabilityProfileResponse jobProfile,
                                     StudentCapabilityProfileResponse studentProfile,
                                     MatchWeightConfigDTO weights,
                                     List<String> jobKeywords) {
@@ -387,7 +387,7 @@ public class JobStudentMatchServiceImpl
 
     @SuppressWarnings("checkstyle:ParameterNumber")
     private JobStudentMatch upsert(Long userId, Long jobId,
-                                   JobCapabilityProfileDTO jobProfile,
+                                   JobCapabilityProfileResponse jobProfile,
                                    String promptName,
                                    MatchWeightConfigDTO weights,
                                    int basicScore, int skillScore,

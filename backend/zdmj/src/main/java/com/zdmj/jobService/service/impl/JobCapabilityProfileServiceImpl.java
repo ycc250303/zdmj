@@ -9,8 +9,8 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.ai.PromptUtil.JobRole;
-import com.zdmj.jobService.dto.JobCapabilityProfileDTO;
-import com.zdmj.jobService.dto.JobListItemDTO;
+import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
+import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.entity.JobCapabilityProfile;
 import com.zdmj.jobService.mapper.JobCapabilityProfileMapper;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
@@ -45,8 +45,8 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
             List.of("测试", "test case", "pytest", "selenium", "jmeter", "postman", "缺陷"));
 
     @Override
-    public JobCapabilityProfileDTO getJobCapabilityProfile(Long jobId) {
-        JobListItemDTO jobDetail = jobService.getDetail(jobId);
+    public JobCapabilityProfileResponse getJobCapabilityProfile(Long jobId) {
+        JobListItemResponse jobDetail = jobService.getDetail(jobId);
         if (jobDetail == null) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
@@ -60,9 +60,9 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         String promptName = PromptUtil.getJobRequirementPromptName(role);
         log.info("使用提示词: {}", promptName);
 
-        JobCapabilityProfileDTO aiResult;
+        JobCapabilityProfileResponse aiResult;
         try {
-            aiResult = chatUtil.chatStructuredOnce(jobContext, promptName, null, JobCapabilityProfileDTO.class);
+            aiResult = chatUtil.chatStructuredOnce(jobContext, promptName, null, JobCapabilityProfileResponse.class);
         } catch (Exception e) {
             log.error("岗位要求画像生成失败，role={}, prompt={}", role, promptName, e);
             throw new BusinessException(ErrorCode.JOB_CAPABILITY_PROFILE_GENERATION_FAILED);
@@ -91,14 +91,14 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
             save(newProfile);
         }
 
-        JobCapabilityProfileDTO responseDto = toDto(newProfile);
+        JobCapabilityProfileResponse responseDto = toDto(newProfile);
         hydrateDtoFromEntity(newProfile, responseDto);
         return responseDto;
     }
 
     @Override
-    public JobCapabilityProfileDTO getJobCapabilityProfileOrNull(Long jobId) {
-        JobListItemDTO jobDetail = jobService.getDetail(jobId);
+    public JobCapabilityProfileResponse getJobCapabilityProfileOrNull(Long jobId) {
+        JobListItemResponse jobDetail = jobService.getDetail(jobId);
         if (jobDetail == null) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
@@ -107,16 +107,16 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         if (profile == null) {
             return null;
         }
-        JobCapabilityProfileDTO dto = toDto(profile);
+        JobCapabilityProfileResponse dto = toDto(profile);
         hydrateDtoFromEntity(profile, dto);
         return dto;
     }
 
-    private static JobCapabilityProfileDTO toDto(JobCapabilityProfile entity) {
+    private static JobCapabilityProfileResponse toDto(JobCapabilityProfile entity) {
         if (entity == null) {
             return null;
         }
-        JobCapabilityProfileDTO dto = new JobCapabilityProfileDTO();
+        JobCapabilityProfileResponse dto = new JobCapabilityProfileResponse();
         dto.setTargetRoleType(StringUtils.hasText(entity.getTargetRoleType()) ? entity.getTargetRoleType()
                 : PromptUtil.getPromptDisplayType(entity.getPromptName()));
         dto.setProfessionalSkills(entity.getProfessionalSkills());
@@ -130,7 +130,7 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         return dto;
     }
 
-    private static JobCapabilityProfile toEntity(JobCapabilityProfileDTO dto) {
+    private static JobCapabilityProfile toEntity(JobCapabilityProfileResponse dto) {
         if (dto == null) {
             return null;
         }
@@ -146,7 +146,7 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         return entity;
     }
 
-    private void hydrateDtoFromEntity(JobCapabilityProfile entity, JobCapabilityProfileDTO dto) {
+    private void hydrateDtoFromEntity(JobCapabilityProfile entity, JobCapabilityProfileResponse dto) {
         if (entity == null || dto == null) {
             return;
         }

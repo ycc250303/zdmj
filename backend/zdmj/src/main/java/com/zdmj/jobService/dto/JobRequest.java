@@ -12,10 +12,10 @@ import com.zdmj.common.model.CreateGroup;
 import com.zdmj.common.model.UpdateGroup;
 
 /**
- * 创建/更新岗位请求体
+ * 创建/更新岗位请求
  */
 @Data
-public class JobDTO {
+public class JobRequest {
 
     /**
      * 岗位ID（更新时不能为空）

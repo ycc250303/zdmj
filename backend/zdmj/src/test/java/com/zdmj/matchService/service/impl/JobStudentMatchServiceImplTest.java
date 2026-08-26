@@ -9,8 +9,8 @@ import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.common.model.PageDTO;
-import com.zdmj.jobService.dto.JobCapabilityProfileDTO;
-import com.zdmj.jobService.dto.JobListItemDTO;
+import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
+import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobService;
 import com.zdmj.matchService.dto.DimensionMatchDTO;
@@ -334,8 +334,8 @@ class JobStudentMatchServiceImplTest {
                 .getCurrentUserProfileOrNull();
     }
 
-    private static JobListItemDTO buildJobDetail() {
-        JobListItemDTO dto = new JobListItemDTO();
+    private static JobListItemResponse buildJobDetail() {
+        JobListItemResponse dto = new JobListItemResponse();
         dto.setJobName("Java 后端开发");
         dto.setCompanyName("ZDMJ");
         dto.setDescription("Java + Spring + MySQL + Redis");
@@ -346,8 +346,8 @@ class JobStudentMatchServiceImplTest {
         return dto;
     }
 
-    private static JobCapabilityProfileDTO buildJobProfile(String roleType) {
-        JobCapabilityProfileDTO p = new JobCapabilityProfileDTO();
+    private static JobCapabilityProfileResponse buildJobProfile(String roleType) {
+        JobCapabilityProfileResponse p = new JobCapabilityProfileResponse();
         p.setTargetRoleType(roleType);
         p.setProfessionalSkills("Java/Spring/MySQL/Redis");
         p.setCertificates("无");

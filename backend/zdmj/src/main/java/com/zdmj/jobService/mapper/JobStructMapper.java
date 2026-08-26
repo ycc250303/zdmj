@@ -6,7 +6,7 @@ import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
-import com.zdmj.jobService.dto.JobDTO;
+import com.zdmj.jobService.dto.JobRequest;
 import com.zdmj.jobService.entity.Job;
 
 @Mapper(componentModel = "spring")
@@ -21,5 +21,5 @@ public interface JobStructMapper {
     @Mapping(target = "content", source = "jobDuties")
     @Mapping(target = "requirements", source = "jobRequirements")
     @Mapping(target = "keywords", source = "keywords")
-    void patchFromDto(JobDTO dto, @MappingTarget Job job);
+    void patchFromDto(JobRequest dto, @MappingTarget Job job);
 }

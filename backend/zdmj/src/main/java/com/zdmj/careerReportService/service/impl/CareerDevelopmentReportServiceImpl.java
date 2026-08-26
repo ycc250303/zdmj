@@ -19,9 +19,9 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.common.ai.prompt.PromptNames;
 import com.zdmj.common.util.DateTimeUtil;
-import com.zdmj.jobService.dto.JobCapabilityProfileDTO;
-import com.zdmj.jobService.dto.JobCareerGraphDTO;
-import com.zdmj.jobService.dto.JobListItemDTO;
+import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
+import com.zdmj.jobService.dto.JobCareerGraphResponse;
+import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.entity.JobCareerGraph;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobCareerGraphService;
@@ -130,7 +130,7 @@ public class CareerDevelopmentReportServiceImpl
             throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "jobId不能为空");
         }
         // 1. 校验岗位与学生画像前置条件
-        JobListItemDTO jobDetail = jobService.getDetail(jobId);
+        JobListItemResponse jobDetail = jobService.getDetail(jobId);
         if (jobDetail == null) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
@@ -139,9 +139,9 @@ public class CareerDevelopmentReportServiceImpl
             throw new BusinessException(ErrorCode.MATCH_PRECONDITION_MISSING);
         }
         // 2. 加载或生成岗位画像、人岗匹配、岗位图谱
-        JobCapabilityProfileDTO jobProfile = loadOrGenerateJobProfile(jobId);
+        JobCapabilityProfileResponse jobProfile = loadOrGenerateJobProfile(jobId);
         JobStudentMatchDTO match = loadOrGenerateMatch(jobId);
-        JobCareerGraphDTO graph = loadOrGenerateCareerGraph(jobId);
+        JobCareerGraphResponse graph = loadOrGenerateCareerGraph(jobId);
         // 3. 知识库 RAG 检索学习路径片段
         List<KnowledgeRetrivalDTO> ragHits = retrieveLearningPathHits(jobDetail, req);
         // 4. 调用大模型生成结构化报告并做本地完整性校验
@@ -262,8 +262,8 @@ public class CareerDevelopmentReportServiceImpl
         return toDto(created);
     }
 
-    private JobCapabilityProfileDTO loadOrGenerateJobProfile(Long jobId) {
-        JobCapabilityProfileDTO profile = jobCapabilityProfileService.getJobCapabilityProfileOrNull(jobId);
+    private JobCapabilityProfileResponse loadOrGenerateJobProfile(Long jobId) {
+        JobCapabilityProfileResponse profile = jobCapabilityProfileService.getJobCapabilityProfileOrNull(jobId);
         return profile != null ? profile : jobCapabilityProfileService.getJobCapabilityProfile(jobId);
     }
 
@@ -272,15 +272,15 @@ public class CareerDevelopmentReportServiceImpl
         return match != null ? match : jobStudentMatchService.generate(jobId, null);
     }
 
-    private JobCareerGraphDTO loadOrGenerateCareerGraph(Long jobId) {
-        JobCareerGraphDTO graph = jobCareerGraphService.getOrNull(jobId);
+    private JobCareerGraphResponse loadOrGenerateCareerGraph(Long jobId) {
+        JobCareerGraphResponse graph = jobCareerGraphService.getOrNull(jobId);
         return graph != null ? graph : jobCareerGraphService.generate(jobId);
     }
 
     /**
      * 从用户私有库（scope=1）与学习路线库（scope=3）检索相关片段（向量相似度 + 文档分类过滤）。
      */
-    private List<KnowledgeRetrivalDTO> retrieveLearningPathHits(JobListItemDTO jobDetail, CareerReportGenerateRequest req) {
+    private List<KnowledgeRetrivalDTO> retrieveLearningPathHits(JobListItemResponse jobDetail, CareerReportGenerateRequest req) {
         Long userId = UserHolder.requireUserId();
         String query = buildKnowledgeQuery(jobDetail, req);
         float[] vector = embedQueryText(query);
@@ -340,11 +340,11 @@ public class CareerDevelopmentReportServiceImpl
         return deduped.values().stream().limit(topK).collect(Collectors.toList());
     }
 
-    private Map<String, Object> generateStructuredReport(JobListItemDTO jobDetail,
+    private Map<String, Object> generateStructuredReport(JobListItemResponse jobDetail,
                                                          StudentCapabilityProfileResponse studentProfile,
-                                                         JobCapabilityProfileDTO jobProfile,
+                                                         JobCapabilityProfileResponse jobProfile,
                                                          JobStudentMatchDTO match,
-                                                         JobCareerGraphDTO graph,
+                                                         JobCareerGraphResponse graph,
                                                          List<KnowledgeRetrivalDTO> ragHits,
                                                          CareerReportGenerateRequest req) {
         Map<String, Object> vars = new LinkedHashMap<>();
@@ -479,7 +479,7 @@ public class CareerDevelopmentReportServiceImpl
         return EmbeddingQuerySupport.embedQuery(embeddingModel, queryText);
     }
 
-    private String buildKnowledgeQuery(JobListItemDTO jobDetail, CareerReportGenerateRequest req) {
+    private String buildKnowledgeQuery(JobListItemResponse jobDetail, CareerReportGenerateRequest req) {
         StringBuilder sb = new StringBuilder();
         sb.append("生成职业发展学习路径 ");
         sb.append(safe(jobDetail.getJobName())).append(" ");

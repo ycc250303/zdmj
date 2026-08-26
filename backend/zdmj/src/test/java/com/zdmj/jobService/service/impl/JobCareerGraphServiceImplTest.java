@@ -5,8 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
-import com.zdmj.jobService.dto.JobCareerGraphDTO;
-import com.zdmj.jobService.dto.JobListItemDTO;
+import com.zdmj.jobService.dto.JobCareerGraphResponse;
+import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.entity.JobCareerGraph;
 import com.zdmj.jobService.service.JobService;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,7 +50,7 @@ class JobCareerGraphServiceImplTest {
         Long jobId = 31L;
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
         doThrow(new RuntimeException("llm timeout")).when(chatUtil)
-                .chatStructuredOnce(any(), any(), eq(null), eq(JobCareerGraphDTO.class));
+                .chatStructuredOnce(any(), any(), eq(null), eq(JobCareerGraphResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> graphService.generate(jobId));
 
@@ -61,11 +61,11 @@ class JobCareerGraphServiceImplTest {
     @Test
     void graph_generate_invalid_shouldThrow10005() {
         Long jobId = 32L;
-        JobCareerGraphDTO invalidGraph = new JobCareerGraphDTO();
+        JobCareerGraphResponse invalidGraph = new JobCareerGraphResponse();
         invalidGraph.setVerticalPath(List.of(vNode(1, "初级"), vNode(2, "中级")));
         invalidGraph.setTransitionPaths(List.of());
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(invalidGraph).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCareerGraphDTO.class));
+        doReturn(invalidGraph).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCareerGraphResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> graphService.generate(jobId));
 
@@ -75,13 +75,13 @@ class JobCareerGraphServiceImplTest {
     @Test
     void graph_generate_success_shouldMarkCurrentAndSave() {
         Long jobId = 33L;
-        JobCareerGraphDTO valid = buildValidGraphWithoutCurrent();
+        JobCareerGraphResponse valid = buildValidGraphWithoutCurrent();
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(valid).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCareerGraphDTO.class));
+        doReturn(valid).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCareerGraphResponse.class));
         doReturn(null).when(graphService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(graphService).save(any(JobCareerGraph.class));
 
-        JobCareerGraphDTO result = graphService.generate(jobId);
+        JobCareerGraphResponse result = graphService.generate(jobId);
 
         assertEquals(2, result.getCurrentNode().getLevel());
         assertEquals("中级Java工程师", result.getCurrentNode().getTitle());
@@ -95,7 +95,7 @@ class JobCareerGraphServiceImplTest {
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
         doReturn(null).when(graphService).getOne(any(LambdaQueryWrapper.class));
 
-        JobCareerGraphDTO result = graphService.getOrNull(jobId);
+        JobCareerGraphResponse result = graphService.getOrNull(jobId);
 
         assertNull(result);
         verify(jobService).getDetail(jobId);
@@ -116,7 +116,7 @@ class JobCareerGraphServiceImplTest {
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
         doReturn(entity).when(graphService).getOne(any(LambdaQueryWrapper.class));
 
-        JobCareerGraphDTO dto = graphService.getOrNull(jobId);
+        JobCareerGraphResponse dto = graphService.getOrNull(jobId);
 
         assertEquals(jobId, dto.getJobId());
         assertEquals("summary", dto.getSummary());
@@ -139,7 +139,7 @@ class JobCareerGraphServiceImplTest {
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
         doReturn(entity).when(graphService).getOne(any(LambdaQueryWrapper.class));
 
-        JobCareerGraphDTO dto = graphService.getOrNull(jobId);
+        JobCareerGraphResponse dto = graphService.getOrNull(jobId);
 
         assertEquals(jobId, dto.getJobId());
         assertEquals("broken", dto.getSummary());
@@ -152,15 +152,15 @@ class JobCareerGraphServiceImplTest {
     @Test
     void graph_generate_update_whenExisting_shouldUpdateById() {
         Long jobId = 38L;
-        JobCareerGraphDTO valid = buildValidGraphWithoutCurrent();
+        JobCareerGraphResponse valid = buildValidGraphWithoutCurrent();
         JobCareerGraph existing = new JobCareerGraph();
         existing.setId(999L);
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(valid).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCareerGraphDTO.class));
+        doReturn(valid).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCareerGraphResponse.class));
         doReturn(existing).when(graphService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(graphService).updateById(any(JobCareerGraph.class));
 
-        JobCareerGraphDTO result = graphService.generate(jobId);
+        JobCareerGraphResponse result = graphService.generate(jobId);
 
         assertEquals(jobId, result.getJobId());
         assertEquals(5, result.getTransitionPaths().size());
@@ -171,17 +171,17 @@ class JobCareerGraphServiceImplTest {
     @Test
     void graph_generate_whenCurrentNodeGiven_shouldPreserveLevelAndTitle() {
         Long jobId = 39L;
-        JobCareerGraphDTO valid = buildValidGraphWithoutCurrent();
-        JobCareerGraphDTO.CurrentNode current = new JobCareerGraphDTO.CurrentNode();
+        JobCareerGraphResponse valid = buildValidGraphWithoutCurrent();
+        JobCareerGraphResponse.CurrentNode current = new JobCareerGraphResponse.CurrentNode();
         current.setLevel(3);
         current.setTitle("高级Java工程师");
         valid.setCurrentNode(current);
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(valid).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCareerGraphDTO.class));
+        doReturn(valid).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCareerGraphResponse.class));
         doReturn(null).when(graphService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(graphService).save(any(JobCareerGraph.class));
 
-        JobCareerGraphDTO result = graphService.generate(jobId);
+        JobCareerGraphResponse result = graphService.generate(jobId);
 
         assertEquals(3, result.getCurrentNode().getLevel());
         assertEquals("高级Java工程师", result.getCurrentNode().getTitle());
@@ -192,11 +192,11 @@ class JobCareerGraphServiceImplTest {
     @Test
     void graph_generate_fail_whenTransitionNodeTooShort_shouldThrow10005() {
         Long jobId = 36L;
-        JobCareerGraphDTO invalidGraph = new JobCareerGraphDTO();
+        JobCareerGraphResponse invalidGraph = new JobCareerGraphResponse();
         invalidGraph.setVerticalPath(List.of(vNode(1, "初级"), vNode(2, "中级"), vNode(3, "高级")));
-        List<JobCareerGraphDTO.TransitionPath> transitions = new ArrayList<>();
+        List<JobCareerGraphResponse.TransitionPath> transitions = new ArrayList<>();
         for (int i = 1; i <= 5; i++) {
-            JobCareerGraphDTO.TransitionPath p = new JobCareerGraphDTO.TransitionPath();
+            JobCareerGraphResponse.TransitionPath p = new JobCareerGraphResponse.TransitionPath();
             p.setName("路径" + i);
             p.setTargetRole("目标" + i);
             p.setNodes(i == 5 ? List.of(tNode("仅一个节点")) : List.of(tNode("节点A"), tNode("节点B")));
@@ -204,7 +204,7 @@ class JobCareerGraphServiceImplTest {
         }
         invalidGraph.setTransitionPaths(transitions);
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(invalidGraph).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCareerGraphDTO.class));
+        doReturn(invalidGraph).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCareerGraphResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> graphService.generate(jobId));
 
@@ -216,11 +216,11 @@ class JobCareerGraphServiceImplTest {
     @Test
     void graph_generate_fail_whenTransitionPathCountTooFew_shouldThrow10005() {
         Long jobId = 40L;
-        JobCareerGraphDTO invalidGraph = new JobCareerGraphDTO();
+        JobCareerGraphResponse invalidGraph = new JobCareerGraphResponse();
         invalidGraph.setVerticalPath(List.of(vNode(1, "初级"), vNode(2, "中级"), vNode(3, "高级")));
-        List<JobCareerGraphDTO.TransitionPath> transitions = new ArrayList<>();
+        List<JobCareerGraphResponse.TransitionPath> transitions = new ArrayList<>();
         for (int i = 1; i <= 4; i++) {
-            JobCareerGraphDTO.TransitionPath p = new JobCareerGraphDTO.TransitionPath();
+            JobCareerGraphResponse.TransitionPath p = new JobCareerGraphResponse.TransitionPath();
             p.setName("路径" + i);
             p.setTargetRole("目标" + i);
             p.setNodes(List.of(tNode("节点A"), tNode("节点B")));
@@ -228,7 +228,7 @@ class JobCareerGraphServiceImplTest {
         }
         invalidGraph.setTransitionPaths(transitions);
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(invalidGraph).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCareerGraphDTO.class));
+        doReturn(invalidGraph).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCareerGraphResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> graphService.generate(jobId));
 
@@ -237,14 +237,14 @@ class JobCareerGraphServiceImplTest {
         verify(graphService, never()).updateById(any(JobCareerGraph.class));
     }
 
-    private JobCareerGraphDTO buildValidGraphWithoutCurrent() {
-        JobCareerGraphDTO dto = new JobCareerGraphDTO();
+    private JobCareerGraphResponse buildValidGraphWithoutCurrent() {
+        JobCareerGraphResponse dto = new JobCareerGraphResponse();
         dto.setSummary("可成长为架构师");
         dto.setVerticalPath(List.of(vNode(1, "初级Java工程师"), vNode(2, "中级Java工程师"), vNode(3, "高级Java工程师")));
 
-        List<JobCareerGraphDTO.TransitionPath> transitions = new ArrayList<>();
+        List<JobCareerGraphResponse.TransitionPath> transitions = new ArrayList<>();
         for (int i = 1; i <= 5; i++) {
-            JobCareerGraphDTO.TransitionPath path = new JobCareerGraphDTO.TransitionPath();
+            JobCareerGraphResponse.TransitionPath path = new JobCareerGraphResponse.TransitionPath();
             path.setName("路径" + i);
             path.setTargetRole("目标岗位" + i);
             path.setNodes(List.of(tNode("当前岗位" + i), tNode("目标岗位" + i)));
@@ -254,21 +254,21 @@ class JobCareerGraphServiceImplTest {
         return dto;
     }
 
-    private JobCareerGraphDTO.VerticalPathNode vNode(int level, String title) {
-        JobCareerGraphDTO.VerticalPathNode node = new JobCareerGraphDTO.VerticalPathNode();
+    private JobCareerGraphResponse.VerticalPathNode vNode(int level, String title) {
+        JobCareerGraphResponse.VerticalPathNode node = new JobCareerGraphResponse.VerticalPathNode();
         node.setLevel(level);
         node.setTitle(title);
         return node;
     }
 
-    private JobCareerGraphDTO.TransitionNode tNode(String title) {
-        JobCareerGraphDTO.TransitionNode node = new JobCareerGraphDTO.TransitionNode();
+    private JobCareerGraphResponse.TransitionNode tNode(String title) {
+        JobCareerGraphResponse.TransitionNode node = new JobCareerGraphResponse.TransitionNode();
         node.setTitle(title);
         return node;
     }
 
-    private JobListItemDTO buildJobDetail() {
-        JobListItemDTO dto = new JobListItemDTO();
+    private JobListItemResponse buildJobDetail() {
+        JobListItemResponse dto = new JobListItemResponse();
         dto.setJobName("Java后端");
         dto.setCompanyName("ZDMJ");
         dto.setDescription("Java Spring Redis");
