@@ -15,5 +15,5 @@ public class JobStudentMatchGenerateRequest {
     /**
      * 自定义权重配置，可为 null。
      */
-    private MatchWeightConfigDTO weights;
+    private MatchWeightConfigResponse weights;
 }

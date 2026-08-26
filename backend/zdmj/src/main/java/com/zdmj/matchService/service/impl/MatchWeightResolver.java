@@ -1,7 +1,7 @@
 package com.zdmj.matchService.service.impl;
 
 import com.zdmj.common.ai.PromptUtil.JobRole;
-import com.zdmj.matchService.dto.MatchWeightConfigDTO;
+import com.zdmj.matchService.dto.MatchWeightConfigResponse;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Map;
@@ -26,7 +26,7 @@ public final class MatchWeightResolver {
     }
 
     /** 通用兜底权重：技能 0.40 / 潜力 0.25 / 基础 0.20 / 素养 0.15。 */
-    private static final MatchWeightConfigDTO DEFAULT = of("0.20", "0.40", "0.15", "0.25");
+    private static final MatchWeightConfigResponse DEFAULT = of("0.20", "0.40", "0.15", "0.25");
 
     /**
      * 各岗位类型的默认权重表。
@@ -34,7 +34,7 @@ public final class MatchWeightResolver {
      * <p>设计依据：技术岗位整体强调专业技能（≥0.40），算法/AI 岗位发展潜力权重相对更高，
      * 测试岗位职业素养权重适当抬升以反映质量与协作要求。</p>
      */
-    private static final Map<JobRole, MatchWeightConfigDTO> ROLE_WEIGHTS = Map.ofEntries(
+    private static final Map<JobRole, MatchWeightConfigResponse> ROLE_WEIGHTS = Map.ofEntries(
             Map.entry(JobRole.JAVA, of("0.20", "0.45", "0.15", "0.20")),
             Map.entry(JobRole.FRONTEND, of("0.20", "0.45", "0.15", "0.20")),
             Map.entry(JobRole.CPP, of("0.20", "0.50", "0.10", "0.20")),
@@ -49,8 +49,8 @@ public final class MatchWeightResolver {
     /**
      * 取该岗位类型的默认权重（拷贝返回，避免外部修改静态常量）。
      */
-    public static MatchWeightConfigDTO defaultFor(JobRole role) {
-        MatchWeightConfigDTO base = role == null ? DEFAULT : ROLE_WEIGHTS.getOrDefault(role, DEFAULT);
+    public static MatchWeightConfigResponse defaultFor(JobRole role) {
+        MatchWeightConfigResponse base = role == null ? DEFAULT : ROLE_WEIGHTS.getOrDefault(role, DEFAULT);
         return copy(base);
     }
 
@@ -61,8 +61,8 @@ public final class MatchWeightResolver {
      * @param override 前端传入的自定义权重（可能为 null 或部分字段为 null）
      * @return 归一化后的权重（总和 = 1.00），保留 4 位小数
      */
-    public static MatchWeightConfigDTO resolve(JobRole role, MatchWeightConfigDTO override) {
-        MatchWeightConfigDTO base = defaultFor(role);
+    public static MatchWeightConfigResponse resolve(JobRole role, MatchWeightConfigResponse override) {
+        MatchWeightConfigResponse base = defaultFor(role);
         if (override == null) {
             return normalize(base, role);
         }
@@ -89,7 +89,7 @@ public final class MatchWeightResolver {
      * <p>「全零回退」选择回退到 {@code role} 的默认而非全局默认 —— 因为请求已经显式指定了岗位，
      * 全零是用户的误用，但岗位路由信息仍应当被尊重。</p>
      */
-    private static MatchWeightConfigDTO normalize(MatchWeightConfigDTO w, JobRole role) {
+    private static MatchWeightConfigResponse normalize(MatchWeightConfigResponse w, JobRole role) {
         BigDecimal a = nonNegative(w.getBasic());
         BigDecimal b = nonNegative(w.getProfessionalSkill());
         BigDecimal c = nonNegative(w.getProfessionalQuality());
@@ -100,7 +100,7 @@ public final class MatchWeightResolver {
             return defaultFor(role);
         }
 
-        return new MatchWeightConfigDTO(
+        return new MatchWeightConfigResponse(
                 a.divide(sum, 4, RoundingMode.HALF_UP),
                 b.divide(sum, 4, RoundingMode.HALF_UP),
                 c.divide(sum, 4, RoundingMode.HALF_UP),
@@ -110,7 +110,7 @@ public final class MatchWeightResolver {
     /**
      * 按权重把四维度评分加权为综合分（0~100，整数）。
      */
-    public static int weightedOverall(MatchWeightConfigDTO weights, int basic, int skill, int quality, int potential) {
+    public static int weightedOverall(MatchWeightConfigResponse weights, int basic, int skill, int quality, int potential) {
         BigDecimal score = BigDecimal.valueOf(basic).multiply(nonNegative(weights.getBasic()))
                 .add(BigDecimal.valueOf(skill).multiply(nonNegative(weights.getProfessionalSkill())))
                 .add(BigDecimal.valueOf(quality).multiply(nonNegative(weights.getProfessionalQuality())))
@@ -126,16 +126,16 @@ public final class MatchWeightResolver {
         return v;
     }
 
-    private static MatchWeightConfigDTO of(String basic, String skill, String quality, String potential) {
-        return new MatchWeightConfigDTO(
+    private static MatchWeightConfigResponse of(String basic, String skill, String quality, String potential) {
+        return new MatchWeightConfigResponse(
                 new BigDecimal(basic),
                 new BigDecimal(skill),
                 new BigDecimal(quality),
                 new BigDecimal(potential));
     }
 
-    private static MatchWeightConfigDTO copy(MatchWeightConfigDTO w) {
-        return new MatchWeightConfigDTO(
+    private static MatchWeightConfigResponse copy(MatchWeightConfigResponse w) {
+        return new MatchWeightConfigResponse(
                 w.getBasic(),
                 w.getProfessionalSkill(),
                 w.getProfessionalQuality(),

@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class MatchWeightConfigDTO {
+public class MatchWeightConfigResponse {
 
     /**
      * 基础要求权重（学历 / 证书 / 硬性资质门槛）。

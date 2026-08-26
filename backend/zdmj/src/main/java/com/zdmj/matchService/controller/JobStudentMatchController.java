@@ -6,10 +6,10 @@ import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.Result;
 
 import java.util.concurrent.TimeUnit;
-import com.zdmj.matchService.dto.JobStudentMatchDTO;
+import com.zdmj.matchService.dto.JobStudentMatchResponse;
 import com.zdmj.matchService.dto.JobStudentMatchGenerateRequest;
-import com.zdmj.matchService.dto.JobStudentMatchListItemDTO;
-import com.zdmj.matchService.dto.MatchWeightConfigDTO;
+import com.zdmj.matchService.dto.JobStudentMatchListItemResponse;
+import com.zdmj.matchService.dto.MatchWeightConfigResponse;
 import com.zdmj.matchService.service.JobStudentMatchService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -42,7 +42,7 @@ public class JobStudentMatchController {
      * @return 分页列表
      */
     @GetMapping
-    public Result<PageDTO<JobStudentMatchListItemDTO>> getMyPage(
+    public Result<PageDTO<JobStudentMatchListItemResponse>> getMyPage(
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer limit) {
         return Result.success("查询匹配记录成功", matchService.getMyPage(page, limit));
@@ -55,7 +55,7 @@ public class JobStudentMatchController {
      * @return 匹配结果或 null
      */
     @GetMapping("/jobs/{jobId}")
-    public Result<JobStudentMatchDTO> query(@PathVariable Long jobId) {
+    public Result<JobStudentMatchResponse> query(@PathVariable Long jobId) {
         return Result.success("查询人岗匹配成功", matchService.getOrNull(jobId));
     }
 
@@ -72,7 +72,7 @@ public class JobStudentMatchController {
     @RateLimit(dimension = RateLimit.Dimension.USER, count = LlmRateLimits.MATCH_GENERATE_PER_MIN, interval = 1,
             timeUnit = TimeUnit.MINUTES)
     @PostMapping("/jobs/{jobId}")
-    public Result<JobStudentMatchDTO> generate(@PathVariable Long jobId,
+    public Result<JobStudentMatchResponse> generate(@PathVariable Long jobId,
                                                @RequestBody(required = false) JobStudentMatchGenerateRequest req) {
         log.info("生成人岗匹配分析: jobId={}", jobId);
         return Result.success("生成人岗匹配成功", matchService.generate(jobId, req));
@@ -85,7 +85,7 @@ public class JobStudentMatchController {
      * @return 默认权重
      */
     @GetMapping("/jobs/{jobId}/weights")
-    public Result<MatchWeightConfigDTO> defaultWeights(@PathVariable Long jobId) {
+    public Result<MatchWeightConfigResponse> defaultWeights(@PathVariable Long jobId) {
         return Result.success("查询默认权重成功", matchService.getDefaultWeights(jobId));
     }
 }

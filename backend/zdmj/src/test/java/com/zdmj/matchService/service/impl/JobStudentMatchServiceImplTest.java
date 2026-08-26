@@ -13,9 +13,9 @@ import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobService;
-import com.zdmj.matchService.dto.DimensionMatchDTO;
-import com.zdmj.matchService.dto.JobStudentMatchDTO;
-import com.zdmj.matchService.dto.JobStudentMatchListItemDTO;
+import com.zdmj.matchService.dto.DimensionMatchResponse;
+import com.zdmj.matchService.dto.JobStudentMatchResponse;
+import com.zdmj.matchService.dto.JobStudentMatchListItemResponse;
 import com.zdmj.matchService.entity.JobStudentMatch;
 import com.zdmj.matchService.enums.MatchDimension;
 import com.zdmj.matchService.mapper.JobStudentMatchMapper;
@@ -106,7 +106,7 @@ class JobStudentMatchServiceImplTest {
         Long jobId = 11L;
         wireHappyPath(jobId, "java-backend", buildAiResult());
 
-        JobStudentMatchDTO result = matchService.generate(jobId, null);
+        JobStudentMatchResponse result = matchService.generate(jobId, null);
 
         assertNotNull(result);
         // 关键断言：promptVars 必须是 null —— 一旦改回 Map，PromptTemplate 渲染会因
@@ -115,7 +115,7 @@ class JobStudentMatchServiceImplTest {
                 any(String.class),
                 eq("job-student-match/java-backend"),
                 isNull(),
-                eq(JobStudentMatchDTO.class));
+                eq(JobStudentMatchResponse.class));
     }
 
     @Test
@@ -129,7 +129,7 @@ class JobStudentMatchServiceImplTest {
                 any(String.class),
                 eq("job-student-match/default"),
                 isNull(),
-                eq(JobStudentMatchDTO.class));
+                eq(JobStudentMatchResponse.class));
     }
 
     @Test
@@ -143,7 +143,7 @@ class JobStudentMatchServiceImplTest {
                 any(String.class),
                 eq("job-student-match/frontend"),
                 isNull(),
-                eq(JobStudentMatchDTO.class));
+                eq(JobStudentMatchResponse.class));
     }
 
     @Test
@@ -157,7 +157,7 @@ class JobStudentMatchServiceImplTest {
                 any(String.class),
                 eq("job-student-match/ai-agent"),
                 isNull(),
-                eq(JobStudentMatchDTO.class));
+                eq(JobStudentMatchResponse.class));
     }
 
     // ========================================================
@@ -176,7 +176,7 @@ class JobStudentMatchServiceImplTest {
                 userMessageCaptor.capture(),
                 eq("job-student-match/java-backend"),
                 isNull(),
-                eq(JobStudentMatchDTO.class));
+                eq(JobStudentMatchResponse.class));
 
         String userMessage = userMessageCaptor.getValue();
         // 这俩内容原本是通过 promptVars 注入到 system prompt 的；
@@ -202,7 +202,7 @@ class JobStudentMatchServiceImplTest {
         prepareJobAndProfiles(jobId, "java-backend");
         doThrow(new RuntimeException("llm down")).when(chatUtil)
                 .chatStructuredOnce(any(String.class), any(String.class), isNull(),
-                        eq(JobStudentMatchDTO.class));
+                        eq(JobStudentMatchResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> matchService.generate(jobId, null));
@@ -215,7 +215,7 @@ class JobStudentMatchServiceImplTest {
         prepareJobAndProfiles(jobId, "java-backend");
         doReturn(null).when(chatUtil).chatStructuredOnce(
                 any(String.class), any(String.class), isNull(),
-                eq(JobStudentMatchDTO.class));
+                eq(JobStudentMatchResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> matchService.generate(jobId, null));
@@ -253,7 +253,7 @@ class JobStudentMatchServiceImplTest {
     void getOrNull_whenNotFound_shouldReturnNull() {
         doReturn(null).when(matchService).getOne(any(LambdaQueryWrapper.class));
 
-        JobStudentMatchDTO dto = matchService.getOrNull(99L);
+        JobStudentMatchResponse dto = matchService.getOrNull(99L);
 
         assertNull(dto);
     }
@@ -272,7 +272,7 @@ class JobStudentMatchServiceImplTest {
 
     @Test
     void getMyPage_shouldNormalizePagingAndDelegateToMapper() {
-        JobStudentMatchListItemDTO item = new JobStudentMatchListItemDTO();
+        JobStudentMatchListItemResponse item = new JobStudentMatchListItemResponse();
         item.setId(1L);
         item.setJobId(11L);
         item.setJobName("Java 后端");
@@ -282,12 +282,12 @@ class JobStudentMatchServiceImplTest {
         item.setSummary("可投递");
         item.setUpdatedAt(LocalDateTime.of(2026, 8, 13, 12, 0));
 
-        Page<JobStudentMatchListItemDTO> mpPage = new Page<>(1, 20);
+        Page<JobStudentMatchListItemResponse> mpPage = new Page<>(1, 20);
         mpPage.setRecords(List.of(item));
         mpPage.setTotal(1);
         doReturn(mpPage).when(matchMapper).selectMyMatchPage(any(Page.class), eq(USER_ID));
 
-        PageDTO<JobStudentMatchListItemDTO> page = matchService.getMyPage(null, null);
+        PageDTO<JobStudentMatchListItemResponse> page = matchService.getMyPage(null, null);
 
         assertEquals(1, page.getPage());
         assertEquals(20, page.getLimit());
@@ -299,12 +299,12 @@ class JobStudentMatchServiceImplTest {
 
     @Test
     void getMyPage_whenLimitTooLarge_shouldCapAt100() {
-        Page<JobStudentMatchListItemDTO> mpPage = new Page<>(1, 100);
+        Page<JobStudentMatchListItemResponse> mpPage = new Page<>(1, 100);
         mpPage.setRecords(List.of());
         mpPage.setTotal(0);
         doReturn(mpPage).when(matchMapper).selectMyMatchPage(any(Page.class), eq(USER_ID));
 
-        PageDTO<JobStudentMatchListItemDTO> page = matchService.getMyPage(1, 500);
+        PageDTO<JobStudentMatchListItemResponse> page = matchService.getMyPage(1, 500);
 
         assertEquals(100, page.getLimit());
         assertTrue(page.getList().isEmpty());
@@ -318,10 +318,10 @@ class JobStudentMatchServiceImplTest {
     /**
      * 串联 happy path：JobDetail + JobProfile + StudentProfile + aiResult + getOne=null + save=true。
      */
-    private void wireHappyPath(Long jobId, String roleType, JobStudentMatchDTO aiResult) {
+    private void wireHappyPath(Long jobId, String roleType, JobStudentMatchResponse aiResult) {
         prepareJobAndProfiles(jobId, roleType);
         doReturn(aiResult).when(chatUtil).chatStructuredOnce(
-                any(String.class), any(String.class), isNull(), eq(JobStudentMatchDTO.class));
+                any(String.class), any(String.class), isNull(), eq(JobStudentMatchResponse.class));
         doReturn(null).when(matchService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(matchService).save(any(JobStudentMatch.class));
     }
@@ -380,12 +380,12 @@ class JobStudentMatchServiceImplTest {
         return p;
     }
 
-    private static JobStudentMatchDTO buildAiResult() {
-        JobStudentMatchDTO dto = new JobStudentMatchDTO();
+    private static JobStudentMatchResponse buildAiResult() {
+        JobStudentMatchResponse dto = new JobStudentMatchResponse();
         dto.setTargetRoleType("java-backend");
-        Map<String, DimensionMatchDTO> dims = new LinkedHashMap<>();
+        Map<String, DimensionMatchResponse> dims = new LinkedHashMap<>();
         for (MatchDimension d : MatchDimension.values()) {
-            DimensionMatchDTO dim = new DimensionMatchDTO();
+            DimensionMatchResponse dim = new DimensionMatchResponse();
             dim.setJobSide("job-" + d.getCode());
             dim.setStudentSide("stu-" + d.getCode());
             dim.setScore(70);

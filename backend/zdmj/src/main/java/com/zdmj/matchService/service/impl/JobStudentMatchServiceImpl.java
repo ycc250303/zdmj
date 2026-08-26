@@ -17,11 +17,11 @@ import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobService;
-import com.zdmj.matchService.dto.DimensionMatchDTO;
-import com.zdmj.matchService.dto.JobStudentMatchDTO;
+import com.zdmj.matchService.dto.DimensionMatchResponse;
+import com.zdmj.matchService.dto.JobStudentMatchResponse;
 import com.zdmj.matchService.dto.JobStudentMatchGenerateRequest;
-import com.zdmj.matchService.dto.JobStudentMatchListItemDTO;
-import com.zdmj.matchService.dto.MatchWeightConfigDTO;
+import com.zdmj.matchService.dto.JobStudentMatchListItemResponse;
+import com.zdmj.matchService.dto.MatchWeightConfigResponse;
 import com.zdmj.matchService.entity.JobStudentMatch;
 import com.zdmj.matchService.enums.MatchDimension;
 import com.zdmj.matchService.mapper.JobStudentMatchMapper;
@@ -68,16 +68,16 @@ public class JobStudentMatchServiceImpl
     // ============================================================
 
     @Override
-    public PageDTO<JobStudentMatchListItemDTO> getMyPage(Integer page, Integer limit) {
+    public PageDTO<JobStudentMatchListItemResponse> getMyPage(Integer page, Integer limit) {
         Long userId = UserHolder.requireUserId();
         PageRequests.Normalized paging = PageRequests.normalize(page, limit);
-        IPage<JobStudentMatchListItemDTO> result =
+        IPage<JobStudentMatchListItemResponse> result =
                 baseMapper.selectMyMatchPage(PageRequests.toPage(paging), userId);
         return PageDTO.from(result);
     }
 
     @Override
-    public JobStudentMatchDTO getOrNull(Long jobId) {
+    public JobStudentMatchResponse getOrNull(Long jobId) {
         Long userId = UserHolder.requireUserId();
         if (jobId == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "jobId不能为空");
@@ -92,7 +92,7 @@ public class JobStudentMatchServiceImpl
     }
 
     @Override
-    public JobStudentMatchDTO generate(Long jobId, JobStudentMatchGenerateRequest req) {
+    public JobStudentMatchResponse generate(Long jobId, JobStudentMatchGenerateRequest req) {
         Long userId = UserHolder.requireUserId();
         if (jobId == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "jobId不能为空");
@@ -117,7 +117,7 @@ public class JobStudentMatchServiceImpl
 
         // 3. 解析权重（默认 + 覆盖 → 归一化）
         JobRole role = PromptUtil.getJobRoleByString(jobProfile.getTargetRoleType());
-        MatchWeightConfigDTO weights = MatchWeightResolver.resolve(
+        MatchWeightConfigResponse weights = MatchWeightResolver.resolve(
                 role, req == null ? null : req.getWeights());
         String promptName = PromptUtil.getJobStudentMatchPromptName(role);
         log.info("人岗匹配开始: jobId={}, userId={}, role={}, prompt={}", jobId, userId, role, promptName);
@@ -132,9 +132,9 @@ public class JobStudentMatchServiceImpl
 
         // 5. 调用 LLM 结构化输出（promptVars 传 null，ChatUtil 会跳过模板渲染，与项目其它
         //    结构化调用保持一致：resume-analysis / job-requirement / job-career-graph 均传 null）
-        JobStudentMatchDTO aiResult;
+        JobStudentMatchResponse aiResult;
         try {
-            aiResult = chatUtil.chatStructuredOnce(userMessage, promptName, null, JobStudentMatchDTO.class);
+            aiResult = chatUtil.chatStructuredOnce(userMessage, promptName, null, JobStudentMatchResponse.class);
         } catch (IllegalStateException e) {
             log.error("人岗匹配结构化输出解析失败 jobId={} userId={}", jobId, userId, e);
             throw new BusinessException(ErrorCode.MATCH_GENERATION_FAILED);
@@ -147,7 +147,7 @@ public class JobStudentMatchServiceImpl
         }
 
         // 6. 兜底重算关键词匹配率 + 综合分
-        Map<String, DimensionMatchDTO> dims = sanitizeDimensions(aiResult.getDimensions());
+        Map<String, DimensionMatchResponse> dims = sanitizeDimensions(aiResult.getDimensions());
         KeywordMatchResult kw = recomputeKeywordMatch(jobKeywords, aiResult.getMatchedKeywords(), studentProfile);
         int basicScore = clamp(getDimensionScore(dims, MatchDimension.BASIC));
         int skillScore = clamp(getDimensionScore(dims, MatchDimension.PROFESSIONAL_SKILL));
@@ -166,7 +166,7 @@ public class JobStudentMatchServiceImpl
     }
 
     @Override
-    public MatchWeightConfigDTO getDefaultWeights(Long jobId) {
+    public MatchWeightConfigResponse getDefaultWeights(Long jobId) {
         if (jobId == null) {
             return MatchWeightResolver.defaultFor(JobRole.UNKNOWN);
         }
@@ -187,7 +187,7 @@ public class JobStudentMatchServiceImpl
     private String buildUserMessage(JobListItemResponse jobDetail,
                                     JobCapabilityProfileResponse jobProfile,
                                     StudentCapabilityProfileResponse studentProfile,
-                                    MatchWeightConfigDTO weights,
+                                    MatchWeightConfigResponse weights,
                                     List<String> jobKeywords) {
         StringBuilder sb = new StringBuilder();
         sb.append("以下是用于人岗匹配分析的全部上下文。请严格基于这些文本输出 JSON 结果。\n\n");
@@ -291,12 +291,12 @@ public class JobStudentMatchServiceImpl
     /**
      * LLM 输出的 dimensions 可能缺维或多维，这里把它统一成 4 维。
      */
-    private Map<String, DimensionMatchDTO> sanitizeDimensions(Map<String, DimensionMatchDTO> raw) {
-        Map<String, DimensionMatchDTO> out = new LinkedHashMap<>();
+    private Map<String, DimensionMatchResponse> sanitizeDimensions(Map<String, DimensionMatchResponse> raw) {
+        Map<String, DimensionMatchResponse> out = new LinkedHashMap<>();
         for (MatchDimension d : MatchDimension.values()) {
-            DimensionMatchDTO got = raw == null ? null : raw.get(d.getCode());
+            DimensionMatchResponse got = raw == null ? null : raw.get(d.getCode());
             if (got == null) {
-                got = new DimensionMatchDTO();
+                got = new DimensionMatchResponse();
                 got.setScore(0);
                 got.setEvidence(List.of());
             }
@@ -308,8 +308,8 @@ public class JobStudentMatchServiceImpl
         return out;
     }
 
-    private static int getDimensionScore(Map<String, DimensionMatchDTO> dims, MatchDimension d) {
-        DimensionMatchDTO got = dims.get(d.getCode());
+    private static int getDimensionScore(Map<String, DimensionMatchResponse> dims, MatchDimension d) {
+        DimensionMatchResponse got = dims.get(d.getCode());
         if (got == null || got.getScore() == null) {
             return 0;
         }
@@ -389,10 +389,10 @@ public class JobStudentMatchServiceImpl
     private JobStudentMatch upsert(Long userId, Long jobId,
                                    JobCapabilityProfileResponse jobProfile,
                                    String promptName,
-                                   MatchWeightConfigDTO weights,
+                                   MatchWeightConfigResponse weights,
                                    int basicScore, int skillScore,
                                    int qualityScore, int potentialScore, int overall,
-                                   Map<String, DimensionMatchDTO> dims,
+                                   Map<String, DimensionMatchResponse> dims,
                                    List<String> matchedHighlights,
                                    List<String> criticalGaps,
                                    List<String> matchedKeywords,
@@ -446,21 +446,21 @@ public class JobStudentMatchServiceImpl
         }
     }
 
-    private JobStudentMatchDTO toDto(JobStudentMatch entity) {
+    private JobStudentMatchResponse toDto(JobStudentMatch entity) {
         if (entity == null) {
             return null;
         }
-        JobStudentMatchDTO dto = new JobStudentMatchDTO();
+        JobStudentMatchResponse dto = new JobStudentMatchResponse();
         dto.setJobId(entity.getJobId());
         dto.setTargetRoleType(entity.getTargetRoleType());
         dto.setOverallScore(entity.getOverallScore());
 
-        Map<String, DimensionMatchDTO> dims = readJson(entity.getDimensionDetail(),
-                new TypeReference<Map<String, DimensionMatchDTO>>() {});
+        Map<String, DimensionMatchResponse> dims = readJson(entity.getDimensionDetail(),
+                new TypeReference<Map<String, DimensionMatchResponse>>() {});
         dto.setDimensions(dims == null ? new LinkedHashMap<>() : dims);
 
-        MatchWeightConfigDTO weights = readJson(entity.getWeights(),
-                new TypeReference<MatchWeightConfigDTO>() {});
+        MatchWeightConfigResponse weights = readJson(entity.getWeights(),
+                new TypeReference<MatchWeightConfigResponse>() {});
         dto.setWeights(weights);
 
         dto.setMatchedHighlights(readJson(entity.getMatchedHighlights(),

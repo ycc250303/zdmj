@@ -15,9 +15,9 @@ import com.zdmj.common.model.CreateGroup;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.Result;
 import com.zdmj.common.model.UpdateGroup;
-import com.zdmj.knowledgeService.dto.KnowledgeDocumentDTO;
-import com.zdmj.knowledgeService.dto.KnowledgeDocumentPublicDTO;
-import com.zdmj.knowledgeService.entity.KnowledgeDocument;
+import com.zdmj.knowledgeService.dto.KnowledgeDocumentPublicResponse;
+import com.zdmj.knowledgeService.dto.KnowledgeDocumentRequest;
+import com.zdmj.knowledgeService.dto.KnowledgeDocumentResponse;
 import com.zdmj.knowledgeService.service.KnowledgeDocumentService;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -43,7 +43,7 @@ public class KnowledgeDocumentController {
      * @param limit 每页条数，默认 20，最大 100
      */
     @GetMapping
-    public Result<PageDTO<KnowledgeDocumentPublicDTO>> listKnowledgeDocuments(
+    public Result<PageDTO<KnowledgeDocumentPublicResponse>> listKnowledgeDocuments(
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer limit) {
         return Result.success("查询知识文档列表成功", knowledgeDocumentService.getByPage(page, limit));
@@ -52,13 +52,13 @@ public class KnowledgeDocumentController {
     /**
      * 创建知识文档
      *
-     * @param knowledgeDocumentDTO 知识文档DTO
+     * @param request 知识文档请求
      * @return 知识文档
      */
     @PostMapping
-    public Result<KnowledgeDocument> createKnowledgeDocument(
-            @Validated(CreateGroup.class) @RequestBody KnowledgeDocumentDTO knowledgeDocumentDTO) {
-        return Result.success("创建知识文档成功", knowledgeDocumentService.create(knowledgeDocumentDTO));
+    public Result<KnowledgeDocumentResponse> createKnowledgeDocument(
+            @Validated(CreateGroup.class) @RequestBody KnowledgeDocumentRequest request) {
+        return Result.success("创建知识文档成功", knowledgeDocumentService.create(request));
     }
 
     /**
@@ -68,20 +68,20 @@ public class KnowledgeDocumentController {
      * @return 知识文档
      */
     @GetMapping("/{id}")
-    public Result<KnowledgeDocumentPublicDTO> getKnowledgeDocumentById(@PathVariable Long id) {
+    public Result<KnowledgeDocumentPublicResponse> getKnowledgeDocumentById(@PathVariable Long id) {
         return Result.success("查询知识文档成功", knowledgeDocumentService.getPublicById(id));
     }
 
     /**
      * 更新知识文档
      *
-     * @param knowledgeDocumentDTO 知识文档DTO
+     * @param request 知识文档请求
      * @return 知识文档
      */
     @PutMapping
-    public Result<KnowledgeDocument> updateKnowledgeDocument(
-            @Validated(UpdateGroup.class) @RequestBody KnowledgeDocumentDTO knowledgeDocumentDTO) {
-        return Result.success("更新知识文档成功", knowledgeDocumentService.update(knowledgeDocumentDTO));
+    public Result<KnowledgeDocumentResponse> updateKnowledgeDocument(
+            @Validated(UpdateGroup.class) @RequestBody KnowledgeDocumentRequest request) {
+        return Result.success("更新知识文档成功", knowledgeDocumentService.update(request));
     }
 
     /**

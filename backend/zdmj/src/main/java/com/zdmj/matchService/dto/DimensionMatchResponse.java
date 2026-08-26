@@ -18,7 +18,7 @@ import lombok.Data;
  */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class DimensionMatchDTO {
+public class DimensionMatchResponse {
 
     /**
      * 岗位侧要求摘要（2~4 句中文）。

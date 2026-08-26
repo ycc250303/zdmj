@@ -9,7 +9,7 @@ import lombok.Data;
  * 知识文档对外视图（单条 GET 与分页 {@code PageDTO#list} 元素结构一致；不含 knowledgeId、userId、contentHash、chunkCount）。
  */
 @Data
-public class KnowledgeDocumentPublicDTO {
+public class KnowledgeDocumentPublicResponse {
 
     /**
      * 文档ID

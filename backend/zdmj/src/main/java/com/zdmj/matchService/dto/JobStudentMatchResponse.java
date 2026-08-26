@@ -19,7 +19,7 @@ import lombok.Data;
  */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class JobStudentMatchDTO {
+public class JobStudentMatchResponse {
 
     /**
      * 岗位ID（接口出参，便于前端复用；LLM 不必输出）。
@@ -44,12 +44,12 @@ public class JobStudentMatchDTO {
      *
      * <p>合法 key：basic / professionalSkill / professionalQuality / developmentPotential。</p>
      */
-    private Map<String, DimensionMatchDTO> dimensions;
+    private Map<String, DimensionMatchResponse> dimensions;
 
     /**
      * 本次匹配采用的权重配置快照。
      */
-    private MatchWeightConfigDTO weights;
+    private MatchWeightConfigResponse weights;
 
     /**
      * 命中亮点：学生在该岗位上的强匹配能力点（3~6 条）。

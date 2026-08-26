@@ -2,7 +2,7 @@ package com.zdmj.matchService.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.zdmj.matchService.dto.JobStudentMatchListItemDTO;
+import com.zdmj.matchService.dto.JobStudentMatchListItemResponse;
 import com.zdmj.matchService.entity.JobStudentMatch;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -17,6 +17,6 @@ public interface JobStudentMatchMapper extends BaseMapper<JobStudentMatch> {
      * @param userId 用户 ID
      * @return 列表项分页
      */
-    IPage<JobStudentMatchListItemDTO> selectMyMatchPage(IPage<JobStudentMatchListItemDTO> page,
+    IPage<JobStudentMatchListItemResponse> selectMyMatchPage(IPage<JobStudentMatchListItemResponse> page,
                                                         @Param("userId") Long userId);
 }

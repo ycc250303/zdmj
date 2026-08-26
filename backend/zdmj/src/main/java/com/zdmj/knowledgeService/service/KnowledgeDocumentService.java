@@ -1,8 +1,9 @@
 package com.zdmj.knowledgeService.service;
 
 import com.zdmj.common.model.PageDTO;
-import com.zdmj.knowledgeService.dto.KnowledgeDocumentDTO;
-import com.zdmj.knowledgeService.dto.KnowledgeDocumentPublicDTO;
+import com.zdmj.knowledgeService.dto.KnowledgeDocumentPublicResponse;
+import com.zdmj.knowledgeService.dto.KnowledgeDocumentRequest;
+import com.zdmj.knowledgeService.dto.KnowledgeDocumentResponse;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
 
 public interface KnowledgeDocumentService {
@@ -10,36 +11,36 @@ public interface KnowledgeDocumentService {
     /**
      * 创建知识文档
      *
-     * @param knowledgeDocumentDTO 知识文档DTO
+     * @param request 知识文档请求
      * @return 知识文档
      */
-    KnowledgeDocument create(KnowledgeDocumentDTO knowledgeDocumentDTO);
+    KnowledgeDocumentResponse create(KnowledgeDocumentRequest request);
 
     /**
-     * 根据ID获取知识文档
+     * 根据ID获取知识文档（内部完整实体，含权限校验）
      *
      * @param id 知识文档ID
-     * @return 知识文档
+     * @return 知识文档实体
      */
     KnowledgeDocument getById(Long id);
 
     /**
      * 对外查询单条文档（脱敏字段）
      */
-    KnowledgeDocumentPublicDTO getPublicById(Long id);
+    KnowledgeDocumentPublicResponse getPublicById(Long id);
 
     /**
-     * 分页查询当前用户知识文档（列表项为 {@link KnowledgeDocumentPublicDTO}）
+     * 分页查询当前用户知识文档（列表项为 {@link KnowledgeDocumentPublicResponse}）
      */
-    PageDTO<KnowledgeDocumentPublicDTO> getByPage(Integer page, Integer limit);
+    PageDTO<KnowledgeDocumentPublicResponse> getByPage(Integer page, Integer limit);
 
     /**
      * 更新知识文档
      *
-     * @param knowledgeDocumentDTO 知识文档DTO
+     * @param request 知识文档请求
      * @return 知识文档
      */
-    KnowledgeDocument update(KnowledgeDocumentDTO knowledgeDocumentDTO);
+    KnowledgeDocumentResponse update(KnowledgeDocumentRequest request);
 
     /**
      * 删除知识文档

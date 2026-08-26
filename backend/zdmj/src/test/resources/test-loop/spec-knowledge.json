@@ -20,7 +20,7 @@
     },
     {
       "className": "KnowledgeDocumentServiceImpl",
-      "method": "create(KnowledgeDocumentDTO)",
+      "method": "create(KnowledgeDocumentRequest)",
       "givenWhenThen": {
         "given": ["用户已登录", "URL 和类型合法"],
         "when": "创建知识文档并提交向量任务",
@@ -38,7 +38,7 @@
     },
     {
       "className": "KnowledgeDocumentServiceImpl",
-      "method": "update(KnowledgeDocumentDTO)",
+      "method": "update(KnowledgeDocumentRequest)",
       "givenWhenThen": {
         "given": ["用户已登录", "文档存在且属于本人"],
         "when": "更新文档内容",

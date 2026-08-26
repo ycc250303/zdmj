@@ -7,10 +7,10 @@ import lombok.Data;
 /**
  * 当前用户人岗匹配记录列表项（分页出参）。
  *
- * <p>不含四维明细等详情字段；详情仍走 {@link JobStudentMatchDTO}。</p>
+ * <p>不含四维明细等详情字段；详情仍走 {@link JobStudentMatchResponse}。</p>
  */
 @Data
-public class JobStudentMatchListItemDTO {
+public class JobStudentMatchListItemResponse {
 
     /**
      * 匹配记录 ID

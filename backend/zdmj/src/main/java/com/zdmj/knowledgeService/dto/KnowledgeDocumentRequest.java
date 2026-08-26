@@ -7,8 +7,11 @@ import lombok.Data;
 import com.zdmj.common.model.CreateGroup;
 import com.zdmj.common.model.UpdateGroup;
 
+/**
+ * 创建/更新知识文档请求
+ */
 @Data
-public class KnowledgeDocumentDTO {
+public class KnowledgeDocumentRequest {
     /**
      * 文档ID
      */
@@ -16,7 +19,7 @@ public class KnowledgeDocumentDTO {
     private Long id;
 
     /**
-     * 知识库名称
+     * 文档标题
      */
     @NotBlank(message = "文档标题不能为空", groups = CreateGroup.class)
     private String title;

@@ -2,10 +2,10 @@ package com.zdmj.matchService.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.zdmj.common.model.PageDTO;
-import com.zdmj.matchService.dto.JobStudentMatchDTO;
+import com.zdmj.matchService.dto.JobStudentMatchResponse;
 import com.zdmj.matchService.dto.JobStudentMatchGenerateRequest;
-import com.zdmj.matchService.dto.JobStudentMatchListItemDTO;
-import com.zdmj.matchService.dto.MatchWeightConfigDTO;
+import com.zdmj.matchService.dto.JobStudentMatchListItemResponse;
+import com.zdmj.matchService.dto.MatchWeightConfigResponse;
 import com.zdmj.matchService.entity.JobStudentMatch;
 
 /**
@@ -26,7 +26,7 @@ public interface JobStudentMatchService extends IService<JobStudentMatch> {
      * @param limit 每页条数（可空）
      * @return 分页列表
      */
-    PageDTO<JobStudentMatchListItemDTO> getMyPage(Integer page, Integer limit);
+    PageDTO<JobStudentMatchListItemResponse> getMyPage(Integer page, Integer limit);
 
     /**
      * 仅查询当前用户与该岗位的最新匹配结果；不存在返回 null。
@@ -34,7 +34,7 @@ public interface JobStudentMatchService extends IService<JobStudentMatch> {
      * @param jobId 岗位ID
      * @return 匹配结果 DTO 或 null
      */
-    JobStudentMatchDTO getOrNull(Long jobId);
+    JobStudentMatchResponse getOrNull(Long jobId);
 
     /**
      * 生成人岗匹配分析（覆盖式：upsert by user_id + job_id）。
@@ -53,7 +53,7 @@ public interface JobStudentMatchService extends IService<JobStudentMatch> {
      * @param req   生成请求体（可携带自定义权重，可为 null）
      * @return 匹配结果 DTO
      */
-    JobStudentMatchDTO generate(Long jobId, JobStudentMatchGenerateRequest req);
+    JobStudentMatchResponse generate(Long jobId, JobStudentMatchGenerateRequest req);
 
     /**
      * 仅根据岗位类型解析默认权重（不查 LLM、不落库）。
@@ -61,5 +61,5 @@ public interface JobStudentMatchService extends IService<JobStudentMatch> {
      * @param jobId 岗位ID
      * @return 该岗位的默认权重
      */
-    MatchWeightConfigDTO getDefaultWeights(Long jobId);
+    MatchWeightConfigResponse getDefaultWeights(Long jobId);
 }

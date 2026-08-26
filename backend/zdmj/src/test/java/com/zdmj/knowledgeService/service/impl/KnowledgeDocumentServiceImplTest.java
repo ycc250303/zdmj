@@ -23,8 +23,9 @@ import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.knowledgeService.dto.KnowledgeDocumentDTO;
-import com.zdmj.knowledgeService.dto.KnowledgeDocumentPublicDTO;
+import com.zdmj.knowledgeService.dto.KnowledgeDocumentRequest;
+import com.zdmj.knowledgeService.dto.KnowledgeDocumentResponse;
+import com.zdmj.knowledgeService.dto.KnowledgeDocumentPublicResponse;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
 import com.zdmj.knowledgeService.entity.KnowledgeVectorTask;
 import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
@@ -64,12 +65,12 @@ class KnowledgeDocumentServiceImplTest {
             return true;
         }).when(service).save(any(KnowledgeDocument.class));
         doReturn(true).when(service).updateById(any(KnowledgeDocument.class));
-        KnowledgeDocumentDTO dto = new KnowledgeDocumentDTO();
+        KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
         dto.setType(KnowledgeTypeEnum.GITHUB_REPO.getCode());
         dto.setContent("https://github.com/acme/repo");
         dto.setTitle("repo");
 
-        KnowledgeDocument result = service.create(dto);
+        KnowledgeDocumentResponse result = service.create(dto);
 
         assertNotNull(result);
         assertEquals(KnowledgeVectorTaskStatusEnum.PENDING.getCode(), result.getEmbeddingStatus());
@@ -85,7 +86,7 @@ class KnowledgeDocumentServiceImplTest {
         when(knowledgeDocumentMapper.selectCount(any())).thenReturn(1L);
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
                 knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
-        KnowledgeDocumentDTO dto = new KnowledgeDocumentDTO();
+        KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
         dto.setType(KnowledgeTypeEnum.GITHUB_REPO.getCode());
         dto.setContent("https://github.com/acme/repo");
         dto.setTitle("repo");
@@ -101,7 +102,7 @@ class KnowledgeDocumentServiceImplTest {
         UserHolder.set(UserContext.of(202L, "u"));
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
                 knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
-        KnowledgeDocumentDTO dto = new KnowledgeDocumentDTO();
+        KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
         dto.setType(KnowledgeTypeEnum.GITHUB_REPO.getCode());
         dto.setContent("not-a-url");
         dto.setTitle("bad");
@@ -121,7 +122,7 @@ class KnowledgeDocumentServiceImplTest {
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
                 knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
         doReturn(false).when(service).save(any(KnowledgeDocument.class));
-        KnowledgeDocumentDTO dto = new KnowledgeDocumentDTO();
+        KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
         dto.setType(KnowledgeTypeEnum.GITHUB_REPO.getCode());
         dto.setContent("https://github.com/acme/repo");
         dto.setTitle("repo");
@@ -147,7 +148,7 @@ class KnowledgeDocumentServiceImplTest {
             return true;
         }).when(service).save(any(KnowledgeDocument.class));
         doReturn(false).when(service).updateById(any(KnowledgeDocument.class));
-        KnowledgeDocumentDTO dto = new KnowledgeDocumentDTO();
+        KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
         dto.setType(KnowledgeTypeEnum.GITHUB_REPO.getCode());
         dto.setContent("https://github.com/acme/repo");
         dto.setTitle("repo");
@@ -164,7 +165,7 @@ class KnowledgeDocumentServiceImplTest {
         UserHolder.set(UserContext.of(214L, "u"));
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
                 knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
-        KnowledgeDocumentDTO dto = new KnowledgeDocumentDTO();
+        KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
         dto.setType(KnowledgeTypeEnum.GITHUB_REPO.getCode());
         dto.setContent("https://gitlab.com/acme/repo");
         dto.setTitle("repo");
@@ -180,7 +181,7 @@ class KnowledgeDocumentServiceImplTest {
         UserHolder.set(UserContext.of(215L, "u"));
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
                 knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
-        KnowledgeDocumentDTO dto = new KnowledgeDocumentDTO();
+        KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
         dto.setType(KnowledgeTypeEnum.PROJECT_DEEPWIKI.getCode());
         dto.setContent("https://deepwiki.com/acme/wiki");
         dto.setTitle("wiki");
@@ -207,13 +208,13 @@ class KnowledgeDocumentServiceImplTest {
                 knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
         doReturn(true).when(service).updateById(any(KnowledgeDocument.class));
 
-        KnowledgeDocumentDTO dto = new KnowledgeDocumentDTO();
+        KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
         dto.setId(901L);
         dto.setType(KnowledgeTypeEnum.GITHUB_REPO.getCode());
         dto.setContent("https://github.com/acme/new");
         dto.setTitle("new title");
 
-        KnowledgeDocument result = service.update(dto);
+        KnowledgeDocumentResponse result = service.update(dto);
 
         assertEquals(KnowledgeVectorTaskStatusEnum.PENDING.getCode(), result.getEmbeddingStatus());
         verify(knowledgeEmbeddingService).submitVectorizeTask(901L);
@@ -227,7 +228,7 @@ class KnowledgeDocumentServiceImplTest {
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
                 knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
 
-        KnowledgeDocumentDTO dto = new KnowledgeDocumentDTO();
+        KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
         dto.setId(1001L);
         dto.setType(KnowledgeTypeEnum.GITHUB_REPO.getCode());
         dto.setContent("https://github.com/acme/repo");
@@ -253,7 +254,7 @@ class KnowledgeDocumentServiceImplTest {
                 knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
         doReturn(false).when(service).updateById(any(KnowledgeDocument.class));
 
-        KnowledgeDocumentDTO dto = new KnowledgeDocumentDTO();
+        KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
         dto.setId(1301L);
         dto.setType(KnowledgeTypeEnum.GITHUB_REPO.getCode());
         dto.setContent("https://github.com/acme/new");
@@ -279,13 +280,13 @@ class KnowledgeDocumentServiceImplTest {
                 knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
         doReturn(true).when(service).updateById(any(KnowledgeDocument.class));
 
-        KnowledgeDocumentDTO dto = new KnowledgeDocumentDTO();
+        KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
         dto.setId(1201L);
         dto.setType(KnowledgeTypeEnum.GITHUB_REPO.getCode());
         dto.setContent("https://github.com/acme/same");
         dto.setTitle("same");
 
-        KnowledgeDocument result = service.update(dto);
+        KnowledgeDocumentResponse result = service.update(dto);
 
         assertEquals("same", result.getTitle());
         verify(knowledgeEmbeddingService, never()).submitVectorizeTask(any(Long.class));
@@ -322,7 +323,7 @@ class KnowledgeDocumentServiceImplTest {
         KnowledgeDocumentServiceImpl service = new KnowledgeDocumentServiceImpl(
                 knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService);
 
-        KnowledgeDocumentPublicDTO dto = service.getPublicById(3301L);
+        KnowledgeDocumentPublicResponse dto = service.getPublicById(3301L);
 
         assertEquals(3301L, dto.getId());
         assertNull(dto.getEmbeddingStatus());

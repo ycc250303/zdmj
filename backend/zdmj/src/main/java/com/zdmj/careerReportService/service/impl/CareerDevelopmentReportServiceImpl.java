@@ -33,7 +33,7 @@ import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
-import com.zdmj.matchService.dto.JobStudentMatchDTO;
+import com.zdmj.matchService.dto.JobStudentMatchResponse;
 import com.zdmj.matchService.entity.JobStudentMatch;
 import com.zdmj.matchService.service.JobStudentMatchService;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
@@ -140,7 +140,7 @@ public class CareerDevelopmentReportServiceImpl
         }
         // 2. 加载或生成岗位画像、人岗匹配、岗位图谱
         JobCapabilityProfileResponse jobProfile = loadOrGenerateJobProfile(jobId);
-        JobStudentMatchDTO match = loadOrGenerateMatch(jobId);
+        JobStudentMatchResponse match = loadOrGenerateMatch(jobId);
         JobCareerGraphResponse graph = loadOrGenerateCareerGraph(jobId);
         // 3. 知识库 RAG 检索学习路径片段
         List<KnowledgeRetrivalDTO> ragHits = retrieveLearningPathHits(jobDetail, req);
@@ -267,8 +267,8 @@ public class CareerDevelopmentReportServiceImpl
         return profile != null ? profile : jobCapabilityProfileService.getJobCapabilityProfile(jobId);
     }
 
-    private JobStudentMatchDTO loadOrGenerateMatch(Long jobId) {
-        JobStudentMatchDTO match = jobStudentMatchService.getOrNull(jobId);
+    private JobStudentMatchResponse loadOrGenerateMatch(Long jobId) {
+        JobStudentMatchResponse match = jobStudentMatchService.getOrNull(jobId);
         return match != null ? match : jobStudentMatchService.generate(jobId, null);
     }
 
@@ -343,7 +343,7 @@ public class CareerDevelopmentReportServiceImpl
     private Map<String, Object> generateStructuredReport(JobListItemResponse jobDetail,
                                                          StudentCapabilityProfileResponse studentProfile,
                                                          JobCapabilityProfileResponse jobProfile,
-                                                         JobStudentMatchDTO match,
+                                                         JobStudentMatchResponse match,
                                                          JobCareerGraphResponse graph,
                                                          List<KnowledgeRetrivalDTO> ragHits,
                                                          CareerReportGenerateRequest req) {

@@ -1,23 +1,22 @@
 package com.zdmj.knowledgeService.service;
 
-import com.zdmj.knowledgeService.entity.KnowledgeBases;
-
+import com.zdmj.knowledgeService.dto.KnowledgeBasesResponse;
 
 public interface KnowledgeBasesService {
 
     /**
      * 创建知识库的方法
      *
-     * @return KnowledgeBases 返回创建后的知识库实体
+     * @return 创建后的知识库
      */
-    KnowledgeBases create();
+    KnowledgeBasesResponse create();
 
     /**
-     * 根据用户ID获取知识库列表
+     * 根据用户ID获取知识库
      *
-     * @return 返回用户关联的知识库列表，KnowledgeBases类型的集合
+     * @return 用户关联的知识库
      */
-    KnowledgeBases getByUserId();
+    KnowledgeBasesResponse getByUserId();
 
     /**
      * 获取当前用户（scope=1）知识库主键；不存在则创建后返回。
@@ -34,15 +33,7 @@ public interface KnowledgeBasesService {
     Long findKnowledgeBaseIdByScope(int scope);
 
     /**
-     * 更新知识库
-     *
-     * @return 返回更新后的知识库实体
-     */
-    // void update();
-
-    /**
      * 清空知识库
-     *
      */
     void clear();
 }

@@ -24,7 +24,7 @@ import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
-import com.zdmj.matchService.dto.JobStudentMatchDTO;
+import com.zdmj.matchService.dto.JobStudentMatchResponse;
 import com.zdmj.matchService.entity.JobStudentMatch;
 import com.zdmj.matchService.service.JobStudentMatchService;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
@@ -330,8 +330,8 @@ class CareerDevelopmentReportServiceImplTest {
         return dto;
     }
 
-    private static JobStudentMatchDTO buildMatch() {
-        JobStudentMatchDTO dto = new JobStudentMatchDTO();
+    private static JobStudentMatchResponse buildMatch() {
+        JobStudentMatchResponse dto = new JobStudentMatchResponse();
         dto.setOverallScore(78);
         return dto;
     }

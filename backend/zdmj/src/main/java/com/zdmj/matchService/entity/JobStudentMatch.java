@@ -71,7 +71,7 @@ public class JobStudentMatch extends BaseEntity {
     private String weights;
 
     /**
-     * 各维度对比明细（JSONB）：每个 key 对应一个 {@link com.zdmj.matchService.dto.DimensionMatchDTO}。
+     * 各维度对比明细（JSONB）：每个 key 对应一个 {@link com.zdmj.matchService.dto.DimensionMatchResponse}。
      */
     @TableField(typeHandler = JsonbStringTypeHandler.class)
     private String dimensionDetail;

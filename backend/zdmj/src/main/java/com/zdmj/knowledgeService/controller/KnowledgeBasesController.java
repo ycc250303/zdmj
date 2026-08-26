@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.zdmj.common.model.Result;
-import com.zdmj.knowledgeService.entity.KnowledgeBases;
+import com.zdmj.knowledgeService.dto.KnowledgeBasesResponse;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -32,20 +32,19 @@ public class KnowledgeBasesController {
      * @return 知识库
      */
     @PostMapping
-    public Result<KnowledgeBases> createKnowledgeBases() {
+    public Result<KnowledgeBasesResponse> createKnowledgeBases() {
         return Result.success("创建知识库成功", knowledgeBasesService.create());
     }
 
     /**
      * 查询知识库
-     * 
+     *
      * @return 知识库
      */
     @GetMapping
-    public Result<KnowledgeBases> getKnowledgeBases() {
+    public Result<KnowledgeBasesResponse> getKnowledgeBases() {
         return Result.success("查询知识库成功", knowledgeBasesService.getByUserId());
     }
-
 
     /**
      * 清空知识库

@@ -19,8 +19,9 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.CosUtil;
-import com.zdmj.knowledgeService.dto.KnowledgeDocumentDTO;
-import com.zdmj.knowledgeService.dto.KnowledgeDocumentPublicDTO;
+import com.zdmj.knowledgeService.dto.KnowledgeDocumentPublicResponse;
+import com.zdmj.knowledgeService.dto.KnowledgeDocumentRequest;
+import com.zdmj.knowledgeService.dto.KnowledgeDocumentResponse;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
 import com.zdmj.knowledgeService.entity.KnowledgeVectorTask;
 import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
@@ -31,6 +32,7 @@ import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 import com.zdmj.knowledgeService.service.KnowledgeDocumentService;
 import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
 
+import org.springframework.beans.BeanUtils;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -52,15 +54,15 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
     /**
      * 创建知识文档
      *
-     * @param knowledgeDocumentDTO 知识文档DTO
+     * @param request 知识文档请求
      * @return 知识文档
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public KnowledgeDocument create(KnowledgeDocumentDTO knowledgeDocumentDTO) {
+    public KnowledgeDocumentResponse create(KnowledgeDocumentRequest request) {
 
         // 1. 验证内容
-        validateContent(knowledgeDocumentDTO);
+        validateContent(request);
 
         // 2. 创建知识文档
         Long userId = UserHolder.requireUserId();
@@ -68,11 +70,11 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
         KnowledgeDocument knowledgeDocument = new KnowledgeDocument();
         knowledgeDocument.setUserId(userId);
         knowledgeDocument.setKnowledgeId(knowledgeId);
-        knowledgeDocument.setType(knowledgeDocumentDTO.getType());
-        knowledgeDocument.setContent(knowledgeDocumentDTO.getContent());
-        knowledgeDocument.setTitle(knowledgeDocumentDTO.getTitle());
-        knowledgeDocument.setMetadata(buildMetadata(knowledgeDocumentDTO));
-        assertContentNotExists(knowledgeId, knowledgeDocumentDTO.getContent());
+        knowledgeDocument.setType(request.getType());
+        knowledgeDocument.setContent(request.getContent());
+        knowledgeDocument.setTitle(request.getTitle());
+        knowledgeDocument.setMetadata(buildMetadata(request));
+        assertContentNotExists(knowledgeId, request.getContent());
         boolean saved;
         try {
             saved = save(knowledgeDocument);
@@ -98,7 +100,7 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
         dispatchTaskAfterCommit(taskId);
         log.info("创建知识文档并提交异步向量化任务，documentId={}, knowledgeId={}, taskId={}",
                 knowledgeDocument.getId(), knowledgeId, taskId);
-        return knowledgeDocument;
+        return convertToResponse(knowledgeDocument);
     }
 
     /**
@@ -114,22 +116,22 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
     }
 
     @Override
-    public KnowledgeDocumentPublicDTO getPublicById(Long id) {
-        return toPublicDto(getById(id));
+    public KnowledgeDocumentPublicResponse getPublicById(Long id) {
+        return toPublicResponse(getById(id));
     }
 
-    private KnowledgeDocumentPublicDTO toPublicDto(KnowledgeDocument kd) {
-        KnowledgeDocumentPublicDTO dto = new KnowledgeDocumentPublicDTO();
-        dto.setId(kd.getId());
-        dto.setType(kd.getType());
-        dto.setContent(kd.getContent());
-        dto.setTitle(kd.getTitle());
+    private KnowledgeDocumentPublicResponse toPublicResponse(KnowledgeDocument kd) {
+        KnowledgeDocumentPublicResponse response = new KnowledgeDocumentPublicResponse();
+        response.setId(kd.getId());
+        response.setType(kd.getType());
+        response.setContent(kd.getContent());
+        response.setTitle(kd.getTitle());
         KnowledgeVectorTaskStatusEnum statusEnum = KnowledgeVectorTaskStatusEnum.fromCode(kd.getEmbeddingStatus());
-        dto.setEmbeddingStatus(statusEnum != null ? statusEnum.getName() : null);
-        dto.setLastEmbeddedAt(kd.getLastEmbeddedAt());
-        dto.setLastError(kd.getLastError());
-        dto.setMetadata(kd.getMetadata());
-        return dto;
+        response.setEmbeddingStatus(statusEnum != null ? statusEnum.getName() : null);
+        response.setLastEmbeddedAt(kd.getLastEmbeddedAt());
+        response.setLastError(kd.getLastError());
+        response.setMetadata(kd.getMetadata());
+        return response;
     }
 
     /**
@@ -139,16 +141,16 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
      * @param limit 每页数量
      * @return 知识文档列表
      */
-    public PageDTO<KnowledgeDocumentPublicDTO> getByPage(Integer page, Integer limit) {
+    public PageDTO<KnowledgeDocumentPublicResponse> getByPage(Integer page, Integer limit) {
         Long userId = UserHolder.requireUserId();
         PageRequests.Normalized paging = PageRequests.normalize(page, limit);
         LambdaQueryWrapper<KnowledgeDocument> queryWrapper = new LambdaQueryWrapper<KnowledgeDocument>()
                 .eq(KnowledgeDocument::getUserId, userId)
                 .orderByDesc(KnowledgeDocument::getCreatedAt);
         Page<KnowledgeDocument> result = knowledgeDocumentMapper.selectPage(PageRequests.toPage(paging), queryWrapper);
-        List<KnowledgeDocumentPublicDTO> list = new ArrayList<>(result.getRecords().size());
+        List<KnowledgeDocumentPublicResponse> list = new ArrayList<>(result.getRecords().size());
         for (KnowledgeDocument kd : result.getRecords()) {
-            list.add(toPublicDto(kd));
+            list.add(toPublicResponse(kd));
         }
         return PageDTO.from(result, list);
     }
@@ -156,26 +158,26 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
     /**
      * 更新知识文档
      *
-     * @param knowledgeDocumentDTO 知识文档DTO
+     * @param request 知识文档请求
      * @return 知识文档
      */
-    public KnowledgeDocument update(KnowledgeDocumentDTO knowledgeDocumentDTO) {
+    public KnowledgeDocumentResponse update(KnowledgeDocumentRequest request) {
         // 1. 验证内容
-        validateContent(knowledgeDocumentDTO);
+        validateContent(request);
         // 2. 获取知识文档
-        KnowledgeDocument knowledgeDocument = knowledgeDocumentMapper.selectById(knowledgeDocumentDTO.getId());
+        KnowledgeDocument knowledgeDocument = knowledgeDocumentMapper.selectById(request.getId());
         if (knowledgeDocument == null || !knowledgeDocument.getUserId().equals(UserHolder.requireUserId())) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_NOT_FOUND);
         }
         // 3. 判断内容是否发生变化
-        boolean contentChanged = !knowledgeDocumentDTO.getType().equals(knowledgeDocument.getType())
-                || !knowledgeDocumentDTO.getContent().equals(knowledgeDocument.getContent());
+        boolean contentChanged = !request.getType().equals(knowledgeDocument.getType())
+                || !request.getContent().equals(knowledgeDocument.getContent());
 
         // 4.更新知识文档
-        knowledgeDocument.setType(knowledgeDocumentDTO.getType());
-        knowledgeDocument.setContent(knowledgeDocumentDTO.getContent());
-        knowledgeDocument.setTitle(knowledgeDocumentDTO.getTitle());
-        knowledgeDocument.setMetadata(buildMetadata(knowledgeDocumentDTO));
+        knowledgeDocument.setType(request.getType());
+        knowledgeDocument.setContent(request.getContent());
+        knowledgeDocument.setTitle(request.getTitle());
+        knowledgeDocument.setMetadata(buildMetadata(request));
 
         // 5. 提交异步向量化任务
         Long taskId = null;
@@ -196,7 +198,7 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
             log.info("更新知识文档，knowledgeId={}", knowledgeDocument.getId());
         }
 
-        return knowledgeDocument;
+        return convertToResponse(knowledgeDocument);
     }
 
     /**
@@ -238,9 +240,9 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
      * - type=2（GitHub链接）：必须是GitHub链接
      * - type=3（DeepWiki）：暂不支持
      */
-    private void validateContent(KnowledgeDocumentDTO dto) {
-        Integer type = dto.getType();
-        String content = dto.getContent();
+    private void validateContent(KnowledgeDocumentRequest request) {
+        Integer type = request.getType();
+        String content = request.getContent();
 
         // type 为空时，说明更新场景下该字段可能未传，直接跳过校验
         if (type == null || content == null) {
@@ -317,10 +319,10 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
      *
      * 这些字段用于职业发展报告场景下的检索过滤与重排。
      */
-    private Map<String, Object> buildMetadata(KnowledgeDocumentDTO dto) {
+    private Map<String, Object> buildMetadata(KnowledgeDocumentRequest request) {
         Map<String, Object> metadata = new LinkedHashMap<>();
-        String title = dto == null ? "" : dto.getTitle();
-        String content = dto == null ? "" : dto.getContent();
+        String title = request == null ? "" : request.getTitle();
+        String content = request == null ? "" : request.getContent();
         String merged = (title == null ? "" : title) + " " + (content == null ? "" : content);
         String lower = merged.toLowerCase(Locale.ROOT);
 
@@ -338,6 +340,12 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
         metadata.put("difficulty", "basic");
         metadata.put("sourcePriority", 1);
         return metadata;
+    }
+
+    private KnowledgeDocumentResponse convertToResponse(KnowledgeDocument document) {
+        KnowledgeDocumentResponse response = new KnowledgeDocumentResponse();
+        BeanUtils.copyProperties(document, response);
+        return response;
     }
 
     /**
