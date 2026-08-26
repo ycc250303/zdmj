@@ -38,14 +38,6 @@ import java.util.concurrent.TimeUnit;
 @Validated
 public class UserController {
 
-    // 临时放宽登录相关限流，上线前恢复为 rate-limit.md 中的默认值
-    private static final double TEMP_LOGIN_GLOBAL_PER_MIN = 5000;
-    private static final double TEMP_LOGIN_IP_PER_MIN = 500;
-    private static final double TEMP_VERIFICATION_GLOBAL_PER_MIN = 5000;
-    private static final double TEMP_VERIFICATION_IP_PER_MIN = 200;
-    private static final double TEMP_VALIDATION_GLOBAL_PER_MIN = 2000;
-    private static final double TEMP_VALIDATION_IP_PER_MIN = 200;
-
     private final UserService userService;
     private final VerificationCodeService verificationCodeService;
 
@@ -82,8 +74,8 @@ public class UserController {
      * @return 登录结果
      */
     @PostMapping("/login")
-    @RateLimit(dimension = RateLimit.Dimension.GLOBAL, count = TEMP_LOGIN_GLOBAL_PER_MIN, interval = 1, timeUnit = TimeUnit.MINUTES)
-    @RateLimit(dimension = RateLimit.Dimension.IP, count = TEMP_LOGIN_IP_PER_MIN, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimit.Dimension.GLOBAL, count = 100, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimit.Dimension.IP, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     public Result<UserLoginResponseDTO> login(@Valid @RequestBody UserLoginDTO loginDTO) {
         log.info("用户登录请求: {}", loginDTO.getUsernameOrEmail());
         UserLoginResponseDTO response = userService.login(loginDTO);
@@ -97,8 +89,8 @@ public class UserController {
      * @return 发送结果
      */
     @PostMapping("/verification-codes")
-    @RateLimit(dimension = RateLimit.Dimension.GLOBAL, count = TEMP_VERIFICATION_GLOBAL_PER_MIN, interval = 1, timeUnit = TimeUnit.MINUTES)
-    @RateLimit(dimension = RateLimit.Dimension.IP, count = TEMP_VERIFICATION_IP_PER_MIN, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimit.Dimension.GLOBAL, count = 200, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimit.Dimension.IP, count = 5, interval = 1, timeUnit = TimeUnit.MINUTES)
     public Result<Void> sendVerificationCode(
             @RequestParam @NotBlank(message = "邮箱不能为空") @Email(message = "邮箱格式不正确") String email,
             @RequestParam(required = false) String type) {
@@ -149,8 +141,8 @@ public class UserController {
      * @return 是否存在
      */
     @GetMapping("/validation/username")
-    @RateLimit(dimension = RateLimit.Dimension.GLOBAL, count = TEMP_VALIDATION_GLOBAL_PER_MIN, interval = 1, timeUnit = TimeUnit.MINUTES)
-    @RateLimit(dimension = RateLimit.Dimension.IP, count = TEMP_VALIDATION_IP_PER_MIN, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimit.Dimension.GLOBAL, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimit.Dimension.IP, count = 5, interval = 1, timeUnit = TimeUnit.MINUTES)
     public Result<Boolean> validateUsername(
             @RequestParam @NotBlank(message = "用户名不能为空") @Size(min = 3, max = 50, message = "用户名长度必须在3-50个字符之间") String username) {
         log.info("检查用户名是否存在: {}", username);
