@@ -43,3 +43,4 @@ docs/backend/prompt-security.md
 /backend/zdmj/target
 /.pytest_cache
 /.cursor
+docs/mock-interview.md

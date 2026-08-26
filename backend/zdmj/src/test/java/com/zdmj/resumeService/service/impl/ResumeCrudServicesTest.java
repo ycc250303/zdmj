@@ -18,6 +18,7 @@ import com.zdmj.resumeService.mapper.EducationStructMapper;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
 import com.zdmj.resumeService.mapper.ProjectExperienceStructMapper;
 import com.zdmj.resumeService.mapper.SkillMapper;
+import jakarta.validation.Validation;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -65,7 +66,7 @@ class ResumeCrudServicesTest {
         educationService = spy(new EducationServiceImpl(educationStructMapper));
         careerService = spy(new CareerServiceImpl(careerStructMapper));
         projectExperienceService = spy(new ProjectExperienceServiceImpl(projectExperienceStructMapper));
-        skillService = spy(new SkillServiceImpl());
+        skillService = spy(new SkillServiceImpl(Validation.buildDefaultValidatorFactory().getValidator()));
 
         ReflectionTestUtils.setField(educationService, "baseMapper", educationMapper);
         ReflectionTestUtils.setField(careerService, "baseMapper", careerMapper);

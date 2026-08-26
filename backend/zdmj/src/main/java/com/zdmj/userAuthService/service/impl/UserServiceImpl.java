@@ -91,7 +91,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
         // 2. 检查用户是否存在
         if (user == null) {
-            throw new BusinessException(ErrorCode.USER_PASSWORD_WRONG);
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
         // 3. 验证密码

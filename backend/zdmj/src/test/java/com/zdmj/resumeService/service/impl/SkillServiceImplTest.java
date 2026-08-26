@@ -8,6 +8,8 @@ import com.zdmj.resumeService.dto.SkillDTO;
 import com.zdmj.resumeService.dto.SkillItemDTO;
 import com.zdmj.resumeService.entity.Skill;
 import com.zdmj.resumeService.mapper.SkillMapper;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +23,7 @@ import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
@@ -34,10 +37,12 @@ class SkillServiceImplTest {
     private SkillMapper skillMapper;
 
     private SkillServiceImpl service;
+    private Validator validator;
 
     @BeforeEach
     void setUp() {
-        service = spy(new SkillServiceImpl());
+        validator = Validation.buildDefaultValidatorFactory().getValidator();
+        service = spy(new SkillServiceImpl(validator));
         ReflectionTestUtils.setField(Objects.requireNonNull(service), "baseMapper", skillMapper);
         UserHolder.set(UserContext.of(1L, "u1"));
     }
@@ -71,6 +76,7 @@ class SkillServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
 
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
+        assertTrue(ex.getMessage().contains("技能类型不能为空"));
         verify(service, never()).save(any(Skill.class));
     }
 
@@ -134,6 +140,26 @@ class SkillServiceImplTest {
 
         assertEquals(1, out.getContent().size());
         verify(service).updateById(existing);
+    }
+
+    @Test
+    void update_invalidContent_shouldThrowAndSkipUpdateById() {
+        SkillDTO dto = new SkillDTO();
+        dto.setId(10L);
+        SkillItemDTO invalid = new SkillItemDTO();
+        invalid.setType("后端");
+        invalid.setContent(List.of(" "));
+        dto.setContent(List.of(invalid));
+        Skill existing = new Skill();
+        existing.setId(10L);
+        existing.setUserId(1L);
+        doReturn(existing).when(skillMapper).selectById(10L);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(dto));
+
+        assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
+        assertTrue(ex.getMessage().contains("技能内容项不能为空"));
+        verify(service, never()).updateById(any(Skill.class));
     }
 
     @Test

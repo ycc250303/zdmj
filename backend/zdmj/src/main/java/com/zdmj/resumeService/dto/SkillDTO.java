@@ -25,6 +25,6 @@ public class SkillDTO {
      * 职业技能描述（结构化对象数组）
      */
     @Valid
-    @NotEmpty(message = "技能内容不能为空", groups = CreateGroup.class)
-    private List<SkillItemDTO> content;
+    @NotEmpty(message = "技能内容不能为空", groups = {CreateGroup.class, UpdateGroup.class})
+    private List<@NotNull(message = "技能项不能为空", groups = {CreateGroup.class, UpdateGroup.class}) SkillItemDTO> content;
 }

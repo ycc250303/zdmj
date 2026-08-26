@@ -35,7 +35,7 @@ const rules = computed<Record<keyof FormModel, App.Global.FormRule[]>>(() => {
 
   return {
     userName: formRules.userName,
-    // 登录仅校验非空；账号不存在或密码错误由后端分别返回提示
+    // 登录仅校验非空，格式/正确性由后端返回「用户名或密码错误」
     password: [createRequiredRule($t('form.pwd.required'))]
   };
 });

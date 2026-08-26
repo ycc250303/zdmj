@@ -150,7 +150,7 @@ class UserServiceImplTest {
     }
 
     @Test
-    void login_whenUserNotFound_shouldThrow2005() {
+    void login_whenUserNotFound_shouldThrow2006() {
         UserLoginDTO dto = new UserLoginDTO();
         dto.setUsernameOrEmail("ghost");
         dto.setPassword("password123");
@@ -158,7 +158,7 @@ class UserServiceImplTest {
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.login(dto));
 
-        assertEquals(ErrorCode.USER_PASSWORD_WRONG.getCode(), ex.getCode());
+        assertEquals(ErrorCode.USER_NOT_FOUND.getCode(), ex.getCode());
         verify(userService).getUserByUsername("ghost");
         verify(redisUtil, never()).exists(anyString());
     }

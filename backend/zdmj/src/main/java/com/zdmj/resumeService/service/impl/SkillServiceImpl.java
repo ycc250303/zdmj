@@ -2,36 +2,42 @@ package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.util.json.SkillContentValidator;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.model.CreateGroup;
+import com.zdmj.common.model.UpdateGroup;
 import com.zdmj.resumeService.dto.SkillDTO;
 import com.zdmj.resumeService.entity.Skill;
 import com.zdmj.resumeService.mapper.SkillMapper;
 import com.zdmj.resumeService.service.SkillService;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 技能服务实现类
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements SkillService {
+
+    private final Validator validator;
 
     @Override
     public Skill create(SkillDTO skillDTO) {
         Long userId = requireUserId();
+        validateContent(skillDTO, CreateGroup.class);
 
         Skill skill = new Skill();
         skill.setUserId(userId);
-
-        // content 使用强类型对象数组存储到 JSONB
-        if (skillDTO.getContent() != null) {
-            skill.setContent(SkillContentValidator.validate(skillDTO.getContent()));
-        }
+        skill.setContent(skillDTO.getContent());
 
         boolean saved = save(skill);
         if (!saved) {
@@ -58,11 +64,8 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
 
         Long id = skillDTO.getId();
         Skill skill = requireSkillAndCheckOwnership(id, userId, "修改");
-
-        // 仅更新 content
-        if (skillDTO.getContent() != null) {
-            skill.setContent(SkillContentValidator.validate(skillDTO.getContent()));
-        }
+        validateContent(skillDTO, UpdateGroup.class);
+        skill.setContent(skillDTO.getContent());
 
         boolean updated = updateById(skill);
         if (!updated) {
@@ -82,6 +85,19 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
             throw new BusinessException(ErrorCode.SKILL_DELETE_FAILED);
         }
         log.info("删除技能成功: skillId={}", skill.getId());
+    }
+
+    /**
+     * 用 Bean Validation 校验技能 content（覆盖 Controller 与简历同步等内部调用）。
+     */
+    private void validateContent(SkillDTO skillDTO, Class<?> group) {
+        Set<ConstraintViolation<SkillDTO>> violations = validator.validate(skillDTO, group);
+        if (!violations.isEmpty()) {
+            String detail = violations.stream()
+                    .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                    .collect(Collectors.joining("; "));
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), detail);
+        }
     }
 
     /**

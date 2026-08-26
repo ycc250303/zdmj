@@ -1,5 +1,7 @@
 package com.zdmj.resumeService.dto;
 
+import com.zdmj.common.model.CreateGroup;
+import com.zdmj.common.model.UpdateGroup;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.Data;
@@ -14,12 +16,12 @@ public class SkillItemDTO {
     /**
      * 技能类型（如：前端框架、开发语言等，不能为空）
      */
-    @NotBlank(message = "技能类型不能为空")
+    @NotBlank(message = "技能类型不能为空", groups = {CreateGroup.class, UpdateGroup.class})
     private String type;
 
     /**
      * 技能内容数组（如：["React", "Vue.js"]，不能为空且每一项不能为空）
      */
-    @NotEmpty(message = "技能内容不能为空")
-    private List<@NotBlank(message = "技能内容项不能为空") String> content;
+    @NotEmpty(message = "技能内容不能为空", groups = {CreateGroup.class, UpdateGroup.class})
+    private List<@NotBlank(message = "技能内容项不能为空", groups = {CreateGroup.class, UpdateGroup.class}) String> content;
 }

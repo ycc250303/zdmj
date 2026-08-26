@@ -69,8 +69,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/zdmj/jobs/**").permitAll()
 
                         // 对于异步分发（ASYNC dispatcher），允许所有请求
-                        // 这可以避免 "Unable to handle the Spring Security Exception because the response is
-                        // already committed" 错误
+                        // 这可以避免 "Unable to handle the Spring Security Exception because the response is already committed" 错误
                         // 异步分发发生在响应提交后，此时无法再发送错误响应
                         .requestMatchers(request -> request.getDispatcherType() == jakarta.servlet.DispatcherType.ASYNC)
                         .permitAll()
@@ -79,8 +78,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
 
                 // 配置异常处理：对于已提交的响应，完全跳过异常处理
-                // 这可以避免 "Unable to handle the Spring Security Exception because the response is
-                // already committed" 错误
+                // 这可以避免 "Unable to handle the Spring Security Exception because the response is already committed" 错误
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, authException) -> {
                             // 如果响应已提交，完全跳过处理，不尝试发送任何响应
