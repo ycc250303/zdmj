@@ -1,6 +1,6 @@
 package com.zdmj.conversationService.support;
 
-import com.zdmj.conversationService.dto.MessageDTO;
+import com.zdmj.conversationService.dto.ChatStreamRequest;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.resumeService.dto.EducationRequest;
 import com.zdmj.resumeService.dto.ResumeContentResponse;
@@ -39,7 +39,7 @@ class ConversationContextSupportTest {
     void resolveUseSystemKnowledge_requestOverridesConfig() {
         Conversation conversation = new Conversation();
         conversation.setConfig(Map.of(ConversationContextSupport.CONFIG_USE_SYSTEM_KNOWLEDGE, false));
-        MessageDTO dto = new MessageDTO();
+        ChatStreamRequest dto = new ChatStreamRequest();
         dto.setUseSystemKnowledge(true);
 
         assertTrue(ConversationContextSupport.resolveUseSystemKnowledge(dto, conversation));
@@ -69,6 +69,6 @@ class ConversationContextSupportTest {
 
     @Test
     void resolveUseSystemKnowledge_defaultFalse() {
-        assertFalse(ConversationContextSupport.resolveUseSystemKnowledge(new MessageDTO(), new Conversation()));
+        assertFalse(ConversationContextSupport.resolveUseSystemKnowledge(new ChatStreamRequest(), new Conversation()));
     }
 }

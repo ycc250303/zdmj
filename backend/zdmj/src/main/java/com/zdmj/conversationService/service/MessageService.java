@@ -2,7 +2,8 @@ package com.zdmj.conversationService.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.zdmj.common.model.PageDTO;
-import com.zdmj.conversationService.dto.MessageDTO;
+import com.zdmj.conversationService.dto.ChatStreamRequest;
+import com.zdmj.conversationService.dto.MessageResponse;
 import com.zdmj.conversationService.entity.Message;
 
 import reactor.core.publisher.Flux;
@@ -10,33 +11,22 @@ import reactor.core.publisher.Flux;
 import org.springframework.http.codec.ServerSentEvent;
 
 /**
- * 消息 Service 骨架
+ * 消息 Service
  */
 public interface MessageService extends IService<Message> {
 
     /**
      * 根据会话ID分页查询消息列表（按 sequence 升序）
-     *
-     * @param conversationId 会话ID
-     * @param page           页码，从 1 开始
-     * @param limit          每页条数
      */
-    PageDTO<Message> getMessagesByConversationId(Long conversationId, Integer page, Integer limit);
+    PageDTO<MessageResponse> getMessagesByConversationId(Long conversationId, Integer page, Integer limit);
 
     /**
      * 创建流式消息
-     * 
-     * @param dto 消息DTO
-     * @return 流式消息
      */
-    Flux<ServerSentEvent<String>> createStream(MessageDTO dto);
+    Flux<ServerSentEvent<String>> createStream(ChatStreamRequest request);
 
     /**
      * 恢复流式消息
-     * 
-     * @param streamId 流式消息ID
-     * @param offset   偏移量
-     * @return 流式消息
      */
     Flux<ServerSentEvent<String>> resumeStream(Long streamId, int offset);
 }

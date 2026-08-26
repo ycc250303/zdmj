@@ -1,62 +1,50 @@
 package com.zdmj.conversationService.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.zdmj.conversationService.dto.ConversationDTO;
+import com.zdmj.conversationService.dto.ConversationRequest;
+import com.zdmj.conversationService.dto.ConversationResponse;
 import com.zdmj.conversationService.entity.Conversation;
 
 import java.util.List;
 import java.util.Map;
 
 /**
- * 会话 Service 骨架
+ * 会话 Service
  */
 public interface ConversationService extends IService<Conversation> {
 
     /**
      * 创建会话
-     * 
-     * @param conversationDTO 会话DTO
-     * @return 创建的会话
      */
-    Conversation create(ConversationDTO conversationDTO);
+    ConversationResponse create(ConversationRequest request);
 
     /**
-     * 根据ID查询会话
-     * 
-     * @param id 会话ID
-     * @return 查询的会话
+     * 根据ID查询会话（HTTP 出参）
      */
-    Conversation getById(Long id);
+    ConversationResponse getById(Long id);
 
     /**
-     * 查询所有会话列表
-     * 
-     * @return 查询的会话列表
+     * 鉴权加载会话实体（供本域与 MessageService 使用）
      */
-    List<Conversation> getByUserId();
+    Conversation requireOwned(Long id);
+
+    /**
+     * 查询当前用户会话列表
+     */
+    List<ConversationResponse> getByUserId();
 
     /**
      * 修改会话标题
-     * 
-     * @param id    会话ID
-     * @param title 新会话标题
-     * @return 更新后的会话
      */
-    Conversation updateTitle(Long id, String title);
+    ConversationResponse updateTitle(Long id, String title);
 
     /**
      * 更新会话配置（合并写入，保留未传入字段）
-     *
-     * @param id     会话ID
-     * @param config 配置片段
-     * @return 更新后的会话
      */
-    Conversation updateConfig(Long id, Map<String, Object> config);
+    ConversationResponse updateConfig(Long id, Map<String, Object> config);
 
     /**
      * 删除会话
-     * 
-     * @param id 会话ID
      */
     void delete(Long id);
 }

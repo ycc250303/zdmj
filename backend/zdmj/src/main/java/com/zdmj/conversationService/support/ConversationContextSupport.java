@@ -1,6 +1,6 @@
 package com.zdmj.conversationService.support;
 
-import com.zdmj.conversationService.dto.MessageDTO;
+import com.zdmj.conversationService.dto.ChatStreamRequest;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.resumeService.dto.AwardRequest;
 import com.zdmj.resumeService.dto.CareerRequest;
@@ -71,9 +71,9 @@ public final class ConversationContextSupport {
         return vars;
     }
 
-    public static boolean resolveUseSystemKnowledge(MessageDTO dto, Conversation conversation) {
-        if (dto != null && dto.getUseSystemKnowledge() != null) {
-            return Boolean.TRUE.equals(dto.getUseSystemKnowledge());
+    public static boolean resolveUseSystemKnowledge(ChatStreamRequest request, Conversation conversation) {
+        if (request != null && request.getUseSystemKnowledge() != null) {
+            return Boolean.TRUE.equals(request.getUseSystemKnowledge());
         }
         if (conversation == null || conversation.getConfig() == null) {
             return false;

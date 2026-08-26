@@ -1,13 +1,15 @@
 package com.zdmj.conversationService.dto;
 
-import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import lombok.Data;
+
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 创建会话请求
+ */
 @Data
-public class ConversationDTO {
+public class ConversationRequest {
     /**
      * 对话ID
      */
@@ -16,12 +18,10 @@ public class ConversationDTO {
     /**
      * 对话配置（JSONB对象）
      */
-    @TableField(typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> config;
 
     /**
      * 上下文信息（JSONB数组）
      */
-    @TableField(typeHandler = JacksonTypeHandler.class)
     private List<Map<String, Object>> context;
 }

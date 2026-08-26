@@ -4,7 +4,8 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.conversationService.dto.ConversationDTO;
+import com.zdmj.conversationService.dto.ConversationRequest;
+import com.zdmj.conversationService.dto.ConversationResponse;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.service.ConversationService;
@@ -13,6 +14,7 @@ import com.zdmj.resumeService.service.ResumeService;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -21,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 会话 Service 实现骨架
+ * 会话 Service 实现
  */
 @RequiredArgsConstructor
 @Service
@@ -32,20 +34,20 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
     private final ResumeService resumeService;
 
     @Override
-    public Conversation create(ConversationDTO conversationDTO) {
+    public ConversationResponse create(ConversationRequest request) {
         Long userId = UserHolder.requireUserId();
 
         Conversation conversation = new Conversation();
-        if (conversationDTO != null) {
-            Map<String, Object> config = conversationDTO.getConfig() == null
+        if (request != null) {
+            Map<String, Object> config = request.getConfig() == null
                     ? new HashMap<>()
-                    : new HashMap<>(conversationDTO.getConfig());
+                    : new HashMap<>(request.getConfig());
             config.putIfAbsent(ConversationContextSupport.CONFIG_USE_SYSTEM_KNOWLEDGE, false);
             conversation.setConfig(config);
 
-            List<Map<String, Object>> contextList = conversationDTO.getContext() == null
+            List<Map<String, Object>> contextList = request.getContext() == null
                     ? new ArrayList<>()
-                    : new ArrayList<>(conversationDTO.getContext());
+                    : new ArrayList<>(request.getContext());
             boolean hasResume = contextList.stream()
                     .anyMatch(item -> item != null
                             && ConversationContextSupport.CONTEXT_TYPE_RESUME.equals(String.valueOf(item.get("type"))));
@@ -70,11 +72,16 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         if (!saved) {
             throw new BusinessException(ErrorCode.CONVERSATION_CREATE_FAILED);
         }
-        return conversation;
+        return convertToResponse(conversation);
     }
 
     @Override
-    public Conversation getById(Long id) {
+    public ConversationResponse getById(Long id) {
+        return convertToResponse(requireOwned(id));
+    }
+
+    @Override
+    public Conversation requireOwned(Long id) {
         if (id == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "会话ID不能为空");
         }
@@ -88,19 +95,19 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
     }
 
     @Override
-    public List<Conversation> getByUserId() {
+    public List<ConversationResponse> getByUserId() {
         Long userId = UserHolder.requireUserId();
         List<Conversation> conversations = conversationMapper.selectByUserId(userId);
-        return conversations;
+        return conversations.stream().map(this::convertToResponse).toList();
     }
 
     @Override
-    public Conversation updateTitle(Long id, String title) {
+    public ConversationResponse updateTitle(Long id, String title) {
         if (title == null || title.trim().isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "会话标题不能为空");
         }
         Long userId = UserHolder.requireUserId();
-        Conversation conversation = getById(id);
+        Conversation conversation = requireOwned(id);
         if (!conversation.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.NO_PERMISSION);
         }
@@ -110,16 +117,16 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         if (rows != 1) {
             throw new BusinessException(ErrorCode.CONVERSATION_UPDATE_FAILED);
         }
-        return requireById(id);
+        return convertToResponse(requireById(id));
     }
 
     @Override
-    public Conversation updateConfig(Long id, Map<String, Object> config) {
+    public ConversationResponse updateConfig(Long id, Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "会话配置不能为空");
         }
         Long userId = UserHolder.requireUserId();
-        Conversation conversation = getById(id);
+        Conversation conversation = requireOwned(id);
         if (!conversation.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.NO_PERMISSION);
         }
@@ -133,7 +140,7 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         if (rows != 1) {
             throw new BusinessException(ErrorCode.CONVERSATION_UPDATE_FAILED);
         }
-        return requireById(id);
+        return convertToResponse(requireById(id));
     }
 
     /** 局部更新后从数据库重新加载，保证返回最新字段。 */
@@ -148,7 +155,7 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
     @Override
     public void delete(Long id) {
         Long userId = UserHolder.requireUserId();
-        Conversation conversation = getById(id);
+        Conversation conversation = requireOwned(id);
         if (!conversation.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.NO_PERMISSION);
         }
@@ -156,5 +163,11 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         if (!deleted) {
             throw new BusinessException(ErrorCode.CONVERSATION_DELETE_FAILED);
         }
+    }
+
+    private ConversationResponse convertToResponse(Conversation conversation) {
+        ConversationResponse response = new ConversationResponse();
+        BeanUtils.copyProperties(conversation, response);
+        return response;
     }
 }

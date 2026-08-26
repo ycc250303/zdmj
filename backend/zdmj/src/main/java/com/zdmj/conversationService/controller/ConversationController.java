@@ -14,8 +14,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.PutMapping;
 
 import com.zdmj.common.model.Result;
-import com.zdmj.conversationService.dto.ConversationDTO;
-import com.zdmj.conversationService.entity.Conversation;
+import com.zdmj.conversationService.dto.ConversationRequest;
+import com.zdmj.conversationService.dto.ConversationResponse;
 import com.zdmj.conversationService.service.ConversationService;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,50 +34,46 @@ public class ConversationController {
 
     /**
      * 创建会话
-     * 
-     * @param conversationDTO 会话DTO
+     *
+     * @param request 会话请求
      * @return 创建的会话
      */
     @PostMapping
-    public Result<Conversation> createConversation(@RequestBody ConversationDTO conversationDTO) {
-        Conversation conversation = conversationService.create(conversationDTO);
-        return Result.success("会话创建成功", conversation);
+    public Result<ConversationResponse> createConversation(@RequestBody ConversationRequest request) {
+        return Result.success("会话创建成功", conversationService.create(request));
     }
 
     /**
      * 根据ID查询会话
-     * 
+     *
      * @param id 会话ID
      * @return 查询的会话
      */
     @GetMapping("/{id}")
-    public Result<Conversation> getConversationById(@PathVariable Long id) {
-        Conversation conversation = conversationService.getById(id);
-        return Result.success("会话查询成功", conversation);
+    public Result<ConversationResponse> getConversationById(@PathVariable Long id) {
+        return Result.success("会话查询成功", conversationService.getById(id));
     }
 
     /**
      * 查询所有会话列表
-     * 
+     *
      * @return 查询的会话列表
      */
     @GetMapping
-    public Result<List<Conversation>> getConversations() {
-        List<Conversation> conversations = conversationService.getByUserId();
-        return Result.success("会话查询成功", conversations);
+    public Result<List<ConversationResponse>> getConversations() {
+        return Result.success("会话查询成功", conversationService.getByUserId());
     }
 
     /**
      * 修改会话标题
-     * 
+     *
      * @param id    会话ID
      * @param title 新会话标题
      * @return 更新后的会话
      */
     @PutMapping("/{id}/title")
-    public Result<Conversation> updateTitle(@PathVariable Long id, @RequestParam("title") String title) {
-        Conversation conversation = conversationService.updateTitle(id, title);
-        return Result.success("会话标题修改成功", conversation);
+    public Result<ConversationResponse> updateTitle(@PathVariable Long id, @RequestParam("title") String title) {
+        return Result.success("会话标题修改成功", conversationService.updateTitle(id, title));
     }
 
     /**
@@ -88,14 +84,13 @@ public class ConversationController {
      * @return 更新后的会话
      */
     @PutMapping("/{id}/config")
-    public Result<Conversation> updateConfig(@PathVariable Long id, @RequestBody Map<String, Object> config) {
-        Conversation conversation = conversationService.updateConfig(id, config);
-        return Result.success("会话配置更新成功", conversation);
+    public Result<ConversationResponse> updateConfig(@PathVariable Long id, @RequestBody Map<String, Object> config) {
+        return Result.success("会话配置更新成功", conversationService.updateConfig(id, config));
     }
 
     /**
      * 删除会话
-     * 
+     *
      * @param id 会话ID
      * @return 删除的会话
      */

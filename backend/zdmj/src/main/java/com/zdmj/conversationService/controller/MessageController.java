@@ -17,8 +17,8 @@ import com.zdmj.common.model.Result;
 import jakarta.validation.Valid;
 
 import java.util.concurrent.TimeUnit;
-import com.zdmj.conversationService.dto.MessageDTO;
-import com.zdmj.conversationService.entity.Message;
+import com.zdmj.conversationService.dto.ChatStreamRequest;
+import com.zdmj.conversationService.dto.MessageResponse;
 import com.zdmj.conversationService.service.MessageService;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -45,7 +45,7 @@ public class MessageController {
      * @param limit          每页条数，默认 20，最大 100
      */
     @GetMapping
-    public Result<PageDTO<Message>> getMessagesByConversationId(
+    public Result<PageDTO<MessageResponse>> getMessagesByConversationId(
             @RequestParam Long conversationId,
             @RequestParam(required = false, defaultValue = "1") Integer page,
             @RequestParam(required = false, defaultValue = "20") Integer limit) {
@@ -55,20 +55,20 @@ public class MessageController {
 
     /**
      * 创建流式消息
-     * 
-     * @param dto 消息DTO
+     *
+     * @param request 流式对话请求
      * @return 流式消息
      */
     @RateLimit(dimension = RateLimit.Dimension.USER, count = LlmRateLimits.CHAT_PER_MIN, interval = 1,
             timeUnit = TimeUnit.MINUTES)
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ServerSentEvent<String>> chatStream(@Valid @RequestBody MessageDTO dto) {
-        return messageService.createStream(dto);
+    public Flux<ServerSentEvent<String>> chatStream(@Valid @RequestBody ChatStreamRequest request) {
+        return messageService.createStream(request);
     }
 
     /**
      * 恢复流式消息
-     * 
+     *
      * @param streamId 流式消息ID
      * @param offset   偏移量
      * @return 流式消息

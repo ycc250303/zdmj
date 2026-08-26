@@ -12,7 +12,8 @@ import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.common.ai.prompt.PromptNames;
-import com.zdmj.conversationService.dto.MessageDTO;
+import com.zdmj.conversationService.dto.ChatStreamRequest;
+import com.zdmj.conversationService.dto.MessageResponse;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.entity.Message;
 import com.zdmj.conversationService.enums.MessageRoleEnum;
@@ -27,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
+import org.springframework.beans.BeanUtils;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,12 +66,12 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Flux<ServerSentEvent<String>> createStream(MessageDTO dto) {
-        Conversation conversation = requireConversationAccess(dto.getConversationId());
+    public Flux<ServerSentEvent<String>> createStream(ChatStreamRequest request) {
+        Conversation conversation = requireConversationAccess(request.getConversationId());
         Long userId = UserHolder.requireUserId();
 
         // 1.原子递增消息计数
-        Integer newCount = conversationMapper.incrementMessageCountAndGet(dto.getConversationId(), userId, 2);
+        Integer newCount = conversationMapper.incrementMessageCountAndGet(request.getConversationId(), userId, 2);
         if (newCount == null || newCount < 2) {
             throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
         }
@@ -79,10 +81,10 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
 
         // 2.写入 user 消息
         Message userMsg = new Message();
-        userMsg.setConversationId(dto.getConversationId());
+        userMsg.setConversationId(request.getConversationId());
         userMsg.setUserId(userId);
         userMsg.setRole(MessageRoleEnum.USER.getCode()); // user
-        userMsg.setContent(dto.getMessage());
+        userMsg.setContent(request.getMessage());
         userMsg.setSequence(userSeq);
         if (messageMapper.insert(userMsg) != 1) {
             throw new BusinessException(ErrorCode.MESSAGE_CREATE_FAILED);
@@ -90,7 +92,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
 
         // 3.预写 assistant 消息
         Message assistantMsg = new Message();
-        assistantMsg.setConversationId(dto.getConversationId());
+        assistantMsg.setConversationId(request.getConversationId());
         assistantMsg.setUserId(userId);
         assistantMsg.setRole(2); // assistant
         assistantMsg.setContent("");
@@ -102,12 +104,12 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         // 4.更新会话标题
         if (newCount == 2) {
             String title = chatUtil.chatOnce(
-                    dto.getMessage(),
+                    request.getMessage(),
                     PromptNames.GENERATE_CONVERSATION_TITLE,
                     null
             );
             // 仅更新标题，避免回写旧的 message_count / last_message_at
-            conversationMapper.updateTitleByIdAndUserId(dto.getConversationId(), userId, title);
+            conversationMapper.updateTitleByIdAndUserId(request.getConversationId(), userId, title);
         }
 
         // 5.创建流式消息
@@ -131,19 +133,19 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         AtomicInteger lastFlushedLen = new AtomicInteger(0);
 
         // 7.调用 AI 服务
-        List<Long> ragDocumentIds = resolveRagDocumentIds(dto, conversation);
-        boolean useSystemKnowledge = ConversationContextSupport.resolveUseSystemKnowledge(dto, conversation);
+        List<Long> ragDocumentIds = resolveRagDocumentIds(request, conversation);
+        boolean useSystemKnowledge = ConversationContextSupport.resolveUseSystemKnowledge(request, conversation);
         Map<String, Object> promptVars = ConversationContextSupport.buildChatPromptVars(conversation);
         Flux<String> chatFlux = ragConfig.isEnabled()
                 ? knowledgeRagService.streamAnswer(
-                        dto.getConversationId(),
-                        dto.getMessage(),
+                        request.getConversationId(),
+                        request.getMessage(),
                         ragDocumentIds,
                         useSystemKnowledge,
                         promptVars)
                 : chatUtil.chatStreamInConversation(
-                        dto.getConversationId(),
-                        dto.getMessage(),
+                        request.getConversationId(),
+                        request.getMessage(),
                         PromptNames.SYSTEM,
                         promptVars);
         chatFlux.doOnNext(chunk -> {
@@ -273,10 +275,12 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     }
 
     @Override
-    public PageDTO<Message> getMessagesByConversationId(Long conversationId, Integer page, Integer limit) {
+    public PageDTO<MessageResponse> getMessagesByConversationId(Long conversationId, Integer page, Integer limit) {
         requireConversationAccess(conversationId);
         PageRequests.Normalized paging = PageRequests.normalize(page, limit);
-        return PageDTO.from(messageMapper.selectPageByConversationId(PageRequests.toPage(paging), conversationId));
+        var mpPage = messageMapper.selectPageByConversationId(PageRequests.toPage(paging), conversationId);
+        List<MessageResponse> list = mpPage.getRecords().stream().map(this::convertToResponse).toList();
+        return PageDTO.from(mpPage, list);
     }
 
     /**
@@ -286,20 +290,16 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         if (conversationId == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "会话ID不能为空");
         }
-        Conversation conversation = conversationService.getById(conversationId);
-        if (conversation == null) {
-            throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
-        }
-        return conversation;
+        return conversationService.requireOwned(conversationId);
     }
 
     /**
      * 解析本次 RAG 参与的知识文档 ID。
      * 请求体优先；否则读取会话 config.ragDocumentIds；均未配置时返回 null（检索全部文档）。
      */
-    private List<Long> resolveRagDocumentIds(MessageDTO dto, Conversation conversation) {
-        if (dto.getRagDocumentIds() != null) {
-            return dto.getRagDocumentIds();
+    private List<Long> resolveRagDocumentIds(ChatStreamRequest request, Conversation conversation) {
+        if (request.getRagDocumentIds() != null) {
+            return request.getRagDocumentIds();
         }
         if (conversation == null || conversation.getConfig() == null) {
             return null;
@@ -340,6 +340,12 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
             // 极端场景兜底，至少保证流不中断
             return "{\"choices\":[{\"delta\":{\"content\":\"\"}}]}";
         }
+    }
+
+    private MessageResponse convertToResponse(Message message) {
+        MessageResponse response = new MessageResponse();
+        BeanUtils.copyProperties(message, response);
+        return response;
     }
 
     /**

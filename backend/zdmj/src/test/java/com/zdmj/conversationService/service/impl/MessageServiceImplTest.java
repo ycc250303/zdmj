@@ -9,8 +9,9 @@ import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.ai.ChatUtil;
-import com.zdmj.conversationService.dto.MessageDTO;
+import com.zdmj.conversationService.dto.ChatStreamRequest;
 import com.zdmj.conversationService.entity.Conversation;
+import com.zdmj.conversationService.dto.MessageResponse;
 import com.zdmj.conversationService.entity.Message;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
@@ -49,6 +50,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -190,13 +192,13 @@ class MessageServiceImplTest {
     void getMessages_limitCapped100_shouldReturnCappedPage() {
         Conversation conversation = new Conversation();
         conversation.setId(201L);
-        doReturn(conversation).when(conversationService).getById(201L);
+        doReturn(conversation).when(conversationService).requireOwned(201L);
         Page<Message> mpPage = new Page<>(1, 100);
         mpPage.setRecords(List.of(new Message()));
         mpPage.setTotal(5);
         doReturn(mpPage).when(messageMapper).selectPageByConversationId(any(Page.class), eq(201L));
 
-        PageDTO<Message> page = messageService.getMessagesByConversationId(201L, 1, 500);
+        PageDTO<MessageResponse> page = messageService.getMessagesByConversationId(201L, 1, 500);
 
         assertEquals(100, page.getLimit());
         assertEquals(1, page.getPage());
@@ -207,7 +209,8 @@ class MessageServiceImplTest {
 
     @Test
     void getMessages_conversationAccessFailed_shouldPropagate() {
-        doReturn(null).when(conversationService).getById(202L);
+        doThrow(new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND))
+                .when(conversationService).requireOwned(202L);
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> messageService.getMessagesByConversationId(202L, 1, 10));
@@ -219,13 +222,13 @@ class MessageServiceImplTest {
 
     @Test
     void createStream_saveFailedOnUserMessage_shouldThrow9005() {
-        MessageDTO dto = new MessageDTO();
+        ChatStreamRequest dto = new ChatStreamRequest();
         dto.setConversationId(301L);
         dto.setMessage("hello");
         Conversation conversation = new Conversation();
         conversation.setId(301L);
         conversation.setMessageCount(0);
-        doReturn(conversation).when(conversationService).getById(301L);
+        doReturn(conversation).when(conversationService).requireOwned(301L);
         doReturn(0).when(messageMapper).insert(any(Message.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> messageService.createStream(dto));
@@ -238,13 +241,13 @@ class MessageServiceImplTest {
 
     @Test
     void login_createStream_successCompleted_shouldPersistAndEmitMeta() {
-        MessageDTO dto = new MessageDTO();
+        ChatStreamRequest dto = new ChatStreamRequest();
         dto.setConversationId(302L);
         dto.setMessage("hello");
         Conversation conversation = new Conversation();
         conversation.setId(302L);
         conversation.setMessageCount(0);
-        doReturn(conversation).when(conversationService).getById(302L);
+        doReturn(conversation).when(conversationService).requireOwned(302L);
         doReturn(false).when(ragConfig).isEnabled();
         doReturn("title").when(chatUtil).chatOnce(anyString(), anyString(), any());
         doReturn(Flux.just("he", "llo")).when(chatUtil)
@@ -273,13 +276,13 @@ class MessageServiceImplTest {
 
     @Test
     void login_createStream_secondInsertSaveFailed_shouldThrow9005() {
-        MessageDTO dto = new MessageDTO();
+        ChatStreamRequest dto = new ChatStreamRequest();
         dto.setConversationId(303L);
         dto.setMessage("q");
         Conversation conversation = new Conversation();
         conversation.setId(303L);
         conversation.setMessageCount(2);
-        doReturn(conversation).when(conversationService).getById(303L);
+        doReturn(conversation).when(conversationService).requireOwned(303L);
         AtomicInteger insertTimes = new AtomicInteger(0);
         org.mockito.Mockito.doAnswer(invocation -> insertTimes.incrementAndGet() == 1 ? 1 : 0)
                 .when(messageMapper).insert(any(Message.class));
@@ -294,13 +297,13 @@ class MessageServiceImplTest {
 
     @Test
     void reset_createStream_streamError_shouldEmitFailedStatus() {
-        MessageDTO dto = new MessageDTO();
+        ChatStreamRequest dto = new ChatStreamRequest();
         dto.setConversationId(304L);
         dto.setMessage("ask");
         Conversation conversation = new Conversation();
         conversation.setId(304L);
         conversation.setMessageCount(1);
-        doReturn(conversation).when(conversationService).getById(304L);
+        doReturn(conversation).when(conversationService).requireOwned(304L);
         doReturn(false).when(ragConfig).isEnabled();
         org.mockito.Mockito.doAnswer(invocation -> {
             Message m = invocation.getArgument(0);
@@ -319,13 +322,13 @@ class MessageServiceImplTest {
 
     @Test
     void update_createStream_updateFailedOnAssistantPersist_shouldEmitPersistError() {
-        MessageDTO dto = new MessageDTO();
+        ChatStreamRequest dto = new ChatStreamRequest();
         dto.setConversationId(305L);
         dto.setMessage("go");
         Conversation conversation = new Conversation();
         conversation.setId(305L);
         conversation.setMessageCount(1);
-        doReturn(conversation).when(conversationService).getById(305L);
+        doReturn(conversation).when(conversationService).requireOwned(305L);
         doReturn(false).when(ragConfig).isEnabled();
         org.mockito.Mockito.doAnswer(invocation -> {
             Message m = invocation.getArgument(0);
@@ -348,7 +351,7 @@ class MessageServiceImplTest {
         Conversation conversation = new Conversation();
         conversation.setId(conversationId);
         conversation.setMessageCount(0);
-        doReturn(conversation).when(conversationService).getById(conversationId);
+        doReturn(conversation).when(conversationService).requireOwned(conversationId);
 
         doReturn(false).when(ragConfig).isEnabled();
         doReturn("title-once").when(chatUtil).chatOnce(anyString(), anyString(), any());
@@ -372,10 +375,10 @@ class MessageServiceImplTest {
         }).when(messageMapper).insert(any(Message.class));
         doReturn(1).when(messageMapper).updateById(any(Message.class));
 
-        MessageDTO dto1 = new MessageDTO();
+        ChatStreamRequest dto1 = new ChatStreamRequest();
         dto1.setConversationId(conversationId);
         dto1.setMessage("hello-1");
-        MessageDTO dto2 = new MessageDTO();
+        ChatStreamRequest dto2 = new ChatStreamRequest();
         dto2.setConversationId(conversationId);
         dto2.setMessage("hello-2");
 

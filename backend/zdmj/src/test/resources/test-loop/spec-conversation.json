@@ -3,7 +3,7 @@
   "publicMethods": [
     {
       "className": "ConversationServiceImpl",
-      "method": "create(ConversationDTO)",
+      "method": "create(ConversationRequest)",
       "givenWhenThen": {
         "given": [
           "UserHolder 可提供当前用户",
