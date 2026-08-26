@@ -14,7 +14,6 @@ import com.zdmj.common.model.Result;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 通用文件上传控制器
@@ -31,18 +30,22 @@ public class FileUploadController {
 
     /**
      * 上传文件到COS（后端直传）
+     *
+     * @param file   上传文件
+     * @param prefix 业务区域前缀，如 knowledge、resume
+     * @return 上传结果（key、url、fileName、fileSize、contentType）
      */
     @PostMapping("/upload")
-    public Result<FileUploadResult> uploadFile(
+    public Result<FileUploadResponse> uploadFile(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "prefix", required = false) String prefix) {
-        FileUploadResult result = fileUploadService.uploadFile(file, prefix);
-        return Result.success("文件上传成功", result);
+        FileUploadResponse response = fileUploadService.uploadFile(file, prefix);
+        return Result.success("文件上传成功", response);
     }
 
     /**
      * 按 COS key 删除文件
-     * 
+     *
      * @param key COS对象键
      * @return 结果
      */
@@ -55,12 +58,12 @@ public class FileUploadController {
     /**
      * 查询当前用户某业务域下上传的文件列表
      * 例：GET /files/list?prefix=knowledge
-     * 
+     *
      * @param prefix 业务区域
-     * @return 文件列表（包含 cosKey、key、url、fileName、bizArea）
+     * @return 文件列表（key、url、fileName、bizArea）
      */
     @GetMapping("/list")
-    public Result<List<Map<String, String>>> listByBizArea(
+    public Result<List<FileUploadListItemResponse>> listByBizArea(
             @RequestParam(value = "prefix", required = false) String prefix) {
         return Result.success(fileUploadService.listUploadedFiles(prefix));
     }

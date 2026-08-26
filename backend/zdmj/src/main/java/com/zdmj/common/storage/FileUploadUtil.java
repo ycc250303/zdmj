@@ -10,9 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 通用文件上传服务
@@ -24,14 +22,14 @@ public class FileUploadUtil {
     /**
      * 直传后端上传文件到COS
      */
-    public FileUploadResult uploadFile(MultipartFile file, String prefix) {
+    public FileUploadResponse uploadFile(MultipartFile file, String prefix) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ErrorCode.FILE_EMPTY);
         }
         String key = buildUserScopedKey(prefix, file.getOriginalFilename());
         String uploadedKey = CosUtil.uploadFile(file, key);
         String fileUrl = CosUtil.getFileUrl(uploadedKey);
-        return FileUploadResult.builder()
+        return FileUploadResponse.builder()
                 .key(uploadedKey)
                 .url(fileUrl)
                 .fileName(file.getOriginalFilename())
@@ -74,21 +72,20 @@ public class FileUploadUtil {
     /**
      * 查询当前用户某业务域文件列表
      */
-    public List<Map<String, String>> listUploadedFiles(String prefix) {
+    public List<FileUploadListItemResponse> listUploadedFiles(String prefix) {
         Long userId = UserHolder.requireUserId();
         String queryPrefix = (prefix == null || prefix.isBlank())
                 ? String.format("user-%d/", userId)
                 : String.format("user-%d/%s/", userId, sanitizeBizArea(prefix));
-        List<String> keys = CosUtil.listKeysByPrefix(queryPrefix); // 需要 CosUtil 提供该方法
-        List<Map<String, String>> result = new ArrayList<>(keys.size());
+        List<String> keys = CosUtil.listKeysByPrefix(queryPrefix);
+        List<FileUploadListItemResponse> result = new ArrayList<>(keys.size());
         for (String key : keys) {
-            Map<String, String> row = new LinkedHashMap<>();
-            row.put("key", key);
-            row.put("url", CosUtil.getFileUrl(key));
-            row.put("fileName", extractFileName(key));
-            row.put("bizArea", extractBizArea(key, userId));
-
-            result.add(row);
+            result.add(FileUploadListItemResponse.builder()
+                    .key(key)
+                    .url(CosUtil.getFileUrl(key))
+                    .fileName(extractFileName(key))
+                    .bizArea(extractBizArea(key, userId))
+                    .build());
         }
         return result;
     }
