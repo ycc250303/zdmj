@@ -3,10 +3,10 @@ package com.zdmj.userAuthService.dto;
 import lombok.Data;
 
 /**
- * 用户信息DTO（响应用，不包含敏感信息）
+ * 用户信息响应（不包含敏感信息）
  */
 @Data
-public class UserDTO {
+public class UserResponse {
 
     /**
      * 用户ID

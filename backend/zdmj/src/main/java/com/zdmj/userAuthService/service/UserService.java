@@ -1,11 +1,11 @@
 package com.zdmj.userAuthService.service;
 
-import com.zdmj.userAuthService.dto.UserDTO;
-import com.zdmj.userAuthService.dto.UserLoginDTO;
-import com.zdmj.userAuthService.dto.UserLoginResponseDTO;
-import com.zdmj.userAuthService.dto.UserRegisterDTO;
-import com.zdmj.userAuthService.dto.UserResetPasswordDTO;
-import com.zdmj.userAuthService.dto.UserUpdateDTO;
+import com.zdmj.userAuthService.dto.UserResponse;
+import com.zdmj.userAuthService.dto.UserLoginRequest;
+import com.zdmj.userAuthService.dto.UserLoginResponse;
+import com.zdmj.userAuthService.dto.UserRegisterRequest;
+import com.zdmj.userAuthService.dto.UserResetPasswordRequest;
+import com.zdmj.userAuthService.dto.UserUpdateRequest;
 import com.zdmj.userAuthService.entity.User;
 
 /**
@@ -19,7 +19,7 @@ public interface UserService {
      * @param registerDTO 注册信息
      * @return 用户信息
      */
-    UserDTO register(UserRegisterDTO registerDTO);
+    UserResponse register(UserRegisterRequest registerDTO);
 
     /**
      * 用户登录
@@ -27,7 +27,7 @@ public interface UserService {
      * @param loginDTO 登录信息
      * @return 登录响应（包含Token和用户信息）
      */
-    UserLoginResponseDTO login(UserLoginDTO loginDTO);
+    UserLoginResponse login(UserLoginRequest loginDTO);
 
     /**
      * 根据ID查询用户
@@ -35,7 +35,7 @@ public interface UserService {
      * @param id 用户ID
      * @return 用户信息
      */
-    UserDTO getUserById(Long id);
+    UserResponse getUserById(Long id);
 
     /**
      * 根据用户名查询用户
@@ -74,7 +74,7 @@ public interface UserService {
      * 
      * @param resetPasswordDTO 重置密码信息（包含邮箱、验证码、新密码）
      */
-    void resetPassword(UserResetPasswordDTO resetPasswordDTO);
+    void resetPassword(UserResetPasswordRequest resetPasswordDTO);
 
     /**
      * 更新当前登录用户的基本信息
@@ -82,5 +82,5 @@ public interface UserService {
      * @param updateDTO 更新信息（姓名、电话、主页链接）
      * @return 更新后的用户信息
      */
-    UserDTO updateCurrentUser(UserUpdateDTO updateDTO);
+    UserResponse updateCurrentUser(UserUpdateRequest updateDTO);
 }

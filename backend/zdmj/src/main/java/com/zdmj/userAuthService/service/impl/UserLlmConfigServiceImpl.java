@@ -11,8 +11,8 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.UserApiKeyCipher;
-import com.zdmj.userAuthService.dto.LlmModelOptionDTO;
-import com.zdmj.userAuthService.dto.UserLlmConfigDTO;
+import com.zdmj.userAuthService.dto.LlmModelOptionResponse;
+import com.zdmj.userAuthService.dto.UserLlmConfigResponse;
 import com.zdmj.userAuthService.dto.UserLlmConfigRequest;
 import com.zdmj.userAuthService.dto.UserLlmConnectionTestRequest;
 import com.zdmj.userAuthService.entity.UserLlmConfig;
@@ -28,18 +28,18 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
     private final UserLlmRouter userLlmRouter;
 
     @Override
-    public UserLlmConfigDTO getMyConfig(){
+    public UserLlmConfigResponse getMyConfig(){
         Long userId = UserHolder.getUserId();
         UserLlmConfig config = userLlmConfigMapper.selectById(userId);
         if (config == null) {
-            UserLlmConfigDTO dto = new UserLlmConfigDTO();
+            UserLlmConfigResponse dto = new UserLlmConfigResponse();
             dto.setConfigured(false);
             dto.setUsingPlatformDefault(userLlmRouter.isPlatformFallbackEnabled());
             return dto;
         }
 
         String plain = userLlmRouter.decryptApiKey(config.getApiKeyCiphertext());
-        UserLlmConfigDTO dto = new UserLlmConfigDTO();
+        UserLlmConfigResponse dto = new UserLlmConfigResponse();
         dto.setConfigured(true);
         dto.setUsingPlatformDefault(false);
         dto.setModelCode(config.getModelCode());
@@ -49,10 +49,10 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
     }
 
     @Override
-    public List<LlmModelOptionDTO> listModels(){
+    public List<LlmModelOptionResponse> listModels(){
         return userLlmRouter.listModelOptions().stream()
         .map(v -> {
-            LlmModelOptionDTO dto = new LlmModelOptionDTO();
+            LlmModelOptionResponse dto = new LlmModelOptionResponse();
             dto.setCode(v.code());
             dto.setDisplayName(v.displayName());
             return dto;

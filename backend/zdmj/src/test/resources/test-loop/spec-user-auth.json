@@ -3,7 +3,7 @@
   "publicMethods": [
     {
       "className": "UserServiceImpl",
-      "method": "register(UserRegisterDTO)",
+      "method": "register(UserRegisterRequest)",
       "givenWhenThen": {
         "given": [
           "用户名不存在",
@@ -13,7 +13,7 @@
         "when": "调用 register",
         "then": [
           "创建并保存 User",
-          "返回 UserDTO",
+          "返回 UserResponse",
           "密码必须经过 PasswordUtil.encode"
         ]
       },
@@ -59,7 +59,7 @@
     },
     {
       "className": "UserServiceImpl",
-      "method": "login(UserLoginDTO)",
+      "method": "login(UserLoginRequest)",
       "givenWhenThen": {
         "given": [
           "输入用户名或邮箱",
@@ -104,7 +104,7 @@
     },
     {
       "className": "UserServiceImpl",
-      "method": "resetPassword(UserResetPasswordDTO)",
+      "method": "resetPassword(UserResetPasswordRequest)",
       "givenWhenThen": {
         "given": [
           "根据邮箱查找用户",
@@ -148,7 +148,7 @@
     },
     {
       "className": "UserServiceImpl",
-      "method": "updateCurrentUser(UserUpdateDTO)",
+      "method": "updateCurrentUser(UserUpdateRequest)",
       "givenWhenThen": {
         "given": [
           "UserHolder 中存在当前用户ID",
@@ -157,7 +157,7 @@
         "when": "调用 updateCurrentUser",
         "then": [
           "仅更新非 null 字段",
-          "更新成功返回 UserDTO"
+          "更新成功返回 UserResponse"
         ]
       },
       "paths": [

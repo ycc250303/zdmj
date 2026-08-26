@@ -13,8 +13,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.zdmj.common.annotation.RateLimit;
 import com.zdmj.common.model.Result;
-import com.zdmj.userAuthService.dto.LlmModelOptionDTO;
-import com.zdmj.userAuthService.dto.UserLlmConfigDTO;
+import com.zdmj.userAuthService.dto.LlmModelOptionResponse;
+import com.zdmj.userAuthService.dto.UserLlmConfigResponse;
 import com.zdmj.userAuthService.dto.UserLlmConfigRequest;
 import com.zdmj.userAuthService.dto.UserLlmConnectionTestRequest;
 import com.zdmj.userAuthService.service.UserLlmConfigService;
@@ -36,7 +36,7 @@ public class UserLlmConfigController {
      * @return
      */     
     @GetMapping
-    public Result<UserLlmConfigDTO> getMyConfig() {
+    public Result<UserLlmConfigResponse> getMyConfig() {
         return Result.success(userLlmConfigService.getMyConfig());
     }
 
@@ -45,7 +45,7 @@ public class UserLlmConfigController {
      * @return
      */
     @GetMapping("/models")
-    public Result<List<LlmModelOptionDTO>> listModels() {
+    public Result<List<LlmModelOptionResponse>> listModels() {
         return Result.success(userLlmConfigService.listModels());
     }
 

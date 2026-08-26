@@ -10,12 +10,12 @@ import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.userAuthService.dto.UserDTO;
-import com.zdmj.userAuthService.dto.UserLoginDTO;
-import com.zdmj.userAuthService.dto.UserLoginResponseDTO;
-import com.zdmj.userAuthService.dto.UserRegisterDTO;
-import com.zdmj.userAuthService.dto.UserResetPasswordDTO;
-import com.zdmj.userAuthService.dto.UserUpdateDTO;
+import com.zdmj.userAuthService.dto.UserResponse;
+import com.zdmj.userAuthService.dto.UserLoginRequest;
+import com.zdmj.userAuthService.dto.UserLoginResponse;
+import com.zdmj.userAuthService.dto.UserRegisterRequest;
+import com.zdmj.userAuthService.dto.UserResetPasswordRequest;
+import com.zdmj.userAuthService.dto.UserUpdateRequest;
 import com.zdmj.userAuthService.entity.User;
 import com.zdmj.userAuthService.enums.VerificationCodeScene;
 import com.zdmj.userAuthService.service.VerificationCodeService;
@@ -70,7 +70,7 @@ class UserServiceImplTest {
 
     @Test
     void register_whenUsernameExists_shouldThrow2001() {
-        UserRegisterDTO dto = buildRegisterDTO();
+        UserRegisterRequest dto = buildRegisterDTO();
         doReturn(true).when(userService).existsByUsername(dto.getUsername());
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.register(dto));
@@ -83,7 +83,7 @@ class UserServiceImplTest {
 
     @Test
     void register_whenEmailExists_shouldThrow2002() {
-        UserRegisterDTO dto = buildRegisterDTO();
+        UserRegisterRequest dto = buildRegisterDTO();
         doReturn(false).when(userService).existsByUsername(dto.getUsername());
         doReturn(true).when(userService).existsByEmail(dto.getEmail());
 
@@ -97,7 +97,7 @@ class UserServiceImplTest {
 
     @Test
     void register_whenCaptchaInvalid_shouldThrow2003() {
-        UserRegisterDTO dto = buildRegisterDTO();
+        UserRegisterRequest dto = buildRegisterDTO();
         doReturn(false).when(userService).existsByUsername(dto.getUsername());
         doReturn(false).when(userService).existsByEmail(dto.getEmail());
         doReturn(false).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode(),
@@ -113,7 +113,7 @@ class UserServiceImplTest {
 
     @Test
     void register_whenSaveFailed_shouldThrow2004() {
-        UserRegisterDTO dto = buildRegisterDTO();
+        UserRegisterRequest dto = buildRegisterDTO();
         doReturn(false).when(userService).existsByUsername(dto.getUsername());
         doReturn(false).when(userService).existsByEmail(dto.getEmail());
         doReturn(true).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode(),
@@ -127,15 +127,15 @@ class UserServiceImplTest {
     }
 
     @Test
-    void register_whenAllValid_shouldReturnUserDTOAndEncodePassword() {
-        UserRegisterDTO dto = buildRegisterDTO();
+    void register_whenAllValid_shouldReturnUserResponseAndEncodePassword() {
+        UserRegisterRequest dto = buildRegisterDTO();
         doReturn(false).when(userService).existsByUsername(dto.getUsername());
         doReturn(false).when(userService).existsByEmail(dto.getEmail());
         doReturn(true).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode(),
                 VerificationCodeScene.REGISTER);
         doReturn(true).when(userService).save(any(User.class));
 
-        UserDTO result = userService.register(dto);
+        UserResponse result = userService.register(dto);
 
         assertEquals(dto.getUsername(), result.getUsername());
         assertEquals(dto.getEmail(), result.getEmail());
@@ -151,7 +151,7 @@ class UserServiceImplTest {
 
     @Test
     void login_whenUserNotFound_shouldThrow2006() {
-        UserLoginDTO dto = new UserLoginDTO();
+        UserLoginRequest dto = new UserLoginRequest();
         dto.setUsernameOrEmail("ghost");
         dto.setPassword("password123");
         doReturn(null).when(userService).getUserByUsername("ghost");
@@ -165,7 +165,7 @@ class UserServiceImplTest {
 
     @Test
     void login_whenPasswordWrong_shouldThrow2005() {
-        UserLoginDTO dto = new UserLoginDTO();
+        UserLoginRequest dto = new UserLoginRequest();
         dto.setUsernameOrEmail("alice");
         dto.setPassword("wrong-password");
         User user = new User();
@@ -183,7 +183,7 @@ class UserServiceImplTest {
 
     @Test
     void login_whenSuccess_shouldDeleteOldTokenAndWriteNewToken() {
-        UserLoginDTO dto = new UserLoginDTO();
+        UserLoginRequest dto = new UserLoginRequest();
         dto.setUsernameOrEmail("alice");
         dto.setPassword("right-password");
         User user = new User();
@@ -193,7 +193,7 @@ class UserServiceImplTest {
         doReturn(user).when(userService).getUserByUsername("alice");
         doReturn(true).when(redisUtil).exists(RedisConstants.JWT_TOKEN_KEY + 1L);
 
-        UserLoginResponseDTO response = userService.login(dto);
+        UserLoginResponse response = userService.login(dto);
 
         assertEquals("alice", response.getUser().getUsername());
         assertEquals(3, response.getToken().split("\\.").length);
@@ -211,7 +211,7 @@ class UserServiceImplTest {
         user.setEmail("u123@test.com");
         doReturn(user).when(userService).getById(123L);
 
-        UserDTO dto = userService.getUserById(123L);
+        UserResponse dto = userService.getUserById(123L);
 
         assertEquals(123L, dto.getId());
         assertEquals("u123", dto.getUsername());
@@ -259,7 +259,7 @@ class UserServiceImplTest {
 
     @Test
     void resetPassword_whenEmailNotRegistered_shouldThrow2007() {
-        UserResetPasswordDTO dto = buildResetDTO();
+        UserResetPasswordRequest dto = buildResetDTO();
         doReturn(null).when(userService).getUserByEmail(dto.getEmail());
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.resetPassword(dto));
@@ -271,7 +271,7 @@ class UserServiceImplTest {
 
     @Test
     void resetPassword_whenCaptchaInvalid_shouldThrow2003() {
-        UserResetPasswordDTO dto = buildResetDTO();
+        UserResetPasswordRequest dto = buildResetDTO();
         User user = new User();
         user.setId(99L);
         doReturn(user).when(userService).getUserByEmail(dto.getEmail());
@@ -288,7 +288,7 @@ class UserServiceImplTest {
 
     @Test
     void resetPassword_whenUpdateFailed_shouldThrow2008() {
-        UserResetPasswordDTO dto = buildResetDTO();
+        UserResetPasswordRequest dto = buildResetDTO();
         User user = new User();
         user.setId(88L);
         doReturn(user).when(userService).getUserByEmail(dto.getEmail());
@@ -304,7 +304,7 @@ class UserServiceImplTest {
 
     @Test
     void resetPassword_whenAllValid_shouldUpdatePasswordSuccessfully() {
-        UserResetPasswordDTO dto = buildResetDTO();
+        UserResetPasswordRequest dto = buildResetDTO();
         User user = new User();
         user.setId(88L);
         doReturn(user).when(userService).getUserByEmail(dto.getEmail());
@@ -323,7 +323,7 @@ class UserServiceImplTest {
     @Test
     void updateCurrentUser_whenNameBlank_shouldThrow1001() {
         UserHolder.set(UserContext.of(14L, "u14"));
-        UserUpdateDTO dto = new UserUpdateDTO();
+        UserUpdateRequest dto = new UserUpdateRequest();
         dto.setName("   ");
 
         User existing = new User();
@@ -340,7 +340,7 @@ class UserServiceImplTest {
     @Test
     void updateCurrentUser_whenUserNotFound_shouldThrow2006() {
         UserHolder.set(UserContext.of(12L, "u12"));
-        UserUpdateDTO dto = new UserUpdateDTO();
+        UserUpdateRequest dto = new UserUpdateRequest();
         dto.setName("new-name");
         doReturn(null).when(userService).getById(12L);
 
@@ -354,7 +354,7 @@ class UserServiceImplTest {
     @Test
     void updateCurrentUser_whenUpdateFailed_shouldThrow2004() {
         UserHolder.set(UserContext.of(13L, "u13"));
-        UserUpdateDTO dto = new UserUpdateDTO();
+        UserUpdateRequest dto = new UserUpdateRequest();
         dto.setName("neo");
 
         User existing = new User();
@@ -374,7 +374,7 @@ class UserServiceImplTest {
     @Test
     void updateCurrentUser_whenSuccess_shouldOnlyUpdateNonNullFields() {
         UserHolder.set(UserContext.of(15L, "u15"));
-        UserUpdateDTO dto = new UserUpdateDTO();
+        UserUpdateRequest dto = new UserUpdateRequest();
         dto.setName("new-name");
         dto.setPhone(null);
         dto.setWebsite(null);
@@ -388,7 +388,7 @@ class UserServiceImplTest {
         doReturn(existing).when(userService).getById(15L);
         doReturn(true).when(userService).updateById(existing);
 
-        UserDTO result = userService.updateCurrentUser(dto);
+        UserResponse result = userService.updateCurrentUser(dto);
 
         assertEquals("new-name", result.getName());
         assertEquals("13800000000", result.getPhone());
@@ -399,8 +399,8 @@ class UserServiceImplTest {
         assertEquals("https://old.site", existing.getWebsite());
     }
 
-    private UserRegisterDTO buildRegisterDTO() {
-        UserRegisterDTO dto = new UserRegisterDTO();
+    private UserRegisterRequest buildRegisterDTO() {
+        UserRegisterRequest dto = new UserRegisterRequest();
         dto.setUsername("alice");
         dto.setPassword("Password123");
         dto.setEmail("alice@test.com");
@@ -408,8 +408,8 @@ class UserServiceImplTest {
         return dto;
     }
 
-    private UserResetPasswordDTO buildResetDTO() {
-        UserResetPasswordDTO dto = new UserResetPasswordDTO();
+    private UserResetPasswordRequest buildResetDTO() {
+        UserResetPasswordRequest dto = new UserResetPasswordRequest();
         dto.setEmail("alice@test.com");
         dto.setVerificationCode("123456");
         dto.setNewPassword("newPassword123");

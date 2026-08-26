@@ -11,12 +11,12 @@ import com.zdmj.common.cache.RedisConstants;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.userAuthService.util.JwtUtil;
 import com.zdmj.userAuthService.util.PasswordUtil;
-import com.zdmj.userAuthService.dto.UserDTO;
-import com.zdmj.userAuthService.dto.UserLoginDTO;
-import com.zdmj.userAuthService.dto.UserLoginResponseDTO;
-import com.zdmj.userAuthService.dto.UserRegisterDTO;
-import com.zdmj.userAuthService.dto.UserResetPasswordDTO;
-import com.zdmj.userAuthService.dto.UserUpdateDTO;
+import com.zdmj.userAuthService.dto.UserResponse;
+import com.zdmj.userAuthService.dto.UserLoginRequest;
+import com.zdmj.userAuthService.dto.UserLoginResponse;
+import com.zdmj.userAuthService.dto.UserRegisterRequest;
+import com.zdmj.userAuthService.dto.UserResetPasswordRequest;
+import com.zdmj.userAuthService.dto.UserUpdateRequest;
 import com.zdmj.userAuthService.entity.User;
 import com.zdmj.userAuthService.mapper.UserMapper;
 import com.zdmj.userAuthService.enums.VerificationCodeScene;
@@ -41,7 +41,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public UserDTO register(UserRegisterDTO registerDTO) {
+    public UserResponse register(UserRegisterRequest registerDTO) {
         // 1. 检查用户名是否已存在
         if (existsByUsername(registerDTO.getUsername())) {
             throw new BusinessException(ErrorCode.USER_ALREADY_EXISTS);
@@ -73,11 +73,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         log.info("用户注册成功: {}", user.getUsername());
 
         // 6. 转换为DTO返回
-        return convertToDTO(user);
+        return convertToResponse(user);
     }
 
     @Override
-    public UserLoginResponseDTO login(UserLoginDTO loginDTO) {
+    public UserLoginResponse login(UserLoginRequest loginDTO) {
         // 1. 根据用户名或邮箱查询用户
         User user = null;
         String usernameOrEmail = loginDTO.getUsernameOrEmail();
@@ -116,20 +116,20 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         log.debug("存储JWT Token到Redis: userId={}, expire={}秒", user.getId(), RedisConstants.JWT_TOKEN_TTL);
 
         // 7. 构建登录响应
-        UserLoginResponseDTO response = new UserLoginResponseDTO();
+        UserLoginResponse response = new UserLoginResponse();
         response.setToken(token);
-        response.setUser(convertToDTO(user));
+        response.setUser(convertToResponse(user));
 
         return response;
     }
 
     @Override
-    public UserDTO getUserById(Long id) {
+    public UserResponse getUserById(Long id) {
         User user = getById(id);
         if (user == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
-        return convertToDTO(user);
+        return convertToResponse(user);
     }
 
     @Override
@@ -158,7 +158,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void resetPassword(UserResetPasswordDTO resetPasswordDTO) {
+    public void resetPassword(UserResetPasswordRequest resetPasswordDTO) {
         // 1. 根据邮箱查询用户
         User user = getUserByEmail(resetPasswordDTO.getEmail());
         if (user == null) {
@@ -188,7 +188,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public UserDTO updateCurrentUser(UserUpdateDTO updateDTO) {
+    public UserResponse updateCurrentUser(UserUpdateRequest updateDTO) {
         Long userId = UserHolder.requireUserId();
 
         User user = getById(userId);
@@ -217,7 +217,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
 
         log.info("用户信息更新成功: userId={}", userId);
-        return convertToDTO(user);
+        return convertToResponse(user);
     }
 
     private void rejectBlankField(String value, String message) {
@@ -227,10 +227,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     /**
-     * 将User实体转换为UserDTO
+     * 将User实体转换为UserResponse
      */
-    private UserDTO convertToDTO(User user) {
-        UserDTO dto = new UserDTO();
+    private UserResponse convertToResponse(User user) {
+        UserResponse dto = new UserResponse();
         BeanUtils.copyProperties(user, dto);
         return dto;
     }

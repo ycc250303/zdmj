@@ -3,10 +3,10 @@ package com.zdmj.userAuthService.dto;
 import lombok.Data;
 
 /**
- * 用户登录响应DTO（包含Token和用户信息）
+ * 用户登录响应（包含Token和用户信息）
  */
 @Data
-public class UserLoginResponseDTO {
+public class UserLoginResponse {
 
     /**
      * JWT Token
@@ -16,5 +16,5 @@ public class UserLoginResponseDTO {
     /**
      * 用户信息
      */
-    private UserDTO user;
+    private UserResponse user;
 }

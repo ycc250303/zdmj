@@ -3,7 +3,7 @@ package com.zdmj.userAuthService.dto;
 import lombok.Data;
 
 @Data
-public class UserLlmConfigDTO {
+public class UserLlmConfigResponse {
 
     private boolean configured;
 

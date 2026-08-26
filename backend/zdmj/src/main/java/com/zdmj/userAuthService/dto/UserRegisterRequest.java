@@ -6,10 +6,10 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * 用户注册DTO
+ * 用户注册请求
  */
 @Data
-public class UserRegisterDTO {
+public class UserRegisterRequest {
 
     /**
      * 用户名（不能为空，长度 3-50 个字符）

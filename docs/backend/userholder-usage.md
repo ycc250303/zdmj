@@ -55,7 +55,7 @@ public class UserHolder {
 public class UserController {
 
     @GetMapping("/profile")
-    public Result<UserDTO> getCurrentUserProfile() {
+    public Result<UserResponse> getCurrentUserProfile() {
         // 直接获取当前登录用户ID，无需注入HttpServletRequest
         Long userId = UserHolder.getUserId();
         String username = UserHolder.getUsername();
@@ -63,7 +63,7 @@ public class UserController {
         log.info("当前用户: userId={}, username={}", userId, username);
         
         // 查询用户信息
-        UserDTO userDTO = userService.getUserById(userId);
+        UserResponse userDTO = userService.getUserById(userId);
         return Result.success(userDTO);
     }
     
@@ -96,7 +96,7 @@ public class OrderService {
         order.setCreateBy(userId);
         // ...
         
-        return convertToDTO(order);
+        return convertToResponse(order);
     }
 }
 ```
@@ -151,7 +151,7 @@ Long userId = UserHolder.getUserId();
 ```java
 // Controller中需要注入HttpServletRequest
 @GetMapping("/profile")
-public Result<UserDTO> getProfile(HttpServletRequest request) {
+public Result<UserResponse> getProfile(HttpServletRequest request) {
     // 每次都要解析Token
     String token = request.getHeader("Authorization");
     Long userId = JwtUtil.getUserIdFromToken(token);
@@ -172,7 +172,7 @@ UserHolder.set(userContext);
 
 // Controller中直接获取
 @GetMapping("/profile")
-public Result<UserDTO> getProfile() {
+public Result<UserResponse> getProfile() {
     Long userId = UserHolder.getUserId(); // 直接从ThreadLocal获取
     // ...
 }

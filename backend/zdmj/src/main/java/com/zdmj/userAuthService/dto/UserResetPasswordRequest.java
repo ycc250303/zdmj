@@ -6,10 +6,10 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * 重置密码DTO
+ * 重置密码请求
  */
 @Data
-public class UserResetPasswordDTO {
+public class UserResetPasswordRequest {
 
     /**
      * 邮箱地址（不能为空，需符合邮箱格式）

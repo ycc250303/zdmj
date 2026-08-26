@@ -5,10 +5,10 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * 用户信息更新DTO
+ * 用户信息更新请求
  */
 @Data
-public class UserUpdateDTO {
+public class UserUpdateRequest {
 
     /**
      * 用户姓名（最大长度 100 个字符）

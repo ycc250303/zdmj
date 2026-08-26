@@ -4,10 +4,10 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 /**
- * 用户登录DTO
+ * 用户登录请求
  */
 @Data
-public class UserLoginDTO {
+public class UserLoginRequest {
 
     /**
      * 用户名或邮箱（不能为空）

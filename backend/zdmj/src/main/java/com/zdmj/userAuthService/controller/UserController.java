@@ -4,12 +4,12 @@ import com.zdmj.common.annotation.RateLimit;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.model.Result;
-import com.zdmj.userAuthService.dto.UserDTO;
-import com.zdmj.userAuthService.dto.UserLoginDTO;
-import com.zdmj.userAuthService.dto.UserLoginResponseDTO;
-import com.zdmj.userAuthService.dto.UserRegisterDTO;
-import com.zdmj.userAuthService.dto.UserResetPasswordDTO;
-import com.zdmj.userAuthService.dto.UserUpdateDTO;
+import com.zdmj.userAuthService.dto.UserResponse;
+import com.zdmj.userAuthService.dto.UserLoginRequest;
+import com.zdmj.userAuthService.dto.UserLoginResponse;
+import com.zdmj.userAuthService.dto.UserRegisterRequest;
+import com.zdmj.userAuthService.dto.UserResetPasswordRequest;
+import com.zdmj.userAuthService.dto.UserUpdateRequest;
 import com.zdmj.userAuthService.enums.VerificationCodeScene;
 import com.zdmj.userAuthService.service.UserService;
 import com.zdmj.userAuthService.service.VerificationCodeService;
@@ -48,9 +48,9 @@ public class UserController {
      * @return 注册结果
      */
     @PostMapping
-    public Result<UserDTO> createUser(@Valid @RequestBody UserRegisterDTO registerDTO) {
+    public Result<UserResponse> createUser(@Valid @RequestBody UserRegisterRequest registerDTO) {
         log.info("用户注册请求: {}", registerDTO.getUsername());
-        UserDTO userDTO = userService.register(registerDTO);
+        UserResponse userDTO = userService.register(registerDTO);
         return Result.success("注册成功", userDTO);
     }
 
@@ -61,9 +61,9 @@ public class UserController {
      * @return 用户信息
      */
     @GetMapping("/{id}")
-    public Result<UserDTO> getUserById(@PathVariable @Min(value = 1, message = "用户ID不能小于1") Long id) {
+    public Result<UserResponse> getUserById(@PathVariable @Min(value = 1, message = "用户ID不能小于1") Long id) {
         log.info("查询用户信息: {}", id);
-        UserDTO userDTO = userService.getUserById(id);
+        UserResponse userDTO = userService.getUserById(id);
         return Result.success("查询成功", userDTO);
     }
 
@@ -76,9 +76,9 @@ public class UserController {
     @PostMapping("/login")
     @RateLimit(dimension = RateLimit.Dimension.GLOBAL, count = 100, interval = 1, timeUnit = TimeUnit.MINUTES)
     @RateLimit(dimension = RateLimit.Dimension.IP, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
-    public Result<UserLoginResponseDTO> login(@Valid @RequestBody UserLoginDTO loginDTO) {
+    public Result<UserLoginResponse> login(@Valid @RequestBody UserLoginRequest loginDTO) {
         log.info("用户登录请求: {}", loginDTO.getUsernameOrEmail());
-        UserLoginResponseDTO response = userService.login(loginDTO);
+        UserLoginResponse response = userService.login(loginDTO);
         return Result.success("登录成功", response);
     }
 
@@ -114,7 +114,7 @@ public class UserController {
      * @return 重置结果
      */
     @PutMapping("/password")
-    public Result<Void> resetPassword(@Valid @RequestBody UserResetPasswordDTO resetPasswordDTO) {
+    public Result<Void> resetPassword(@Valid @RequestBody UserResetPasswordRequest resetPasswordDTO) {
         log.info("重置密码请求: email={}", resetPasswordDTO.getEmail());
         userService.resetPassword(resetPasswordDTO);
         return Result.success("密码修改成功", null);
@@ -128,9 +128,9 @@ public class UserController {
      */
     @PutMapping("/me")
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 20, interval = 1, timeUnit = TimeUnit.MINUTES)
-    public Result<UserDTO> updateCurrentUser(@Valid @RequestBody UserUpdateDTO updateDTO) {
+    public Result<UserResponse> updateCurrentUser(@Valid @RequestBody UserUpdateRequest updateDTO) {
         log.info("更新当前用户信息请求");
-        UserDTO userDTO = userService.updateCurrentUser(updateDTO);
+        UserResponse userDTO = userService.updateCurrentUser(updateDTO);
         return Result.success("更新成功", userDTO);
     }
 
