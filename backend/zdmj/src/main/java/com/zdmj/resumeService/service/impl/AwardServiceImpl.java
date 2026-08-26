@@ -4,7 +4,8 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.resumeService.dto.AwardDTO;
+import com.zdmj.resumeService.dto.AwardRequest;
+import com.zdmj.resumeService.dto.AwardResponse;
 import com.zdmj.resumeService.entity.Award;
 import com.zdmj.resumeService.enums.AwardTypeEnum;
 import com.zdmj.resumeService.mapper.AwardMapper;
@@ -12,6 +13,7 @@ import com.zdmj.resumeService.mapper.AwardStructMapper;
 import com.zdmj.resumeService.service.AwardService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -24,52 +26,52 @@ public class AwardServiceImpl extends ServiceImpl<AwardMapper, Award> implements
     private final AwardStructMapper awardPatchMapper;
 
     @Override
-    public Award create(AwardDTO awardDTO) {
+    public AwardResponse create(AwardRequest awardRequest) {
         Long userId = UserHolder.requireUserId();
-        validateAwardType(awardDTO.getAwardType());
+        validateAwardType(awardRequest.getAwardType());
 
         Award award = new Award();
         award.setUserId(userId);
-        award.setAwardType(awardDTO.getAwardType());
-        award.setName(awardDTO.getName());
-        award.setAwardDate(awardDTO.getAwardDate());
-        award.setDescription(awardDTO.getDescription());
+        award.setAwardType(awardRequest.getAwardType());
+        award.setName(awardRequest.getName());
+        award.setAwardDate(awardRequest.getAwardDate());
+        award.setDescription(awardRequest.getDescription());
 
         boolean saved = save(award);
         if (!saved) {
             throw new BusinessException(ErrorCode.AWARD_ADD_FAILED);
         }
         log.info("添加获奖信息成功: {}", award.getName());
-        return award;
+        return convertToResponse(award);
     }
 
     @Override
-    public Award getById(Long id) {
-        return requireAward(id);
+    public AwardResponse getById(Long id) {
+        return convertToResponse(requireAward(id));
     }
 
     @Override
-    public List<Award> getByUserId() {
+    public List<AwardResponse> getByUserId() {
         Long userId = UserHolder.requireUserId();
-        return baseMapper.selectByUserId(userId);
+        return baseMapper.selectByUserId(userId).stream().map(this::convertToResponse).toList();
     }
 
     @Override
-    public Award update(AwardDTO awardDTO) {
+    public AwardResponse update(AwardRequest awardRequest) {
         Long userId = UserHolder.requireUserId();
-        Award award = requireAwardAndCheckOwnership(awardDTO.getId(), userId, "修改");
-        if (awardDTO.getAwardType() != null) {
-            validateAwardType(awardDTO.getAwardType());
+        Award award = requireAwardAndCheckOwnership(awardRequest.getId(), userId, "修改");
+        if (awardRequest.getAwardType() != null) {
+            validateAwardType(awardRequest.getAwardType());
         }
 
-        awardPatchMapper.updateEntityFromDto(awardDTO, award);
+        awardPatchMapper.updateEntityFromDto(awardRequest, award);
 
         boolean updated = updateById(award);
         if (!updated) {
             throw new BusinessException(ErrorCode.AWARD_UPDATE_FAILED);
         }
         log.info("更新获奖信息成功: {}", award.getName());
-        return award;
+        return convertToResponse(award);
     }
 
     @Override
@@ -81,6 +83,12 @@ public class AwardServiceImpl extends ServiceImpl<AwardMapper, Award> implements
             throw new BusinessException(ErrorCode.AWARD_DELETE_FAILED);
         }
         log.info("删除获奖信息成功: {}", award.getName());
+    }
+
+    private AwardResponse convertToResponse(Award award) {
+        AwardResponse response = new AwardResponse();
+        BeanUtils.copyProperties(award, response);
+        return response;
     }
 
     private void validateAwardType(Integer awardType) {

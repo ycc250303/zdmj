@@ -4,7 +4,8 @@ import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.resumeService.dto.AwardDTO;
+import com.zdmj.resumeService.dto.AwardRequest;
+import com.zdmj.resumeService.dto.AwardResponse;
 import com.zdmj.resumeService.entity.Award;
 import com.zdmj.resumeService.mapper.AwardMapper;
 import com.zdmj.resumeService.mapper.AwardStructMapper;
@@ -50,13 +51,13 @@ class AwardServiceImplTest {
 
     @Test
     void create_success_shouldSaveAward() {
-        AwardDTO dto = new AwardDTO();
+        AwardRequest dto = new AwardRequest();
         dto.setAwardType(2);
         dto.setName("数学建模省一等奖");
         dto.setAwardDate(LocalDate.of(2023, 11, 1));
         doReturn(true).when(service).save(any(Award.class));
 
-        Award out = service.create(dto);
+        AwardResponse out = service.create(dto);
 
         assertEquals(1L, out.getUserId());
         assertEquals("数学建模省一等奖", out.getName());
@@ -65,7 +66,7 @@ class AwardServiceImplTest {
 
     @Test
     void create_invalidType_shouldThrow() {
-        AwardDTO dto = new AwardDTO();
+        AwardRequest dto = new AwardRequest();
         dto.setAwardType(9);
         dto.setName("无效类型");
         dto.setAwardDate(LocalDate.of(2023, 1, 1));

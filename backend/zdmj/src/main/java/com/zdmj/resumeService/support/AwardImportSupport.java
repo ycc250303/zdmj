@@ -1,6 +1,6 @@
 package com.zdmj.resumeService.support;
 
-import com.zdmj.resumeService.dto.ResumeImportParseResultDTO;
+import com.zdmj.resumeService.dto.ResumeImportParseResponse;
 import com.zdmj.resumeService.enums.AwardTypeEnum;
 import org.springframework.util.StringUtils;
 
@@ -67,16 +67,16 @@ public final class AwardImportSupport {
      */
     public static void supplementScholarshipsFromSourceText(
             String sourceText,
-            List<ResumeImportParseResultDTO.AwardItem> awards,
+            List<ResumeImportParseResponse.AwardItem> awards,
             List<String> warnings,
-            Function<ResumeImportParseResultDTO.AwardItem, java.time.LocalDate> dateParser,
+            Function<ResumeImportParseResponse.AwardItem, java.time.LocalDate> dateParser,
             BiFunction<String, String, java.time.LocalDate> contextDateParser,
             Function<java.time.LocalDate, String> dateFormatter) {
         if (!StringUtils.hasText(sourceText)) {
             return;
         }
         Set<String> existing = awards.stream()
-                .map(ResumeImportParseResultDTO.AwardItem::getName)
+                .map(ResumeImportParseResponse.AwardItem::getName)
                 .filter(StringUtils::hasText)
                 .map(AwardImportSupport::normalizeAwardNameKey)
                 .collect(Collectors.toSet());
@@ -95,7 +95,7 @@ public final class AwardImportSupport {
                     Math.max(0, matcher.start() - 24),
                     Math.min(sourceText.length(), matcher.end() + 24));
 
-            ResumeImportParseResultDTO.AwardItem item = new ResumeImportParseResultDTO.AwardItem();
+            ResumeImportParseResponse.AwardItem item = new ResumeImportParseResponse.AwardItem();
             item.setName(name);
             item.setAwardType(AwardTypeEnum.SCHOLARSHIP.getCode());
 

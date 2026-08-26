@@ -8,11 +8,11 @@ import java.util.Map;
 import lombok.Data;
 
 /**
- * 学生就业能力画像 DTO
+ * 学生就业能力画像响应
  */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class StudentCapabilityProfileDTO {
+public class StudentCapabilityProfileResponse {
     /**
      * 简历适配岗位类型（展示用，使用提示词名称）
      */

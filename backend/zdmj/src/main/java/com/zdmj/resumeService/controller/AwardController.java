@@ -3,8 +3,8 @@ package com.zdmj.resumeService.controller;
 import com.zdmj.common.model.CreateGroup;
 import com.zdmj.common.model.Result;
 import com.zdmj.common.model.UpdateGroup;
-import com.zdmj.resumeService.dto.AwardDTO;
-import com.zdmj.resumeService.entity.Award;
+import com.zdmj.resumeService.dto.AwardRequest;
+import com.zdmj.resumeService.dto.AwardResponse;
 import com.zdmj.resumeService.service.AwardService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -31,13 +31,13 @@ public class AwardController {
     private final AwardService awardService;
 
     @PostMapping
-    public Result<Award> addAward(@Validated(CreateGroup.class) @RequestBody AwardDTO awardDTO) {
-        return Result.success("添加获奖信息成功", awardService.create(awardDTO));
+    public Result<AwardResponse> addAward(@Validated(CreateGroup.class) @RequestBody AwardRequest awardRequest) {
+        return Result.success("添加获奖信息成功", awardService.create(awardRequest));
     }
 
     @PutMapping
-    public Result<Award> updateAward(@Validated(UpdateGroup.class) @RequestBody AwardDTO awardDTO) {
-        return Result.success("更新获奖信息成功", awardService.update(awardDTO));
+    public Result<AwardResponse> updateAward(@Validated(UpdateGroup.class) @RequestBody AwardRequest awardRequest) {
+        return Result.success("更新获奖信息成功", awardService.update(awardRequest));
     }
 
     @DeleteMapping("/{id}")
@@ -47,12 +47,12 @@ public class AwardController {
     }
 
     @GetMapping("/{id}")
-    public Result<Award> getAwardById(@PathVariable Long id) {
+    public Result<AwardResponse> getAwardById(@PathVariable Long id) {
         return Result.success("查询获奖信息成功", awardService.getById(id));
     }
 
     @GetMapping
-    public Result<List<Award>> getAwards() {
+    public Result<List<AwardResponse>> getAwards() {
         return Result.success("查询获奖信息成功", awardService.getByUserId());
     }
 }

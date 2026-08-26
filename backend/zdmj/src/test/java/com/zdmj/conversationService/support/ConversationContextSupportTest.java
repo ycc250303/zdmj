@@ -2,8 +2,8 @@ package com.zdmj.conversationService.support;
 
 import com.zdmj.conversationService.dto.MessageDTO;
 import com.zdmj.conversationService.entity.Conversation;
-import com.zdmj.resumeService.dto.EducationDTO;
-import com.zdmj.resumeService.dto.ResumeContentDTO;
+import com.zdmj.resumeService.dto.EducationRequest;
+import com.zdmj.resumeService.dto.ResumeContentResponse;
 import com.zdmj.resumeService.dto.ResumePersonalInfoDTO;
 import org.junit.jupiter.api.Test;
 
@@ -18,12 +18,12 @@ class ConversationContextSupportTest {
 
     @Test
     void formatResume_shouldIncludePersonalAndEducation() {
-        ResumeContentDTO resume = new ResumeContentDTO();
+        ResumeContentResponse resume = new ResumeContentResponse();
         ResumePersonalInfoDTO personal = new ResumePersonalInfoDTO();
         personal.setName("张三");
         personal.setPreferredWorkCity("上海");
         resume.setPersonalInfo(personal);
-        EducationDTO edu = new EducationDTO();
+        EducationRequest edu = new EducationRequest();
         edu.setSchool("某某大学");
         edu.setMajor("软件工程");
         resume.setEducations(List.of(edu));

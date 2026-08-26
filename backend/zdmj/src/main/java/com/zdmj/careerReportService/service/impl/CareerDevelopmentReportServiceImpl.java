@@ -36,7 +36,7 @@ import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
 import com.zdmj.matchService.dto.JobStudentMatchDTO;
 import com.zdmj.matchService.entity.JobStudentMatch;
 import com.zdmj.matchService.service.JobStudentMatchService;
-import com.zdmj.resumeService.dto.StudentCapabilityProfileDTO;
+import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
 import com.zdmj.resumeService.service.StudentCapabilityProfileService;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -134,7 +134,7 @@ public class CareerDevelopmentReportServiceImpl
         if (jobDetail == null) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
-        StudentCapabilityProfileDTO studentProfile = studentCapabilityProfileService.getCurrentUserProfileOrNull();
+        StudentCapabilityProfileResponse studentProfile = studentCapabilityProfileService.getCurrentUserProfileOrNull();
         if (studentProfile == null) {
             throw new BusinessException(ErrorCode.MATCH_PRECONDITION_MISSING);
         }
@@ -341,7 +341,7 @@ public class CareerDevelopmentReportServiceImpl
     }
 
     private Map<String, Object> generateStructuredReport(JobListItemDTO jobDetail,
-                                                         StudentCapabilityProfileDTO studentProfile,
+                                                         StudentCapabilityProfileResponse studentProfile,
                                                          JobCapabilityProfileDTO jobProfile,
                                                          JobStudentMatchDTO match,
                                                          JobCareerGraphDTO graph,

@@ -80,7 +80,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     private final Validator validator;
 
     @Override
-    public Resume create(ResumeDTO resumeDTO) {
+    public ResumeResponse create(ResumeRequest resumeRequest) {
         Long userId = UserHolder.requireUserId();
 
         if (baseMapper.existsByUserId(userId)) {
@@ -89,30 +89,30 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
         Resume resume = new Resume();
         resume.setUserId(userId);
-        resume.setSkillId(resumeDTO.getSkillId());
+        resume.setSkillId(resumeRequest.getSkillId());
 
         boolean saved = save(resume);
         if (!saved) {
             throw new BusinessException(ErrorCode.RESUME_CREATE_FAILED);
         }
         log.info("创建简历成功: userId={}", userId);
-        return resume;
+        return convertToResponse(resume);
     }
 
     @Override
-    public List<Resume> getByUserId() {
+    public List<ResumeResponse> getByUserId() {
         Long userId = UserHolder.requireUserId();
-        return baseMapper.selectByUserId(userId);
+        return baseMapper.selectByUserId(userId).stream().map(this::convertToResponse).toList();
     }
 
     @Override
-    public Resume update(ResumeDTO resumeDTO) {
+    public ResumeResponse update(ResumeRequest resumeRequest) {
         Long userId = UserHolder.requireUserId();
-        Long id = resumeDTO.getId();
+        Long id = resumeRequest.getId();
 
         Resume resume = requireResumeAndCheckOwnership(id, userId, "修改");
 
-        resume.setSkillId(resumeDTO.getSkillId());
+        resume.setSkillId(resumeRequest.getSkillId());
         boolean updated = updateById(resume);
         if (!updated) {
             throw new BusinessException(ErrorCode.RESUME_UPDATE_FAILED);
@@ -121,7 +121,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
         // 注意：不再清除缓存，因为简历基础信息和列表已不使用缓存
 
-        return resume;
+        return convertToResponse(resume);
     }
 
     @Override
@@ -139,7 +139,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     }
 
     @Override
-    public List<ResumeContentDTO> getResumeContentList() {
+    public List<ResumeContentResponse> getResumeContentList() {
         Long userId = UserHolder.requireUserId();
         Resume resume = baseMapper.selectOneByUserId(userId);
         if (resume == null) {
@@ -149,7 +149,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     }
 
     @Override
-    public ResumeContentDTO getMyResumeContent() {
+    public ResumeContentResponse getMyResumeContent() {
         Long userId = UserHolder.requireUserId();
         Resume resume = ensureResumeForUser(userId);
         return buildResumeContent(resume);
@@ -157,7 +157,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public ResumeContentDTO saveMyResumeContent(ResumeContentSaveRequest request) {
+    public ResumeContentResponse saveMyResumeContent(ResumeContentSaveRequest request) {
         Long userId = UserHolder.requireUserId();
         Resume resume = ensureResumeForUser(userId);
 
@@ -181,8 +181,8 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         return buildResumeContent(resume);
     }
 
-    private ResumeContentDTO buildResumeContent(Resume resume) {
-        ResumeContentDTO resumeContentDTO = new ResumeContentDTO();
+    private ResumeContentResponse buildResumeContent(Resume resume) {
+        ResumeContentResponse resumeContentDTO = new ResumeContentResponse();
         resumeContentDTO.setId(resume.getId());
 
         Skill skill = resume.getSkillId() != null ? skillMapper.selectById(resume.getSkillId()) : null;
@@ -193,16 +193,16 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
         resumeContentDTO.setSkill(skill != null ? convertSkillToDTO(skill) : null);
         resumeContentDTO.setEducations(educations.stream()
-                .map(education -> convertSimpleEntityToDTO(education, EducationDTO.class))
+                .map(education -> convertSimpleEntityToDTO(education, EducationRequest.class))
                 .collect(Collectors.toList()));
         resumeContentDTO.setCareers(careers.stream()
-                .map(career -> convertSimpleEntityToDTO(career, CareerDTO.class))
+                .map(career -> convertSimpleEntityToDTO(career, CareerRequest.class))
                 .collect(Collectors.toList()));
         resumeContentDTO.setProjects(projects.stream()
-                .map(project -> convertSimpleEntityToDTO(project, ProjectExperienceDTO.class))
+                .map(project -> convertSimpleEntityToDTO(project, ProjectExperienceRequest.class))
                 .collect(Collectors.toList()));
         resumeContentDTO.setAwards(awards.stream()
-                .map(award -> convertSimpleEntityToDTO(award, AwardDTO.class))
+                .map(award -> convertSimpleEntityToDTO(award, AwardRequest.class))
                 .collect(Collectors.toList()));
         resumeContentDTO.setPersonalInfo(buildPersonalInfo(resume.getUserId()));
         return resumeContentDTO;
@@ -269,7 +269,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         if (!skills.isEmpty()) {
             return skills.get(0).getId();
         }
-        SkillDTO skillDTO = new SkillDTO();
+        SkillRequest skillDTO = new SkillRequest();
         SkillItemDTO item = new SkillItemDTO();
         item.setType("专业技能");
         item.setContent(List.of("待补充"));
@@ -277,7 +277,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         return skillService.create(skillDTO).getId();
     }
 
-    private Long syncSkill(Long userId, Long currentSkillId, SkillDTO skillDto) {
+    private Long syncSkill(Long userId, Long currentSkillId, SkillRequest skillDto) {
         if (skillDto.getId() != null) {
             skillService.update(skillDto);
             return skillDto.getId();
@@ -290,7 +290,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         return skillService.create(skillDto).getId();
     }
 
-    private void syncEducations(Long userId, List<EducationDTO> incoming) {
+    private void syncEducations(Long userId, List<EducationRequest> incoming) {
         List<Education> existing = educationMapper.selectByUserId(userId);
         Set<Long> incomingIds = collectIncomingIds(incoming);
         for (Education item : existing) {
@@ -298,7 +298,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
                 educationService.delete(item.getId());
             }
         }
-        for (EducationDTO dto : incoming) {
+        for (EducationRequest dto : incoming) {
             validateForSave(dto, CreateGroup.class);
             if (dto.getId() == null) {
                 educationService.create(dto);
@@ -309,7 +309,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         }
     }
 
-    private void syncCareers(Long userId, List<CareerDTO> incoming) {
+    private void syncCareers(Long userId, List<CareerRequest> incoming) {
         List<Career> existing = careerMapper.selectByUserId(userId);
         Set<Long> incomingIds = collectIncomingIds(incoming);
         for (Career item : existing) {
@@ -317,7 +317,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
                 careerService.delete(item.getId());
             }
         }
-        for (CareerDTO dto : incoming) {
+        for (CareerRequest dto : incoming) {
             validateForSave(dto, CreateGroup.class);
             if (dto.getId() == null) {
                 careerService.create(dto);
@@ -328,7 +328,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         }
     }
 
-    private void syncProjects(Long userId, List<ProjectExperienceDTO> incoming) {
+    private void syncProjects(Long userId, List<ProjectExperienceRequest> incoming) {
         List<ProjectExperience> existing = projectExperienceMapper.selectByUserId(userId);
         Set<Long> incomingIds = collectIncomingIds(incoming);
         for (ProjectExperience item : existing) {
@@ -336,7 +336,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
                 projectExperienceService.delete(item.getId());
             }
         }
-        for (ProjectExperienceDTO dto : incoming) {
+        for (ProjectExperienceRequest dto : incoming) {
             validateForSave(dto, CreateGroup.class);
             if (dto.getId() == null) {
                 projectExperienceService.create(dto);
@@ -347,7 +347,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         }
     }
 
-    private void syncAwards(Long userId, List<AwardDTO> incoming) {
+    private void syncAwards(Long userId, List<AwardRequest> incoming) {
         List<Award> existing = awardMapper.selectByUserId(userId);
         Set<Long> incomingIds = collectIncomingIds(incoming);
         for (Award item : existing) {
@@ -355,7 +355,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
                 awardService.delete(item.getId());
             }
         }
-        for (AwardDTO dto : incoming) {
+        for (AwardRequest dto : incoming) {
             validateForSave(dto, CreateGroup.class);
             if (dto.getId() == null) {
                 awardService.create(dto);
@@ -380,16 +380,16 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     }
 
     private Long extractId(Object dto) {
-        if (dto instanceof EducationDTO educationDTO) {
+        if (dto instanceof EducationRequest educationDTO) {
             return educationDTO.getId();
         }
-        if (dto instanceof CareerDTO careerDTO) {
+        if (dto instanceof CareerRequest careerDTO) {
             return careerDTO.getId();
         }
-        if (dto instanceof ProjectExperienceDTO projectDTO) {
+        if (dto instanceof ProjectExperienceRequest projectDTO) {
             return projectDTO.getId();
         }
-        if (dto instanceof AwardDTO awardDTO) {
+        if (dto instanceof AwardRequest awardDTO) {
             return awardDTO.getId();
         }
         return null;
@@ -446,7 +446,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     }
 
     @Override
-    public ResumeImportParseResultDTO parseImport(ResumeImportParseRequest request) {
+    public ResumeImportParseResponse parseImport(ResumeImportParseRequest request) {
         log.info("开始识别简历结构化字段");
         UserHolder.requireUserId();
         List<String> warnings = new ArrayList<>();
@@ -455,13 +455,13 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
         ModelEnum importModel = userLlmRouter.resolveResumeImportModel();
         log.info("简历识别：使用平台模型 {}", importModel.code());
-        ResumeImportParseResultDTO parsed;
+        ResumeImportParseResponse parsed;
         try {
             parsed = chatUtil.chatStructuredOnceWithPlatformModel(
                     sourceText,
                     PromptNames.RESUME_IMPORT_PARSE,
                     null,
-                    ResumeImportParseResultDTO.class,
+                    ResumeImportParseResponse.class,
                     importModel);
         } catch (BusinessException e) {
             throw e;
@@ -514,7 +514,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         return normalized;
     }
 
-    private void normalizeImportResult(ResumeImportParseResultDTO result, String sourceText, List<String> warnings) {
+    private void normalizeImportResult(ResumeImportParseResponse result, String sourceText, List<String> warnings) {
         if (result == null) {
             throw new BusinessException(ErrorCode.RESUME_IMPORT_PARSE_FAILED);
         }
@@ -536,8 +536,8 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
             result.setAwards(new ArrayList<>());
         }
 
-        List<ResumeImportParseResultDTO.EducationItem> educations = new ArrayList<>();
-        for (ResumeImportParseResultDTO.EducationItem item : result.getEducations()) {
+        List<ResumeImportParseResponse.EducationItem> educations = new ArrayList<>();
+        for (ResumeImportParseResponse.EducationItem item : result.getEducations()) {
             if (item == null || !StringUtils.hasText(item.getSchool())) {
                 continue;
             }
@@ -548,8 +548,8 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         }
         result.setEducations(educations);
 
-        List<ResumeImportParseResultDTO.CareerItem> careers = new ArrayList<>();
-        for (ResumeImportParseResultDTO.CareerItem item : result.getCareers()) {
+        List<ResumeImportParseResponse.CareerItem> careers = new ArrayList<>();
+        for (ResumeImportParseResponse.CareerItem item : result.getCareers()) {
             if (item == null || !StringUtils.hasText(item.getCompany())) {
                 continue;
             }
@@ -559,8 +559,8 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         }
         result.setCareers(careers);
 
-        List<ResumeImportParseResultDTO.ProjectItem> projects = new ArrayList<>();
-        for (ResumeImportParseResultDTO.ProjectItem item : result.getProjects()) {
+        List<ResumeImportParseResponse.ProjectItem> projects = new ArrayList<>();
+        for (ResumeImportParseResponse.ProjectItem item : result.getProjects()) {
             if (item == null || !StringUtils.hasText(item.getName())) {
                 continue;
             }
@@ -571,8 +571,8 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         }
         result.setProjects(projects);
 
-        List<ResumeImportParseResultDTO.AwardItem> awards = new ArrayList<>();
-        for (ResumeImportParseResultDTO.AwardItem item : result.getAwards()) {
+        List<ResumeImportParseResponse.AwardItem> awards = new ArrayList<>();
+        for (ResumeImportParseResponse.AwardItem item : result.getAwards()) {
             if (item == null) {
                 continue;
             }
@@ -613,7 +613,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         return degree;
     }
 
-    private LocalDate parseAwardDate(ResumeImportParseResultDTO.AwardItem item, List<String> warnings) {
+    private LocalDate parseAwardDate(ResumeImportParseResponse.AwardItem item, List<String> warnings) {
         LocalDate date = parseFlexibleDate(item.getAwardDate());
         if (date != null) {
             return date;
@@ -678,14 +678,14 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         return null;
     }
 
-    private void supplementAwardsFromProjects(List<ResumeImportParseResultDTO.ProjectItem> projects,
-            List<ResumeImportParseResultDTO.AwardItem> awards, List<String> warnings) {
+    private void supplementAwardsFromProjects(List<ResumeImportParseResponse.ProjectItem> projects,
+            List<ResumeImportParseResponse.AwardItem> awards, List<String> warnings) {
         Set<String> existingNames = awards.stream()
-                .map(ResumeImportParseResultDTO.AwardItem::getName)
+                .map(ResumeImportParseResponse.AwardItem::getName)
                 .filter(StringUtils::hasText)
                 .collect(Collectors.toSet());
         Pattern awardPattern = Pattern.compile("(?:获|获得|荣获)\\s*([^，。；;\\n]+?奖)");
-        for (ResumeImportParseResultDTO.ProjectItem project : projects) {
+        for (ResumeImportParseResponse.ProjectItem project : projects) {
             String text = highlightsAsPlainText(project.getHighlights());
             if (!StringUtils.hasText(text) || !text.contains("奖")) {
                 continue;
@@ -696,7 +696,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
                 if (!StringUtils.hasText(awardName) || existingNames.contains(awardName)) {
                     continue;
                 }
-                ResumeImportParseResultDTO.AwardItem item = new ResumeImportParseResultDTO.AwardItem();
+                ResumeImportParseResponse.AwardItem item = new ResumeImportParseResponse.AwardItem();
                 item.setName(awardName);
                 item.setAwardType(AwardImportSupport.inferAwardTypeFromName(awardName));
                 LocalDate awardDate = parseAwardDate(item, warnings);
@@ -846,15 +846,14 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     }
 
     /**
-     * 将 Skill 实体转换为 SkillDTO
-     * content 已改为强类型对象数组，可直接复制
+     * 将 Skill 实体转换为 SkillResponse
      */
-    private SkillDTO convertSkillToDTO(Skill skill) {
+    private SkillResponse convertSkillToDTO(Skill skill) {
         if (skill == null) {
             return null;
         }
 
-        SkillDTO dto = new SkillDTO();
+        SkillResponse dto = new SkillResponse();
         dto.setId(skill.getId());
         dto.setContent(skill.getContent() != null ? skill.getContent() : java.util.Collections.emptyList());
         return dto;
@@ -874,6 +873,12 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         } catch (Exception e) {
             throw new RuntimeException("对象转换失败: " + targetClass.getSimpleName(), e);
         }
+    }
+
+    private ResumeResponse convertToResponse(Resume resume) {
+        ResumeResponse response = new ResumeResponse();
+        BeanUtils.copyProperties(resume, response);
+        return response;
     }
 
 }

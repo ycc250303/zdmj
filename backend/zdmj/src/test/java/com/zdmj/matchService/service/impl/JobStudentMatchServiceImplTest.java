@@ -19,7 +19,7 @@ import com.zdmj.matchService.dto.JobStudentMatchListItemDTO;
 import com.zdmj.matchService.entity.JobStudentMatch;
 import com.zdmj.matchService.enums.MatchDimension;
 import com.zdmj.matchService.mapper.JobStudentMatchMapper;
-import com.zdmj.resumeService.dto.StudentCapabilityProfileDTO;
+import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
 import com.zdmj.resumeService.service.StudentCapabilityProfileService;
 
 import org.junit.jupiter.api.AfterEach;
@@ -361,8 +361,8 @@ class JobStudentMatchServiceImplTest {
         return p;
     }
 
-    private static StudentCapabilityProfileDTO buildStudentProfile() {
-        StudentCapabilityProfileDTO p = new StudentCapabilityProfileDTO();
+    private static StudentCapabilityProfileResponse buildStudentProfile() {
+        StudentCapabilityProfileResponse p = new StudentCapabilityProfileResponse();
         p.setProfessionalSkills("Java、Spring Boot、MySQL");
         p.setHonorsAndAwards("蓝桥杯省赛二等奖");
         p.setInnovationAbility("校赛二等奖");
@@ -372,7 +372,7 @@ class JobStudentMatchServiceImplTest {
         p.setPracticalAbility("实习 3 个月");
         p.setSummary("Java 方向应届生");
         p.setStrengths(List.of("基础扎实"));
-        StudentCapabilityProfileDTO.Suggestion gap = new StudentCapabilityProfileDTO.Suggestion();
+        StudentCapabilityProfileResponse.Suggestion gap = new StudentCapabilityProfileResponse.Suggestion();
         gap.setCategory("技能缺失");
         gap.setIssue("缺少 Kafka 相关实践");
         gap.setRecommendation("在项目中补充消息队列场景");

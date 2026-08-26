@@ -12,10 +12,10 @@ import lombok.Data;
 import java.time.LocalDate;
 
 /**
- * 获奖信息 DTO
+ * 获奖信息请求
  */
 @Data
-public class AwardDTO {
+public class AwardRequest {
 
     @NotNull(message = "获奖信息ID不能为空", groups = UpdateGroup.class)
     private Long id;

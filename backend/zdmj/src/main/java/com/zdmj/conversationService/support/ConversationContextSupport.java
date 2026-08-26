@@ -2,13 +2,13 @@ package com.zdmj.conversationService.support;
 
 import com.zdmj.conversationService.dto.MessageDTO;
 import com.zdmj.conversationService.entity.Conversation;
-import com.zdmj.resumeService.dto.AwardDTO;
-import com.zdmj.resumeService.dto.CareerDTO;
-import com.zdmj.resumeService.dto.EducationDTO;
-import com.zdmj.resumeService.dto.ProjectExperienceDTO;
-import com.zdmj.resumeService.dto.ResumeContentDTO;
+import com.zdmj.resumeService.dto.AwardRequest;
+import com.zdmj.resumeService.dto.CareerRequest;
+import com.zdmj.resumeService.dto.EducationRequest;
+import com.zdmj.resumeService.dto.ProjectExperienceRequest;
+import com.zdmj.resumeService.dto.ResumeContentResponse;
 import com.zdmj.resumeService.dto.ResumePersonalInfoDTO;
-import com.zdmj.resumeService.dto.SkillDTO;
+import com.zdmj.resumeService.dto.SkillResponse;
 import com.zdmj.resumeService.dto.SkillItemDTO;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -34,7 +34,7 @@ public final class ConversationContextSupport {
     private ConversationContextSupport() {
     }
 
-    public static Optional<Map<String, Object>> buildResumeContextEntry(ResumeContentDTO resume) {
+    public static Optional<Map<String, Object>> buildResumeContextEntry(ResumeContentResponse resume) {
         String text = formatResume(resume);
         if (!StringUtils.hasText(text)) {
             return Optional.empty();
@@ -91,7 +91,7 @@ public final class ConversationContextSupport {
         return false;
     }
 
-    public static String formatResume(ResumeContentDTO resume) {
+    public static String formatResume(ResumeContentResponse resume) {
         if (resume == null) {
             return "";
         }
@@ -105,7 +105,7 @@ public final class ConversationContextSupport {
             appendLine(sb, "意向工作城市", personal.getPreferredWorkCity());
         }
 
-        SkillDTO skill = resume.getSkill();
+        SkillResponse skill = resume.getSkill();
         if (skill != null && skill.getContent() != null && !skill.getContent().isEmpty()) {
             sb.append("\n## 技能\n");
             for (SkillItemDTO item : skill.getContent()) {
@@ -128,12 +128,12 @@ public final class ConversationContextSupport {
         return sb.toString().trim();
     }
 
-    private static void appendEducationSection(StringBuilder sb, List<EducationDTO> educations) {
+    private static void appendEducationSection(StringBuilder sb, List<EducationRequest> educations) {
         if (CollectionUtils.isEmpty(educations)) {
             return;
         }
         sb.append("\n## 教育经历\n");
-        for (EducationDTO edu : educations) {
+        for (EducationRequest edu : educations) {
             if (edu == null) {
                 continue;
             }
@@ -149,12 +149,12 @@ public final class ConversationContextSupport {
         }
     }
 
-    private static void appendCareerSection(StringBuilder sb, List<CareerDTO> careers) {
+    private static void appendCareerSection(StringBuilder sb, List<CareerRequest> careers) {
         if (CollectionUtils.isEmpty(careers)) {
             return;
         }
         sb.append("\n## 工作经历\n");
-        for (CareerDTO career : careers) {
+        for (CareerRequest career : careers) {
             if (career == null) {
                 continue;
             }
@@ -169,12 +169,12 @@ public final class ConversationContextSupport {
         }
     }
 
-    private static void appendProjectSection(StringBuilder sb, List<ProjectExperienceDTO> projects) {
+    private static void appendProjectSection(StringBuilder sb, List<ProjectExperienceRequest> projects) {
         if (CollectionUtils.isEmpty(projects)) {
             return;
         }
         sb.append("\n## 项目经历\n");
-        for (ProjectExperienceDTO project : projects) {
+        for (ProjectExperienceRequest project : projects) {
             if (project == null) {
                 continue;
             }
@@ -194,12 +194,12 @@ public final class ConversationContextSupport {
         }
     }
 
-    private static void appendAwardSection(StringBuilder sb, List<AwardDTO> awards) {
+    private static void appendAwardSection(StringBuilder sb, List<AwardRequest> awards) {
         if (CollectionUtils.isEmpty(awards)) {
             return;
         }
         sb.append("\n## 获奖经历\n");
-        for (AwardDTO award : awards) {
+        for (AwardRequest award : awards) {
             if (award == null) {
                 continue;
             }

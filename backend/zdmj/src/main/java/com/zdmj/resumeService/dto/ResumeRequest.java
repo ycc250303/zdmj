@@ -7,10 +7,10 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 /**
- * 简历 DTO（一用户一份，仅维护 skillId 关联）
+ * 简历请求（一用户一份，仅维护 skillId 关联）
  */
 @Data
-public class ResumeDTO {
+public class ResumeRequest {
     /**
      * 简历ID（更新时不能为空）
      */

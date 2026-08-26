@@ -15,7 +15,7 @@ import com.zdmj.common.ai.prompt.PromptNames;
 import com.zdmj.common.ai.PromptUtil.JobRole;
 import com.zdmj.resumeService.dto.CapabilityProfileGenerateRequest;
 import com.zdmj.resumeService.dto.ResumeRoleDetectDTO;
-import com.zdmj.resumeService.dto.StudentCapabilityProfileDTO;
+import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
 import com.zdmj.resumeService.entity.StudentCapabilityProfile;
 import com.zdmj.resumeService.mapper.StudentCapabilityProfileMapper;
 import com.zdmj.resumeService.service.StudentCapabilityProfileService;
@@ -66,8 +66,8 @@ public class StudentCapabilityProfileServiceImpl
         JobRole.CYBERSECURITY, List.of("安全", "渗透", "漏洞", "owasp", "攻防", "合规"));
 
     @Override
-    public StudentCapabilityProfileDTO getCurrentUserProfile() {
-        StudentCapabilityProfileDTO dto = getCurrentUserProfileOrNull();
+    public StudentCapabilityProfileResponse getCurrentUserProfile() {
+        StudentCapabilityProfileResponse dto = getCurrentUserProfileOrNull();
         if (dto == null) {
             throw new BusinessException(ErrorCode.CAPABILITY_PROFILE_NOT_FOUND);
         }
@@ -75,7 +75,7 @@ public class StudentCapabilityProfileServiceImpl
     }
 
     @Override
-    public StudentCapabilityProfileDTO getCurrentUserProfileOrNull() {
+    public StudentCapabilityProfileResponse getCurrentUserProfileOrNull() {
         Long userId = UserHolder.requireUserId();
         StudentCapabilityProfile profile = getOne(
                 new LambdaQueryWrapper<StudentCapabilityProfile>()
@@ -83,7 +83,7 @@ public class StudentCapabilityProfileServiceImpl
         if (profile == null) {
             return null;
         }
-        StudentCapabilityProfileDTO dto = toDto(profile);
+        StudentCapabilityProfileResponse dto = toDto(profile);
         hydrateDtoFromEntity(profile, dto);
         return dto;
     }
@@ -94,7 +94,7 @@ public class StudentCapabilityProfileServiceImpl
      * @return 能力画像DTO
      */
     @Override
-    public StudentCapabilityProfileDTO generateProfile(CapabilityProfileGenerateRequest reqDTO) {
+    public StudentCapabilityProfileResponse generateProfile(CapabilityProfileGenerateRequest reqDTO) {
         Long userId = UserHolder.requireUserId();
         String pdfUrl = StringUtils.hasText(reqDTO.getPdfUrl()) ? reqDTO.getPdfUrl().trim() : null;
         String sourceText = resolveSourceText(reqDTO);
@@ -104,12 +104,12 @@ public class StudentCapabilityProfileServiceImpl
         log.info("岗位识别: role={}, confidence={}", jobRole, resumeRole.getConfidence());
 
         log.info("开始调用大模型生成能力画像...");
-        StudentCapabilityProfileDTO aiResult;
+        StudentCapabilityProfileResponse aiResult;
         try {
             String promptName = PromptUtil.getResumeAnalysisPromptName(jobRole);
             log.info("使用提示词: {}", promptName);
             aiResult = chatUtil.chatStructuredOnce(sourceText, promptName, null,
-                    StudentCapabilityProfileDTO.class);
+                    StudentCapabilityProfileResponse.class);
             normalizeProfileScores(aiResult);
         } catch (BusinessException e) {
             throw e;
@@ -144,7 +144,7 @@ public class StudentCapabilityProfileServiceImpl
             save(newProfile);
         }
 
-        StudentCapabilityProfileDTO responseDto = toDto(newProfile);
+        StudentCapabilityProfileResponse responseDto = toDto(newProfile);
         hydrateDtoFromEntity(newProfile, responseDto);
         mergeAiTransientFields(aiResult, responseDto);
         cleanupUploadedResumeAfterAnalysis(pdfUrl);
@@ -165,11 +165,11 @@ public class StudentCapabilityProfileServiceImpl
         }
     }
 
-    private static StudentCapabilityProfileDTO toDto(StudentCapabilityProfile entity) {
+    private static StudentCapabilityProfileResponse toDto(StudentCapabilityProfile entity) {
         if (entity == null) {
             return null;
         }
-        StudentCapabilityProfileDTO dto = new StudentCapabilityProfileDTO();
+        StudentCapabilityProfileResponse dto = new StudentCapabilityProfileResponse();
         dto.setTargetRoleType(StringUtils.hasText(entity.getTargetRoleType()) ? entity.getTargetRoleType()
                 : PromptUtil.getPromptDisplayType(entity.getPromptName()));
         dto.setProfessionalSkills(entity.getProfessionalSkills());
@@ -183,7 +183,7 @@ public class StudentCapabilityProfileServiceImpl
         return dto;
     }
 
-    private static StudentCapabilityProfile toEntity(StudentCapabilityProfileDTO dto) {
+    private static StudentCapabilityProfile toEntity(StudentCapabilityProfileResponse dto) {
         if (dto == null) {
             return null;
         }
@@ -202,16 +202,16 @@ public class StudentCapabilityProfileServiceImpl
     /**
      * 实体 JSON 列存为 String，扁平字段由 toDto 拷贝；嵌套列表/对象在此反序列化补全。
      */
-    private void hydrateDtoFromEntity(StudentCapabilityProfile entity, StudentCapabilityProfileDTO dto) {
+    private void hydrateDtoFromEntity(StudentCapabilityProfile entity, StudentCapabilityProfileResponse dto) {
         if (entity == null || dto == null) {
             return;
         }
         try {
             if (StringUtils.hasText(entity.getScoreDetail())) {
-                dto.setScoreDetail(objectMapper.readValue(entity.getScoreDetail(), StudentCapabilityProfileDTO.ScoreDetail.class));
+                dto.setScoreDetail(objectMapper.readValue(entity.getScoreDetail(), StudentCapabilityProfileResponse.ScoreDetail.class));
             }
             if (StringUtils.hasText(entity.getSuggestions())) {
-                dto.setSuggestions(objectMapper.readValue(entity.getSuggestions(), new TypeReference<List<StudentCapabilityProfileDTO.Suggestion>>() {}));
+                dto.setSuggestions(objectMapper.readValue(entity.getSuggestions(), new TypeReference<List<StudentCapabilityProfileResponse.Suggestion>>() {}));
             }
         } catch (Exception e) {
             log.warn("反序列化画像 JSON 失败: {}", e.getMessage());
@@ -221,7 +221,7 @@ public class StudentCapabilityProfileServiceImpl
     /**
      * strengths/summary 无独立库列时，用本次 LLM 输出补全返回 DTO（仅生成接口保证完整）。
      */
-    private static void mergeAiTransientFields(StudentCapabilityProfileDTO aiResult, StudentCapabilityProfileDTO out) {
+    private static void mergeAiTransientFields(StudentCapabilityProfileResponse aiResult, StudentCapabilityProfileResponse out) {
         if (aiResult == null || out == null) {
             return;
         }
@@ -259,7 +259,7 @@ public class StudentCapabilityProfileServiceImpl
     /**
      * 校验 scoreDetail 分项区间并计算 competitivenessScore。
      */
-    private void normalizeProfileScores(StudentCapabilityProfileDTO dto) {
+    private void normalizeProfileScores(StudentCapabilityProfileResponse dto) {
         if (dto == null) {
             return;
         }
@@ -278,8 +278,8 @@ public class StudentCapabilityProfileServiceImpl
     /**
      * 校验 scoreDetail 各分项是否落在 40-20-15-15-10 合法区间；越界则抛出业务异常。
      */
-    private void validateScoreDetail(StudentCapabilityProfileDTO dto) {
-        StudentCapabilityProfileDTO.ScoreDetail detail = dto.getScoreDetail();
+    private void validateScoreDetail(StudentCapabilityProfileResponse dto) {
+        StudentCapabilityProfileResponse.ScoreDetail detail = dto.getScoreDetail();
         if (detail == null) {
             return;
         }
@@ -305,11 +305,11 @@ public class StudentCapabilityProfileServiceImpl
     /**
      * 根据 scoreDetail 五项之和计算 competitivenessScore，忽略模型直接返回的总分。
      */
-    private void computeCompetitivenessScore(StudentCapabilityProfileDTO dto) {
+    private void computeCompetitivenessScore(StudentCapabilityProfileResponse dto) {
         if (dto == null) {
             return;
         }
-        StudentCapabilityProfileDTO.ScoreDetail detail = dto.getScoreDetail();
+        StudentCapabilityProfileResponse.ScoreDetail detail = dto.getScoreDetail();
         if (detail != null && hasAnyScoreDetailValue(detail)) {
             int sum = safeScore(detail.getProjectExperienceScore())
                     + safeScore(detail.getSkillMatchScore())
@@ -329,7 +329,7 @@ public class StudentCapabilityProfileServiceImpl
         dto.setCompetitivenessScore(0);
     }
 
-    private static boolean hasAnyScoreDetailValue(StudentCapabilityProfileDTO.ScoreDetail detail) {
+    private static boolean hasAnyScoreDetailValue(StudentCapabilityProfileResponse.ScoreDetail detail) {
         return detail.getProjectExperienceScore() != null
                 || detail.getSkillMatchScore() != null
                 || detail.getContentCompletenessScore() != null

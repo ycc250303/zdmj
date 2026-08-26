@@ -6,7 +6,7 @@ import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
-import com.zdmj.resumeService.dto.EducationDTO;
+import com.zdmj.resumeService.dto.EducationRequest;
 import com.zdmj.resumeService.entity.Education;
 
 @Mapper(componentModel = "spring")
@@ -18,6 +18,6 @@ public interface EducationStructMapper {
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "degreeEnum", ignore = true)
-    void updateEntityFromDto(EducationDTO dto, @MappingTarget Education entity);
+    void updateEntityFromDto(EducationRequest dto, @MappingTarget Education entity);
 }
 

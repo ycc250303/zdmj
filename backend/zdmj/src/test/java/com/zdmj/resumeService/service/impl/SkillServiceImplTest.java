@@ -4,9 +4,10 @@ import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.resumeService.dto.SkillDTO;
+import com.zdmj.resumeService.dto.SkillRequest;
 import com.zdmj.resumeService.dto.SkillItemDTO;
 import com.zdmj.resumeService.entity.Skill;
+import com.zdmj.resumeService.dto.SkillResponse;
 import com.zdmj.resumeService.mapper.SkillMapper;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -54,20 +56,21 @@ class SkillServiceImplTest {
 
     @Test
     void create_success_shouldValidateAndSave() {
-        SkillDTO dto = new SkillDTO();
+        SkillRequest dto = new SkillRequest();
         dto.setContent(validContent());
         doReturn(true).when(service).save(any(Skill.class));
 
-        Skill out = service.create(dto);
+        SkillResponse out = service.create(dto);
 
-        assertEquals(1L, out.getUserId());
         assertEquals(1, out.getContent().size());
-        verify(service).save(any(Skill.class));
+        ArgumentCaptor<Skill> captor = ArgumentCaptor.forClass(Skill.class);
+        verify(service).save(captor.capture());
+        assertEquals(1L, captor.getValue().getUserId());
     }
 
     @Test
     void create_invalidContent_shouldThrowAndSkipSave() {
-        SkillDTO dto = new SkillDTO();
+        SkillRequest dto = new SkillRequest();
         SkillItemDTO invalid = new SkillItemDTO();
         invalid.setType(" ");
         invalid.setContent(List.of("Java"));
@@ -82,7 +85,7 @@ class SkillServiceImplTest {
 
     @Test
     void create_saveFailed_shouldThrowAddFailed() {
-        SkillDTO dto = new SkillDTO();
+        SkillRequest dto = new SkillRequest();
         dto.setContent(validContent());
         doReturn(false).when(service).save(any(Skill.class));
 
@@ -104,7 +107,7 @@ class SkillServiceImplTest {
     void getByUserId_shouldCallMapper() {
         doReturn(List.of(new Skill())).when(skillMapper).selectByUserId(1L);
 
-        List<Skill> out = service.getByUserId();
+        List<SkillResponse> out = service.getByUserId();
 
         assertEquals(1, out.size());
         verify(skillMapper).selectByUserId(1L);
@@ -112,7 +115,7 @@ class SkillServiceImplTest {
 
     @Test
     void update_notOwner_shouldThrowAndSkipUpdateById() {
-        SkillDTO dto = new SkillDTO();
+        SkillRequest dto = new SkillRequest();
         dto.setId(10L);
         Skill existing = new Skill();
         existing.setId(10L);
@@ -127,7 +130,7 @@ class SkillServiceImplTest {
 
     @Test
     void update_success_shouldUpdateContent() {
-        SkillDTO dto = new SkillDTO();
+        SkillRequest dto = new SkillRequest();
         dto.setId(10L);
         dto.setContent(validContent());
         Skill existing = new Skill();
@@ -136,7 +139,7 @@ class SkillServiceImplTest {
         doReturn(existing).when(skillMapper).selectById(10L);
         doReturn(true).when(service).updateById(any(Skill.class));
 
-        Skill out = service.update(dto);
+        SkillResponse out = service.update(dto);
 
         assertEquals(1, out.getContent().size());
         verify(service).updateById(existing);
@@ -144,7 +147,7 @@ class SkillServiceImplTest {
 
     @Test
     void update_invalidContent_shouldThrowAndSkipUpdateById() {
-        SkillDTO dto = new SkillDTO();
+        SkillRequest dto = new SkillRequest();
         dto.setId(10L);
         SkillItemDTO invalid = new SkillItemDTO();
         invalid.setType("后端");
@@ -164,7 +167,7 @@ class SkillServiceImplTest {
 
     @Test
     void update_updateFailed_shouldThrowUpdateFailed() {
-        SkillDTO dto = new SkillDTO();
+        SkillRequest dto = new SkillRequest();
         dto.setId(10L);
         dto.setContent(validContent());
         Skill existing = new Skill();

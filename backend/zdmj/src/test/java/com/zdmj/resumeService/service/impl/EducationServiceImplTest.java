@@ -4,8 +4,9 @@ import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.resumeService.dto.EducationDTO;
+import com.zdmj.resumeService.dto.EducationRequest;
 import com.zdmj.resumeService.entity.Education;
+import com.zdmj.resumeService.dto.EducationResponse;
 import com.zdmj.resumeService.mapper.EducationMapper;
 import com.zdmj.resumeService.mapper.EducationStructMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -53,7 +54,7 @@ class EducationServiceImplTest {
 
     @Test
     void create_success_shouldFillUserAndSave() {
-        EducationDTO dto = new EducationDTO();
+        EducationRequest dto = new EducationRequest();
         dto.setSchool("SCU");
         dto.setMajor("SE");
         dto.setDegree(3);
@@ -62,7 +63,7 @@ class EducationServiceImplTest {
         dto.setGpa("3.9");
         doReturn(true).when(service).save(any(Education.class));
 
-        Education out = service.create(dto);
+        EducationResponse out = service.create(dto);
 
         assertEquals(1L, out.getUserId());
         assertEquals("SCU", out.getSchool());
@@ -71,7 +72,7 @@ class EducationServiceImplTest {
 
     @Test
     void create_invalidDate_shouldThrowAndSkipSave() {
-        EducationDTO dto = new EducationDTO();
+        EducationRequest dto = new EducationRequest();
         dto.setStartDate(LocalDate.of(2024, 1, 1));
         dto.setEndDate(LocalDate.of(2023, 1, 1));
 
@@ -83,7 +84,7 @@ class EducationServiceImplTest {
 
     @Test
     void create_saveFailed_shouldThrowAddFailed() {
-        EducationDTO dto = new EducationDTO();
+        EducationRequest dto = new EducationRequest();
         dto.setSchool("SCU");
         doReturn(false).when(service).save(any(Education.class));
 
@@ -106,7 +107,7 @@ class EducationServiceImplTest {
     void getByUserId_shouldCallMapper() {
         doReturn(List.of(new Education())).when(educationMapper).selectByUserId(1L);
 
-        List<Education> out = service.getByUserId();
+        List<EducationResponse> out = service.getByUserId();
 
         assertEquals(1, out.size());
         verify(educationMapper).selectByUserId(1L);
@@ -114,7 +115,7 @@ class EducationServiceImplTest {
 
     @Test
     void update_success_shouldPatchAndUpdateById() {
-        EducationDTO dto = new EducationDTO();
+        EducationRequest dto = new EducationRequest();
         dto.setId(10L);
         dto.setSchool("New School");
         Education existing = new Education();
@@ -124,14 +125,14 @@ class EducationServiceImplTest {
         existing.setEndDate(LocalDate.of(2021, 1, 1));
         doReturn(existing).when(educationMapper).selectById(10L);
         doAnswer(invocation -> {
-            EducationDTO argDto = invocation.getArgument(0);
+            EducationRequest argDto = invocation.getArgument(0);
             Education argEntity = invocation.getArgument(1);
             argEntity.setSchool(argDto.getSchool());
             return null;
-        }).when(educationStructMapper).updateEntityFromDto(any(EducationDTO.class), any(Education.class));
+        }).when(educationStructMapper).updateEntityFromDto(any(EducationRequest.class), any(Education.class));
         doReturn(true).when(service).updateById(any(Education.class));
 
-        Education out = service.update(dto);
+        EducationResponse out = service.update(dto);
 
         assertEquals("New School", out.getSchool());
         verify(educationStructMapper).updateEntityFromDto(dto, existing);
@@ -140,7 +141,7 @@ class EducationServiceImplTest {
 
     @Test
     void update_notOwner_shouldThrowNoPermission() {
-        EducationDTO dto = new EducationDTO();
+        EducationRequest dto = new EducationRequest();
         dto.setId(10L);
         Education existing = new Education();
         existing.setId(10L);
@@ -151,12 +152,12 @@ class EducationServiceImplTest {
 
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         verify(service, never()).updateById(any(Education.class));
-        verify(educationStructMapper, never()).updateEntityFromDto(any(EducationDTO.class), any(Education.class));
+        verify(educationStructMapper, never()).updateEntityFromDto(any(EducationRequest.class), any(Education.class));
     }
 
     @Test
     void update_invalidDateAfterPatch_shouldThrowAndSkipUpdateById() {
-        EducationDTO dto = new EducationDTO();
+        EducationRequest dto = new EducationRequest();
         dto.setId(10L);
         Education existing = new Education();
         existing.setId(10L);
@@ -169,7 +170,7 @@ class EducationServiceImplTest {
             argEntity.setStartDate(LocalDate.of(2024, 1, 1));
             argEntity.setEndDate(LocalDate.of(2023, 1, 1));
             return null;
-        }).when(educationStructMapper).updateEntityFromDto(any(EducationDTO.class), any(Education.class));
+        }).when(educationStructMapper).updateEntityFromDto(any(EducationRequest.class), any(Education.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.update(dto));
 
@@ -179,7 +180,7 @@ class EducationServiceImplTest {
 
     @Test
     void update_updateFailed_shouldThrowUpdateFailed() {
-        EducationDTO dto = new EducationDTO();
+        EducationRequest dto = new EducationRequest();
         dto.setId(10L);
         dto.setSchool("New School");
         Education existing = new Education();
@@ -187,11 +188,11 @@ class EducationServiceImplTest {
         existing.setUserId(1L);
         doReturn(existing).when(educationMapper).selectById(10L);
         doAnswer(invocation -> {
-            EducationDTO argDto = invocation.getArgument(0);
+            EducationRequest argDto = invocation.getArgument(0);
             Education argEntity = invocation.getArgument(1);
             argEntity.setSchool(argDto.getSchool());
             return null;
-        }).when(educationStructMapper).updateEntityFromDto(any(EducationDTO.class), any(Education.class));
+        }).when(educationStructMapper).updateEntityFromDto(any(EducationRequest.class), any(Education.class));
         doReturn(false).when(service).updateById(any(Education.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.update(dto));

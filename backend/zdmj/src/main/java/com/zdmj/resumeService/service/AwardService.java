@@ -1,19 +1,19 @@
 package com.zdmj.resumeService.service;
 
-import com.zdmj.resumeService.dto.AwardDTO;
-import com.zdmj.resumeService.entity.Award;
+import com.zdmj.resumeService.dto.AwardRequest;
+import com.zdmj.resumeService.dto.AwardResponse;
 
 import java.util.List;
 
 public interface AwardService {
 
-    Award create(AwardDTO awardDTO);
+    AwardResponse create(AwardRequest awardRequest);
 
-    Award getById(Long id);
+    AwardResponse getById(Long id);
 
-    List<Award> getByUserId();
+    List<AwardResponse> getByUserId();
 
-    Award update(AwardDTO awardDTO);
+    AwardResponse update(AwardRequest awardRequest);
 
     void delete(Long id);
 }

@@ -12,7 +12,7 @@ import java.util.List;
  */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ResumeImportParseResultDTO {
+public class ResumeImportParseResponse {
 
     private PersonalInfo personalInfo;
 

@@ -27,7 +27,7 @@ import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
 import com.zdmj.matchService.dto.JobStudentMatchDTO;
 import com.zdmj.matchService.entity.JobStudentMatch;
 import com.zdmj.matchService.service.JobStudentMatchService;
-import com.zdmj.resumeService.dto.StudentCapabilityProfileDTO;
+import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
 import com.zdmj.resumeService.service.StudentCapabilityProfileService;
 import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
@@ -316,8 +316,8 @@ class CareerDevelopmentReportServiceImplTest {
         return dto;
     }
 
-    private static StudentCapabilityProfileDTO buildStudentProfile() {
-        StudentCapabilityProfileDTO dto = new StudentCapabilityProfileDTO();
+    private static StudentCapabilityProfileResponse buildStudentProfile() {
+        StudentCapabilityProfileResponse dto = new StudentCapabilityProfileResponse();
         dto.setProfessionalSkills("Java, Spring");
         dto.setLearningAbility("较强");
         return dto;

@@ -2,9 +2,10 @@ package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
-import com.zdmj.resumeService.dto.ProjectExperienceDTO;
+import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.resumeService.dto.ProjectExperienceRequest;
+import com.zdmj.resumeService.dto.ProjectExperienceResponse;
 import com.zdmj.resumeService.entity.ProjectExperience;
 import com.zdmj.resumeService.enums.ProjectStatusEnum;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
@@ -13,12 +14,11 @@ import com.zdmj.resumeService.service.ProjectExperienceService;
 import com.zdmj.resumeService.support.ProjectHighlightsSupport;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
+
 import java.util.List;
 
-/**
- * 项目经历服务实现类
- */
 @Slf4j
 @RequiredArgsConstructor
 @Service
@@ -28,21 +28,20 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
     private final ProjectExperienceStructMapper projectExperiencePatchMapper;
 
     @Override
-    public ProjectExperience create(ProjectExperienceDTO projectExperienceDTO) {
+    public ProjectExperienceResponse create(ProjectExperienceRequest projectExperienceRequest) {
         Long userId = UserHolder.requireUserId();
         ProjectExperience projectExperience = new ProjectExperience();
         projectExperience.setUserId(userId);
-        projectExperience.setName(projectExperienceDTO.getName());
-        projectExperience.setStartDate(projectExperienceDTO.getStartDate());
-        projectExperience.setEndDate(projectExperienceDTO.getEndDate());
-        projectExperience.setRole(projectExperienceDTO.getRole());
-        projectExperience.setDescription(projectExperienceDTO.getDescription());
-        projectExperience.setContribution(projectExperienceDTO.getContribution());
-        projectExperience.setTechStack(projectExperienceDTO.getTechStack());
+        projectExperience.setName(projectExperienceRequest.getName());
+        projectExperience.setStartDate(projectExperienceRequest.getStartDate());
+        projectExperience.setEndDate(projectExperienceRequest.getEndDate());
+        projectExperience.setRole(projectExperienceRequest.getRole());
+        projectExperience.setDescription(projectExperienceRequest.getDescription());
+        projectExperience.setContribution(projectExperienceRequest.getContribution());
+        projectExperience.setTechStack(projectExperienceRequest.getTechStack());
         projectExperience.setHighlights(
-                ProjectHighlightsSupport.normalizeForStorage(projectExperienceDTO.getHighlights()));
-        projectExperience.setUrl(projectExperienceDTO.getUrl());
-        // 设置默认状态：committed 已提交
+                ProjectHighlightsSupport.normalizeForStorage(projectExperienceRequest.getHighlights()));
+        projectExperience.setUrl(projectExperienceRequest.getUrl());
         projectExperience.setStatus(ProjectStatusEnum.COMMITTED.getCode());
         projectExperience.setLookupResult(null);
         boolean saved = save(projectExperience);
@@ -50,27 +49,27 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
             throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_ADD_FAILED);
         }
         log.info("添加项目经历成功: {}", projectExperience.getName());
-        return projectExperience;
+        return convertToResponse(projectExperience);
     }
 
     @Override
-    public ProjectExperience getById(Long id) {
-        return requireProjectExperience(id);
+    public ProjectExperienceResponse getById(Long id) {
+        return convertToResponse(requireProjectExperience(id));
     }
 
     @Override
-    public List<ProjectExperience> getByUserId() {
+    public List<ProjectExperienceResponse> getByUserId() {
         Long userId = UserHolder.requireUserId();
-        return baseMapper.selectByUserId(userId);
+        return baseMapper.selectByUserId(userId).stream().map(this::convertToResponse).toList();
     }
 
     @Override
-    public ProjectExperience update(ProjectExperienceDTO projectExperienceDTO) {
+    public ProjectExperienceResponse update(ProjectExperienceRequest projectExperienceRequest) {
         Long userId = UserHolder.requireUserId();
-        Long id = projectExperienceDTO.getId();
+        Long id = projectExperienceRequest.getId();
         ProjectExperience projectExperience = requireProjectExperienceAndCheckOwnership(id, userId, "修改");
 
-        projectExperiencePatchMapper.updateEntityFromDto(projectExperienceDTO, projectExperience);
+        projectExperiencePatchMapper.updateEntityFromDto(projectExperienceRequest, projectExperience);
         projectExperience.setHighlights(
                 ProjectHighlightsSupport.normalizeForStorage(projectExperience.getHighlights()));
 
@@ -86,7 +85,7 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
         }
 
         log.info("更新项目经历成功: {}", projectExperience.getName());
-        return projectExperience;
+        return convertToResponse(projectExperience);
     }
 
     @Override
@@ -101,13 +100,12 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
         log.info("删除项目经历成功: {}", projectExperience.getName());
     }
 
-    /**
-     * 校验项目经历是否存在，返回项目经历实体
-     *
-     * @param id 项目经历ID
-     * @return 项目经历实体
-     * @throws BusinessException 如果项目经历不存在
-     */
+    private ProjectExperienceResponse convertToResponse(ProjectExperience projectExperience) {
+        ProjectExperienceResponse response = new ProjectExperienceResponse();
+        BeanUtils.copyProperties(projectExperience, response);
+        return response;
+    }
+
     private ProjectExperience requireProjectExperience(Long id) {
         ProjectExperience projectExperience = baseMapper.selectById(id);
         if (projectExperience == null) {
@@ -116,15 +114,6 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
         return projectExperience;
     }
 
-    /**
-     * 校验项目经历是否存在且用户有权限操作，返回项目经历实体
-     *
-     * @param id     项目经历ID
-     * @param userId 用户ID
-     * @param action 操作类型（用于错误提示）
-     * @return 项目经历实体
-     * @throws BusinessException 如果项目经历不存在或用户无权限
-     */
     private ProjectExperience requireProjectExperienceAndCheckOwnership(Long id, Long userId, String action) {
         ProjectExperience projectExperience = requireProjectExperience(id);
         if (!projectExperience.getUserId().equals(userId)) {

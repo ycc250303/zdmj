@@ -2,22 +2,21 @@ package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
-import com.zdmj.resumeService.dto.EducationDTO;
+import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.resumeService.dto.EducationRequest;
+import com.zdmj.resumeService.dto.EducationResponse;
 import com.zdmj.resumeService.entity.Education;
-import com.zdmj.resumeService.mapper.EducationStructMapper;
 import com.zdmj.resumeService.mapper.EducationMapper;
+import com.zdmj.resumeService.mapper.EducationStructMapper;
 import com.zdmj.resumeService.service.EducationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-/**
- * 教育经历服务实现类
- */
 @Slf4j
 @RequiredArgsConstructor
 @Service
@@ -25,81 +24,59 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
 
     private final EducationStructMapper educationPatchMapper;
 
-    /**
-     * 添加教育经历
-     *
-     * @param educationDTO 教育经历DTO
-     * @return 教育经历实体
-     */
     @Override
-    public Education create(EducationDTO educationDTO) {
+    public EducationResponse create(EducationRequest educationRequest) {
         Long userId = UserHolder.requireUserId();
 
-        // 验证日期逻辑：如果两个日期都提供了，需要验证毕业时间不早于入学时间
-        if (educationDTO.getStartDate() != null && educationDTO.getEndDate() != null
-                && educationDTO.getEndDate().isBefore(educationDTO.getStartDate())) {
+        if (educationRequest.getStartDate() != null && educationRequest.getEndDate() != null
+                && educationRequest.getEndDate().isBefore(educationRequest.getStartDate())) {
             throw new BusinessException(ErrorCode.EDUCATION_GRADUATE_TIME_INVALID);
         }
 
         Education education = new Education();
         education.setUserId(userId);
-        education.setSchool(educationDTO.getSchool());
-        education.setMajor(educationDTO.getMajor());
-        education.setDegree(educationDTO.getDegree());
-        education.setStartDate(educationDTO.getStartDate());
-        education.setEndDate(educationDTO.getEndDate());
-        education.setGpa(educationDTO.getGpa());
+        education.setSchool(educationRequest.getSchool());
+        education.setMajor(educationRequest.getMajor());
+        education.setDegree(educationRequest.getDegree());
+        education.setStartDate(educationRequest.getStartDate());
+        education.setEndDate(educationRequest.getEndDate());
+        education.setGpa(educationRequest.getGpa());
         boolean saved = save(education);
         if (!saved) {
             throw new BusinessException(ErrorCode.EDUCATION_ADD_FAILED);
         }
         log.info("添加教育经历成功: {}", education.getSchool());
-        return education;
+        return convertToResponse(education);
     }
 
-    /**
-     * 更新教育经历
-     *
-     * @param educationDTO 教育经历DTO（包含ID和要更新的字段）
-     * @return 更新后的教育经历实体
-     */
     @Override
-    public Education update(EducationDTO educationDTO) {
+    public EducationResponse update(EducationRequest educationRequest) {
         Long userId = UserHolder.requireUserId();
-        Long id = educationDTO.getId();
+        Long id = educationRequest.getId();
         Education existingEducation = requireEducationAndCheckOwnership(id, userId, "修改");
 
-        // 只更新提供的字段（非空字段才更新）
-        educationPatchMapper.updateEntityFromDto(educationDTO, existingEducation);
+        educationPatchMapper.updateEntityFromDto(educationRequest, existingEducation);
 
-        // 验证日期逻辑：如果两个日期都提供了，需要验证结束时间不早于开始时间
         if (existingEducation.getStartDate() != null && existingEducation.getEndDate() != null) {
             if (existingEducation.getEndDate().isBefore(existingEducation.getStartDate())) {
                 throw new BusinessException(ErrorCode.EDUCATION_GRADUATE_TIME_INVALID);
             }
         }
 
-        // 使用 MyBatis-Plus 的 updateById 方法，根据ID更新（只更新非null字段）
         boolean updated = updateById(existingEducation);
         if (!updated) {
             throw new BusinessException(ErrorCode.EDUCATION_UPDATE_FAILED);
         }
 
         log.info("用户 {} 更新教育经历成功: id={}", userId, id);
-        return existingEducation;
+        return convertToResponse(existingEducation);
     }
 
-    /**
-     * 删除教育经历
-     *
-     * @param id 教育经历ID
-     */
     @Override
     public void delete(Long id) {
         Long userId = UserHolder.requireUserId();
         requireEducationAndCheckOwnership(id, userId, "删除");
 
-        // 删除教育经历
         boolean removed = removeById(id);
         if (!removed) {
             throw new BusinessException(ErrorCode.EDUCATION_DELETE_FAILED);
@@ -108,35 +85,23 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
         log.info("用户 {} 删除教育经历成功: id={}", userId, id);
     }
 
-    /**
-     * 根据ID查询教育经历
-     *
-     * @param id 教育经历ID
-     * @return 教育经历实体
-     */
     @Override
-    public Education getById(Long id) {
-        return requireEducation(id);
+    public EducationResponse getById(Long id) {
+        return convertToResponse(requireEducation(id));
     }
 
-    /**
-     * 根据用户ID查询所有教育经历
-     * 
-     * @return 教育经历列表
-     */
     @Override
-    public List<Education> getByUserId() {
+    public List<EducationResponse> getByUserId() {
         Long userId = UserHolder.requireUserId();
-        return baseMapper.selectByUserId(userId);
+        return baseMapper.selectByUserId(userId).stream().map(this::convertToResponse).toList();
     }
 
-    /**
-     * 校验教育经历是否存在，返回教育经历实体
-     *
-     * @param id 教育经历ID
-     * @return 教育经历实体
-     * @throws BusinessException 如果教育经历不存在
-     */
+    private EducationResponse convertToResponse(Education education) {
+        EducationResponse response = new EducationResponse();
+        BeanUtils.copyProperties(education, response);
+        return response;
+    }
+
     private Education requireEducation(Long id) {
         Education education = baseMapper.selectById(id);
         if (education == null) {
@@ -145,15 +110,6 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
         return education;
     }
 
-    /**
-     * 校验教育经历是否存在且用户有权限操作，返回教育经历实体
-     *
-     * @param id     教育经历ID
-     * @param userId 用户ID
-     * @param action 操作类型（用于错误提示）
-     * @return 教育经历实体
-     * @throws BusinessException 如果教育经历不存在或用户无权限
-     */
     private Education requireEducationAndCheckOwnership(Long id, Long userId, String action) {
         Education education = requireEducation(id);
         if (!education.getUserId().equals(userId)) {

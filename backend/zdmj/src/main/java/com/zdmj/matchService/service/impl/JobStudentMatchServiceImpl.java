@@ -26,7 +26,7 @@ import com.zdmj.matchService.entity.JobStudentMatch;
 import com.zdmj.matchService.enums.MatchDimension;
 import com.zdmj.matchService.mapper.JobStudentMatchMapper;
 import com.zdmj.matchService.service.JobStudentMatchService;
-import com.zdmj.resumeService.dto.StudentCapabilityProfileDTO;
+import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
 import com.zdmj.resumeService.service.StudentCapabilityProfileService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -110,7 +110,7 @@ public class JobStudentMatchServiceImpl
         }
 
         // 2. 学生画像（必须存在）
-        StudentCapabilityProfileDTO studentProfile = studentCapabilityProfileService.getCurrentUserProfileOrNull();
+        StudentCapabilityProfileResponse studentProfile = studentCapabilityProfileService.getCurrentUserProfileOrNull();
         if (studentProfile == null) {
             throw new BusinessException(ErrorCode.MATCH_PRECONDITION_MISSING);
         }
@@ -186,7 +186,7 @@ public class JobStudentMatchServiceImpl
      */
     private String buildUserMessage(JobListItemDTO jobDetail,
                                     JobCapabilityProfileDTO jobProfile,
-                                    StudentCapabilityProfileDTO studentProfile,
+                                    StudentCapabilityProfileResponse studentProfile,
                                     MatchWeightConfigDTO weights,
                                     List<String> jobKeywords) {
         StringBuilder sb = new StringBuilder();
@@ -327,7 +327,7 @@ public class JobStudentMatchServiceImpl
     private KeywordMatchResult recomputeKeywordMatch(
             List<String> jobKeywords,
             List<String> aiMatchedKeywords,
-            StudentCapabilityProfileDTO studentProfile) {
+            StudentCapabilityProfileResponse studentProfile) {
 
         Set<String> jobSet = new LinkedHashSet<>(jobKeywords == null ? List.of() : jobKeywords);
         if (jobSet.isEmpty()) {
@@ -362,7 +362,7 @@ public class JobStudentMatchServiceImpl
         return new KeywordMatchResult(matched, missing, rate);
     }
 
-    private static String buildStudentCorpus(StudentCapabilityProfileDTO p) {
+    private static String buildStudentCorpus(StudentCapabilityProfileResponse p) {
         if (p == null) {
             return "";
         }

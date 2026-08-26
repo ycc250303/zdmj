@@ -2,7 +2,7 @@ package com.zdmj.resumeService.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.zdmj.resumeService.dto.CapabilityProfileGenerateRequest;
-import com.zdmj.resumeService.dto.StudentCapabilityProfileDTO;
+import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
 import com.zdmj.resumeService.entity.StudentCapabilityProfile;
 
 /**
@@ -15,14 +15,14 @@ public interface StudentCapabilityProfileService extends IService<StudentCapabil
      *
      * @return 画像 DTO
      */
-    StudentCapabilityProfileDTO getCurrentUserProfile();
+    StudentCapabilityProfileResponse getCurrentUserProfile();
 
     /**
      * 仅查询当前用户画像；若不存在则返回 null
      *
      * @return 画像 DTO 或 null
      */
-    StudentCapabilityProfileDTO getCurrentUserProfileOrNull();
+    StudentCapabilityProfileResponse getCurrentUserProfileOrNull();
 
     /**
      * 生成学生就业能力画像
@@ -30,5 +30,5 @@ public interface StudentCapabilityProfileService extends IService<StudentCapabil
      * @param reqDTO 请求参数 (包含 pdfUrl 或 rawText)
      * @return 生成后的画像 DTO
      */
-    StudentCapabilityProfileDTO generateProfile(CapabilityProfileGenerateRequest reqDTO);
+    StudentCapabilityProfileResponse generateProfile(CapabilityProfileGenerateRequest reqDTO);
 }

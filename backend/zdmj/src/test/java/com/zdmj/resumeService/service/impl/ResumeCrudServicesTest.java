@@ -4,9 +4,9 @@ import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.resumeService.dto.CareerDTO;
-import com.zdmj.resumeService.dto.EducationDTO;
-import com.zdmj.resumeService.dto.SkillDTO;
+import com.zdmj.resumeService.dto.CareerRequest;
+import com.zdmj.resumeService.dto.EducationRequest;
+import com.zdmj.resumeService.dto.SkillRequest;
 import com.zdmj.resumeService.entity.Career;
 import com.zdmj.resumeService.entity.Education;
 import com.zdmj.resumeService.entity.ProjectExperience;
@@ -82,7 +82,7 @@ class ResumeCrudServicesTest {
     @Test
     void educationUpdate_notOwner_shouldThrowNoPermissionAndSkipUpdate() {
         UserHolder.set(UserContext.of(1L, "u1"));
-        EducationDTO dto = new EducationDTO();
+        EducationRequest dto = new EducationRequest();
         dto.setId(10L);
         dto.setSchool("new-school");
         Education existing = new Education();
@@ -115,7 +115,7 @@ class ResumeCrudServicesTest {
     @Test
     void careerUpdate_invalidDate_shouldThrowAndSkipUpdateById() {
         UserHolder.set(UserContext.of(1L, "u1"));
-        CareerDTO dto = new CareerDTO();
+        CareerRequest dto = new CareerRequest();
         dto.setId(20L);
         Career existing = new Career();
         existing.setId(20L);
@@ -126,7 +126,7 @@ class ResumeCrudServicesTest {
             Career target = invocation.getArgument(1);
             target.setEndDate(LocalDate.of(2024, 4, 1));
             return null;
-        }).when(careerStructMapper).updateEntityFromDto(any(CareerDTO.class), any(Career.class));
+        }).when(careerStructMapper).updateEntityFromDto(any(CareerRequest.class), any(Career.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> careerService.update(dto));
 
@@ -153,7 +153,7 @@ class ResumeCrudServicesTest {
     @Test
     void skillCreate_userNotLogin_shouldThrowAndSkipSave() {
         UserHolder.clear();
-        SkillDTO dto = new SkillDTO();
+        SkillRequest dto = new SkillRequest();
         dto.setContent(validSkillContent());
 
         BusinessException ex = assertThrows(BusinessException.class, () -> skillService.create(dto));

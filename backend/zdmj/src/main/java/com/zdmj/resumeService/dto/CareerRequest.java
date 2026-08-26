@@ -10,10 +10,10 @@ import lombok.Data;
 import java.time.LocalDate;
 
 /**
- * 工作/实习经历DTO
+ * 工作/实习经历请求
  */
 @Data
-public class CareerDTO  {
+public class CareerRequest {
     /**
      * 工作/实习经历ID（主键，自增，更新时不能为空）
      */

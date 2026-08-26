@@ -1,11 +1,11 @@
 package com.zdmj.resumeService.service;
 
-import com.zdmj.resumeService.dto.ResumeContentDTO;
+import com.zdmj.resumeService.dto.ResumeContentResponse;
 import com.zdmj.resumeService.dto.ResumeContentSaveRequest;
-import com.zdmj.resumeService.dto.ResumeDTO;
 import com.zdmj.resumeService.dto.ResumeImportParseRequest;
-import com.zdmj.resumeService.dto.ResumeImportParseResultDTO;
-import com.zdmj.resumeService.entity.Resume;
+import com.zdmj.resumeService.dto.ResumeImportParseResponse;
+import com.zdmj.resumeService.dto.ResumeRequest;
+import com.zdmj.resumeService.dto.ResumeResponse;
 
 import java.util.List;
 
@@ -14,28 +14,19 @@ import java.util.List;
  */
 public interface ResumeService {
 
-    /**
-     * 创建简历（每用户仅允许一份）
-     */
-    Resume create(ResumeDTO resumeDTO);
+    ResumeResponse create(ResumeRequest resumeRequest);
 
-    List<Resume> getByUserId();
+    List<ResumeResponse> getByUserId();
 
-    Resume update(ResumeDTO resumeDTO);
+    ResumeResponse update(ResumeRequest resumeRequest);
 
     void delete(Long id);
 
-    List<ResumeContentDTO> getResumeContentList();
+    List<ResumeContentResponse> getResumeContentList();
 
-    /**
-     * 获取当前登录用户的简历完整内容；若不存在则自动创建空简历。
-     */
-    ResumeContentDTO getMyResumeContent();
+    ResumeContentResponse getMyResumeContent();
 
-    /**
-     * 全量保存当前登录用户的简历内容（事务内 upsert 技能与各经历，并删除未提交项）。
-     */
-    ResumeContentDTO saveMyResumeContent(ResumeContentSaveRequest request);
+    ResumeContentResponse saveMyResumeContent(ResumeContentSaveRequest request);
 
-    ResumeImportParseResultDTO parseImport(ResumeImportParseRequest request);
+    ResumeImportParseResponse parseImport(ResumeImportParseRequest request);
 }

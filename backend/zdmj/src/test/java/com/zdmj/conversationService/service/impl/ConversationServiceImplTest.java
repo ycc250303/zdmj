@@ -8,7 +8,7 @@ import com.zdmj.conversationService.dto.ConversationDTO;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.support.ConversationContextSupport;
-import com.zdmj.resumeService.dto.ResumeContentDTO;
+import com.zdmj.resumeService.dto.ResumeContentResponse;
 import com.zdmj.resumeService.dto.ResumePersonalInfoDTO;
 import com.zdmj.resumeService.service.ResumeService;
 import org.junit.jupiter.api.AfterEach;
@@ -49,7 +49,7 @@ class ConversationServiceImplTest {
     @BeforeEach
     void setUp() {
         conversationService = spy(new ConversationServiceImpl(conversationMapper, resumeService));
-        lenient().when(resumeService.getMyResumeContent()).thenReturn(new ResumeContentDTO());
+        lenient().when(resumeService.getMyResumeContent()).thenReturn(new ResumeContentResponse());
         UserHolder.set(UserContext.of(1L, "u1"));
     }
 
@@ -76,7 +76,7 @@ class ConversationServiceImplTest {
 
     @Test
     void createConversation_shouldInjectResumeContext() {
-        ResumeContentDTO resume = new ResumeContentDTO();
+        ResumeContentResponse resume = new ResumeContentResponse();
         ResumePersonalInfoDTO personal = new ResumePersonalInfoDTO();
         personal.setName("测试用户");
         resume.setPersonalInfo(personal);

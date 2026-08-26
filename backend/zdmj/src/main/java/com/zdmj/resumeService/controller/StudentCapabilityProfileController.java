@@ -6,7 +6,7 @@ import com.zdmj.common.model.Result;
 
 import java.util.concurrent.TimeUnit;
 import com.zdmj.resumeService.dto.CapabilityProfileGenerateRequest;
-import com.zdmj.resumeService.dto.StudentCapabilityProfileDTO;
+import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
 import com.zdmj.resumeService.service.StudentCapabilityProfileService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +32,7 @@ public class StudentCapabilityProfileController {
      * @return 能力画像信息
      */
     @GetMapping("/current")
-    public Result<StudentCapabilityProfileDTO> getCurrentProfile() {
+    public Result<StudentCapabilityProfileResponse> getCurrentProfile() {
         return Result.success("获取能力画像成功", profileService.getCurrentUserProfile());
     }
 
@@ -42,7 +42,7 @@ public class StudentCapabilityProfileController {
      * @return 能力画像信息或 null
      */
     @GetMapping("/current/query")
-    public Result<StudentCapabilityProfileDTO> getCurrentProfileOrNull() {
+    public Result<StudentCapabilityProfileResponse> getCurrentProfileOrNull() {
         return Result.success("查询能力画像成功", profileService.getCurrentUserProfileOrNull());
     }
 
@@ -55,9 +55,9 @@ public class StudentCapabilityProfileController {
     @RateLimit(dimension = RateLimit.Dimension.USER, count = LlmRateLimits.CAPABILITY_PROFILE_GENERATE_PER_MIN,
             interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/generate")
-    public Result<StudentCapabilityProfileDTO> generateProfile(@Validated @RequestBody CapabilityProfileGenerateRequest reqDTO) {
+    public Result<StudentCapabilityProfileResponse> generateProfile(@Validated @RequestBody CapabilityProfileGenerateRequest reqDTO) {
         log.info("开始生成学生能力画像");
-        StudentCapabilityProfileDTO profileDTO = profileService.generateProfile(reqDTO);
+        StudentCapabilityProfileResponse profileDTO = profileService.generateProfile(reqDTO);
         return Result.success("生成能力画像成功", profileDTO);
     }
 }

@@ -8,12 +8,13 @@ import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.common.ai.ModelEnum;
 import com.zdmj.common.ai.UserLlmRouter;
 import com.zdmj.common.ai.prompt.PromptNames;
-import com.zdmj.resumeService.dto.ResumeContentDTO;
-import com.zdmj.resumeService.dto.ResumeDTO;
+import com.zdmj.resumeService.dto.ResumeContentResponse;
+import com.zdmj.resumeService.dto.ResumeRequest;
 import com.zdmj.resumeService.dto.ResumeImportParseRequest;
-import com.zdmj.resumeService.dto.ResumeImportParseResultDTO;
+import com.zdmj.resumeService.dto.ResumeImportParseResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.resumeService.entity.Resume;
+import com.zdmj.resumeService.dto.ResumeResponse;
 import com.zdmj.resumeService.mapper.AwardMapper;
 import com.zdmj.resumeService.mapper.CareerMapper;
 import com.zdmj.resumeService.mapper.EducationMapper;
@@ -108,7 +109,7 @@ class ResumeServiceImplTest {
     @Test
     void create_userAlreadyHasResume_shouldThrow() {
         UserHolder.set(UserContext.of(1L, "u1"));
-        ResumeDTO dto = new ResumeDTO();
+        ResumeRequest dto = new ResumeRequest();
         dto.setSkillId(99L);
         doReturn(true).when(resumeMapper).existsByUserId(1L);
 
@@ -121,12 +122,12 @@ class ResumeServiceImplTest {
     @Test
     void create_success_shouldSaveResumeShell() {
         UserHolder.set(UserContext.of(1L, "u1"));
-        ResumeDTO dto = new ResumeDTO();
+        ResumeRequest dto = new ResumeRequest();
         dto.setSkillId(99L);
         doReturn(false).when(resumeMapper).existsByUserId(1L);
         doReturn(true).when(resumeService).save(any(Resume.class));
 
-        Resume out = resumeService.create(dto);
+        ResumeResponse out = resumeService.create(dto);
 
         assertEquals(1L, out.getUserId());
         assertEquals(99L, out.getSkillId());
@@ -137,7 +138,7 @@ class ResumeServiceImplTest {
     @Test
     void create_saveFailed_shouldThrowCreateFailed() {
         UserHolder.set(UserContext.of(1L, "u1"));
-        ResumeDTO dto = new ResumeDTO();
+        ResumeRequest dto = new ResumeRequest();
         dto.setSkillId(99L);
         doReturn(false).when(resumeMapper).existsByUserId(1L);
         doReturn(false).when(resumeService).save(any(Resume.class));
@@ -153,7 +154,7 @@ class ResumeServiceImplTest {
         UserHolder.set(UserContext.of(1L, "u1"));
         doReturn(List.of(new Resume())).when(resumeMapper).selectByUserId(1L);
 
-        List<Resume> out = resumeService.getByUserId();
+        List<ResumeResponse> out = resumeService.getByUserId();
 
         assertEquals(1, out.size());
         verify(resumeMapper).selectByUserId(1L);
@@ -162,7 +163,7 @@ class ResumeServiceImplTest {
     @Test
     void update_notOwner_shouldThrowAndSkipUpdateById() {
         UserHolder.set(UserContext.of(1L, "u1"));
-        ResumeDTO dto = new ResumeDTO();
+        ResumeRequest dto = new ResumeRequest();
         dto.setId(10L);
         dto.setSkillId(3L);
         Resume existing = new Resume();
@@ -180,7 +181,7 @@ class ResumeServiceImplTest {
     @Test
     void update_success_shouldPersistShellFields() {
         UserHolder.set(UserContext.of(1L, "u1"));
-        ResumeDTO dto = new ResumeDTO();
+        ResumeRequest dto = new ResumeRequest();
         dto.setId(10L);
         dto.setSkillId(5L);
         Resume existing = new Resume();
@@ -189,7 +190,7 @@ class ResumeServiceImplTest {
         doReturn(existing).when(resumeMapper).selectById(10L);
         doReturn(true).when(resumeService).updateById(any(Resume.class));
 
-        Resume out = resumeService.update(dto);
+        ResumeResponse out = resumeService.update(dto);
 
         assertEquals(5L, out.getSkillId());
         verify(resumeService).updateById(existing);
@@ -198,7 +199,7 @@ class ResumeServiceImplTest {
     @Test
     void update_updateFailed_shouldThrowUpdateFailed() {
         UserHolder.set(UserContext.of(1L, "u1"));
-        ResumeDTO dto = new ResumeDTO();
+        ResumeRequest dto = new ResumeRequest();
         dto.setId(10L);
         dto.setSkillId(5L);
         Resume existing = new Resume();
@@ -264,7 +265,7 @@ class ResumeServiceImplTest {
         doReturn(List.of()).when(careerMapper).selectByUserId(1L);
         doReturn(List.of()).when(projectExperienceMapper).selectByUserId(1L);
 
-        List<ResumeContentDTO> out = resumeService.getResumeContentList();
+        List<ResumeContentResponse> out = resumeService.getResumeContentList();
 
         assertEquals(1, out.size());
         assertEquals(31L, out.get(0).getId());
@@ -276,7 +277,7 @@ class ResumeServiceImplTest {
         UserHolder.set(UserContext.of(1L, "u1"));
         doReturn(null).when(resumeMapper).selectOneByUserId(1L);
 
-        List<ResumeContentDTO> out = resumeService.getResumeContentList();
+        List<ResumeContentResponse> out = resumeService.getResumeContentList();
 
         assertEquals(0, out.size());
     }
@@ -320,7 +321,7 @@ class ResumeServiceImplTest {
         request.setRawText("张三 某某大学 软件工程");
         doThrow(new RuntimeException("llm down")).when(chatUtil).chatStructuredOnceWithPlatformModel(
                 any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
-                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
+                eq(ResumeImportParseResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.parseImport(request));
 
@@ -333,8 +334,8 @@ class ResumeServiceImplTest {
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("resume body");
 
-        ResumeImportParseResultDTO llmResult = new ResumeImportParseResultDTO();
-        ResumeImportParseResultDTO.EducationItem edu = new ResumeImportParseResultDTO.EducationItem();
+        ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
+        ResumeImportParseResponse.EducationItem edu = new ResumeImportParseResponse.EducationItem();
         edu.setSchool("SCU");
         edu.setMajor("SE");
         edu.setDegree(99);
@@ -342,14 +343,14 @@ class ResumeServiceImplTest {
         edu.setEndDate("至今");
         llmResult.setEducations(List.of(edu));
 
-        ResumeImportParseResultDTO.CareerItem blankCareer = new ResumeImportParseResultDTO.CareerItem();
+        ResumeImportParseResponse.CareerItem blankCareer = new ResumeImportParseResponse.CareerItem();
         llmResult.setCareers(List.of(blankCareer));
 
         doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
                 any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
-                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
+                eq(ResumeImportParseResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
 
-        ResumeImportParseResultDTO out = resumeService.parseImport(request);
+        ResumeImportParseResponse out = resumeService.parseImport(request);
 
         assertEquals(1, out.getEducations().size());
         assertEquals("SCU", out.getEducations().get(0).getSchool());
@@ -365,8 +366,8 @@ class ResumeServiceImplTest {
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("resume");
 
-        ResumeImportParseResultDTO llmResult = new ResumeImportParseResultDTO();
-        ResumeImportParseResultDTO.EducationItem edu = new ResumeImportParseResultDTO.EducationItem();
+        ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
+        ResumeImportParseResponse.EducationItem edu = new ResumeImportParseResponse.EducationItem();
         edu.setSchool("SCU");
         edu.setStartDate("2020");
         edu.setEndDate("2022年");
@@ -374,9 +375,9 @@ class ResumeServiceImplTest {
 
         doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
                 any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
-                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
+                eq(ResumeImportParseResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
 
-        ResumeImportParseResultDTO out = resumeService.parseImport(request);
+        ResumeImportParseResponse out = resumeService.parseImport(request);
 
         assertEquals(null, out.getEducations().get(0).getStartDate());
         assertEquals(null, out.getEducations().get(0).getEndDate());
@@ -388,17 +389,17 @@ class ResumeServiceImplTest {
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("resume");
 
-        ResumeImportParseResultDTO llmResult = new ResumeImportParseResultDTO();
-        ResumeImportParseResultDTO.CareerItem career = new ResumeImportParseResultDTO.CareerItem();
+        ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
+        ResumeImportParseResponse.CareerItem career = new ResumeImportParseResponse.CareerItem();
         career.setCompany("ACME");
         career.setStartDate("2021年3月");
         llmResult.setCareers(List.of(career));
 
         doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
                 any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
-                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
+                eq(ResumeImportParseResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
 
-        ResumeImportParseResultDTO out = resumeService.parseImport(request);
+        ResumeImportParseResponse out = resumeService.parseImport(request);
 
         assertEquals("2021-03-01", out.getCareers().get(0).getStartDate());
     }
@@ -409,16 +410,16 @@ class ResumeServiceImplTest {
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("resume");
 
-        ResumeImportParseResultDTO llmResult = new ResumeImportParseResultDTO();
-        ResumeImportParseResultDTO.AwardItem award = new ResumeImportParseResultDTO.AwardItem();
+        ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
+        ResumeImportParseResponse.AwardItem award = new ResumeImportParseResponse.AwardItem();
         award.setName("2024年同济大学本科生奖学金");
         llmResult.setAwards(List.of(award));
 
         doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
                 any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
-                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
+                eq(ResumeImportParseResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
 
-        ResumeImportParseResultDTO out = resumeService.parseImport(request);
+        ResumeImportParseResponse out = resumeService.parseImport(request);
 
         assertEquals(1, out.getAwards().size());
         assertEquals("2024-01-01", out.getAwards().get(0).getAwardDate());
@@ -435,8 +436,8 @@ class ResumeServiceImplTest {
                 2023年全国大学生数学建模竞赛省一等奖
                 """);
 
-        ResumeImportParseResultDTO llmResult = new ResumeImportParseResultDTO();
-        ResumeImportParseResultDTO.AwardItem competition = new ResumeImportParseResultDTO.AwardItem();
+        ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
+        ResumeImportParseResponse.AwardItem competition = new ResumeImportParseResponse.AwardItem();
         competition.setName("全国大学生数学建模竞赛省一等奖");
         competition.setAwardType(2);
         competition.setAwardDate("2023-11-01");
@@ -444,9 +445,9 @@ class ResumeServiceImplTest {
 
         doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
                 any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
-                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
+                eq(ResumeImportParseResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
 
-        ResumeImportParseResultDTO out = resumeService.parseImport(request);
+        ResumeImportParseResponse out = resumeService.parseImport(request);
 
         assertEquals(2, out.getAwards().size());
         assertTrue(out.getAwards().stream().anyMatch(a ->
@@ -459,8 +460,8 @@ class ResumeServiceImplTest {
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("resume");
 
-        ResumeImportParseResultDTO llmResult = new ResumeImportParseResultDTO();
-        ResumeImportParseResultDTO.AwardItem award = new ResumeImportParseResultDTO.AwardItem();
+        ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
+        ResumeImportParseResponse.AwardItem award = new ResumeImportParseResponse.AwardItem();
         award.setName("同济大学本科生奖学金");
         award.setAwardType(2);
         award.setAwardDate("2024-09-01");
@@ -468,9 +469,9 @@ class ResumeServiceImplTest {
 
         doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
                 any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
-                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
+                eq(ResumeImportParseResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
 
-        ResumeImportParseResultDTO out = resumeService.parseImport(request);
+        ResumeImportParseResponse out = resumeService.parseImport(request);
 
         assertEquals(1, out.getAwards().size());
         assertEquals(1, out.getAwards().get(0).getAwardType());
@@ -482,8 +483,8 @@ class ResumeServiceImplTest {
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("resume");
 
-        ResumeImportParseResultDTO llmResult = new ResumeImportParseResultDTO();
-        ResumeImportParseResultDTO.ProjectItem project = new ResumeImportParseResultDTO.ProjectItem();
+        ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
+        ResumeImportParseResponse.ProjectItem project = new ResumeImportParseResponse.ProjectItem();
         project.setName("CoEdit");
         project.setRole("负责人");
         project.setStartDate("2025-05-01");
@@ -492,9 +493,9 @@ class ResumeServiceImplTest {
 
         doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
                 any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
-                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
+                eq(ResumeImportParseResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
 
-        ResumeImportParseResultDTO out = resumeService.parseImport(request);
+        ResumeImportParseResponse out = resumeService.parseImport(request);
 
         assertEquals(1, out.getAwards().size());
         assertTrue(out.getAwards().get(0).getName().contains("一等奖"));
@@ -507,8 +508,8 @@ class ResumeServiceImplTest {
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("resume");
 
-        ResumeImportParseResultDTO llmResult = new ResumeImportParseResultDTO();
-        ResumeImportParseResultDTO.ProjectItem project = new ResumeImportParseResultDTO.ProjectItem();
+        ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
+        ResumeImportParseResponse.ProjectItem project = new ResumeImportParseResponse.ProjectItem();
         project.setName("Demo");
         project.setRole("开发");
         project.setStartDate("2025-01-01");
@@ -517,9 +518,9 @@ class ResumeServiceImplTest {
 
         doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
                 any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
-                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
+                eq(ResumeImportParseResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
 
-        ResumeImportParseResultDTO out = resumeService.parseImport(request);
+        ResumeImportParseResponse out = resumeService.parseImport(request);
 
         assertEquals(1, out.getProjects().size());
         assertTrue(String.valueOf(out.getProjects().get(0).getHighlights()).startsWith("["));
@@ -531,12 +532,12 @@ class ResumeServiceImplTest {
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("a".repeat(16000));
 
-        ResumeImportParseResultDTO llmResult = new ResumeImportParseResultDTO();
+        ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
         doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
                 any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
-                eq(ResumeImportParseResultDTO.class), eq(ModelEnum.DEEPSEEK_FLASH));
+                eq(ResumeImportParseResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
 
-        ResumeImportParseResultDTO out = resumeService.parseImport(request);
+        ResumeImportParseResponse out = resumeService.parseImport(request);
 
         assertNotNull(out.getWarnings());
         assertEquals(true, out.getWarnings().stream().anyMatch(w -> w.contains("截断")));
@@ -557,7 +558,7 @@ class ResumeServiceImplTest {
         doReturn(true).when(resumeService).updateById(any(Resume.class));
 
         var request = new com.zdmj.resumeService.dto.ResumeContentSaveRequest();
-        var skill = new com.zdmj.resumeService.dto.SkillDTO();
+        var skill = new com.zdmj.resumeService.dto.SkillRequest();
         skill.setId(9L);
         skill.setContent(List.of());
         request.setSkill(skill);
@@ -566,7 +567,7 @@ class ResumeServiceImplTest {
         request.setProjects(List.of());
         request.setAwards(List.of());
 
-        ResumeContentDTO out = resumeService.saveMyResumeContent(request);
+        ResumeContentResponse out = resumeService.saveMyResumeContent(request);
 
         assertEquals(1L, out.getId());
         verify(skillService).update(any());

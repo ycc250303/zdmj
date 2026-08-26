@@ -12,10 +12,10 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * 项目经历DTO
+ * 项目经历请求
  */
 @Data
-public class ProjectExperienceDTO {
+public class ProjectExperienceRequest {
     /**
      * 项目经历ID
      * 更新时必填，创建时不需要

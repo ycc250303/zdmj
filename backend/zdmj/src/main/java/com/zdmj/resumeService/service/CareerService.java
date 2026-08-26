@@ -1,7 +1,8 @@
 package com.zdmj.resumeService.service;
 
-import com.zdmj.resumeService.dto.CareerDTO;
-import com.zdmj.resumeService.entity.Career;
+import com.zdmj.resumeService.dto.CareerRequest;
+import com.zdmj.resumeService.dto.CareerResponse;
+
 import java.util.List;
 
 /**
@@ -9,42 +10,13 @@ import java.util.List;
  */
 public interface CareerService {
 
-    /**
-     * 创建工作经历
-     *
-     * @param career 工作经历实体
-     * @return 创建的工作经历实体
-     */
-    Career create(CareerDTO careerDTO);
+    CareerResponse create(CareerRequest careerRequest);
 
-    /**
-     * 根据ID查询工作经历
-     *
-     * @param id 工作经历ID
-     * @return 工作经历实体
-     */
-    Career getById(Long id);
+    CareerResponse getById(Long id);
 
-    /**
-     * 根据用户ID查询所有工作经历
-     *
-     * @param userId 用户ID
-     * @return 工作经历列表
-     */
-    List<Career> getByUserId();
+    List<CareerResponse> getByUserId();
 
-    /**
-     * 更新工作经历
-     *
-     * @param career 工作经历实体
-     * @return 更新后的工作经历实体
-     */
-    Career update(CareerDTO careerDTO);
+    CareerResponse update(CareerRequest careerRequest);
 
-    /**
-     * 删除工作经历
-     *
-     * @param id 工作经历ID
-     */
     void delete(Long id);
 }

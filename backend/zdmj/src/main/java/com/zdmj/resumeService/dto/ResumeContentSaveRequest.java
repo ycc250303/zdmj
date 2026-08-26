@@ -15,23 +15,23 @@ public class ResumeContentSaveRequest {
 
     @NotNull(message = "技能信息不能为空")
     @Valid
-    private SkillDTO skill;
+    private SkillRequest skill;
 
     @NotNull(message = "教育经历列表不能为 null")
     @Valid
-    private List<EducationDTO> educations = new ArrayList<>();
+    private List<EducationRequest> educations = new ArrayList<>();
 
     @NotNull(message = "工作经历列表不能为 null")
     @Valid
-    private List<CareerDTO> careers = new ArrayList<>();
+    private List<CareerRequest> careers = new ArrayList<>();
 
     @NotNull(message = "项目经历列表不能为 null")
     @Valid
-    private List<ProjectExperienceDTO> projects = new ArrayList<>();
+    private List<ProjectExperienceRequest> projects = new ArrayList<>();
 
     @NotNull(message = "获奖信息列表不能为 null")
     @Valid
-    private List<AwardDTO> awards = new ArrayList<>();
+    private List<AwardRequest> awards = new ArrayList<>();
 
     @Valid
     private ResumePersonalInfoDTO personalInfo;

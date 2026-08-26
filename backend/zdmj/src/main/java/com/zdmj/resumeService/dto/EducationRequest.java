@@ -13,11 +13,11 @@ import lombok.Data;
 import java.time.LocalDate;
 
 /**
- * 教育经历DTO
+ * 教育经历请求
  * 支持创建和更新两种场景，使用验证组区分不同的验证规则
  */
 @Data
-public class EducationDTO {
+public class EducationRequest {
     /**
      * 教育经历ID
      * 更新时必填，创建时不需要

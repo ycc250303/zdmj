@@ -1,7 +1,8 @@
 package com.zdmj.resumeService.service;
 
-import com.zdmj.resumeService.dto.SkillDTO;
-import com.zdmj.resumeService.entity.Skill;
+import com.zdmj.resumeService.dto.SkillRequest;
+import com.zdmj.resumeService.dto.SkillResponse;
+
 import java.util.List;
 
 /**
@@ -9,41 +10,13 @@ import java.util.List;
  */
 public interface SkillService {
 
-    /**
-     * 创建技能
-     *
-     * @param skill 技能实体
-     * @return 创建的技能实体
-     */
-    Skill create(SkillDTO skillDTO);
+    SkillResponse create(SkillRequest skillRequest);
 
-    /**
-     * 根据ID查询技能
-     *
-     * @param id 技能ID
-     * @return 技能实体
-     */
-    Skill getById(Long id);
+    SkillResponse getById(Long id);
 
-    /**
-     * 根据用户ID查询所有技能
-     *
-     * @return 技能列表
-     */
-    List<Skill> getByUserId();
+    List<SkillResponse> getByUserId();
 
-    /**
-     * 更新技能
-     *
-     * @param skill 技能实体
-     * @return 更新后的技能实体
-     */
-    Skill update(SkillDTO skillDTO);
+    SkillResponse update(SkillRequest skillRequest);
 
-    /**
-     * 删除技能
-     *
-     * @param id 技能ID
-     */
     void delete(Long id);
 }

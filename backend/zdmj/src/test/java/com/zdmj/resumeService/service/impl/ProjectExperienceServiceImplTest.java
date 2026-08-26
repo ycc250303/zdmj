@@ -4,8 +4,9 @@ import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.resumeService.dto.ProjectExperienceDTO;
+import com.zdmj.resumeService.dto.ProjectExperienceRequest;
 import com.zdmj.resumeService.entity.ProjectExperience;
+import com.zdmj.resumeService.dto.ProjectExperienceResponse;
 import com.zdmj.resumeService.enums.ProjectStatusEnum;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
 import com.zdmj.resumeService.mapper.ProjectExperienceStructMapper;
@@ -55,14 +56,14 @@ class ProjectExperienceServiceImplTest {
 
     @Test
     void create_success_shouldSetDefaultStatusAndSave() {
-        ProjectExperienceDTO dto = new ProjectExperienceDTO();
+        ProjectExperienceRequest dto = new ProjectExperienceRequest();
         dto.setName("Resume Parser");
         dto.setRole("Backend");
         dto.setDescription("desc");
         dto.setContribution("contrib");
         doReturn(true).when(service).save(any(ProjectExperience.class));
 
-        ProjectExperience out = service.create(dto);
+        ProjectExperienceResponse out = service.create(dto);
 
         assertEquals(1L, out.getUserId());
         assertEquals(ProjectStatusEnum.COMMITTED.getCode(), out.getStatus());
@@ -72,7 +73,7 @@ class ProjectExperienceServiceImplTest {
 
     @Test
     void create_saveFailed_shouldThrowAddFailed() {
-        ProjectExperienceDTO dto = new ProjectExperienceDTO();
+        ProjectExperienceRequest dto = new ProjectExperienceRequest();
         dto.setName("Resume Parser");
         doReturn(false).when(service).save(any(ProjectExperience.class));
 
@@ -94,7 +95,7 @@ class ProjectExperienceServiceImplTest {
     void getByUserId_shouldCallMapper() {
         doReturn(List.of(new ProjectExperience())).when(projectExperienceMapper).selectByUserId(1L);
 
-        List<ProjectExperience> out = service.getByUserId();
+        List<ProjectExperienceResponse> out = service.getByUserId();
 
         assertEquals(1, out.size());
         verify(projectExperienceMapper).selectByUserId(1L);
@@ -102,7 +103,7 @@ class ProjectExperienceServiceImplTest {
 
     @Test
     void update_notOwner_shouldThrowNoPermission() {
-        ProjectExperienceDTO dto = new ProjectExperienceDTO();
+        ProjectExperienceRequest dto = new ProjectExperienceRequest();
         dto.setId(10L);
         ProjectExperience existing = new ProjectExperience();
         existing.setId(10L);
@@ -113,13 +114,13 @@ class ProjectExperienceServiceImplTest {
 
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         verify(projectExperienceStructMapper, never())
-                .updateEntityFromDto(any(ProjectExperienceDTO.class), any(ProjectExperience.class));
+                .updateEntityFromDto(any(ProjectExperienceRequest.class), any(ProjectExperience.class));
         verify(service, never()).updateById(any(ProjectExperience.class));
     }
 
     @Test
     void update_invalidDate_shouldThrowAndSkipUpdate() {
-        ProjectExperienceDTO dto = new ProjectExperienceDTO();
+        ProjectExperienceRequest dto = new ProjectExperienceRequest();
         dto.setId(10L);
         ProjectExperience existing = new ProjectExperience();
         existing.setId(10L);
@@ -133,7 +134,7 @@ class ProjectExperienceServiceImplTest {
             argEntity.setEndDate(LocalDate.of(2024, 1, 1));
             return null;
         }).when(projectExperienceStructMapper)
-                .updateEntityFromDto(any(ProjectExperienceDTO.class), any(ProjectExperience.class));
+                .updateEntityFromDto(any(ProjectExperienceRequest.class), any(ProjectExperience.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.update(dto));
 
@@ -143,7 +144,7 @@ class ProjectExperienceServiceImplTest {
 
     @Test
     void update_success_shouldPatchAndUpdateById() {
-        ProjectExperienceDTO dto = new ProjectExperienceDTO();
+        ProjectExperienceRequest dto = new ProjectExperienceRequest();
         dto.setId(10L);
         dto.setName("NewName");
         ProjectExperience existing = new ProjectExperience();
@@ -152,15 +153,15 @@ class ProjectExperienceServiceImplTest {
         existing.setName("OldName");
         doReturn(existing).when(projectExperienceMapper).selectById(10L);
         doAnswer(invocation -> {
-            ProjectExperienceDTO argDto = invocation.getArgument(0);
+            ProjectExperienceRequest argDto = invocation.getArgument(0);
             ProjectExperience argEntity = invocation.getArgument(1);
             argEntity.setName(argDto.getName());
             return null;
         }).when(projectExperienceStructMapper)
-                .updateEntityFromDto(any(ProjectExperienceDTO.class), any(ProjectExperience.class));
+                .updateEntityFromDto(any(ProjectExperienceRequest.class), any(ProjectExperience.class));
         doReturn(true).when(service).updateById(any(ProjectExperience.class));
 
-        ProjectExperience out = service.update(dto);
+        ProjectExperienceResponse out = service.update(dto);
 
         assertEquals("NewName", out.getName());
         verify(projectExperienceStructMapper).updateEntityFromDto(dto, existing);
@@ -169,7 +170,7 @@ class ProjectExperienceServiceImplTest {
 
     @Test
     void update_updateFailed_shouldThrowUpdateFailed() {
-        ProjectExperienceDTO dto = new ProjectExperienceDTO();
+        ProjectExperienceRequest dto = new ProjectExperienceRequest();
         dto.setId(10L);
         dto.setName("NewName");
         ProjectExperience existing = new ProjectExperience();
@@ -177,12 +178,12 @@ class ProjectExperienceServiceImplTest {
         existing.setUserId(1L);
         doReturn(existing).when(projectExperienceMapper).selectById(10L);
         doAnswer(invocation -> {
-            ProjectExperienceDTO argDto = invocation.getArgument(0);
+            ProjectExperienceRequest argDto = invocation.getArgument(0);
             ProjectExperience argEntity = invocation.getArgument(1);
             argEntity.setName(argDto.getName());
             return null;
         }).when(projectExperienceStructMapper)
-                .updateEntityFromDto(any(ProjectExperienceDTO.class), any(ProjectExperience.class));
+                .updateEntityFromDto(any(ProjectExperienceRequest.class), any(ProjectExperience.class));
         doReturn(false).when(service).updateById(any(ProjectExperience.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.update(dto));

@@ -2,16 +2,17 @@ package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
-import com.zdmj.resumeService.dto.CareerDTO;
+import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.resumeService.dto.CareerRequest;
+import com.zdmj.resumeService.dto.CareerResponse;
 import com.zdmj.resumeService.entity.Career;
-import com.zdmj.resumeService.mapper.CareerStructMapper;
 import com.zdmj.resumeService.mapper.CareerMapper;
+import com.zdmj.resumeService.mapper.CareerStructMapper;
 import com.zdmj.resumeService.service.CareerService;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -24,41 +25,41 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
     private final CareerStructMapper careerPatchMapper;
 
     @Override
-    public Career create(CareerDTO careerDTO) {
+    public CareerResponse create(CareerRequest careerRequest) {
         Long userId = UserHolder.requireUserId();
         Career career = new Career();
         career.setUserId(userId);
-        career.setCompany(careerDTO.getCompany());
-        career.setPosition(careerDTO.getPosition());
-        career.setStartDate(careerDTO.getStartDate());
-        career.setEndDate(careerDTO.getEndDate());
-        career.setDetails(careerDTO.getDetails());
+        career.setCompany(careerRequest.getCompany());
+        career.setPosition(careerRequest.getPosition());
+        career.setStartDate(careerRequest.getStartDate());
+        career.setEndDate(careerRequest.getEndDate());
+        career.setDetails(careerRequest.getDetails());
         boolean saved = save(career);
         if (!saved) {
             throw new BusinessException(ErrorCode.CAREER_ADD_FAILED);
         }
         log.info("添加工作经历成功: {}", career.getCompany());
-        return career;
+        return convertToResponse(career);
     }
 
     @Override
-    public Career getById(Long id) {
-        return requireCareer(id);
+    public CareerResponse getById(Long id) {
+        return convertToResponse(requireCareer(id));
     }
 
     @Override
-    public List<Career> getByUserId() {
+    public List<CareerResponse> getByUserId() {
         Long userId = UserHolder.requireUserId();
-        return baseMapper.selectByUserId(userId);
+        return baseMapper.selectByUserId(userId).stream().map(this::convertToResponse).toList();
     }
 
     @Override
-    public Career update(CareerDTO careerDTO) {
+    public CareerResponse update(CareerRequest careerRequest) {
         Long userId = UserHolder.requireUserId();
-        Long id = careerDTO.getId();
+        Long id = careerRequest.getId();
         Career career = requireCareerAndCheckOwnership(id, userId, "修改");
 
-        careerPatchMapper.updateEntityFromDto(careerDTO, career);
+        careerPatchMapper.updateEntityFromDto(careerRequest, career);
 
         if (career.getStartDate() != null && career.getEndDate() != null) {
             if (career.getEndDate().isBefore(career.getStartDate())) {
@@ -72,7 +73,7 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
         }
 
         log.info("更新工作经历成功: {}", career.getCompany());
-        return career;
+        return convertToResponse(career);
     }
 
     @Override
@@ -87,13 +88,12 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
         log.info("删除工作经历成功: {}", career.getCompany());
     }
 
-    /**
-     * 校验工作经历是否存在，返回工作经历实体
-     *
-     * @param id 工作经历ID
-     * @return 工作经历实体
-     * @throws BusinessException 如果工作经历不存在
-     */
+    private CareerResponse convertToResponse(Career career) {
+        CareerResponse response = new CareerResponse();
+        BeanUtils.copyProperties(career, response);
+        return response;
+    }
+
     private Career requireCareer(Long id) {
         Career career = baseMapper.selectById(id);
         if (career == null) {
@@ -102,15 +102,6 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
         return career;
     }
 
-    /**
-     * 校验工作经历是否存在且用户有权限操作，返回工作经历实体
-     *
-     * @param id     工作经历ID
-     * @param userId 用户ID
-     * @param action 操作类型（用于错误提示）
-     * @return 工作经历实体
-     * @throws BusinessException 如果工作经历不存在或用户无权限
-     */
     private Career requireCareerAndCheckOwnership(Long id, Long userId, String action) {
         Career career = requireCareer(id);
         if (!career.getUserId().equals(userId)) {

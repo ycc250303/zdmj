@@ -15,7 +15,7 @@ import com.zdmj.common.ai.prompt.PromptNames;
 import com.zdmj.common.ai.PromptUtil.JobRole;
 import com.zdmj.resumeService.dto.CapabilityProfileGenerateRequest;
 import com.zdmj.resumeService.dto.ResumeRoleDetectDTO;
-import com.zdmj.resumeService.dto.StudentCapabilityProfileDTO;
+import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
 import com.zdmj.resumeService.entity.StudentCapabilityProfile;
 import com.zdmj.resumeService.mapper.StudentCapabilityProfileMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -90,7 +90,7 @@ class StudentCapabilityProfileServiceImplTest {
         profile.setCompetitivenessScore(74);
         doReturn(profile).when(service).getOne(any());
 
-        StudentCapabilityProfileDTO out = service.getCurrentUserProfile();
+        StudentCapabilityProfileResponse out = service.getCurrentUserProfile();
 
         assertNotNull(out);
         assertEquals(74, out.getCompetitivenessScore());
@@ -103,7 +103,7 @@ class StudentCapabilityProfileServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
 
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
-        verify(chatUtil, never()).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileDTO.class));
+        verify(chatUtil, never()).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
     }
 
     @Test
@@ -111,13 +111,13 @@ class StudentCapabilityProfileServiceImplTest {
         CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setRawText("java spring boot redis mysql");
         doThrow(new IllegalStateException("bad schema")).when(chatUtil)
-                .chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileDTO.class));
+                .chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
 
         assertEquals(ErrorCode.CAPABILITY_PROFILE_GENERATION_FAILED.getCode(), ex.getCode());
         assertEquals("能力画像生成失败，请稍后重试", ex.getMessage());
-        verify(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileDTO.class));
+        verify(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
     }
 
     @Test
@@ -125,13 +125,13 @@ class StudentCapabilityProfileServiceImplTest {
         CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setRawText("java spring boot redis mysql");
         doThrow(new RuntimeException("timeout")).when(chatUtil)
-                .chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileDTO.class));
+                .chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
 
         assertEquals(ErrorCode.CAPABILITY_PROFILE_GENERATION_FAILED.getCode(), ex.getCode());
         assertEquals("大模型生成能力画像失败，请稍后重试", ex.getMessage());
-        verify(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileDTO.class));
+        verify(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
     }
 
     @Test
@@ -139,22 +139,22 @@ class StudentCapabilityProfileServiceImplTest {
         CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setRawText("java spring boot redis mysql");
 
-        StudentCapabilityProfileDTO ai = new StudentCapabilityProfileDTO();
-        StudentCapabilityProfileDTO.ScoreDetail detail = new StudentCapabilityProfileDTO.ScoreDetail();
+        StudentCapabilityProfileResponse ai = new StudentCapabilityProfileResponse();
+        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
         detail.setContentCompletenessScore(7);
         ai.setScoreDetail(detail);
         ai.setStrengths(List.of("技术栈匹配"));
         ai.setSummary("可投递初级 Java 岗位");
-        StudentCapabilityProfileDTO.Suggestion suggestion = new StudentCapabilityProfileDTO.Suggestion();
+        StudentCapabilityProfileResponse.Suggestion suggestion = new StudentCapabilityProfileResponse.Suggestion();
         suggestion.setCategory("技能缺失");
         suggestion.setIssue("缺少 JVM 调优相关实践");
         suggestion.setRecommendation("补充压测数据");
         ai.setSuggestions(List.of(suggestion));
-        doReturn(ai).when(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileDTO.class));
+        doReturn(ai).when(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
         doReturn(null).when(service).getOne(any());
         doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
 
-        StudentCapabilityProfileDTO out = service.generateProfile(req);
+        StudentCapabilityProfileResponse out = service.generateProfile(req);
 
         assertNotNull(out);
         assertEquals(7, out.getCompetitivenessScore());
@@ -175,15 +175,15 @@ class StudentCapabilityProfileServiceImplTest {
             mocked.when(() -> PdfParserUtil.extractTextFromUrl(pdfUrl))
                     .thenReturn("java spring boot redis mysql project experience");
 
-            StudentCapabilityProfileDTO ai = new StudentCapabilityProfileDTO();
-            StudentCapabilityProfileDTO.ScoreDetail detail = new StudentCapabilityProfileDTO.ScoreDetail();
+            StudentCapabilityProfileResponse ai = new StudentCapabilityProfileResponse();
+            StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
             detail.setProjectExperienceScore(20);
             ai.setScoreDetail(detail);
-            doReturn(ai).when(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileDTO.class));
+            doReturn(ai).when(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
             doReturn(null).when(service).getOne(any());
             doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
 
-            StudentCapabilityProfileDTO out = service.generateProfile(req);
+            StudentCapabilityProfileResponse out = service.generateProfile(req);
 
             assertNotNull(out);
             verify(fileUploadUtil).deleteProfileUploadByUrl(pdfUrl);
@@ -200,16 +200,16 @@ class StudentCapabilityProfileServiceImplTest {
             mocked.when(() -> PdfParserUtil.extractTextFromUrl(pdfUrl))
                     .thenReturn("java spring boot redis mysql project experience");
 
-            StudentCapabilityProfileDTO ai = new StudentCapabilityProfileDTO();
-            StudentCapabilityProfileDTO.ScoreDetail detail = new StudentCapabilityProfileDTO.ScoreDetail();
+            StudentCapabilityProfileResponse ai = new StudentCapabilityProfileResponse();
+            StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
             detail.setSkillMatchScore(10);
             ai.setScoreDetail(detail);
-            doReturn(ai).when(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileDTO.class));
+            doReturn(ai).when(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
             doReturn(null).when(service).getOne(any());
             doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
             doThrow(new RuntimeException("cos delete failed")).when(fileUploadUtil).deleteProfileUploadByUrl(pdfUrl);
 
-            StudentCapabilityProfileDTO out = service.generateProfile(req);
+            StudentCapabilityProfileResponse out = service.generateProfile(req);
 
             assertNotNull(out);
             assertEquals(10, out.getCompetitivenessScore());
@@ -222,8 +222,8 @@ class StudentCapabilityProfileServiceImplTest {
         CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setRawText("java spring boot redis mysql");
 
-        StudentCapabilityProfileDTO ai = new StudentCapabilityProfileDTO();
-        StudentCapabilityProfileDTO.ScoreDetail detail = new StudentCapabilityProfileDTO.ScoreDetail();
+        StudentCapabilityProfileResponse ai = new StudentCapabilityProfileResponse();
+        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
         detail.setProjectExperienceScore(30);
         detail.setSkillMatchScore(15);
         detail.setContentCompletenessScore(10);
@@ -231,7 +231,7 @@ class StudentCapabilityProfileServiceImplTest {
         detail.setExpressionProfessionalismScore(3);
         ai.setScoreDetail(detail);
         ai.setCompetitivenessScore(66);
-        doReturn(ai).when(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileDTO.class));
+        doReturn(ai).when(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
 
         StudentCapabilityProfile existing = new StudentCapabilityProfile();
         existing.setId(88L);
@@ -239,7 +239,7 @@ class StudentCapabilityProfileServiceImplTest {
         doReturn(existing).when(service).getOne(any());
         doReturn(true).when(service).updateById(any(StudentCapabilityProfile.class));
 
-        StudentCapabilityProfileDTO out = service.generateProfile(req);
+        StudentCapabilityProfileResponse out = service.generateProfile(req);
 
         assertNotNull(out);
         assertEquals(66, out.getCompetitivenessScore());
@@ -315,7 +315,7 @@ class StudentCapabilityProfileServiceImplTest {
     void getCurrentUserProfileOrNull_notFound_shouldReturnNull() {
         doReturn(null).when(service).getOne(any());
 
-        StudentCapabilityProfileDTO out = service.getCurrentUserProfileOrNull();
+        StudentCapabilityProfileResponse out = service.getCurrentUserProfileOrNull();
 
         assertNull(out);
         verify(service).getOne(any());
@@ -331,7 +331,7 @@ class StudentCapabilityProfileServiceImplTest {
         profile.setSuggestions("[{\"category\":\"项目\",\"issue\":\"缺量化\",\"recommendation\":\"补充结果\"}]");
         doReturn(profile).when(service).getOne(any());
 
-        StudentCapabilityProfileDTO out = service.getCurrentUserProfileOrNull();
+        StudentCapabilityProfileResponse out = service.getCurrentUserProfileOrNull();
 
         assertNotNull(out);
         assertNotNull(out.getScoreDetail());
@@ -350,7 +350,7 @@ class StudentCapabilityProfileServiceImplTest {
         profile.setScoreDetail("{bad-json");
         doReturn(profile).when(service).getOne(any());
 
-        StudentCapabilityProfileDTO out = service.getCurrentUserProfileOrNull();
+        StudentCapabilityProfileResponse out = service.getCurrentUserProfileOrNull();
 
         assertNotNull(out);
         assertEquals(61, out.getCompetitivenessScore());
@@ -360,8 +360,8 @@ class StudentCapabilityProfileServiceImplTest {
 
     @Test
     void normalizeProfileScores_scoreDetailOutOfRange_shouldThrow() {
-        StudentCapabilityProfileDTO dto = new StudentCapabilityProfileDTO();
-        StudentCapabilityProfileDTO.ScoreDetail detail = new StudentCapabilityProfileDTO.ScoreDetail();
+        StudentCapabilityProfileResponse dto = new StudentCapabilityProfileResponse();
+        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
         detail.setProjectExperienceScore(50);
         dto.setScoreDetail(detail);
 
@@ -374,8 +374,8 @@ class StudentCapabilityProfileServiceImplTest {
 
     @Test
     void normalizeProfileScores_scoreDetailInRange_shouldRecomputeTotal() {
-        StudentCapabilityProfileDTO dto = new StudentCapabilityProfileDTO();
-        StudentCapabilityProfileDTO.ScoreDetail detail = new StudentCapabilityProfileDTO.ScoreDetail();
+        StudentCapabilityProfileResponse dto = new StudentCapabilityProfileResponse();
+        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
         detail.setProjectExperienceScore(40);
         detail.setSkillMatchScore(20);
         detail.setContentCompletenessScore(15);
@@ -390,7 +390,7 @@ class StudentCapabilityProfileServiceImplTest {
 
     @Test
     void normalizeProfileScores_ignoresLlmCompetitivenessWhenNoScoreDetail_shouldFallbackToZero() {
-        StudentCapabilityProfileDTO dto = new StudentCapabilityProfileDTO();
+        StudentCapabilityProfileResponse dto = new StudentCapabilityProfileResponse();
         dto.setCompetitivenessScore(88);
 
         ReflectionTestUtils.invokeMethod(service, "normalizeProfileScores", dto);
@@ -400,7 +400,7 @@ class StudentCapabilityProfileServiceImplTest {
 
     @Test
     void normalizeProfileScores_competitivenessMissing_shouldFallbackToZero() {
-        StudentCapabilityProfileDTO dto = new StudentCapabilityProfileDTO();
+        StudentCapabilityProfileResponse dto = new StudentCapabilityProfileResponse();
         dto.setCompetitivenessScore(null);
 
         ReflectionTestUtils.invokeMethod(service, "normalizeProfileScores", dto);

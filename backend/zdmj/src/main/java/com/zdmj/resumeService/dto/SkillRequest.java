@@ -11,10 +11,10 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 /**
- * 技能 DTO（一用户一份技能清单，仅维护 content）
+ * 技能请求（一用户一份技能清单，仅维护 content）
  */
 @Data
-public class SkillDTO {
+public class SkillRequest {
     /**
      * 技能ID（更新时不能为空）
      */

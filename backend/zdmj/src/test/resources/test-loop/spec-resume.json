@@ -3,7 +3,7 @@
   "publicMethods": [
     {
       "className": "ResumeServiceImpl",
-      "method": "create(ResumeDTO)",
+      "method": "create(ResumeRequest)",
       "givenWhenThen": {
         "given": ["用户已登录", "用户尚无简历"],
         "when": "创建简历",

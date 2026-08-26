@@ -1,11 +1,14 @@
 package com.zdmj.resumeService.controller;
 
+import com.zdmj.common.model.CreateGroup;
+import com.zdmj.common.model.Result;
+import com.zdmj.common.model.UpdateGroup;
+import com.zdmj.resumeService.dto.SkillRequest;
+import com.zdmj.resumeService.dto.SkillResponse;
+import com.zdmj.resumeService.service.SkillService;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
-import java.util.List;
-import java.util.stream.Collectors;
-
-import org.springframework.beans.BeanUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,18 +19,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.zdmj.common.model.CreateGroup;
-import com.zdmj.common.model.Result;
-import com.zdmj.common.model.UpdateGroup;
-import com.zdmj.resumeService.dto.SkillDTO;
-import com.zdmj.resumeService.entity.Skill;
-import com.zdmj.resumeService.service.SkillService;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.RequiredArgsConstructor;
+import java.util.List;
 
-/**
- * 技能控制器
- */
 @Slf4j
 @RequiredArgsConstructor
 @RestController
@@ -36,64 +29,29 @@ import lombok.RequiredArgsConstructor;
 public class SkillController {
     private final SkillService skillService;
 
-    /**
-     * 添加技能
-     * 
-     * @param skillDTO 技能DTO
-     * @return 技能
-     */
     @PostMapping
-    public Result<SkillDTO> addSkill(@Validated(CreateGroup.class) @RequestBody SkillDTO skillDTO) {
-        return Result.success("添加技能成功", toDto(skillService.create(skillDTO)));
+    public Result<SkillResponse> addSkill(@Validated(CreateGroup.class) @RequestBody SkillRequest skillRequest) {
+        return Result.success("添加技能成功", skillService.create(skillRequest));
     }
 
-    /**
-     * 更新技能
-     * 
-     * @param skillDTO 技能DTO
-     * @return 技能
-     */
     @PutMapping
-    public Result<SkillDTO> updateSkill(@Validated(UpdateGroup.class) @RequestBody SkillDTO skillDTO) {
-        return Result.success("更新技能成功", toDto(skillService.update(skillDTO)));
+    public Result<SkillResponse> updateSkill(@Validated(UpdateGroup.class) @RequestBody SkillRequest skillRequest) {
+        return Result.success("更新技能成功", skillService.update(skillRequest));
     }
 
-    /**
-     * 删除技能
-     * 
-     * @param id 技能ID
-     */
     @DeleteMapping("/{id}")
     public Result<Void> deleteSkill(@PathVariable Long id) {
         skillService.delete(id);
         return Result.success("删除技能成功", null);
     }
 
-    /**
-     * 根据ID查询技能
-     * 
-     * @param id 技能ID
-     * @return 技能
-     */
     @GetMapping("/{id}")
-    public Result<SkillDTO> getSkillById(@PathVariable Long id) {
-        return Result.success("查询技能成功", toDto(skillService.getById(id)));
+    public Result<SkillResponse> getSkillById(@PathVariable Long id) {
+        return Result.success("查询技能成功", skillService.getById(id));
     }
 
-    /**
-     * 查询所有技能
-     * 
-     * @return 技能列表
-     */
     @GetMapping
-    public Result<List<SkillDTO>> getSkills() {
-        List<SkillDTO> list = skillService.getByUserId().stream().map(this::toDto).collect(Collectors.toList());
-        return Result.success("查询技能成功", list);
-    }
-
-    private SkillDTO toDto(Skill skill) {
-        SkillDTO dto = new SkillDTO();
-        BeanUtils.copyProperties(skill, dto);
-        return dto;
+    public Result<List<SkillResponse>> getSkills() {
+        return Result.success("查询技能成功", skillService.getByUserId());
     }
 }

@@ -4,10 +4,10 @@ import java.util.List;
 import lombok.Data;
 
 /**
- * 简历完整内容 DTO
+ * 简历完整内容响应
  */
 @Data
-public class ResumeContentDTO {
+public class ResumeContentResponse {
     /**
      * 简历ID
      */
@@ -16,27 +16,27 @@ public class ResumeContentDTO {
     /**
      * 技能清单
      */
-    private SkillDTO skill;
+    private SkillResponse skill;
 
     /**
      * 教育经历列表
      */
-    private List<EducationDTO> educations;
+    private List<EducationRequest> educations;
 
     /**
      * 工作经历列表
      */
-    private List<CareerDTO> careers;
+    private List<CareerRequest> careers;
 
     /**
      * 项目经历列表
      */
-    private List<ProjectExperienceDTO> projects;
+    private List<ProjectExperienceRequest> projects;
 
     /**
      * 获奖信息列表
      */
-    private List<AwardDTO> awards;
+    private List<AwardRequest> awards;
 
     /**
      * 基本信息（姓名、电话、个人主页、意向工作城市）

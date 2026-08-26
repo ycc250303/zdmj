@@ -6,7 +6,7 @@ import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
-import com.zdmj.resumeService.dto.AwardDTO;
+import com.zdmj.resumeService.dto.AwardRequest;
 import com.zdmj.resumeService.entity.Award;
 
 @Mapper(componentModel = "spring")
@@ -15,5 +15,5 @@ public interface AwardStructMapper {
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "userId", ignore = true)
-    void updateEntityFromDto(AwardDTO dto, @MappingTarget Award entity);
+    void updateEntityFromDto(AwardRequest dto, @MappingTarget Award entity);
 }
