@@ -2,8 +2,8 @@ package com.zdmj.careerReportService.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zdmj.careerReportService.dto.CareerReportCheckDTO;
-import com.zdmj.careerReportService.dto.CareerReportDTO;
+import com.zdmj.careerReportService.dto.CareerReportCheckResponse;
+import com.zdmj.careerReportService.dto.CareerReportResponse;
 import com.zdmj.careerReportService.dto.CareerReportGenerateRequest;
 import com.zdmj.careerReportService.dto.CareerReportUpdateRequest;
 import com.zdmj.careerReportService.entity.CareerDevelopmentReport;
@@ -151,7 +151,7 @@ class CareerDevelopmentReportServiceImplTest {
             return payload;
         }).when(chatUtil).chatStructuredOnce(any(), any(), any(), any());
 
-        CareerReportDTO dto = service.generate(jobId, new CareerReportGenerateRequest());
+        CareerReportResponse dto = service.generate(jobId, new CareerReportGenerateRequest());
 
         assertNotNull(dto);
         assertEquals(999L, dto.getId());
@@ -218,7 +218,7 @@ class CareerDevelopmentReportServiceImplTest {
             return payload;
         }).when(chatUtil).chatStructuredOnce(any(), any(), any(), any());
 
-        CareerReportDTO dto = service.generate(jobId, new CareerReportGenerateRequest());
+        CareerReportResponse dto = service.generate(jobId, new CareerReportGenerateRequest());
 
         assertNotNull(dto);
         verify(knowledgeVectorMapper).searchBySimilarity(eq(1L), eq(100L), eq("[0.1,0.2]"), eq(8));
@@ -245,7 +245,7 @@ class CareerDevelopmentReportServiceImplTest {
         doReturn(entity).when(service)
                 .getOne(org.mockito.ArgumentMatchers.<Wrapper<CareerDevelopmentReport>>any());
 
-        CareerReportDTO dto = service.getLatestOrNull(10L);
+        CareerReportResponse dto = service.getLatestOrNull(10L);
 
         assertNotNull(dto);
         assertEquals("测试开发学习路线", dto.getKnowledgeSources().get(0).get("title"));
@@ -262,9 +262,9 @@ class CareerDevelopmentReportServiceImplTest {
                 .getOne(org.mockito.ArgumentMatchers.<Wrapper<CareerDevelopmentReport>>any());
         doReturn(true).when(service).updateById(any(CareerDevelopmentReport.class));
         doThrow(new RuntimeException("llm failed"))
-                .when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(CareerReportCheckDTO.class));
+                .when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(CareerReportCheckResponse.class));
 
-        CareerReportCheckDTO check = service.checkIntegrity(20L);
+        CareerReportCheckResponse check = service.checkIntegrity(20L);
 
         assertFalse(check.getPassed());
         assertTrue(check.getMissingSections().contains("职业探索"));
@@ -300,7 +300,7 @@ class CareerDevelopmentReportServiceImplTest {
                 "evaluationPlan", Map.of("cycle", "monthly"),
                 "evidence", List.of("e1")));
 
-        CareerReportDTO result = service.saveManualEdit(31L, req);
+        CareerReportResponse result = service.saveManualEdit(31L, req);
 
         assertEquals(3, result.getVersion());
         assertEquals(32L, result.getId());

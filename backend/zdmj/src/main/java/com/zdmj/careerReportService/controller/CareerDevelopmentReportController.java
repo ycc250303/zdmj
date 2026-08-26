@@ -1,7 +1,7 @@
 package com.zdmj.careerReportService.controller;
 
-import com.zdmj.careerReportService.dto.CareerReportCheckDTO;
-import com.zdmj.careerReportService.dto.CareerReportDTO;
+import com.zdmj.careerReportService.dto.CareerReportCheckResponse;
+import com.zdmj.careerReportService.dto.CareerReportResponse;
 import com.zdmj.careerReportService.dto.CareerReportGenerateRequest;
 import com.zdmj.careerReportService.dto.CareerReportPolishRequest;
 import com.zdmj.careerReportService.dto.CareerReportUpdateRequest;
@@ -41,7 +41,7 @@ public class CareerDevelopmentReportController {
      * @return 最新报告或 null
      */
     @GetMapping("/jobs/{jobId}")
-    public Result<CareerReportDTO> queryLatest(@PathVariable Long jobId) {
+    public Result<CareerReportResponse> queryLatest(@PathVariable Long jobId) {
         log.info("查询职业发展报告: jobId={}", jobId);
         return Result.success("查询职业发展报告成功", reportService.getLatestOrNull(jobId));
     }
@@ -59,7 +59,7 @@ public class CareerDevelopmentReportController {
     @RateLimit(dimension = RateLimit.Dimension.USER, count = LlmRateLimits.CAREER_REPORT_GENERATE_PER_MIN, interval = 1,
             timeUnit = TimeUnit.MINUTES)
     @PostMapping("/jobs/{jobId}")
-    public Result<CareerReportDTO> generate(@PathVariable Long jobId,
+    public Result<CareerReportResponse> generate(@PathVariable Long jobId,
                                             @RequestBody(required = false) CareerReportGenerateRequest req) {
         log.info("生成职业发展报告: jobId={}", jobId);
         return Result.success("生成职业发展报告成功", reportService.generate(jobId, req));
@@ -75,7 +75,7 @@ public class CareerDevelopmentReportController {
     @RateLimit(dimension = RateLimit.Dimension.USER, count = LlmRateLimits.CAREER_REPORT_AUX_PER_MIN, interval = 1,
             timeUnit = TimeUnit.MINUTES)
     @PostMapping("/{id}/polish")
-    public Result<CareerReportDTO> polish(@PathVariable Long id,
+    public Result<CareerReportResponse> polish(@PathVariable Long id,
                                           @RequestBody(required = false) CareerReportPolishRequest req) {
         log.info("润色职业发展报告: reportId={}", id);
         return Result.success("润色职业发展报告成功", reportService.polish(id, req));
@@ -90,7 +90,7 @@ public class CareerDevelopmentReportController {
     @RateLimit(dimension = RateLimit.Dimension.USER, count = LlmRateLimits.CAREER_REPORT_AUX_PER_MIN, interval = 1,
             timeUnit = TimeUnit.MINUTES)
     @PostMapping("/{id}/integrity-check")
-    public Result<CareerReportCheckDTO> integrityCheck(@PathVariable Long id) {
+    public Result<CareerReportCheckResponse> integrityCheck(@PathVariable Long id) {
         log.info("检查职业发展报告完整性: reportId={}", id);
         return Result.success("检查职业发展报告完整性成功", reportService.checkIntegrity(id));
     }
@@ -103,7 +103,7 @@ public class CareerDevelopmentReportController {
      * @return 保存后的新版本报告
      */
     @PutMapping("/{id}")
-    public Result<CareerReportDTO> saveManualEdit(@PathVariable Long id,
+    public Result<CareerReportResponse> saveManualEdit(@PathVariable Long id,
                                                   @RequestBody CareerReportUpdateRequest req) {
         log.info("保存职业发展报告手动编辑: reportId={}", id);
         return Result.success("保存职业发展报告成功", reportService.saveManualEdit(id, req));

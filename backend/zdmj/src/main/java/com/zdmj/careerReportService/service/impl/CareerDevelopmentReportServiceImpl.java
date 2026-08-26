@@ -4,8 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zdmj.careerReportService.dto.CareerReportCheckDTO;
-import com.zdmj.careerReportService.dto.CareerReportDTO;
+import com.zdmj.careerReportService.dto.CareerReportCheckResponse;
+import com.zdmj.careerReportService.dto.CareerReportResponse;
 import com.zdmj.careerReportService.dto.CareerReportGenerateRequest;
 import com.zdmj.careerReportService.dto.CareerReportPolishRequest;
 import com.zdmj.careerReportService.dto.CareerReportUpdateRequest;
@@ -109,7 +109,7 @@ public class CareerDevelopmentReportServiceImpl
     private final EmbeddingModel embeddingModel;
 
     @Override
-    public CareerReportDTO getLatestOrNull(Long jobId) {
+    public CareerReportResponse getLatestOrNull(Long jobId) {
         Long userId = UserHolder.requireUserId();
         if (jobId == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "jobId不能为空");
@@ -120,11 +120,11 @@ public class CareerDevelopmentReportServiceImpl
                 .eq(CareerDevelopmentReport::getIsLatest, true)
                 .orderByDesc(CareerDevelopmentReport::getVersion)
                 .last("LIMIT 1"));
-        return entity == null ? null : toDto(entity);
+        return entity == null ? null : toResponse(entity);
     }
 
     @Override
-    public CareerReportDTO generate(Long jobId, CareerReportGenerateRequest req) {
+    public CareerReportResponse generate(Long jobId, CareerReportGenerateRequest req) {
         Long userId = UserHolder.requireUserId();
         if (jobId == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "jobId不能为空");
@@ -147,7 +147,7 @@ public class CareerDevelopmentReportServiceImpl
         // 4. 调用大模型生成结构化报告并做本地完整性校验
         Map<String, Object> reportContent = generateStructuredReport(
                 jobDetail, studentProfile, jobProfile, match, graph, ragHits, req);
-        CareerReportCheckDTO check = localIntegrityCheck(reportContent);
+        CareerReportCheckResponse check = localIntegrityCheck(reportContent);
         // 5. 写入新版本并返回
         JobStudentMatch matchEntity = getOneFromMatchService(userId, jobId);
         JobCareerGraph graphEntity = getOneFromGraphService(jobId);
@@ -166,11 +166,11 @@ public class CareerDevelopmentReportServiceImpl
                 Boolean.TRUE.equals(check.getPassed()) ? STATUS_CHECKED : STATUS_CHECK_FAILED,
                 check.getCompletenessScore(),
                 PromptNames.CAREER_REPORT_GENERATE);
-        return toDto(created);
+        return toResponse(created);
     }
 
     @Override
-    public CareerReportDTO polish(Long reportId, CareerReportPolishRequest req) {
+    public CareerReportResponse polish(Long reportId, CareerReportPolishRequest req) {
         CareerDevelopmentReport current = requireOwnedReport(reportId);
         Map<String, Object> currentContent = readMap(current.getReportContent());
 
@@ -193,7 +193,7 @@ public class CareerDevelopmentReportServiceImpl
         }
         Map<String, Object> polished = payload == null || payload.getReportContent() == null
                 ? currentContent : payload.getReportContent();
-        CareerReportCheckDTO check = localIntegrityCheck(polished);
+        CareerReportCheckResponse check = localIntegrityCheck(polished);
 
         CareerDevelopmentReport created = createNewVersion(
                 current.getUserId(),
@@ -209,21 +209,21 @@ public class CareerDevelopmentReportServiceImpl
                 Boolean.TRUE.equals(check.getPassed()) ? STATUS_CHECKED : STATUS_CHECK_FAILED,
                 check.getCompletenessScore(),
                 PromptNames.CAREER_REPORT_POLISH);
-        return toDto(created);
+        return toResponse(created);
     }
 
     @Override
-    public CareerReportCheckDTO checkIntegrity(Long reportId) {
+    public CareerReportCheckResponse checkIntegrity(Long reportId) {
         CareerDevelopmentReport report = requireOwnedReport(reportId);
         Map<String, Object> reportContent = readMap(report.getReportContent());
-        CareerReportCheckDTO local = localIntegrityCheck(reportContent);
+        CareerReportCheckResponse local = localIntegrityCheck(reportContent);
 
         try {
-            CareerReportCheckDTO llm = chatUtil.chatStructuredOnce(
+            CareerReportCheckResponse llm = chatUtil.chatStructuredOnce(
                     "请检查这份职业发展报告是否完整且可执行：\n" + toJson(reportContent),
                     PromptNames.CAREER_REPORT_INTEGRITY_CHECK,
                     null,
-                    CareerReportCheckDTO.class);
+                    CareerReportCheckResponse.class);
             if (llm != null) {
                 local = mergeChecks(local, llm);
             }
@@ -239,12 +239,12 @@ public class CareerDevelopmentReportServiceImpl
     }
 
     @Override
-    public CareerReportDTO saveManualEdit(Long reportId, CareerReportUpdateRequest req) {
+    public CareerReportResponse saveManualEdit(Long reportId, CareerReportUpdateRequest req) {
         CareerDevelopmentReport current = requireOwnedReport(reportId);
         if (req == null || req.getReportContent() == null || req.getReportContent().isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "报告内容不能为空");
         }
-        CareerReportCheckDTO check = localIntegrityCheck(req.getReportContent());
+        CareerReportCheckResponse check = localIntegrityCheck(req.getReportContent());
         CareerDevelopmentReport created = createNewVersion(
                 current.getUserId(),
                 current.getJobId(),
@@ -259,7 +259,7 @@ public class CareerDevelopmentReportServiceImpl
                 Boolean.TRUE.equals(check.getPassed()) ? STATUS_CHECKED : STATUS_CHECK_FAILED,
                 check.getCompletenessScore(),
                 current.getPromptName());
-        return toDto(created);
+        return toResponse(created);
     }
 
     private JobCapabilityProfileResponse loadOrGenerateJobProfile(Long jobId) {
@@ -460,19 +460,19 @@ public class CareerDevelopmentReportServiceImpl
                 .last("LIMIT 1"));
     }
 
-    private CareerReportDTO toDto(CareerDevelopmentReport entity) {
-        CareerReportDTO dto = new CareerReportDTO();
-        dto.setId(entity.getId());
-        dto.setJobId(entity.getJobId());
-        dto.setStatus(entity.getStatus());
-        dto.setCompletenessScore(entity.getCompletenessScore());
-        dto.setVersion(entity.getVersion());
-        dto.setLatest(entity.getIsLatest());
-        dto.setPromptName(entity.getPromptName());
-        dto.setReportContent(readMap(entity.getReportContent()));
-        dto.setQualityFlags(readMap(entity.getQualityFlags()));
-        dto.setKnowledgeSources(enrichKnowledgeSources(readListOfMap(entity.getKnowledgeSources())));
-        return dto;
+    private CareerReportResponse toResponse(CareerDevelopmentReport entity) {
+        CareerReportResponse response = new CareerReportResponse();
+        response.setId(entity.getId());
+        response.setJobId(entity.getJobId());
+        response.setStatus(entity.getStatus());
+        response.setCompletenessScore(entity.getCompletenessScore());
+        response.setVersion(entity.getVersion());
+        response.setLatest(entity.getIsLatest());
+        response.setPromptName(entity.getPromptName());
+        response.setReportContent(readMap(entity.getReportContent()));
+        response.setQualityFlags(readMap(entity.getQualityFlags()));
+        response.setKnowledgeSources(enrichKnowledgeSources(readListOfMap(entity.getKnowledgeSources())));
+        return response;
     }
 
     private float[] embedQueryText(String queryText) {
@@ -747,8 +747,8 @@ public class CareerDevelopmentReportServiceImpl
     /**
      * 本地规则校验报告必备章节与行动计划可执行性（不调用大模型）。
      */
-    private CareerReportCheckDTO localIntegrityCheck(Map<String, Object> reportContent) {
-        CareerReportCheckDTO dto = new CareerReportCheckDTO();
+    private CareerReportCheckResponse localIntegrityCheck(Map<String, Object> reportContent) {
+        CareerReportCheckResponse dto = new CareerReportCheckResponse();
         List<String> missingSections = new ArrayList<>();
         List<String> nonActionableItems = new ArrayList<>();
         List<String> weakEvidenceItems = new ArrayList<>();
@@ -789,8 +789,8 @@ public class CareerDevelopmentReportServiceImpl
         return dto;
     }
 
-    private CareerReportCheckDTO mergeChecks(CareerReportCheckDTO local, CareerReportCheckDTO llm) {
-        CareerReportCheckDTO merged = new CareerReportCheckDTO();
+    private CareerReportCheckResponse mergeChecks(CareerReportCheckResponse local, CareerReportCheckResponse llm) {
+        CareerReportCheckResponse merged = new CareerReportCheckResponse();
         merged.setMissingSections(distinct(mergeList(local.getMissingSections(), llm.getMissingSections())));
         merged.setNonActionableItems(distinct(mergeList(local.getNonActionableItems(), llm.getNonActionableItems())));
         merged.setWeakEvidenceItems(distinct(mergeList(local.getWeakEvidenceItems(), llm.getWeakEvidenceItems())));
@@ -804,7 +804,7 @@ public class CareerDevelopmentReportServiceImpl
         return merged;
     }
 
-    private Map<String, Object> toQualityFlags(CareerReportCheckDTO check) {
+    private Map<String, Object> toQualityFlags(CareerReportCheckResponse check) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("missingSections", check.getMissingSections() == null ? List.of() : check.getMissingSections());
         map.put("nonActionableItems", check.getNonActionableItems() == null ? List.of() : check.getNonActionableItems());

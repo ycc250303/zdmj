@@ -10,7 +10,7 @@ import lombok.Data;
  */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class CareerReportDTO {
+public class CareerReportResponse {
 
     /**
      * 报告ID

@@ -7,7 +7,7 @@ import lombok.Data;
  * 报告完整性检查结果 DTO
  */
 @Data
-public class CareerReportCheckDTO {
+public class CareerReportCheckResponse {
 
     /**
      * 是否通过完整性检查
