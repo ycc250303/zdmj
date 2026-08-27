@@ -1,6 +1,7 @@
 package com.zdmj.common.config;
 
 import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
+import com.zdmj.common.util.DateTimeUtil;
 import org.apache.ibatis.reflection.MetaObject;
 import org.springframework.stereotype.Component;
 
@@ -14,13 +15,13 @@ public class MybatisObjectHandlerConfig implements MetaObjectHandler {
 
     @Override
     public void insertFill(MetaObject metaObject) {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = DateTimeUtil.now();
         this.strictInsertFill(metaObject, "createdAt", LocalDateTime.class, now);
         this.strictInsertFill(metaObject, "updatedAt", LocalDateTime.class, now);
     }
 
     @Override
     public void updateFill(MetaObject metaObject) {
-        this.strictUpdateFill(metaObject, "updatedAt", LocalDateTime.class, LocalDateTime.now());
+        this.strictUpdateFill(metaObject, "updatedAt", LocalDateTime.class, DateTimeUtil.now());
     }
 }

@@ -8,6 +8,7 @@ import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.common.ai.ModelEnum;
 import com.zdmj.common.ai.UserLlmRouter;
 import com.zdmj.common.ai.prompt.PromptNames;
+import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.resumeService.dto.ResumeContentResponse;
 import com.zdmj.resumeService.dto.ResumeRequest;
 import com.zdmj.resumeService.dto.ResumeImportParseRequest;
@@ -87,6 +88,8 @@ class ResumeServiceImplTest {
     private SkillService skillService;
     @Mock
     private Validator validator;
+    @Mock
+    private PdfParserUtil pdfParserUtil;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private ResumeServiceImpl resumeService;
@@ -96,7 +99,8 @@ class ResumeServiceImplTest {
         resumeService = spy(new ResumeServiceImpl(
                 educationMapper, projectExperienceMapper, careerMapper, awardMapper, skillMapper, userMapper, chatUtil,
                 userLlmRouter, objectMapper,
-                educationService, careerService, awardService, projectExperienceService, skillService, validator));
+                educationService, careerService, awardService, projectExperienceService, skillService, validator,
+                pdfParserUtil));
         ReflectionTestUtils.setField(Objects.requireNonNull(resumeService), "baseMapper", resumeMapper);
         lenient().doReturn(ModelEnum.DEEPSEEK_FLASH).when(userLlmRouter).resolveResumeImportModel();
     }

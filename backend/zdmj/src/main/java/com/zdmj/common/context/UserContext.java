@@ -38,16 +38,4 @@ public class UserContext {
     public static UserContext of(Long userId, String username) {
         return new UserContext(userId, username, null);
     }
-
-    /**
-     * 创建用户上下文（包含邮箱）
-     * 
-     * @param userId   用户ID
-     * @param username 用户名
-     * @param email    邮箱
-     * @return 用户上下文
-     */
-    public static UserContext of(Long userId, String username, String email) {
-        return new UserContext(userId, username, email);
-    }
 }

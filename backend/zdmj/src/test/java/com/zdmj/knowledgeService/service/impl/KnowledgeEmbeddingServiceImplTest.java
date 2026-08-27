@@ -20,6 +20,7 @@ import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
 import com.zdmj.knowledgeService.entity.KnowledgeVectorTask;
 import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
@@ -38,6 +39,7 @@ class KnowledgeEmbeddingServiceImplTest {
     private final KnowledgeDocumentMapper knowledgeDocumentMapper = Mockito.mock(KnowledgeDocumentMapper.class);
     private final KnowledgeVectorMapper knowledgeVectorMapper = Mockito.mock(KnowledgeVectorMapper.class);
     private final KnowledgeVectorTaskMapper knowledgeVectorTaskMapper = Mockito.mock(KnowledgeVectorTaskMapper.class);
+    private final PdfParserUtil pdfParserUtil = Mockito.mock(PdfParserUtil.class);
 
     @AfterEach
     void tearDown() {
@@ -50,7 +52,7 @@ class KnowledgeEmbeddingServiceImplTest {
         when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(401L);
         KnowledgeEmbeddingServiceImpl service = new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
-                knowledgeVectorTaskMapper);
+                knowledgeVectorTaskMapper, pdfParserUtil);
         when(knowledgeVectorTaskMapper.insert(Mockito.any(KnowledgeVectorTask.class))).thenAnswer(invocation -> {
             KnowledgeVectorTask task = invocation.getArgument(0);
             task.setId(901L);
@@ -71,7 +73,7 @@ class KnowledgeEmbeddingServiceImplTest {
         when(knowledgeDocumentMapper.selectById(999L)).thenReturn(null);
         KnowledgeEmbeddingServiceImpl service = new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
-                knowledgeVectorTaskMapper);
+                knowledgeVectorTaskMapper, pdfParserUtil);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.vectorizeAndStore(999L));
 
@@ -84,7 +86,7 @@ class KnowledgeEmbeddingServiceImplTest {
     void executeTaskAsyncUnknownType_shouldMarkTaskFailed() {
         KnowledgeEmbeddingServiceImpl service = new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
-                knowledgeVectorTaskMapper);
+                knowledgeVectorTaskMapper, pdfParserUtil);
         KnowledgeVectorTask task = new KnowledgeVectorTask();
         task.setId(88L);
         task.setDocumentId(123L);
@@ -110,7 +112,7 @@ class KnowledgeEmbeddingServiceImplTest {
         when(knowledgeDocumentMapper.selectById(100L)).thenReturn(kd);
         KnowledgeEmbeddingServiceImpl service = new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
-                knowledgeVectorTaskMapper);
+                knowledgeVectorTaskMapper, pdfParserUtil);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.vectorizeAndStore(100L));
 
@@ -125,7 +127,7 @@ class KnowledgeEmbeddingServiceImplTest {
         when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(402L);
         KnowledgeEmbeddingServiceImpl service = new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
-                knowledgeVectorTaskMapper);
+                knowledgeVectorTaskMapper, pdfParserUtil);
         when(knowledgeVectorTaskMapper.insert(Mockito.any(KnowledgeVectorTask.class))).thenAnswer(invocation -> {
             KnowledgeVectorTask task = invocation.getArgument(0);
             task.setId(902L);
@@ -145,7 +147,7 @@ class KnowledgeEmbeddingServiceImplTest {
         when(knowledgeVectorTaskMapper.claimPendingTask(7001L)).thenReturn(0);
         KnowledgeEmbeddingServiceImpl service = new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
-                knowledgeVectorTaskMapper);
+                knowledgeVectorTaskMapper, pdfParserUtil);
 
         service.executeTaskAsync(7001L);
 
@@ -162,7 +164,7 @@ class KnowledgeEmbeddingServiceImplTest {
         when(knowledgeVectorTaskMapper.selectById(7002L)).thenReturn(null);
         KnowledgeEmbeddingServiceImpl service = new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
-                knowledgeVectorTaskMapper);
+                knowledgeVectorTaskMapper, pdfParserUtil);
 
         service.executeTaskAsync(7002L);
 
@@ -182,7 +184,7 @@ class KnowledgeEmbeddingServiceImplTest {
         when(knowledgeDocumentMapper.selectById(8101L)).thenReturn(kd);
         KnowledgeEmbeddingServiceImpl service = new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
-                knowledgeVectorTaskMapper);
+                knowledgeVectorTaskMapper, pdfParserUtil);
 
         service.deleteVectors(8101L);
 
@@ -198,7 +200,7 @@ class KnowledgeEmbeddingServiceImplTest {
         UserHolder.clear();
         KnowledgeEmbeddingServiceImpl service = new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
-                knowledgeVectorTaskMapper);
+                knowledgeVectorTaskMapper, pdfParserUtil);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.submitVectorizeTask(991L));
 
@@ -211,7 +213,7 @@ class KnowledgeEmbeddingServiceImplTest {
         when(knowledgeDocumentMapper.selectById(8201L)).thenReturn(null);
         KnowledgeEmbeddingServiceImpl service = new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
-                knowledgeVectorTaskMapper);
+                knowledgeVectorTaskMapper, pdfParserUtil);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.deleteVectors(8201L));
 
@@ -228,7 +230,7 @@ class KnowledgeEmbeddingServiceImplTest {
         when(knowledgeVectorTaskMapper.selectList(Mockito.any())).thenReturn(List.of(t1, t2));
         KnowledgeEmbeddingServiceImpl service = Mockito.spy(new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
-                knowledgeVectorTaskMapper));
+                knowledgeVectorTaskMapper, pdfParserUtil));
         Mockito.doNothing().when(service).executeTaskAsync(Mockito.anyLong());
 
         service.resumePendingTasks();
@@ -241,7 +243,7 @@ class KnowledgeEmbeddingServiceImplTest {
     void toPgVectorNullOrEmpty_shouldReturnNull() {
         KnowledgeEmbeddingServiceImpl service = new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
-                knowledgeVectorTaskMapper);
+                knowledgeVectorTaskMapper, pdfParserUtil);
 
         assertNull(service.toPgVector(null));
         assertNull(service.toPgVector(new float[0]));
@@ -251,7 +253,7 @@ class KnowledgeEmbeddingServiceImplTest {
     void toPgVectorNonEmpty_shouldReturnBracketFormat() {
         KnowledgeEmbeddingServiceImpl service = new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
-                knowledgeVectorTaskMapper);
+                knowledgeVectorTaskMapper, pdfParserUtil);
 
         String vector = service.toPgVector(new float[] {1.0f, -2.5f, 3.25f});
 
@@ -266,7 +268,7 @@ class KnowledgeEmbeddingServiceImplTest {
     void executeTaskAsyncDeleteTask_shouldMarkSuccess() {
         KnowledgeEmbeddingServiceImpl service = new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
-                knowledgeVectorTaskMapper);
+                knowledgeVectorTaskMapper, pdfParserUtil);
         KnowledgeVectorTask task = new KnowledgeVectorTask();
         task.setId(8801L);
         task.setDocumentId(120L);
@@ -293,7 +295,7 @@ class KnowledgeEmbeddingServiceImplTest {
                 .when(knowledgeVectorMapper).deleteByDocumentIdAndUserId(8301L, 1L);
         KnowledgeEmbeddingServiceImpl service = new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
-                knowledgeVectorTaskMapper);
+                knowledgeVectorTaskMapper, pdfParserUtil);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.deleteVectors(8301L));
 

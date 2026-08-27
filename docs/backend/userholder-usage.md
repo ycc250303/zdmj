@@ -28,20 +28,18 @@ public class UserContext {
 
 ```java
 public class UserHolder {
-    // 获取用户ID
-    public static Long getUserId()
-    
-    // 获取用户名
-    public static String getUsername()
-    
-    // 获取邮箱
-    public static String getEmail()
-    
+    // 设置 / 清除（由过滤器调用）
+    public static void set(UserContext userContext)
+    public static void clear()
+
     // 获取完整用户上下文
     public static UserContext get()
-    
-    // 检查是否已登录
-    public static boolean isAuthenticated()
+
+    // 获取用户ID（未登录返回 null）
+    public static Long getUserId()
+
+    // 要求已登录，返回用户ID（未登录抛 BusinessException）
+    public static Long requireUserId()
 }
 ```
 
@@ -57,10 +55,10 @@ public class UserController {
     @GetMapping("/profile")
     public Result<UserResponse> getCurrentUserProfile() {
         // 直接获取当前登录用户ID，无需注入HttpServletRequest
-        Long userId = UserHolder.getUserId();
-        String username = UserHolder.getUsername();
+        Long userId = UserHolder.requireUserId();
+        UserContext ctx = UserHolder.get();
         
-        log.info("当前用户: userId={}, username={}", userId, username);
+        log.info("当前用户: userId={}, username={}", userId, ctx != null ? ctx.getUsername() : null);
         
         // 查询用户信息
         UserResponse userDTO = userService.getUserById(userId);
@@ -108,7 +106,8 @@ public class AuditUtil {
     
     public static void logOperation(String operation) {
         Long userId = UserHolder.getUserId();
-        String username = UserHolder.getUsername();
+        UserContext ctx = UserHolder.get();
+        String username = ctx != null ? ctx.getUsername() : null;
         
         log.info("操作日志: userId={}, username={}, operation={}", 
                  userId, username, operation);
@@ -262,15 +261,13 @@ CompletableFuture.runAsync(() -> {
 ### 3. 未登录情况
 
 ```java
-// 检查是否已登录
-if (!UserHolder.isAuthenticated()) {
-    throw new BusinessException(401, "用户未登录");
-}
+// 推荐：未登录直接抛业务异常
+Long userId = UserHolder.requireUserId();
 
-// 或者检查用户ID是否为null
-Long userId = UserHolder.getUserId();
-if (userId == null) {
-    throw new BusinessException(401, "用户未登录");
+// 或者自行判断（未登录返回 null）
+Long maybeUserId = UserHolder.getUserId();
+if (maybeUserId == null) {
+    throw new BusinessException(ErrorCode.USER_NOT_LOGIN);
 }
 ```
 

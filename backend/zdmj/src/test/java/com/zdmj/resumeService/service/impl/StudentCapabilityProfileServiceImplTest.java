@@ -8,7 +8,7 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.ai.ChatUtil;
-import com.zdmj.common.storage.FileUploadUtil;
+import com.zdmj.common.storage.FileUploadService;
 import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.ai.prompt.PromptNames;
@@ -25,7 +25,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
@@ -40,10 +39,10 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @SuppressWarnings("null")
@@ -52,7 +51,9 @@ class StudentCapabilityProfileServiceImplTest {
     @Mock
     private ChatUtil chatUtil;
     @Mock
-    private FileUploadUtil fileUploadUtil;
+    private FileUploadService fileUploadService;
+    @Mock
+    private PdfParserUtil pdfParserUtil;
     @Mock
     private StudentCapabilityProfileMapper studentCapabilityProfileMapper;
 
@@ -62,7 +63,8 @@ class StudentCapabilityProfileServiceImplTest {
     @BeforeEach
     void setUp() {
         initMybatisPlusLambdaCache();
-        service = spy(new StudentCapabilityProfileServiceImpl(chatUtil, new ObjectMapper(), fileUploadUtil));
+        service = spy(new StudentCapabilityProfileServiceImpl(chatUtil, new ObjectMapper(), fileUploadService,
+                pdfParserUtil));
         ReflectionTestUtils.setField(service, "baseMapper", studentCapabilityProfileMapper);
         UserHolder.set(UserContext.of(1L, "u1"));
     }
@@ -162,7 +164,7 @@ class StudentCapabilityProfileServiceImplTest {
         assertEquals(1, out.getStrengths().size());
         verify(service).save(any(StudentCapabilityProfile.class));
         verify(service, never()).updateById(any(StudentCapabilityProfile.class));
-        verify(fileUploadUtil, never()).deleteProfileUploadByUrl(anyString());
+        verify(fileUploadService, never()).deleteOwnedByUrl(anyString(), anyString());
     }
 
     @Test
@@ -171,23 +173,21 @@ class StudentCapabilityProfileServiceImplTest {
         CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setPdfUrl(pdfUrl);
 
-        try (MockedStatic<PdfParserUtil> mocked = mockStatic(PdfParserUtil.class)) {
-            mocked.when(() -> PdfParserUtil.extractTextFromUrl(pdfUrl))
-                    .thenReturn("java spring boot redis mysql project experience");
+        when(pdfParserUtil.extractTextFromUrl(pdfUrl))
+                .thenReturn("java spring boot redis mysql project experience");
 
-            StudentCapabilityProfileResponse ai = new StudentCapabilityProfileResponse();
-            StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
-            detail.setProjectExperienceScore(20);
-            ai.setScoreDetail(detail);
-            doReturn(ai).when(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
-            doReturn(null).when(service).getOne(any());
-            doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
+        StudentCapabilityProfileResponse ai = new StudentCapabilityProfileResponse();
+        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
+        detail.setProjectExperienceScore(20);
+        ai.setScoreDetail(detail);
+        doReturn(ai).when(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
+        doReturn(null).when(service).getOne(any());
+        doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
 
-            StudentCapabilityProfileResponse out = service.generateProfile(req);
+        StudentCapabilityProfileResponse out = service.generateProfile(req);
 
-            assertNotNull(out);
-            verify(fileUploadUtil).deleteProfileUploadByUrl(pdfUrl);
-        }
+        assertNotNull(out);
+        verify(fileUploadService).deleteOwnedByUrl(pdfUrl, "profile");
     }
 
     @Test
@@ -196,25 +196,23 @@ class StudentCapabilityProfileServiceImplTest {
         CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setPdfUrl(pdfUrl);
 
-        try (MockedStatic<PdfParserUtil> mocked = mockStatic(PdfParserUtil.class)) {
-            mocked.when(() -> PdfParserUtil.extractTextFromUrl(pdfUrl))
-                    .thenReturn("java spring boot redis mysql project experience");
+        when(pdfParserUtil.extractTextFromUrl(pdfUrl))
+                .thenReturn("java spring boot redis mysql project experience");
 
-            StudentCapabilityProfileResponse ai = new StudentCapabilityProfileResponse();
-            StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
-            detail.setSkillMatchScore(10);
-            ai.setScoreDetail(detail);
-            doReturn(ai).when(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
-            doReturn(null).when(service).getOne(any());
-            doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
-            doThrow(new RuntimeException("cos delete failed")).when(fileUploadUtil).deleteProfileUploadByUrl(pdfUrl);
+        StudentCapabilityProfileResponse ai = new StudentCapabilityProfileResponse();
+        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
+        detail.setSkillMatchScore(10);
+        ai.setScoreDetail(detail);
+        doReturn(ai).when(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
+        doReturn(null).when(service).getOne(any());
+        doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
+        doThrow(new RuntimeException("cos delete failed")).when(fileUploadService).deleteOwnedByUrl(pdfUrl, "profile");
 
-            StudentCapabilityProfileResponse out = service.generateProfile(req);
+        StudentCapabilityProfileResponse out = service.generateProfile(req);
 
-            assertNotNull(out);
-            assertEquals(10, out.getCompetitivenessScore());
-            verify(fileUploadUtil).deleteProfileUploadByUrl(pdfUrl);
-        }
+        assertNotNull(out);
+        assertEquals(10, out.getCompetitivenessScore());
+        verify(fileUploadService).deleteOwnedByUrl(pdfUrl, "profile");
     }
 
     @Test
@@ -439,16 +437,14 @@ class StudentCapabilityProfileServiceImplTest {
         CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setPdfUrl("https://invalid.example.com/resume.pdf");
 
-        try (MockedStatic<PdfParserUtil> mocked = mockStatic(PdfParserUtil.class)) {
-            mocked.when(() -> PdfParserUtil.extractTextFromUrl("https://invalid.example.com/resume.pdf"))
-                    .thenThrow(new RuntimeException("pdf parse failed"));
+        when(pdfParserUtil.extractTextFromUrl("https://invalid.example.com/resume.pdf"))
+                .thenThrow(new RuntimeException("pdf parse failed"));
 
-            BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
 
-            assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
-            verify(chatUtil, never()).chatStructuredOnce(anyString(), anyString(), any(), any());
-            verify(fileUploadUtil, never()).deleteProfileUploadByUrl(anyString());
-        }
+        assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
+        verify(chatUtil, never()).chatStructuredOnce(anyString(), anyString(), any(), any());
+        verify(fileUploadService, never()).deleteOwnedByUrl(anyString(), anyString());
     }
 
     @Test

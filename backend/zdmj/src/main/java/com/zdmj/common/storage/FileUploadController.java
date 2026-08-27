@@ -26,7 +26,7 @@ import java.util.List;
 @Tag(name = "文件上传", description = "通用文件上传、下载与删除")
 public class FileUploadController {
 
-    private final FileUploadUtil fileUploadService;
+    private final FileUploadService fileUploadService;
 
     /**
      * 上传文件到COS（后端直传）

@@ -78,6 +78,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     private final ProjectExperienceService projectExperienceService;
     private final SkillService skillService;
     private final Validator validator;
+    private final PdfParserUtil pdfParserUtil;
 
     @Override
     public ResumeResponse create(ResumeRequest resumeRequest) {
@@ -481,7 +482,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         if (StringUtils.hasText(request.getPdfUrl())) {
             log.info("简历识别：从 PDF 解析文本");
             try {
-                String text = PdfParserUtil.extractTextFromUrl(request.getPdfUrl().trim());
+                String text = pdfParserUtil.extractTextFromUrl(request.getPdfUrl().trim());
                 if (!StringUtils.hasText(text)) {
                     throw new BusinessException(ErrorCode.RESUME_IMPORT_TEXT_EMPTY);
                 }

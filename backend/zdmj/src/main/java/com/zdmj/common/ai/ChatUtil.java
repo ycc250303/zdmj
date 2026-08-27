@@ -90,34 +90,6 @@ public class ChatUtil {
     }
 
     /**
-     * 单次流式对话
-     * 
-     * @param userMessage 用户消息
-     * @param promptName  提示词名称
-     * @param promptVars  提示词模板变量
-     * @return 对话内容
-     */
-    public Flux<String> chatStreamOnce(String userMessage, String promptName, Map<String, Object> promptVars) {
-        ChatClientRequestSpec spec = buildSpecWithoutMemory(promptName, promptVars);
-        return spec.user(userMessage).stream().content();
-    }
-
-    /**
-     * 在会话中对话
-     * 
-     * @param conversationId 会话ID
-     * @param userMessage    用户消息
-     * @param promptName     提示词名称
-     * @param promptVars     提示词模板变量
-     * @return 对话内容
-     */
-    public String chatInConversation(Long conversationId, String userMessage, String promptName,
-            Map<String, Object> promptVars) {
-        ChatClientRequestSpec spec = buildSpecWithMemory(conversationId, promptName, promptVars);
-        return spec.user(userMessage).call().content();
-    }
-
-    /**
      * 在会话中流式对话
      * 
      * @param conversationId 会话ID

@@ -50,35 +50,6 @@ public class UserHolder {
     }
 
     /**
-     * 获取当前用户名
-     * 
-     * @return 用户名，如果未登录返回null
-     */
-    public static String getUsername() {
-        UserContext context = USER_CONTEXT.get();
-        return context == null ? null : context.getUsername();
-    }
-
-    /**
-     * 获取当前用户邮箱
-     * 
-     * @return 邮箱，如果未登录返回null
-     */
-    public static String getEmail() {
-        UserContext context = USER_CONTEXT.get();
-        return context == null ? null : context.getEmail();
-    }
- 
-    /**
-     * 检查当前用户是否已登录
-     * 
-     * @return 是否已登录
-     */
-    public static boolean isAuthenticated() {
-        return USER_CONTEXT.get() != null;
-    }
-
-    /**
      * 要求用户必须已登录，返回用户ID
      * 如果用户未登录，抛出BusinessException异常
      * 

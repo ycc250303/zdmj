@@ -2,7 +2,6 @@ package com.zdmj.common.util;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 
 /**
  * 日期时间工具类
@@ -27,29 +26,7 @@ public class DateTimeUtil {
      * @return 当前时间的LocalDateTime（基于Asia/Shanghai时区）
      */
     public static LocalDateTime now() {
-        // LocalDateTime.now() 会使用JVM的默认时区
-        // 如果JVM时区已设置为Asia/Shanghai，则返回的就是该时区的时间
         return LocalDateTime.now(DEFAULT_ZONE_ID);
-    }
-
-    /**
-     * 将LocalDateTime转换为指定时区的ZonedDateTime
-     * 
-     * @param localDateTime 本地时间
-     * @return 带时区的时间
-     */
-    public static ZonedDateTime toZonedDateTime(LocalDateTime localDateTime) {
-        return localDateTime.atZone(DEFAULT_ZONE_ID);
-    }
-
-    /**
-     * 将ZonedDateTime转换为LocalDateTime（基于应用默认时区）
-     * 
-     * @param zonedDateTime 带时区的时间
-     * @return 本地时间
-     */
-    public static LocalDateTime toLocalDateTime(ZonedDateTime zonedDateTime) {
-        return zonedDateTime.withZoneSameInstant(DEFAULT_ZONE_ID).toLocalDateTime();
     }
 
     /**

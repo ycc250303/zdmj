@@ -23,6 +23,7 @@ import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.common.storage.FileUploadService;
 import com.zdmj.knowledgeService.dto.KnowledgeDocumentRequest;
 import com.zdmj.knowledgeService.dto.KnowledgeDocumentResponse;
 import com.zdmj.knowledgeService.dto.KnowledgeDocumentPublicResponse;
@@ -41,6 +42,7 @@ class KnowledgeDocumentServiceImplTest {
     private final KnowledgeVectorTaskMapper knowledgeVectorTaskMapper = Mockito.mock(KnowledgeVectorTaskMapper.class);
     private final KnowledgeBasesService knowledgeBasesService = Mockito.mock(KnowledgeBasesService.class);
     private final KnowledgeEmbeddingService knowledgeEmbeddingService = Mockito.mock(KnowledgeEmbeddingService.class);
+    private final FileUploadService fileUploadService = Mockito.mock(FileUploadService.class);
 
     @AfterEach
     void tearDown() {
@@ -58,7 +60,7 @@ class KnowledgeDocumentServiceImplTest {
         when(knowledgeEmbeddingService.submitVectorizeTask(301L)).thenReturn(701L);
         when(knowledgeDocumentMapper.selectCount(any())).thenReturn(0L);
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
-                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
+                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService, fileUploadService));
         doAnswer(invocation -> {
             KnowledgeDocument arg = invocation.getArgument(0);
             arg.setId(301L);
@@ -85,7 +87,7 @@ class KnowledgeDocumentServiceImplTest {
         when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(530L);
         when(knowledgeDocumentMapper.selectCount(any())).thenReturn(1L);
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
-                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
+                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService, fileUploadService));
         KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
         dto.setType(KnowledgeTypeEnum.GITHUB_REPO.getCode());
         dto.setContent("https://github.com/acme/repo");
@@ -101,7 +103,7 @@ class KnowledgeDocumentServiceImplTest {
     void createInvalidUrl_shouldThrowUrlFormatError() {
         UserHolder.set(UserContext.of(202L, "u"));
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
-                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
+                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService, fileUploadService));
         KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
         dto.setType(KnowledgeTypeEnum.GITHUB_REPO.getCode());
         dto.setContent("not-a-url");
@@ -120,7 +122,7 @@ class KnowledgeDocumentServiceImplTest {
         when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(520L);
         when(knowledgeDocumentMapper.selectCount(any())).thenReturn(0L);
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
-                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
+                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService, fileUploadService));
         doReturn(false).when(service).save(any(KnowledgeDocument.class));
         KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
         dto.setType(KnowledgeTypeEnum.GITHUB_REPO.getCode());
@@ -141,7 +143,7 @@ class KnowledgeDocumentServiceImplTest {
         when(knowledgeEmbeddingService.submitVectorizeTask(311L)).thenReturn(711L);
         when(knowledgeDocumentMapper.selectCount(any())).thenReturn(0L);
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
-                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
+                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService, fileUploadService));
         doAnswer(invocation -> {
             KnowledgeDocument arg = invocation.getArgument(0);
             arg.setId(311L);
@@ -164,7 +166,7 @@ class KnowledgeDocumentServiceImplTest {
     void createGithubTypeButNonGithubUrl_shouldThrowUrlFormatError() {
         UserHolder.set(UserContext.of(214L, "u"));
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
-                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
+                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService, fileUploadService));
         KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
         dto.setType(KnowledgeTypeEnum.GITHUB_REPO.getCode());
         dto.setContent("https://gitlab.com/acme/repo");
@@ -180,7 +182,7 @@ class KnowledgeDocumentServiceImplTest {
     void createUnsupportedDeepWiki_shouldThrowFileTypeNotExists() {
         UserHolder.set(UserContext.of(215L, "u"));
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
-                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
+                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService, fileUploadService));
         KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
         dto.setType(KnowledgeTypeEnum.PROJECT_DEEPWIKI.getCode());
         dto.setContent("https://deepwiki.com/acme/wiki");
@@ -205,7 +207,7 @@ class KnowledgeDocumentServiceImplTest {
         when(knowledgeEmbeddingService.submitVectorizeTask(901L)).thenReturn(902L);
 
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
-                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
+                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService, fileUploadService));
         doReturn(true).when(service).updateById(any(KnowledgeDocument.class));
 
         KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
@@ -226,7 +228,7 @@ class KnowledgeDocumentServiceImplTest {
         UserHolder.set(UserContext.of(204L, "u"));
         when(knowledgeDocumentMapper.selectById(1001L)).thenReturn(null);
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
-                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
+                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService, fileUploadService));
 
         KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
         dto.setId(1001L);
@@ -251,7 +253,7 @@ class KnowledgeDocumentServiceImplTest {
         existing.setContent("https://github.com/acme/new");
         when(knowledgeDocumentMapper.selectById(1301L)).thenReturn(existing);
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
-                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
+                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService, fileUploadService));
         doReturn(false).when(service).updateById(any(KnowledgeDocument.class));
 
         KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
@@ -277,7 +279,7 @@ class KnowledgeDocumentServiceImplTest {
         existing.setContent("https://github.com/acme/same");
         when(knowledgeDocumentMapper.selectById(1201L)).thenReturn(existing);
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
-                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService));
+                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService, fileUploadService));
         doReturn(true).when(service).updateById(any(KnowledgeDocument.class));
 
         KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
@@ -301,7 +303,7 @@ class KnowledgeDocumentServiceImplTest {
         other.setUserId(9999L);
         when(knowledgeDocumentMapper.selectById(2222L)).thenReturn(other);
         KnowledgeDocumentServiceImpl service = new KnowledgeDocumentServiceImpl(
-                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService);
+                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService, fileUploadService);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.getById(2222L));
 
@@ -321,7 +323,7 @@ class KnowledgeDocumentServiceImplTest {
         kd.setEmbeddingStatus(999);
         when(knowledgeDocumentMapper.selectById(3301L)).thenReturn(kd);
         KnowledgeDocumentServiceImpl service = new KnowledgeDocumentServiceImpl(
-                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService);
+                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService, fileUploadService);
 
         KnowledgeDocumentPublicResponse dto = service.getPublicById(3301L);
 
@@ -344,7 +346,7 @@ class KnowledgeDocumentServiceImplTest {
         mpPage.setTotal(0);
         when(knowledgeDocumentMapper.selectPage(any(Page.class), any())).thenReturn(mpPage);
         KnowledgeDocumentServiceImpl service = new KnowledgeDocumentServiceImpl(
-                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService);
+                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService, fileUploadService);
 
         var page = service.getByPage(null, 200);
 
@@ -362,7 +364,7 @@ class KnowledgeDocumentServiceImplTest {
         mpPage.setTotal(3);
         when(knowledgeDocumentMapper.selectPage(any(Page.class), any())).thenReturn(mpPage);
         KnowledgeDocumentServiceImpl service = new KnowledgeDocumentServiceImpl(
-                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService);
+                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService, fileUploadService);
 
         var page = service.getByPage(0, 0);
 
@@ -381,7 +383,7 @@ class KnowledgeDocumentServiceImplTest {
         kd.setUserId(209L);
         when(knowledgeDocumentMapper.selectById(5101L)).thenReturn(kd);
         KnowledgeDocumentServiceImpl service = new KnowledgeDocumentServiceImpl(
-                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService);
+                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService, fileUploadService);
 
         service.delete(5101L);
 
@@ -402,7 +404,7 @@ class KnowledgeDocumentServiceImplTest {
         doThrow(new BusinessException(ErrorCode.KNOWLEDGE_BASE_DELETE_FAILED))
                 .when(knowledgeEmbeddingService).deleteVectors(5201L);
         KnowledgeDocumentServiceImpl service = new KnowledgeDocumentServiceImpl(
-                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService);
+                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService, fileUploadService);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.delete(5201L));
 

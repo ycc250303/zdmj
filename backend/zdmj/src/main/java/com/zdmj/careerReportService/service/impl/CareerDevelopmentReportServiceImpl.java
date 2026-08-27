@@ -12,7 +12,6 @@ import com.zdmj.careerReportService.dto.CareerReportUpdateRequest;
 import com.zdmj.careerReportService.entity.CareerDevelopmentReport;
 import com.zdmj.careerReportService.mapper.CareerDevelopmentReportMapper;
 import com.zdmj.careerReportService.service.CareerDevelopmentReportService;
-import com.zdmj.common.ai.EmbeddingQuerySupport;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -476,7 +475,15 @@ public class CareerDevelopmentReportServiceImpl
     }
 
     private float[] embedQueryText(String queryText) {
-        return EmbeddingQuerySupport.embedQuery(embeddingModel, queryText);
+        if (!StringUtils.hasText(queryText)) {
+            return null;
+        }
+        try {
+            return embeddingModel.embed(queryText);
+        } catch (Exception e) {
+            log.warn("查询向量生成失败: {}", e.getMessage());
+            return null;
+        }
     }
 
     private String buildKnowledgeQuery(JobListItemResponse jobDetail, CareerReportGenerateRequest req) {

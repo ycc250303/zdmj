@@ -18,7 +18,7 @@ import com.zdmj.common.model.PageRequests;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.util.CosUtil;
+import com.zdmj.common.storage.FileUploadService;
 import com.zdmj.knowledgeService.dto.KnowledgeDocumentPublicResponse;
 import com.zdmj.knowledgeService.dto.KnowledgeDocumentRequest;
 import com.zdmj.knowledgeService.dto.KnowledgeDocumentResponse;
@@ -50,6 +50,7 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
     private final KnowledgeVectorTaskMapper knowledgeVectorTaskMapper;
     private final KnowledgeBasesService knowledgeBasesService;
     private final KnowledgeEmbeddingService knowledgeEmbeddingService;
+    private final FileUploadService fileUploadService;
 
     /**
      * 创建知识文档
@@ -75,6 +76,8 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
         knowledgeDocument.setTitle(request.getTitle());
         knowledgeDocument.setMetadata(buildMetadata(request));
         assertContentNotExists(knowledgeId, request.getContent());
+
+        // 3. 保存知识文档到数据库
         boolean saved;
         try {
             saved = save(knowledgeDocument);
@@ -88,7 +91,7 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
             throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_CREATE_FAILED);
         }
 
-        // 3. 提交异步向量化任务
+        // 4. 提交异步向量化任务
         Long taskId = knowledgeEmbeddingService.submitVectorizeTask(knowledgeDocument.getId());
 
         knowledgeDocument.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.PENDING.getCode());
@@ -186,7 +189,7 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
             knowledgeDocument.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.PENDING.getCode());
         }
 
-        // 6. 更新知识文档
+        // 6. 更新知识文档到数据库
         boolean updated = updateById(knowledgeDocument);
         if (!updated) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_UPDATE_FAILED);
@@ -269,7 +272,7 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
 
             // 验证COS文件是否存在
             String cosKey = extractCosKeyFromUrl(content);
-            if (cosKey != null && !CosUtil.fileExists(cosKey)) {
+            if (cosKey != null && !fileUploadService.exists(cosKey)) {
                 throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS);
             }
 

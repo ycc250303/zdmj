@@ -14,7 +14,6 @@ import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import com.zdmj.common.ai.EmbeddingQuerySupport;
 import com.zdmj.common.ai.config.RagConfig;
 import com.zdmj.common.ai.config.RagConfig.Search;
 import com.zdmj.common.context.UserHolder;
@@ -131,7 +130,15 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
     }
 
     private float[] embedQueryText(String queryText) {
-        return EmbeddingQuerySupport.embedQuery(embeddingModel, queryText);
+        if (!StringUtils.hasText(queryText)) {
+            return null;
+        }
+        try {
+            return embeddingModel.embed(queryText);
+        } catch (Exception e) {
+            log.warn("查询向量生成失败: {}", e.getMessage());
+            return null;
+        }
     }
 
     private List<KnowledgeRetrivalDTO> retrieveAndExpand(String rawText, String rewrittenText, Long userId,

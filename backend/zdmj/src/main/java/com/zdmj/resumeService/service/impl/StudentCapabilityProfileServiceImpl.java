@@ -8,7 +8,7 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
-import com.zdmj.common.storage.FileUploadUtil;
+import com.zdmj.common.storage.FileUploadService;
 import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.ai.prompt.PromptNames;
@@ -51,7 +51,8 @@ public class StudentCapabilityProfileServiceImpl
 
     private final ChatUtil chatUtil;
     private final ObjectMapper objectMapper;
-    private final FileUploadUtil fileUploadUtil;
+    private final FileUploadService fileUploadService;
+    private final PdfParserUtil pdfParserUtil;
 
     private static final Map<JobRole, List<String>> KEYWORDS = Map.of(
         JobRole.JAVA, List.of("java", "spring", "spring boot", "mybatis", "mysql", "redis", "jvm"),
@@ -159,7 +160,7 @@ public class StudentCapabilityProfileServiceImpl
             return;
         }
         try {
-            fileUploadUtil.deleteProfileUploadByUrl(pdfUrl);
+            fileUploadService.deleteOwnedByUrl(pdfUrl, "profile");
         } catch (Exception e) {
             log.warn("能力画像生成成功但清理 COS 简历失败: url={}, err={}", pdfUrl, e.getMessage());
         }
@@ -239,7 +240,7 @@ public class StudentCapabilityProfileServiceImpl
         if (StringUtils.hasText(reqDTO.getPdfUrl())) {
             log.info("从 PDF 解析内容: {}", reqDTO.getPdfUrl());
             try {
-                sourceText = PdfParserUtil.extractTextFromUrl(reqDTO.getPdfUrl());
+                sourceText = pdfParserUtil.extractTextFromUrl(reqDTO.getPdfUrl());
             } catch (Exception e) {
                 log.error("PDF 解析失败", e);
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "PDF 解析失败，请检查文件是否合法");

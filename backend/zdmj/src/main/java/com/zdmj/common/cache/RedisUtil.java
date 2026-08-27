@@ -1,16 +1,11 @@
 package com.zdmj.common.cache;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
@@ -33,9 +28,7 @@ public class RedisUtil {
      * @return 带随机偏移的过期时间（秒）
      */
     private long calculateExpireTimeWithRandom(int baseSeconds) {
-        // 计算10%的偏移量
         int offset = (int) (baseSeconds * RANDOM_OFFSET);
-        // 生成0到offset之间的随机数
         int randomOffset = random.nextInt(offset + 1);
         return baseSeconds + randomOffset;
     }
@@ -54,10 +47,8 @@ public class RedisUtil {
             redisTemplate.opsForValue().set(key, jsonValue, actualExpireSeconds, TimeUnit.SECONDS);
             log.debug("设置缓存成功: key={}, expire={}秒", key, actualExpireSeconds);
         } catch (org.springframework.dao.QueryTimeoutException | io.lettuce.core.RedisCommandTimeoutException e) {
-            // Redis 超时异常降级为警告，不影响主流程
             log.warn("设置缓存超时（不影响主流程）: key={}, error={}", key, e.getMessage());
         } catch (Exception e) {
-            // 其他异常记录为警告，避免过多错误日志
             log.warn("设置缓存失败（不影响主流程）: key={}, error={}", key, e.getMessage());
         }
     }
@@ -97,30 +88,6 @@ public class RedisUtil {
             }
             log.debug("获取缓存成功: key={}, value={}", key, jsonValue);
             return objectMapper.readValue(jsonValue, clazz);
-        } catch (org.springframework.dao.QueryTimeoutException | io.lettuce.core.RedisCommandTimeoutException e) {
-            log.warn("获取缓存超时（不影响主流程）: key={}, error={}", key, e.getMessage());
-            return null;
-        } catch (Exception e) {
-            log.warn("获取缓存失败（不影响主流程）: key={}, error={}", key, e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * 获取缓存（支持复杂类型，如List、Map等）
-     * 
-     * @param key           缓存键
-     * @param typeReference 类型引用（用于处理泛型）
-     * @param <T>           泛型类型
-     * @return 缓存对象，如果不存在或反序列化失败返回null
-     */
-    public <T> T get(String key, TypeReference<T> typeReference) {
-        try {
-            String jsonValue = redisTemplate.opsForValue().get(key);
-            if (jsonValue == null) {
-                return null;
-            }
-            return objectMapper.readValue(jsonValue, typeReference);
         } catch (org.springframework.dao.QueryTimeoutException | io.lettuce.core.RedisCommandTimeoutException e) {
             log.warn("获取缓存超时（不影响主流程）: key={}, error={}", key, e.getMessage());
             return null;
