@@ -3,14 +3,14 @@ package com.zdmj.common.ai;
 import java.util.Collections;
 import java.util.Map;
 
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import com.zdmj.common.context.UserHolder;
+import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.exception.ErrorCode;
 
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
@@ -24,37 +24,32 @@ public class ChatUtil {
     private final UserLlmRouter userLlmRouter;
 
     /**
-     * 单次对话
-     * 
+     * 单次对话（按用户路由模型）。
+     *
+     * @param userId      当前用户 ID，null 则未登录
      * @param userMessage 用户消息
      * @param promptName  提示词名称
      * @param promptVars  提示词模板变量
      * @return 对话内容
      */
-    public String chatOnce(String userMessage, String promptName, Map<String, Object> promptVars) {
-        ChatClientRequestSpec spec = buildSpecWithoutMemory(promptName, promptVars);
+    public String chatOnce(Long userId, String userMessage, String promptName, Map<String, Object> promptVars) {
+        ChatClientRequestSpec spec = buildSpecWithoutMemory(userId, promptName, promptVars);
         return spec.user(userMessage).call().content();
     }
 
     /**
      * 单次结构化对话：在 user 侧附加 JSON Schema，只调用一次模型，解析失败直接抛出异常。
      *
+     * @param userId      当前用户 ID，null 则未登录
      * @param userMessage 用户消息（如简历全文）
      * @param promptName  提示词名称（system）
      * @param promptVars  提示词模板变量
      * @param outputType  输出 POJO 类型
      */
-    public <T> T chatStructuredOnce(String userMessage, String promptName, Map<String, Object> promptVars,
+    public <T> T chatStructuredOnce(Long userId, String userMessage, String promptName, Map<String, Object> promptVars,
             Class<T> outputType) {
-        BeanOutputConverter<T> converter = new BeanOutputConverter<>(outputType);
-        String userPayload = buildStructuredUserPayload(userMessage, converter.getFormat());
-        String content = chatOnce(userPayload, promptName, promptVars);
-        String cleaned = stripCodeFence(content);
-        T parsed = converter.convert(cleaned);
-        if (parsed == null) {
-            throw new IllegalStateException("结构化输出解析结果为空");
-        }
-        return parsed;
+        ChatClientRequestSpec spec = buildSpecWithoutMemory(userId, promptName, promptVars);
+        return invokeStructured(spec, userMessage, outputType);
     }
 
     /**
@@ -62,10 +57,38 @@ public class ChatUtil {
      */
     public <T> T chatStructuredOnceWithPlatformModel(String userMessage, String promptName,
             Map<String, Object> promptVars, Class<T> outputType, ModelEnum model) {
-        BeanOutputConverter<T> converter = new BeanOutputConverter<>(outputType);
-        String userPayload = buildStructuredUserPayload(userMessage, converter.getFormat());
         ChatClientRequestSpec spec = userLlmRouter.getPlatformChatClient(model).prompt();
         spec = applySystemPrompt(spec, promptName, promptVars);
+        return invokeStructured(spec, userMessage, outputType);
+    }
+
+    /**
+     * 在会话中流式对话（按用户路由模型）。
+     *
+     * @param userId         当前用户 ID，null 则未登录
+     * @param conversationId 会话ID
+     * @param userMessage    用户消息
+     * @param promptName     提示词名称
+     * @param promptVars     提示词模板变量
+     * @return 对话内容
+     */
+    public Flux<String> chatStreamInConversation(Long userId, Long conversationId, String userMessage,
+            String promptName, Map<String, Object> promptVars) {
+        ChatClientRequestSpec spec = buildSpecWithMemory(userId, conversationId, promptName, promptVars);
+        return spec.user(userMessage).stream().content();
+    }
+
+    /**
+     * 调用结构化输出
+     * 
+     * @param spec 请求规范
+     * @param userMessage 用户消息
+     * @param outputType 输出类型
+     * @return 结构化输出
+     */
+    private <T> T invokeStructured(ChatClientRequestSpec spec, String userMessage, Class<T> outputType) {
+        BeanOutputConverter<T> converter = new BeanOutputConverter<>(outputType);
+        String userPayload = buildStructuredUserPayload(userMessage, converter.getFormat());
         String content = spec.user(userPayload).call().content();
         String cleaned = stripCodeFence(content);
         T parsed = converter.convert(cleaned);
@@ -77,7 +100,7 @@ public class ChatUtil {
 
     /**
      * 构建结构化用户消息
-     * 
+     *
      * @param userMessage 用户消息
      * @param schemaHint  JSON Schema 提示
      * @return 结构化用户消息
@@ -90,62 +113,36 @@ public class ChatUtil {
     }
 
     /**
-     * 在会话中流式对话
-     * 
-     * @param conversationId 会话ID
-     * @param userMessage    用户消息
-     * @param promptName     提示词名称
-     * @param promptVars     提示词模板变量
-     * @return 对话内容
-     */
-    public Flux<String> chatStreamInConversation(Long conversationId, String userMessage, String promptName,
-            Map<String, Object> promptVars) {
-        ChatClientRequestSpec spec = buildSpecWithMemory(conversationId, promptName, promptVars);
-        return spec.user(userMessage).stream().content();
-    }
-
-    /**
      * 构建不带记忆的请求
-     * 
-     * @param promptName      提示词名称
-     * @param promptVariables 提示词模板变量
-     * @return 请求
      */
-    private ChatClientRequestSpec buildSpecWithoutMemory(String promptName, Map<String, Object> promptVars) {
-        Long userId = UserHolder.getUserId();
+    private ChatClientRequestSpec buildSpecWithoutMemory(Long userId, String promptName, Map<String, Object> promptVars) {
+        requireUserId(userId);
         ChatClientRequestSpec spec = userLlmRouter.getChatClient(userId).prompt();
         return applySystemPrompt(spec, promptName, promptVars);
     }
 
     /**
      * 构建带记忆的请求
-     * 
-     * @param conversationId  会话ID
-     * @param promptName      提示词名称
-     * @param promptVariables 提示词模板变量
-     * @return 请求
      */
-    private ChatClientRequestSpec buildSpecWithMemory(Long conversationId, String promptName,
+    private ChatClientRequestSpec buildSpecWithMemory(Long userId, Long conversationId, String promptName,
             Map<String, Object> promptVars) {
         if (conversationId == null) {
             throw new IllegalArgumentException("Conversation ID cannot be null");
         }
-        Long userId = UserHolder.getUserId();
+        requireUserId(userId);
         ChatClientRequestSpec spec = userLlmRouter.getChatClientWithMemory(userId).prompt()
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, String.valueOf(conversationId)));
         return applySystemPrompt(spec, promptName, promptVars);
     }
 
+    private static void requireUserId(Long userId) {
+        if (userId == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_LOGIN);
+        }
+    }
+
     /*
      * 应用系统提示词
-     * 
-     * @param spec 请求
-     * 
-     * @param promptName 提示词名称
-     * 
-     * @param promptVariables 提示词模板变量
-     * 
-     * @return 请求
      */
     private ChatClientRequestSpec applySystemPrompt(ChatClientRequestSpec spec, String promptName,
             Map<String, Object> promptVars) {
@@ -180,7 +177,7 @@ public class ChatUtil {
 
     /**
      * 去除代码块
-     * 
+     *
      * @param text 文本
      * @return 去除代码块后的文本
      */

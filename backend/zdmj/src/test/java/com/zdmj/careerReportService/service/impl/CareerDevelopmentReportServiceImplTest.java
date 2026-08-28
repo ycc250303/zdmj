@@ -133,7 +133,7 @@ class CareerDevelopmentReportServiceImplTest {
         }).when(service).save(any(CareerDevelopmentReport.class));
 
         doAnswer(invocation -> {
-            Class<?> outputClass = invocation.getArgument(3);
+            Class<?> outputClass = invocation.getArgument(4);
             Object payload = outputClass.getDeclaredConstructor().newInstance();
             Field f = outputClass.getDeclaredField("reportContent");
             f.setAccessible(true);
@@ -149,7 +149,7 @@ class CareerDevelopmentReportServiceImplTest {
             content.put("evidence", List.of("匹配短板A"));
             f.set(payload, content);
             return payload;
-        }).when(chatUtil).chatStructuredOnce(any(), any(), any(), any());
+        }).when(chatUtil).chatStructuredOnce(any(), any(), any(), any(), any());
 
         CareerReportResponse dto = service.generate(jobId, new CareerReportGenerateRequest());
 
@@ -200,7 +200,7 @@ class CareerDevelopmentReportServiceImplTest {
         }).when(service).save(any(CareerDevelopmentReport.class));
 
         doAnswer(invocation -> {
-            Class<?> outputClass = invocation.getArgument(3);
+            Class<?> outputClass = invocation.getArgument(4);
             Object payload = outputClass.getDeclaredConstructor().newInstance();
             Field f = outputClass.getDeclaredField("reportContent");
             f.setAccessible(true);
@@ -216,7 +216,7 @@ class CareerDevelopmentReportServiceImplTest {
             content.put("evidence", List.of("证据A"));
             f.set(payload, content);
             return payload;
-        }).when(chatUtil).chatStructuredOnce(any(), any(), any(), any());
+        }).when(chatUtil).chatStructuredOnce(any(), any(), any(), any(), any());
 
         CareerReportResponse dto = service.generate(jobId, new CareerReportGenerateRequest());
 
@@ -262,7 +262,7 @@ class CareerDevelopmentReportServiceImplTest {
                 .getOne(org.mockito.ArgumentMatchers.<Wrapper<CareerDevelopmentReport>>any());
         doReturn(true).when(service).updateById(any(CareerDevelopmentReport.class));
         doThrow(new RuntimeException("llm failed"))
-                .when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(CareerReportCheckResponse.class));
+                .when(chatUtil).chatStructuredOnce(any(), any(), any(), eq(null), eq(CareerReportCheckResponse.class));
 
         CareerReportCheckResponse check = service.checkIntegrity(20L);
 

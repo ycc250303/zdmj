@@ -104,6 +104,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         // 4.更新会话标题
         if (newCount == 2) {
             String title = chatUtil.chatOnce(
+                    userId,
                     request.getMessage(),
                     PromptNames.GENERATE_CONVERSATION_TITLE,
                     null
@@ -138,12 +139,14 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         Map<String, Object> promptVars = ConversationContextSupport.buildChatPromptVars(conversation);
         Flux<String> chatFlux = ragConfig.isEnabled()
                 ? knowledgeRagService.streamAnswer(
+                        userId,
                         request.getConversationId(),
                         request.getMessage(),
                         ragDocumentIds,
                         useSystemKnowledge,
                         promptVars)
                 : chatUtil.chatStreamInConversation(
+                        userId,
                         request.getConversationId(),
                         request.getMessage(),
                         PromptNames.SYSTEM,

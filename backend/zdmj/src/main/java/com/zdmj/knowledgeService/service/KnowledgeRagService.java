@@ -11,6 +11,6 @@ import reactor.core.publisher.Flux;
  */
 public interface KnowledgeRagService {
 
-    Flux<String> streamAnswer(Long conversationId, String userMessage, List<Long> ragDocumentIds,
+    Flux<String> streamAnswer(Long userId, Long conversationId, String userMessage, List<Long> ragDocumentIds,
             boolean useSystemKnowledge, Map<String, Object> promptVars);
 }

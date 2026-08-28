@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
@@ -79,19 +80,20 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
 
     @Override
     public JobCareerGraphResponse generate(Long jobId) {
+        Long userId = UserHolder.requireUserId();
         JobListItemResponse jobDetail = jobService.getDetail(jobId);
 
         String jobContext = JobAnalysisSupport.buildJobContext(
                 jobDetail,
                 "这是待分析的岗位信息（请基于它生成岗位关联图谱，包含岗位晋升路径与跨岗位转岗路径）：");
         JobRole role = JobAnalysisSupport.detectRole(
-                jobContext, chatUtil, KEYWORDS, KEYWORD_DIRECT_HIT_THRESHOLD, log);
+                userId, jobContext, chatUtil, KEYWORDS, KEYWORD_DIRECT_HIT_THRESHOLD, log);
         String promptName = PromptUtil.getJobCareerGraphPromptName(role);
         log.info("生成岗位关联图谱: jobId={}, role={}, prompt={}", jobId, role, promptName);
 
         JobCareerGraphResponse aiResult;
         try {
-            aiResult = chatUtil.chatStructuredOnce(jobContext, promptName, null, JobCareerGraphResponse.class);
+            aiResult = chatUtil.chatStructuredOnce(userId, jobContext, promptName, null, JobCareerGraphResponse.class);
         } catch (Exception e) {
             log.error("岗位关联图谱生成失败: jobId={}, role={}, prompt={}", jobId, role, promptName, e);
             throw new BusinessException(ErrorCode.JOB_CAREER_GRAPH_GENERATION_FAILED);

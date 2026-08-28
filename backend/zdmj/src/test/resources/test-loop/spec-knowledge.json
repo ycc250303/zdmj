@@ -56,7 +56,7 @@
     },
     {
       "className": "KnowledgeRagServiceImpl",
-      "method": "streamAnswer(Long,String)",
+      "method": "streamAnswer(Long userId, Long conversationId, String, List, boolean, Map)",
       "givenWhenThen": {
         "given": ["RAG 配置可开关", "当前用户已登录"],
         "when": "执行检索增强问答",

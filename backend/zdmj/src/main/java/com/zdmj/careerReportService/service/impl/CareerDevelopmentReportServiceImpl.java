@@ -145,7 +145,7 @@ public class CareerDevelopmentReportServiceImpl
         List<KnowledgeRetrivalDTO> ragHits = retrieveLearningPathHits(jobDetail, req);
         // 4. 调用大模型生成结构化报告并做本地完整性校验
         Map<String, Object> reportContent = generateStructuredReport(
-                jobDetail, studentProfile, jobProfile, match, graph, ragHits, req);
+                userId, jobDetail, studentProfile, jobProfile, match, graph, ragHits, req);
         CareerReportCheckResponse check = localIntegrityCheck(reportContent);
         // 5. 写入新版本并返回
         JobStudentMatch matchEntity = getOneFromMatchService(userId, jobId);
@@ -185,6 +185,7 @@ public class CareerDevelopmentReportServiceImpl
         LlmReportPayload payload;
         try {
             payload = chatUtil.chatStructuredOnce(
+                    current.getUserId(),
                     userMessage, PromptNames.CAREER_REPORT_POLISH, vars, LlmReportPayload.class);
         } catch (Exception e) {
             log.error("报告润色失败: reportId={}", reportId, e);
@@ -219,6 +220,7 @@ public class CareerDevelopmentReportServiceImpl
 
         try {
             CareerReportCheckResponse llm = chatUtil.chatStructuredOnce(
+                    report.getUserId(),
                     "请检查这份职业发展报告是否完整且可执行：\n" + toJson(reportContent),
                     PromptNames.CAREER_REPORT_INTEGRITY_CHECK,
                     null,
@@ -339,7 +341,8 @@ public class CareerDevelopmentReportServiceImpl
         return deduped.values().stream().limit(topK).collect(Collectors.toList());
     }
 
-    private Map<String, Object> generateStructuredReport(JobListItemResponse jobDetail,
+    private Map<String, Object> generateStructuredReport(Long userId,
+                                                         JobListItemResponse jobDetail,
                                                          StudentCapabilityProfileResponse studentProfile,
                                                          JobCapabilityProfileResponse jobProfile,
                                                          JobStudentMatchResponse match,
@@ -369,7 +372,7 @@ public class CareerDevelopmentReportServiceImpl
         LlmReportPayload payload;
         try {
             payload = chatUtil.chatStructuredOnce(
-                    sb.toString(), PromptNames.CAREER_REPORT_GENERATE, vars, LlmReportPayload.class);
+                    userId, sb.toString(), PromptNames.CAREER_REPORT_GENERATE, vars, LlmReportPayload.class);
         } catch (Exception e) {
             log.error("职业报告生成失败 jobId={}", jobDetail.getId(), e);
             throw new BusinessException(ErrorCode.CAREER_REPORT_GENERATION_FAILED);

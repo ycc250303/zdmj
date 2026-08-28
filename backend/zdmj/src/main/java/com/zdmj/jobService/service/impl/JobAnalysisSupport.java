@@ -17,6 +17,7 @@ public final class JobAnalysisSupport {
     }
 
     public static JobRole detectRole(
+            Long userId,
             String text,
             ChatUtil chatUtil,
             Map<JobRole, List<String>> keywords,
@@ -48,7 +49,7 @@ public final class JobAnalysisSupport {
 
         try {
             RoleDetectLLMResult llmResult = chatUtil.chatStructuredOnce(
-                    text, PromptNames.JOB_DETECT, null, RoleDetectLLMResult.class);
+                    userId, text, PromptNames.JOB_DETECT, null, RoleDetectLLMResult.class);
             JobRole role = PromptUtil.getJobRoleByString(llmResult.getRoleCode());
             return role == JobRole.UNKNOWN ? bestRole : role;
         } catch (Exception e) {

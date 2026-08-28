@@ -2,6 +2,8 @@ package com.zdmj.jobService.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zdmj.common.context.UserContext;
+import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
@@ -9,6 +11,7 @@ import com.zdmj.jobService.dto.JobCareerGraphResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.entity.JobCareerGraph;
 import com.zdmj.jobService.service.JobService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -43,6 +47,12 @@ class JobCareerGraphServiceImplTest {
     @BeforeEach
     void setUp() {
         graphService = spy(new JobCareerGraphServiceImpl(jobService, chatUtil, new ObjectMapper()));
+        UserHolder.set(UserContext.of(1L, "u1"));
+    }
+
+    @AfterEach
+    void tearDown() {
+        UserHolder.clear();
     }
 
     @Test
@@ -50,7 +60,7 @@ class JobCareerGraphServiceImplTest {
         Long jobId = 31L;
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
         doThrow(new RuntimeException("llm timeout")).when(chatUtil)
-                .chatStructuredOnce(any(), any(), eq(null), eq(JobCareerGraphResponse.class));
+                .chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCareerGraphResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> graphService.generate(jobId));
 
@@ -65,7 +75,7 @@ class JobCareerGraphServiceImplTest {
         invalidGraph.setVerticalPath(List.of(vNode(1, "初级"), vNode(2, "中级")));
         invalidGraph.setTransitionPaths(List.of());
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(invalidGraph).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCareerGraphResponse.class));
+        doReturn(invalidGraph).when(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCareerGraphResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> graphService.generate(jobId));
 
@@ -77,7 +87,7 @@ class JobCareerGraphServiceImplTest {
         Long jobId = 33L;
         JobCareerGraphResponse valid = buildValidGraphWithoutCurrent();
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(valid).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCareerGraphResponse.class));
+        doReturn(valid).when(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCareerGraphResponse.class));
         doReturn(null).when(graphService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(graphService).save(any(JobCareerGraph.class));
 
@@ -156,7 +166,7 @@ class JobCareerGraphServiceImplTest {
         JobCareerGraph existing = new JobCareerGraph();
         existing.setId(999L);
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(valid).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCareerGraphResponse.class));
+        doReturn(valid).when(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCareerGraphResponse.class));
         doReturn(existing).when(graphService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(graphService).updateById(any(JobCareerGraph.class));
 
@@ -177,7 +187,7 @@ class JobCareerGraphServiceImplTest {
         current.setTitle("高级Java工程师");
         valid.setCurrentNode(current);
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(valid).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCareerGraphResponse.class));
+        doReturn(valid).when(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCareerGraphResponse.class));
         doReturn(null).when(graphService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(graphService).save(any(JobCareerGraph.class));
 
@@ -204,7 +214,7 @@ class JobCareerGraphServiceImplTest {
         }
         invalidGraph.setTransitionPaths(transitions);
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(invalidGraph).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCareerGraphResponse.class));
+        doReturn(invalidGraph).when(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCareerGraphResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> graphService.generate(jobId));
 
@@ -228,7 +238,7 @@ class JobCareerGraphServiceImplTest {
         }
         invalidGraph.setTransitionPaths(transitions);
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(invalidGraph).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCareerGraphResponse.class));
+        doReturn(invalidGraph).when(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCareerGraphResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> graphService.generate(jobId));
 

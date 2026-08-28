@@ -2,6 +2,8 @@ package com.zdmj.jobService.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zdmj.common.context.UserContext;
+import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
@@ -9,6 +11,7 @@ import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.entity.JobCapabilityProfile;
 import com.zdmj.jobService.service.JobService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -42,6 +46,12 @@ class JobCapabilityProfileServiceImplTest {
     @BeforeEach
     void setUp() {
         profileService = spy(new JobCapabilityProfileServiceImpl(jobService, chatUtil, new ObjectMapper()));
+        UserHolder.set(UserContext.of(1L, "u1"));
+    }
+
+    @AfterEach
+    void tearDown() {
+        UserHolder.clear();
     }
 
     @Test
@@ -49,13 +59,13 @@ class JobCapabilityProfileServiceImplTest {
         Long jobId = 11L;
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
         doThrow(new RuntimeException("llm down")).when(chatUtil)
-                .chatStructuredOnce(any(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
+                .chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> profileService.getJobCapabilityProfile(jobId));
 
         assertEquals(ErrorCode.JOB_CAPABILITY_PROFILE_GENERATION_FAILED.getCode(), ex.getCode());
         verify(jobService).getDetail(jobId);
-        verify(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
+        verify(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
         verify(profileService, never()).save(any(JobCapabilityProfile.class));
     }
 
@@ -72,7 +82,7 @@ class JobCapabilityProfileServiceImplTest {
         existing.setId(900L);
 
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(aiResult).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
+        doReturn(aiResult).when(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
         doReturn(existing).when(profileService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(profileService).updateById(any(JobCapabilityProfile.class));
 
@@ -96,7 +106,7 @@ class JobCapabilityProfileServiceImplTest {
         aiResult.setWeakEvidenceItems(List.of("高并发"));
 
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(aiResult).when(chatUtil).chatStructuredOnce(any(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
+        doReturn(aiResult).when(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
         doReturn(null).when(profileService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(profileService).save(any(JobCapabilityProfile.class));
 

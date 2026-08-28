@@ -34,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -105,7 +106,7 @@ class StudentCapabilityProfileServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
 
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
-        verify(chatUtil, never()).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
+        verify(chatUtil, never()).chatStructuredOnce(anyLong(), anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
     }
 
     @Test
@@ -113,13 +114,13 @@ class StudentCapabilityProfileServiceImplTest {
         CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setRawText("java spring boot redis mysql");
         doThrow(new IllegalStateException("bad schema")).when(chatUtil)
-                .chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
+                .chatStructuredOnce(anyLong(), anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
 
         assertEquals(ErrorCode.CAPABILITY_PROFILE_GENERATION_FAILED.getCode(), ex.getCode());
         assertEquals("能力画像生成失败，请稍后重试", ex.getMessage());
-        verify(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
+        verify(chatUtil).chatStructuredOnce(anyLong(), anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
     }
 
     @Test
@@ -127,13 +128,13 @@ class StudentCapabilityProfileServiceImplTest {
         CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setRawText("java spring boot redis mysql");
         doThrow(new RuntimeException("timeout")).when(chatUtil)
-                .chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
+                .chatStructuredOnce(anyLong(), anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
 
         assertEquals(ErrorCode.CAPABILITY_PROFILE_GENERATION_FAILED.getCode(), ex.getCode());
         assertEquals("大模型生成能力画像失败，请稍后重试", ex.getMessage());
-        verify(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
+        verify(chatUtil).chatStructuredOnce(anyLong(), anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
     }
 
     @Test
@@ -152,7 +153,7 @@ class StudentCapabilityProfileServiceImplTest {
         suggestion.setIssue("缺少 JVM 调优相关实践");
         suggestion.setRecommendation("补充压测数据");
         ai.setSuggestions(List.of(suggestion));
-        doReturn(ai).when(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
+        doReturn(ai).when(chatUtil).chatStructuredOnce(anyLong(), anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
         doReturn(null).when(service).getOne(any());
         doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
 
@@ -180,7 +181,7 @@ class StudentCapabilityProfileServiceImplTest {
         StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
         detail.setProjectExperienceScore(20);
         ai.setScoreDetail(detail);
-        doReturn(ai).when(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
+        doReturn(ai).when(chatUtil).chatStructuredOnce(anyLong(), anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
         doReturn(null).when(service).getOne(any());
         doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
 
@@ -203,7 +204,7 @@ class StudentCapabilityProfileServiceImplTest {
         StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
         detail.setSkillMatchScore(10);
         ai.setScoreDetail(detail);
-        doReturn(ai).when(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
+        doReturn(ai).when(chatUtil).chatStructuredOnce(anyLong(), anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
         doReturn(null).when(service).getOne(any());
         doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
         doThrow(new RuntimeException("cos delete failed")).when(fileUploadService).deleteOwnedByUrl(pdfUrl, "profile");
@@ -229,7 +230,7 @@ class StudentCapabilityProfileServiceImplTest {
         detail.setExpressionProfessionalismScore(3);
         ai.setScoreDetail(detail);
         ai.setCompetitivenessScore(66);
-        doReturn(ai).when(chatUtil).chatStructuredOnce(anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
+        doReturn(ai).when(chatUtil).chatStructuredOnce(anyLong(), anyString(), anyString(), any(), eq(StudentCapabilityProfileResponse.class));
 
         StudentCapabilityProfile existing = new StudentCapabilityProfile();
         existing.setId(88L);
@@ -247,13 +248,13 @@ class StudentCapabilityProfileServiceImplTest {
 
     @Test
     void detect_keywordDirectHit_shouldReturnRuleAndSkipLlm() {
-        ResumeRoleDetectDTO out = ReflectionTestUtils.invokeMethod(service, "detect",
+        ResumeRoleDetectDTO out = ReflectionTestUtils.invokeMethod(service, "detect", 1L,
                 "Java Spring Boot MySQL Redis project");
 
         assertNotNull(out);
         assertEquals(JobRole.JAVA, out.getRole());
         assertNotNull(out.getReason());
-        verify(chatUtil, never()).chatStructuredOnce(anyString(), eq(PromptNames.JOB_DETECT),
+        verify(chatUtil, never()).chatStructuredOnce(any(), anyString(), eq(PromptNames.JOB_DETECT),
                 any(), any());
     }
 
@@ -261,48 +262,48 @@ class StudentCapabilityProfileServiceImplTest {
     void detect_llmUnknown_shouldFallbackToKeywordWeakHit() throws Exception {
         String resumeText = "java spring 实习经历";
         Object llmResult = buildRoleDetectLlmResult("unknown", 0.93, "不确定");
-        doReturn(llmResult).when(chatUtil).chatStructuredOnce(eq(resumeText), eq(PromptNames.JOB_DETECT),
+        doReturn(llmResult).when(chatUtil).chatStructuredOnce(eq(1L), eq(resumeText), eq(PromptNames.JOB_DETECT),
                 isNull(), any());
 
-        ResumeRoleDetectDTO out = ReflectionTestUtils.invokeMethod(service, "detect", resumeText);
+        ResumeRoleDetectDTO out = ReflectionTestUtils.invokeMethod(service, "detect", 1L, resumeText);
 
         assertNotNull(out);
         assertEquals(JobRole.JAVA, out.getRole());
         assertEquals(0.45, out.getConfidence());
-        verify(chatUtil).chatStructuredOnce(eq(resumeText), eq(PromptNames.JOB_DETECT), isNull(), any());
+        verify(chatUtil).chatStructuredOnce(eq(1L), eq(resumeText), eq(PromptNames.JOB_DETECT), isNull(), any());
     }
 
     @Test
     void detect_llmThrows_shouldFallbackToKeywordWeakHit() {
         String resumeText = "java spring 项目";
         doThrow(new RuntimeException("llm timeout")).when(chatUtil)
-                .chatStructuredOnce(eq(resumeText), eq(PromptNames.JOB_DETECT), isNull(), any());
+                .chatStructuredOnce(eq(1L), eq(resumeText), eq(PromptNames.JOB_DETECT), isNull(), any());
 
-        ResumeRoleDetectDTO out = ReflectionTestUtils.invokeMethod(service, "detect", resumeText);
+        ResumeRoleDetectDTO out = ReflectionTestUtils.invokeMethod(service, "detect", 1L, resumeText);
 
         assertNotNull(out);
         assertEquals(JobRole.JAVA, out.getRole());
         assertEquals(0.35, out.getConfidence());
-        verify(chatUtil).chatStructuredOnce(eq(resumeText), eq(PromptNames.JOB_DETECT), isNull(), any());
+        verify(chatUtil).chatStructuredOnce(eq(1L), eq(resumeText), eq(PromptNames.JOB_DETECT), isNull(), any());
     }
 
     @Test
     void detect_emptyText_shouldReturnUnknown() {
-        ResumeRoleDetectDTO out = ReflectionTestUtils.invokeMethod(service, "detect", "  ");
+        ResumeRoleDetectDTO out = ReflectionTestUtils.invokeMethod(service, "detect", 1L, "  ");
 
         assertNotNull(out);
         assertEquals(JobRole.UNKNOWN, out.getRole());
         assertEquals(0.0, out.getConfidence());
-        verify(chatUtil, never()).chatStructuredOnce(anyString(), anyString(), any(), any());
+        verify(chatUtil, never()).chatStructuredOnce(any(), any(), any(), any(), any());
     }
 
     @Test
     void detect_llmThrowsAndNoKeyword_shouldReturnUnknownFallback() {
         String resumeText = "golang rust";
         doThrow(new RuntimeException("llm timeout")).when(chatUtil)
-                .chatStructuredOnce(eq(resumeText), eq(PromptNames.JOB_DETECT), isNull(), any());
+                .chatStructuredOnce(eq(1L), eq(resumeText), eq(PromptNames.JOB_DETECT), isNull(), any());
 
-        ResumeRoleDetectDTO out = ReflectionTestUtils.invokeMethod(service, "detect", resumeText);
+        ResumeRoleDetectDTO out = ReflectionTestUtils.invokeMethod(service, "detect", 1L, resumeText);
 
         assertNotNull(out);
         assertEquals(JobRole.UNKNOWN, out.getRole());
@@ -429,7 +430,7 @@ class StudentCapabilityProfileServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
 
         assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
-        verify(chatUtil, never()).chatStructuredOnce(anyString(), anyString(), any(), any());
+        verify(chatUtil, never()).chatStructuredOnce(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -443,7 +444,7 @@ class StudentCapabilityProfileServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
 
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
-        verify(chatUtil, never()).chatStructuredOnce(anyString(), anyString(), any(), any());
+        verify(chatUtil, never()).chatStructuredOnce(any(), any(), any(), any(), any());
         verify(fileUploadService, never()).deleteOwnedByUrl(anyString(), anyString());
     }
 

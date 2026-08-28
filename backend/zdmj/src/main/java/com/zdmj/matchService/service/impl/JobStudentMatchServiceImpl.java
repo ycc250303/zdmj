@@ -134,7 +134,7 @@ public class JobStudentMatchServiceImpl
         //    结构化调用保持一致：resume-analysis / job-requirement / job-career-graph 均传 null）
         JobStudentMatchResponse aiResult;
         try {
-            aiResult = chatUtil.chatStructuredOnce(userMessage, promptName, null, JobStudentMatchResponse.class);
+            aiResult = chatUtil.chatStructuredOnce(userId, userMessage, promptName, null, JobStudentMatchResponse.class);
         } catch (IllegalStateException e) {
             log.error("人岗匹配结构化输出解析失败 jobId={} userId={}", jobId, userId, e);
             throw new BusinessException(ErrorCode.MATCH_GENERATION_FAILED);

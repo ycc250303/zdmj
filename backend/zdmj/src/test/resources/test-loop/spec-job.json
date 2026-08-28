@@ -191,7 +191,7 @@
     },
     {
       "className": "JobAnalysisSupport",
-      "method": "detectRole(String, ChatUtil, Map, int, Logger)",
+      "method": "detectRole(Long, String, ChatUtil, Map, int, Logger)",
       "givenWhenThen": {
         "given": [
           "文本可能为空",

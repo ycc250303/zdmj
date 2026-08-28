@@ -38,10 +38,10 @@ class JobAnalysisSupportTest {
     void detectRole_whenEmptyText_shouldReturnUnknown() {
         Map<JobRole, List<String>> keywords = Map.of(JobRole.JAVA, List.of("java", "spring"));
 
-        JobRole role = JobAnalysisSupport.detectRole("", chatUtil, keywords, 4, logger);
+        JobRole role = JobAnalysisSupport.detectRole(1L, "", chatUtil, keywords, 4, logger);
 
         assertEquals(JobRole.UNKNOWN, role);
-        verify(chatUtil, never()).chatStructuredOnce(any(), any(), eq(null), any());
+        verify(chatUtil, never()).chatStructuredOnce(any(), any(), any(), eq(null), any());
     }
 
     @Test
@@ -51,12 +51,12 @@ class JobAnalysisSupportTest {
                 JobRole.FRONTEND, List.of("react"));
         String text = "需要 Java 与 Spring 能力，熟悉微服务";
         doThrow(new RuntimeException("llm unavailable")).when(chatUtil)
-                .chatStructuredOnce(any(), any(), eq(null), any());
+                .chatStructuredOnce(any(), any(), any(), eq(null), any());
 
-        JobRole role = JobAnalysisSupport.detectRole(text, chatUtil, keywords, 4, logger);
+        JobRole role = JobAnalysisSupport.detectRole(1L, text, chatUtil, keywords, 4, logger);
 
         assertEquals(JobRole.JAVA, role);
-        verify(chatUtil).chatStructuredOnce(any(), any(), eq(null), any());
+        verify(chatUtil).chatStructuredOnce(any(), any(), any(), eq(null), any());
     }
 
     @Test

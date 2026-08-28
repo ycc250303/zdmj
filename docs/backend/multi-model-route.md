@@ -38,15 +38,15 @@ com.zdmj.userAuthService                # /users/llm-config CRUD + 连通性测�
 ```
 业务 Service
   └─ ChatUtil
-       ├─ chatOnce / chatStructuredOnce / chatStreamOnce
+       ├─ chatOnce(userId, …) / chatStructuredOnce(userId, …)
        │     → getChatClient(userId)            # plain，无记忆
-       ├─ chatInConversation / chatStreamInConversation
+       ├─ chatStreamInConversation(userId, conversationId, …)
        │     → getChatClientWithMemory(userId)  # JDBC MessageWindow
        └─ chatStructuredOnceWithPlatformModel
-             → getPlatformChatClient(model)     # 忽略用户自配
+             → getPlatformChatClient(model)     # 忽略用户自配；不传 userId
 ```
 
-`ChatUtil` 从 `UserHolder.getUserId()` 取当前用户；异步线程须自行设置 `UserHolder`（见 [`userholder-usage.md`](userholder-usage.md)）。
+用户模型路径由调用方传入 `userId`（通常来自 `UserHolder.requireUserId()`）；`null` 抛 `USER_NOT_LOGIN`，不再静默走平台兜底。异步消费者把任务记录里的 `user_id` 原样传入即可，不必伪造 ThreadLocal（见 [`llm-async-stream.md`](llm-async-stream.md)）。
 
 ---
 
@@ -179,10 +179,10 @@ spring.ai.openai.embedding.options:
 
 | 场景 | 方法 |
 | --- | --- |
-| 单次文本 | `chatOnce` |
-| 结构化 JSON | `chatStructuredOnce`（user 侧附 Schema；失败抛错） |
-| 简历识别 | `chatStructuredOnceWithPlatformModel` |
-| SSE 多轮 | `chatStreamInConversation`（`POST /messages/chat`） |
+| 单次文本 | `chatOnce(userId, …)` |
+| 结构化 JSON | `chatStructuredOnce(userId, …)`（user 侧附 Schema；失败抛错） |
+| 简历识别 | `chatStructuredOnceWithPlatformModel`（平台模型，不传 userId） |
+| SSE 多轮 | `chatStreamInConversation(userId, conversationId, …)`（`POST /messages/chat`） |
 | 提示词 | `classpath:prompts/{PromptNames}.md`；占位符只替换 `${key}` / `{key}`，避免 JSON 花括号被模板引擎吃掉 |
 
 长耗时接口加 `@RateLimit(USER)`，阈值 `LlmRateLimits`。异步入队见 [`llm-async-stream.md`](llm-async-stream.md)（未落地）。

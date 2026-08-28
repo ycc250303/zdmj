@@ -16,7 +16,8 @@ import org.springframework.util.StringUtils;
 
 import com.zdmj.common.ai.config.RagConfig;
 import com.zdmj.common.ai.config.RagConfig.Search;
-import com.zdmj.common.context.UserHolder;
+import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.common.ai.prompt.PromptNames;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
@@ -49,20 +50,22 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
     private final KnowledgeVectorMapper knowledgeVectorMapper;
     private final ChatUtil chatUtil;
 
-    public Flux<String> streamAnswer(Long conversationId, String userMessage, List<Long> ragDocumentIds,
+    public Flux<String> streamAnswer(Long userId, Long conversationId, String userMessage, List<Long> ragDocumentIds,
             boolean useSystemKnowledge, Map<String, Object> promptVars) {
         Map<String, Object> chatPromptVars = copyPromptVars(promptVars);
 
         if (!ragConfig.isEnabled()) {
-            return chatUtil.chatStreamInConversation(conversationId, userMessage, PromptNames.SYSTEM, chatPromptVars);
+            return chatUtil.chatStreamInConversation(userId, conversationId, userMessage, PromptNames.SYSTEM, chatPromptVars);
         }
 
         // 显式关闭全部用户文档且未启用系统库：退回普通对话
         if (ragDocumentIds != null && ragDocumentIds.isEmpty() && !useSystemKnowledge) {
-            return chatUtil.chatStreamInConversation(conversationId, userMessage, PromptNames.SYSTEM, chatPromptVars);
+            return chatUtil.chatStreamInConversation(userId, conversationId, userMessage, PromptNames.SYSTEM, chatPromptVars);
         }
 
-        Long userId = UserHolder.requireUserId();
+        if (userId == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_LOGIN);
+        }
         Long userKnowledgeId = knowledgeBasesService.getOrCreateKnowledgeBaseId();
 
         String rawString = userMessage == null ? "" : userMessage.trim().replaceAll("\\s+", " ");
@@ -70,7 +73,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         Search s = ragConfig.getSearch();
         String rewrittenText = rawString;
         if (ragConfig.getRewrite().isEnabled() && rawString.length() > s.getShortQueryLength()) {
-            rewrittenText = rewriteQuery(rawString);
+            rewrittenText = rewriteQuery(userId, rawString);
         }
 
         int topK = resolveTopK(rawString.length(), s);
@@ -82,7 +85,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         if (retrivals.isEmpty()) {
             log.info("RAG 无有效命中，退回求职导师对话: userId={}, userKnowledgeId={}, useSystemKnowledge={}, rawStringLen={}",
                     userId, userKnowledgeId, useSystemKnowledge, rawString.length());
-            return chatUtil.chatStreamInConversation(conversationId, rawString, PromptNames.SYSTEM, chatPromptVars);
+            return chatUtil.chatStreamInConversation(userId, conversationId, rawString, PromptNames.SYSTEM, chatPromptVars);
         }
 
         logRagRetrievalHits(retrivals, userId, userKnowledgeId, conversationId);
@@ -92,6 +95,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
 
         log.info("RAG 检索命中 {} 条片段，进入生成阶段 conversationId={}", retrivals.size(), conversationId);
         return chatUtil.chatStreamInConversation(
+                userId,
                 conversationId,
                 rawString,
                 PromptNames.KNOWLEDGEBASE_RAG_SYSTEM,
@@ -111,9 +115,10 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         return merged;
     }
 
-    private String rewriteQuery(String rawText) {
+    private String rewriteQuery(Long userId, String rawText) {
         try {
             String queryText = chatUtil.chatOnce(
+                    userId,
                     rawText,
                     PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE,
                     Map.of("question", rawText));

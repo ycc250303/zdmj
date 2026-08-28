@@ -249,9 +249,9 @@ class MessageServiceImplTest {
         conversation.setMessageCount(0);
         doReturn(conversation).when(conversationService).requireOwned(302L);
         doReturn(false).when(ragConfig).isEnabled();
-        doReturn("title").when(chatUtil).chatOnce(anyString(), anyString(), any());
+        doReturn("title").when(chatUtil).chatOnce(anyLong(), anyString(), anyString(), any());
         doReturn(Flux.just("he", "llo")).when(chatUtil)
-                .chatStreamInConversation(eq(302L), eq("hello"), anyString(), any());
+                .chatStreamInConversation(eq(1L), eq(302L), eq("hello"), anyString(), any());
         AtomicInteger insertTimes = new AtomicInteger(0);
         org.mockito.Mockito.doAnswer(invocation -> {
             Message m = invocation.getArgument(0);
@@ -313,7 +313,7 @@ class MessageServiceImplTest {
             return 1;
         }).when(messageMapper).insert(any(Message.class));
         doReturn(Flux.concat(Flux.just("x"), Flux.error(new RuntimeException("boom"))))
-                .when(chatUtil).chatStreamInConversation(eq(304L), eq("ask"), anyString(), any());
+                .when(chatUtil).chatStreamInConversation(eq(1L), eq(304L), eq("ask"), anyString(), any());
 
         assertThrows(RuntimeException.class, () -> messageService.createStream(dto).collectList().block());
         verify(redisUtil).setString("chat:stream:901:status", "failed", 3600);
@@ -337,7 +337,7 @@ class MessageServiceImplTest {
             }
             return 1;
         }).when(messageMapper).insert(any(Message.class));
-        doReturn(Flux.just("ok")).when(chatUtil).chatStreamInConversation(eq(305L), eq("go"), anyString(), any());
+        doReturn(Flux.just("ok")).when(chatUtil).chatStreamInConversation(eq(1L), eq(305L), eq("go"), anyString(), any());
         doReturn(0).when(messageMapper).updateById(any(Message.class));
 
         assertThrows(RuntimeException.class, () -> messageService.createStream(dto).collectList().block());
@@ -354,9 +354,9 @@ class MessageServiceImplTest {
         doReturn(conversation).when(conversationService).requireOwned(conversationId);
 
         doReturn(false).when(ragConfig).isEnabled();
-        doReturn("title-once").when(chatUtil).chatOnce(anyString(), anyString(), any());
+        doReturn("title-once").when(chatUtil).chatOnce(anyLong(), anyString(), anyString(), any());
         doReturn(Flux.just("ok")).when(chatUtil)
-                .chatStreamInConversation(eq(conversationId), anyString(), anyString(), any());
+                .chatStreamInConversation(eq(1L), eq(conversationId), anyString(), anyString(), any());
 
         AtomicInteger counter = new AtomicInteger(0);
         doReturn(1).when(conversationMapper).updateTitleByIdAndUserId(eq(conversationId), anyLong(), anyString());

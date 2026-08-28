@@ -100,7 +100,7 @@ public class StudentCapabilityProfileServiceImpl
         String pdfUrl = StringUtils.hasText(reqDTO.getPdfUrl()) ? reqDTO.getPdfUrl().trim() : null;
         String sourceText = resolveSourceText(reqDTO);
 
-        ResumeRoleDetectDTO resumeRole = detect(sourceText);
+        ResumeRoleDetectDTO resumeRole = detect(userId, sourceText);
         JobRole jobRole = resumeRole.getRole();
         log.info("岗位识别: role={}, confidence={}", jobRole, resumeRole.getConfidence());
 
@@ -109,7 +109,7 @@ public class StudentCapabilityProfileServiceImpl
         try {
             String promptName = PromptUtil.getResumeAnalysisPromptName(jobRole);
             log.info("使用提示词: {}", promptName);
-            aiResult = chatUtil.chatStructuredOnce(sourceText, promptName, null,
+            aiResult = chatUtil.chatStructuredOnce(userId, sourceText, promptName, null,
                     StudentCapabilityProfileResponse.class);
             normalizeProfileScores(aiResult);
         } catch (BusinessException e) {
@@ -354,7 +354,7 @@ public class StudentCapabilityProfileServiceImpl
      * @param resumeText 简历文本
      * @return 岗位画像
      */
-    private ResumeRoleDetectDTO detect(String resumeText) {
+    private ResumeRoleDetectDTO detect(Long userId, String resumeText) {
         if (!StringUtils.hasText(resumeText)) {
             return new ResumeRoleDetectDTO(JobRole.UNKNOWN, 0.0, "简历文本为空");
         }
@@ -383,7 +383,7 @@ public class StudentCapabilityProfileServiceImpl
         }
 
         try {
-            RoleDetectLLMResult llmResult = chatUtil.chatStructuredOnce(resumeText, PromptNames.JOB_DETECT,
+            RoleDetectLLMResult llmResult = chatUtil.chatStructuredOnce(userId, resumeText, PromptNames.JOB_DETECT,
                     null, RoleDetectLLMResult.class);
             JobRole role = PromptUtil.getJobRoleByString(llmResult.getRoleCode());
             if (role == JobRole.UNKNOWN && bestRole != JobRole.UNKNOWN) {

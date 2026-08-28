@@ -43,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doReturn;
@@ -112,6 +113,7 @@ class JobStudentMatchServiceImplTest {
         // 关键断言：promptVars 必须是 null —— 一旦改回 Map，PromptTemplate 渲染会因
         // 提示词正文里的 JSON 大括号炸成 STException，被 catch 吞成 11001。
         verify(chatUtil).chatStructuredOnce(
+                eq(USER_ID),
                 any(String.class),
                 eq("job-student-match/java-backend"),
                 isNull(),
@@ -126,6 +128,7 @@ class JobStudentMatchServiceImplTest {
         matchService.generate(jobId, null);
 
         verify(chatUtil).chatStructuredOnce(
+                eq(USER_ID),
                 any(String.class),
                 eq("job-student-match/default"),
                 isNull(),
@@ -140,6 +143,7 @@ class JobStudentMatchServiceImplTest {
         matchService.generate(jobId, null);
 
         verify(chatUtil).chatStructuredOnce(
+                eq(USER_ID),
                 any(String.class),
                 eq("job-student-match/frontend"),
                 isNull(),
@@ -154,6 +158,7 @@ class JobStudentMatchServiceImplTest {
         matchService.generate(jobId, null);
 
         verify(chatUtil).chatStructuredOnce(
+                eq(USER_ID),
                 any(String.class),
                 eq("job-student-match/ai-agent"),
                 isNull(),
@@ -173,6 +178,7 @@ class JobStudentMatchServiceImplTest {
 
         ArgumentCaptor<String> userMessageCaptor = ArgumentCaptor.forClass(String.class);
         verify(chatUtil).chatStructuredOnce(
+                eq(USER_ID),
                 userMessageCaptor.capture(),
                 eq("job-student-match/java-backend"),
                 isNull(),
@@ -201,7 +207,7 @@ class JobStudentMatchServiceImplTest {
         Long jobId = 21L;
         prepareJobAndProfiles(jobId, "java-backend");
         doThrow(new RuntimeException("llm down")).when(chatUtil)
-                .chatStructuredOnce(any(String.class), any(String.class), isNull(),
+                .chatStructuredOnce(anyLong(), any(String.class), any(String.class), isNull(),
                         eq(JobStudentMatchResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class,
@@ -214,7 +220,7 @@ class JobStudentMatchServiceImplTest {
         Long jobId = 22L;
         prepareJobAndProfiles(jobId, "java-backend");
         doReturn(null).when(chatUtil).chatStructuredOnce(
-                any(String.class), any(String.class), isNull(),
+                anyLong(), any(String.class), any(String.class), isNull(),
                 eq(JobStudentMatchResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class,
@@ -321,7 +327,7 @@ class JobStudentMatchServiceImplTest {
     private void wireHappyPath(Long jobId, String roleType, JobStudentMatchResponse aiResult) {
         prepareJobAndProfiles(jobId, roleType);
         doReturn(aiResult).when(chatUtil).chatStructuredOnce(
-                any(String.class), any(String.class), isNull(), eq(JobStudentMatchResponse.class));
+                anyLong(), any(String.class), any(String.class), isNull(), eq(JobStudentMatchResponse.class));
         doReturn(null).when(matchService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(matchService).save(any(JobStudentMatch.class));
     }
