@@ -4,9 +4,11 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.zdmj.common.model.BaseEntity;
 import com.zdmj.common.typehandler.JsonbStringTypeHandler;
 import java.math.BigDecimal;
+import java.util.List;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -79,26 +81,26 @@ public class JobStudentMatch extends BaseEntity {
     /**
      * 命中亮点（JSONB 数组）
      */
-    @TableField(typeHandler = JsonbStringTypeHandler.class)
-    private String matchedHighlights;
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private List<String> matchedHighlights;
 
     /**
      * 关键差距（JSONB 数组）
      */
-    @TableField(typeHandler = JsonbStringTypeHandler.class)
-    private String criticalGaps;
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private List<String> criticalGaps;
 
     /**
      * 命中的岗位关键词（JSONB 数组）
      */
-    @TableField(typeHandler = JsonbStringTypeHandler.class)
-    private String matchedKeywords;
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private List<String> matchedKeywords;
 
     /**
      * 缺失的岗位关键词（JSONB 数组）
      */
-    @TableField(typeHandler = JsonbStringTypeHandler.class)
-    private String missingKeywords;
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private List<String> missingKeywords;
 
     /**
      * 关键技能匹配率（0~1，命中关键词数 / 岗位关键词数）。

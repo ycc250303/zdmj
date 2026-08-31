@@ -4,9 +4,10 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.zdmj.common.model.BaseEntity;
-import com.zdmj.common.typehandler.JsonbStringTypeHandler;
 import java.math.BigDecimal;
+import java.util.List;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -82,20 +83,20 @@ public class JobCapabilityProfile extends BaseEntity {
     /**
      * 岗位优势亮点（JSONB）
      */
-    @TableField(typeHandler = JsonbStringTypeHandler.class)
-    private String strengths;
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private List<String> strengths;
 
     /**
      * 缺失技能项（JSONB）
      */
-    @TableField(typeHandler = JsonbStringTypeHandler.class)
-    private String missingSkills;
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private List<String> missingSkills;
 
     /**
      * 证据不足项（JSONB）
      */
-    @TableField(typeHandler = JsonbStringTypeHandler.class)
-    private String weakEvidenceItems;
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private List<String> weakEvidenceItems;
 
     /**
      * 摘要

@@ -1,7 +1,6 @@
 package com.zdmj.jobService.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
@@ -45,7 +44,7 @@ class JobCapabilityProfileServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        profileService = spy(new JobCapabilityProfileServiceImpl(jobService, chatUtil, new ObjectMapper()));
+        profileService = spy(new JobCapabilityProfileServiceImpl(jobService, chatUtil));
         UserHolder.set(UserContext.of(1L, "u1"));
     }
 
@@ -150,9 +149,9 @@ class JobCapabilityProfileServiceImplTest {
         JobCapabilityProfile entity = new JobCapabilityProfile();
         entity.setPromptName("JOB_REQUIREMENT_JAVA");
         entity.setProfessionalSkills("Java");
-        entity.setStrengths("[\"编码能力\"]");
-        entity.setMissingSkills("[\"分布式\"]");
-        entity.setWeakEvidenceItems("[\"项目深度\"]");
+        entity.setStrengths(List.of("编码能力"));
+        entity.setMissingSkills(List.of("分布式"));
+        entity.setWeakEvidenceItems(List.of("项目深度"));
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
         doReturn(entity).when(profileService).getOne(any(LambdaQueryWrapper.class));
 
@@ -167,23 +166,20 @@ class JobCapabilityProfileServiceImplTest {
     }
 
     @Test
-    void profile_getDetail_getJobCapabilityProfileOrNull_whenJsonBroken_shouldReturnBasicFields() {
+    void profile_getDetail_getJobCapabilityProfileOrNull_whenListFieldsNull_shouldReturnBasicFields() {
         Long jobId = 16L;
         JobCapabilityProfile entity = new JobCapabilityProfile();
         entity.setPromptName("JOB_REQUIREMENT_JAVA");
         entity.setTargetRoleType("java");
         entity.setProfessionalSkills("Golang");
-        entity.setSummary("broken-json");
-        entity.setStrengths("not-json");
-        entity.setMissingSkills("not-json");
-        entity.setWeakEvidenceItems("not-json");
+        entity.setSummary("no-lists");
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
         doReturn(entity).when(profileService).getOne(any(LambdaQueryWrapper.class));
 
         JobCapabilityProfileResponse result = profileService.getJobCapabilityProfileOrNull(jobId);
 
         assertEquals("Golang", result.getProfessionalSkills());
-        assertEquals("broken-json", result.getSummary());
+        assertEquals("no-lists", result.getSummary());
         assertNull(result.getStrengths());
         assertNull(result.getMissingSkills());
         assertNull(result.getWeakEvidenceItems());

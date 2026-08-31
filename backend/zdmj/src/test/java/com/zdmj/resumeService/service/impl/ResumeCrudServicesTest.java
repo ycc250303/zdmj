@@ -66,7 +66,8 @@ class ResumeCrudServicesTest {
         educationService = spy(new EducationServiceImpl(educationStructMapper));
         careerService = spy(new CareerServiceImpl(careerStructMapper));
         projectExperienceService = spy(new ProjectExperienceServiceImpl(projectExperienceStructMapper));
-        skillService = spy(new SkillServiceImpl(Validation.buildDefaultValidatorFactory().getValidator()));
+        skillService = spy(new SkillServiceImpl(Validation.buildDefaultValidatorFactory().getValidator(),
+                new com.fasterxml.jackson.databind.ObjectMapper()));
 
         ReflectionTestUtils.setField(educationService, "baseMapper", educationMapper);
         ReflectionTestUtils.setField(careerService, "baseMapper", careerMapper);

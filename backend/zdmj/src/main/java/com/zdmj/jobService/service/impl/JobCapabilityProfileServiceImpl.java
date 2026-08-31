@@ -2,8 +2,6 @@ package com.zdmj.jobService.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -35,7 +33,6 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
 
     private final JobService jobService;
     private final ChatUtil chatUtil;
-    private final ObjectMapper objectMapper;
 
     private static final Map<JobRole, List<String>> KEYWORDS = Map.of(
             JobRole.JAVA, List.of("java", "spring", "spring boot", "mybatis", "mysql", "redis", "jvm"),
@@ -79,12 +76,6 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
                 JobAnalysisSupport.estimateRoleConfidence(role, jobContext, KEYWORDS)));
         newProfile.setPromptName(promptName);
         newProfile.setTargetRoleType(PromptUtil.getPromptDisplayType(promptName));
-        newProfile.setStrengths(JobAnalysisSupport.toJson(
-                aiResult.getStrengths(), objectMapper, log, "岗位画像 JSON 序列化失败，字段将置空"));
-        newProfile.setMissingSkills(JobAnalysisSupport.toJson(
-                aiResult.getMissingSkills(), objectMapper, log, "岗位画像 JSON 序列化失败，字段将置空"));
-        newProfile.setWeakEvidenceItems(JobAnalysisSupport.toJson(
-                aiResult.getWeakEvidenceItems(), objectMapper, log, "岗位画像 JSON 序列化失败，字段将置空"));
 
         if (existingProfile != null) {
             newProfile.setId(existingProfile.getId());
@@ -93,9 +84,7 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
             save(newProfile);
         }
 
-        JobCapabilityProfileResponse responseDto = toDto(newProfile);
-        hydrateDtoFromEntity(newProfile, responseDto);
-        return responseDto;
+        return toDto(newProfile);
     }
 
     @Override
@@ -109,9 +98,7 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         if (profile == null) {
             return null;
         }
-        JobCapabilityProfileResponse dto = toDto(profile);
-        hydrateDtoFromEntity(profile, dto);
-        return dto;
+        return toDto(profile);
     }
 
     private static JobCapabilityProfileResponse toDto(JobCapabilityProfile entity) {
@@ -129,6 +116,9 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         dto.setCommunicationAbility(entity.getCommunicationAbility());
         dto.setPracticalAbility(entity.getPracticalAbility());
         dto.setSummary(entity.getSummary());
+        dto.setStrengths(entity.getStrengths());
+        dto.setMissingSkills(entity.getMissingSkills());
+        dto.setWeakEvidenceItems(entity.getWeakEvidenceItems());
         return dto;
     }
 
@@ -145,30 +135,10 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         entity.setCommunicationAbility(dto.getCommunicationAbility());
         entity.setPracticalAbility(dto.getPracticalAbility());
         entity.setSummary(dto.getSummary());
+        entity.setStrengths(dto.getStrengths());
+        entity.setMissingSkills(dto.getMissingSkills());
+        entity.setWeakEvidenceItems(dto.getWeakEvidenceItems());
         return entity;
-    }
-
-    private void hydrateDtoFromEntity(JobCapabilityProfile entity, JobCapabilityProfileResponse dto) {
-        if (entity == null || dto == null) {
-            return;
-        }
-        try {
-            if (StringUtils.hasText(entity.getStrengths())) {
-                dto.setStrengths(objectMapper.readValue(entity.getStrengths(), new TypeReference<List<String>>() {
-                }));
-            }
-            if (StringUtils.hasText(entity.getMissingSkills())) {
-                dto.setMissingSkills(objectMapper.readValue(entity.getMissingSkills(), new TypeReference<List<String>>() {
-                }));
-            }
-            if (StringUtils.hasText(entity.getWeakEvidenceItems())) {
-                dto.setWeakEvidenceItems(
-                        objectMapper.readValue(entity.getWeakEvidenceItems(), new TypeReference<List<String>>() {
-                        }));
-            }
-        } catch (Exception e) {
-            log.warn("反序列化岗位画像 JSON 失败: {}", e.getMessage());
-        }
     }
 
 }

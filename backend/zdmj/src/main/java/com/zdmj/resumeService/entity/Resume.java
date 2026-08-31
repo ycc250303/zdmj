@@ -4,8 +4,8 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.zdmj.common.model.BaseEntity;
-import com.zdmj.common.typehandler.JsonbListTypeHandler;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -17,7 +17,7 @@ import java.util.List;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName("resumes")
+@TableName(value = "resumes", autoResultMap = true)
 public class Resume extends BaseEntity {
     /**
      * 简历ID（主键，自增）
@@ -38,30 +38,30 @@ public class Resume extends BaseEntity {
     /**
      * 项目经历ID数组（JSONB数组，存储project_experiences ID）
      */
-    @TableField(typeHandler = JsonbListTypeHandler.class)
+    @TableField(typeHandler = JacksonTypeHandler.class)
     private List<Long> projects;
 
     /**
      * 工作经历ID数组（JSONB数组，存储career ID）
      */
-    @TableField(typeHandler = JsonbListTypeHandler.class)
+    @TableField(typeHandler = JacksonTypeHandler.class)
     private List<Long> careers;
 
     /**
      * 教育经历ID数组（JSONB数组，存储education ID）
      */
-    @TableField(typeHandler = JsonbListTypeHandler.class)
+    @TableField(typeHandler = JacksonTypeHandler.class)
     private List<Long> educations;
 
     /**
      * 获奖信息ID数组（JSONB数组，存储 awards ID）
      */
-    @TableField(typeHandler = JsonbListTypeHandler.class)
+    @TableField(typeHandler = JacksonTypeHandler.class)
     private List<Long> awards;
 
     /**
      * 专用简历ID数组（JSONB数组，存储resume_matches ID）
      */
-    @TableField(typeHandler = JsonbListTypeHandler.class)
+    @TableField(typeHandler = JacksonTypeHandler.class)
     private List<Long> resumeMatchedIds;
 }

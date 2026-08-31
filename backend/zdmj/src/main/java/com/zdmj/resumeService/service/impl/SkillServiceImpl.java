@@ -1,11 +1,14 @@
 package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.model.CreateGroup;
 import com.zdmj.common.model.UpdateGroup;
+import com.zdmj.resumeService.dto.SkillItemDTO;
 import com.zdmj.resumeService.dto.SkillRequest;
 import com.zdmj.resumeService.dto.SkillResponse;
 import com.zdmj.resumeService.entity.Skill;
@@ -16,6 +19,7 @@ import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.Collections;
 import java.util.List;
@@ -27,7 +31,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements SkillService {
 
+    private static final TypeReference<List<SkillItemDTO>> SKILL_ITEMS = new TypeReference<>() {
+    };
+
     private final Validator validator;
+    private final ObjectMapper objectMapper;
 
     @Override
     public SkillResponse create(SkillRequest skillRequest) {
@@ -36,25 +44,25 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
 
         Skill skill = new Skill();
         skill.setUserId(userId);
-        skill.setContent(skillRequest.getContent());
+        skill.setContent(writeContent(skillRequest.getContent()));
 
         boolean saved = save(skill);
         if (!saved) {
             throw new BusinessException(ErrorCode.SKILL_ADD_FAILED);
         }
         log.info("添加技能成功: userId={}", userId);
-        return convertToResponse(skill);
+        return toResponse(skill);
     }
 
     @Override
     public SkillResponse getById(Long id) {
-        return convertToResponse(requireSkill(id));
+        return toResponse(requireSkill(id));
     }
 
     @Override
     public List<SkillResponse> getByUserId() {
         Long userId = requireUserId();
-        return baseMapper.selectByUserId(userId).stream().map(this::convertToResponse).toList();
+        return baseMapper.selectByUserId(userId).stream().map(this::toResponse).toList();
     }
 
     @Override
@@ -64,14 +72,14 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
         Long id = skillRequest.getId();
         Skill skill = requireSkillAndCheckOwnership(id, userId, "修改");
         validateContent(skillRequest, UpdateGroup.class);
-        skill.setContent(skillRequest.getContent());
+        skill.setContent(writeContent(skillRequest.getContent()));
 
         boolean updated = updateById(skill);
         if (!updated) {
             throw new BusinessException(ErrorCode.SKILL_UPDATE_FAILED);
         }
         log.info("更新技能成功: skillId={}", skill.getId());
-        return convertToResponse(skill);
+        return toResponse(skill);
     }
 
     @Override
@@ -86,11 +94,36 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
         log.info("删除技能成功: skillId={}", skill.getId());
     }
 
-    private SkillResponse convertToResponse(Skill skill) {
+    @Override
+    public SkillResponse toResponse(Skill skill) {
+        if (skill == null) {
+            return null;
+        }
         SkillResponse response = new SkillResponse();
         response.setId(skill.getId());
-        response.setContent(skill.getContent() != null ? skill.getContent() : Collections.emptyList());
+        response.setContent(readContent(skill.getContent()));
         return response;
+    }
+
+    private String writeContent(List<SkillItemDTO> items) {
+        try {
+            return objectMapper.writeValueAsString(items == null ? List.of() : items);
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "技能内容序列化失败");
+        }
+    }
+
+    private List<SkillItemDTO> readContent(String json) {
+        if (!StringUtils.hasText(json) || "null".equals(json.trim())) {
+            return Collections.emptyList();
+        }
+        try {
+            List<SkillItemDTO> items = objectMapper.readValue(json, SKILL_ITEMS);
+            return items == null ? Collections.emptyList() : items;
+        } catch (Exception e) {
+            log.warn("解析 skills.content 失败: {}", e.getMessage());
+            return Collections.emptyList();
+        }
     }
 
     private void validateContent(SkillRequest skillRequest, Class<?> group) {

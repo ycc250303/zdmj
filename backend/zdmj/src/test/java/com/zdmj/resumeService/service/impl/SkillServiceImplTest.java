@@ -44,7 +44,7 @@ class SkillServiceImplTest {
     @BeforeEach
     void setUp() {
         validator = Validation.buildDefaultValidatorFactory().getValidator();
-        service = spy(new SkillServiceImpl(validator));
+        service = spy(new SkillServiceImpl(validator, new com.fasterxml.jackson.databind.ObjectMapper()));
         ReflectionTestUtils.setField(Objects.requireNonNull(service), "baseMapper", skillMapper);
         UserHolder.set(UserContext.of(1L, "u1"));
     }
@@ -66,6 +66,7 @@ class SkillServiceImplTest {
         ArgumentCaptor<Skill> captor = ArgumentCaptor.forClass(Skill.class);
         verify(service).save(captor.capture());
         assertEquals(1L, captor.getValue().getUserId());
+        assertTrue(captor.getValue().getContent().contains("Java"));
     }
 
     @Test

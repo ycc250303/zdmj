@@ -44,3 +44,4 @@ docs/backend/prompt-security.md
 /.pytest_cache
 /.cursor
 docs/mock-interview.md
+.vscode/settings.json

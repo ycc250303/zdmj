@@ -4,8 +4,8 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.zdmj.common.model.BaseEntity;
-import com.zdmj.common.typehandler.JsonbListTypeHandler;
 import com.zdmj.resumeService.enums.ProjectStatusEnum;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -18,7 +18,7 @@ import java.util.List;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName("project_experiences")
+@TableName(value = "project_experiences", autoResultMap = true)
 public class ProjectExperience extends BaseEntity {
     /**
      * 项目经历ID（主键，自增）
@@ -64,7 +64,7 @@ public class ProjectExperience extends BaseEntity {
     /**
      * 技术栈（JSONB数组，如["React", "TypeScript", "Node.js"]）
      */
-    @TableField(typeHandler = JsonbListTypeHandler.class)
+    @TableField(typeHandler = JacksonTypeHandler.class)
     private List<String> techStack;
 
     /**

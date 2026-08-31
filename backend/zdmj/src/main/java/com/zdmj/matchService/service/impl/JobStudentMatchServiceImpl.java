@@ -416,10 +416,10 @@ public class JobStudentMatchServiceImpl
         entity.setDevelopmentPotentialScore(potentialScore);
         entity.setWeights(toJson(weights));
         entity.setDimensionDetail(toJson(dims));
-        entity.setMatchedHighlights(toJson(matchedHighlights == null ? List.of() : matchedHighlights));
-        entity.setCriticalGaps(toJson(criticalGaps == null ? List.of() : criticalGaps));
-        entity.setMatchedKeywords(toJson(matchedKeywords == null ? List.of() : matchedKeywords));
-        entity.setMissingKeywords(toJson(missingKeywords == null ? List.of() : missingKeywords));
+        entity.setMatchedHighlights(matchedHighlights == null ? List.of() : matchedHighlights);
+        entity.setCriticalGaps(criticalGaps == null ? List.of() : criticalGaps);
+        entity.setMatchedKeywords(matchedKeywords == null ? List.of() : matchedKeywords);
+        entity.setMissingKeywords(missingKeywords == null ? List.of() : missingKeywords);
         entity.setKeySkillMatchRate(keySkillMatchRate == null ? BigDecimal.ZERO : keySkillMatchRate);
         entity.setSummary(summary);
         entity.setTargetRoleType(StringUtils.hasText(jobProfile.getTargetRoleType())
@@ -463,14 +463,10 @@ public class JobStudentMatchServiceImpl
                 new TypeReference<MatchWeightConfigResponse>() {});
         dto.setWeights(weights);
 
-        dto.setMatchedHighlights(readJson(entity.getMatchedHighlights(),
-                new TypeReference<List<String>>() {}));
-        dto.setCriticalGaps(readJson(entity.getCriticalGaps(),
-                new TypeReference<List<String>>() {}));
-        dto.setMatchedKeywords(readJson(entity.getMatchedKeywords(),
-                new TypeReference<List<String>>() {}));
-        dto.setMissingKeywords(readJson(entity.getMissingKeywords(),
-                new TypeReference<List<String>>() {}));
+        dto.setMatchedHighlights(entity.getMatchedHighlights());
+        dto.setCriticalGaps(entity.getCriticalGaps());
+        dto.setMatchedKeywords(entity.getMatchedKeywords());
+        dto.setMissingKeywords(entity.getMissingKeywords());
         dto.setKeySkillMatchRate(entity.getKeySkillMatchRate());
         dto.setSummary(entity.getSummary());
         return dto;

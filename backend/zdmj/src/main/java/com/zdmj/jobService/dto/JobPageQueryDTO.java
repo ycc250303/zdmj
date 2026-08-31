@@ -4,8 +4,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import com.baomidou.mybatisplus.annotation.TableField;
-import com.zdmj.common.typehandler.JsonbListTypeHandler;
 import com.zdmj.jobService.enums.JobEmploymentEnum;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,21 +36,18 @@ public class JobPageQueryDTO {
      * 公司规模（多选）
      */
     @Setter(AccessLevel.NONE)
-    @TableField(typeHandler = JsonbListTypeHandler.class)
     private List<Integer> companySizes;
 
     /**
      * 公司融资阶段（多选）
      */
     @Setter(AccessLevel.NONE)
-    @TableField(typeHandler = JsonbListTypeHandler.class)
     private List<Integer> fundingTypes;
 
     /**
      * 行业（多选）
      */
     @Setter(AccessLevel.NONE)
-    @TableField(typeHandler = JsonbListTypeHandler.class)
     private List<String> industries;
 
     /**

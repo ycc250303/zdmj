@@ -162,13 +162,13 @@ src/main/resources/prompts/job-career-graph/
 | Service | `JobCareerGraphService` / `JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper, JobCareerGraph>` |
 | Mapper / Entity | `JobCareerGraphMapper` / `JobCareerGraph`（`@TableName("job_career_graphs", autoResultMap=true)`） |
 | DTO | `JobCareerGraphResponse` 及嵌套静态类 `CurrentNode` / `VerticalPathNode` / `TransitionPath` / `TransitionNode` |
-| JSONB 处理 | `JsonbStringTypeHandler`（通用，与 `JobCapabilityProfile` 共用） |
+| JSONB 处理 | 标量数组 `JacksonTypeHandler`；图谱结构字段 `JsonbStringTypeHandler` |
 
 ### 5.4 与岗位能力画像的一致性
 
 - 两个功能共用 `PromptUtil.JobRole` 枚举与 `KEYWORDS` 关键词表；
 - 两者都采用 `ServiceImpl<Mapper, Entity>` 的 MyBatis-Plus 单表访问范式；
-- JSONB 列均以 `String` + `JsonbStringTypeHandler` 存储原始 JSON 文本，Service 层用 Jackson 做双向转换；
+- JSONB：同质标量数组用 `List` + `JacksonTypeHandler`；图谱 `current_node` / 路径等结构化 JSON 仍为 `String` + `JsonbStringTypeHandler`，Service 转 DTO（见 [`jsonb-scalar-array.md`](jsonb-scalar-array.md)）；
 - 出错返回约定：`Result.error(code, message)` 统一格式。
 
 ## 6. 扩展建议

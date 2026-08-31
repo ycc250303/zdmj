@@ -4,8 +4,8 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.zdmj.common.model.BaseEntity;
-import com.zdmj.common.typehandler.JsonbListTypeHandler;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -68,19 +68,19 @@ public class Job extends BaseEntity {
     /**
      * 岗位职责（JSONB 字符串数组）
      */
-    @TableField(typeHandler = JsonbListTypeHandler.class)
+    @TableField(typeHandler = JacksonTypeHandler.class)
     private List<String> content;
 
     /**
      * 岗位要求（JSONB 字符串数组）
      */
-    @TableField(typeHandler = JsonbListTypeHandler.class)
+    @TableField(typeHandler = JacksonTypeHandler.class)
     private List<String> requirements;
 
     /**
      * 岗位关键词（JSONB 字符串数组）
      */
-    @TableField(typeHandler = JsonbListTypeHandler.class)
+    @TableField(typeHandler = JacksonTypeHandler.class)
     private List<String> keywords;
 
     /**

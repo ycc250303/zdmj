@@ -192,7 +192,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         List<ProjectExperience> projects = projectExperienceMapper.selectByUserId(resume.getUserId());
         List<Award> awards = awardMapper.selectByUserId(resume.getUserId());
 
-        resumeContentDTO.setSkill(skill != null ? convertSkillToDTO(skill) : null);
+        resumeContentDTO.setSkill(skill != null ? skillService.toResponse(skill) : null);
         resumeContentDTO.setEducations(educations.stream()
                 .map(education -> convertSimpleEntityToDTO(education, EducationRequest.class))
                 .collect(Collectors.toList()));
@@ -844,20 +844,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
                     ErrorCode.NO_PERMISSION.getMessage() + action + "他人简历");
         }
         return resume;
-    }
-
-    /**
-     * 将 Skill 实体转换为 SkillResponse
-     */
-    private SkillResponse convertSkillToDTO(Skill skill) {
-        if (skill == null) {
-            return null;
-        }
-
-        SkillResponse dto = new SkillResponse();
-        dto.setId(skill.getId());
-        dto.setContent(skill.getContent() != null ? skill.getContent() : java.util.Collections.emptyList());
-        return dto;
     }
 
     /**

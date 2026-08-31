@@ -23,13 +23,13 @@
         <result property="salary" column="salary" />
         <result property="link" column="link" />
         <result property="jobDuties" column="job_duties"
-            typeHandler="com.zdmj.common.typehandler.JsonbListTypeHandler" />
+            typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" />
         <result property="jobRequirements" column="job_requirements"
-            typeHandler="com.zdmj.common.typehandler.JsonbListTypeHandler" />
+            typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" />
         <result property="keywords" column="job_keywords"
-            typeHandler="com.zdmj.common.typehandler.JsonbListTypeHandler" />
+            typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" />
         <result property="companyIndustries" column="company_industries"
-            typeHandler="com.zdmj.common.typehandler.JsonbListTypeHandler" />
+            typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" />
         <result property="companySize" column="company_size" />
         <result property="companyFundingType" column="company_funding_type" />
     </resultMap>
@@ -47,13 +47,13 @@
         <result property="salary" column="salary" />
         <result property="link" column="link" />
         <result property="jobDuties" column="job_duties"
-            typeHandler="com.zdmj.common.typehandler.JsonbListTypeHandler" />
+            typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" />
         <result property="jobRequirements" column="job_requirements"
-            typeHandler="com.zdmj.common.typehandler.JsonbListTypeHandler" />
+            typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" />
         <result property="keywords" column="job_keywords"
-            typeHandler="com.zdmj.common.typehandler.JsonbListTypeHandler" />
+            typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" />
         <result property="companyIndustries" column="company_industries"
-            typeHandler="com.zdmj.common.typehandler.JsonbListTypeHandler" />
+            typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" />
         <result property="companySize" column="company_size" />
         <result property="companyFundingType" column="company_funding_type" />
     </resultMap>

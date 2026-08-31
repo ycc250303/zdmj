@@ -2,7 +2,7 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.zdmj.resumeService.mapper.ProjectExperienceMapper">
 
-    <select id="selectByUserId" resultType="com.zdmj.resumeService.entity.ProjectExperience">
+    <select id="selectByUserId" resultMap="mybatis-plus_ProjectExperience">
         SELECT id, user_id, name, start_date, end_date, role, description, contribution, tech_stack,
                highlights, url, status, lookup_result, created_at, updated_at
         FROM project_experiences

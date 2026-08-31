@@ -4,8 +4,8 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.zdmj.common.model.BaseEntity;
-import com.zdmj.common.typehandler.JsonbListTypeHandler;
 import com.zdmj.jobService.enums.CompanyFundingTypeEnum;
 import com.zdmj.jobService.enums.CompanySizeEnum;
 import lombok.Data;
@@ -18,7 +18,7 @@ import java.util.List;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName("companies")
+@TableName(value = "companies", autoResultMap = true)
 public class Company extends BaseEntity {
 
     @TableId(type = IdType.AUTO)
@@ -26,7 +26,7 @@ public class Company extends BaseEntity {
 
     private String name;
 
-    @TableField(typeHandler = JsonbListTypeHandler.class)
+    @TableField(typeHandler = JacksonTypeHandler.class)
     private List<String> industries;
 
     /**
