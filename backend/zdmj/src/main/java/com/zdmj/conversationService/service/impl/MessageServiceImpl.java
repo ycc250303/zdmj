@@ -28,7 +28,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
 import org.springframework.beans.BeanUtils;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,10 +35,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 消息 Service 实现类
@@ -48,7 +43,6 @@ import java.util.concurrent.atomic.AtomicLong;
 @Service
 public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> implements MessageService {
 
-    private final StringRedisTemplate redisTemplate;
     private final ChatUtil chatUtil;
     private final MessageMapper messageMapper;
     private final ConversationService conversationService;
@@ -56,14 +50,6 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     private final KnowledgeRagService knowledgeRagService;
     private final RagConfig ragConfig;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-
-    // Redis 刷新策略：至少间隔 300ms 或新增 >= 1024 字符时写一次
-    private static final long REDIS_FLUSH_INTERVAL_MS = 300L;
-    private static final int REDIS_FLUSH_DELTA_CHARS = 1024;
-    // 流式消息过期时间
-    private static final int STREAM_TTL_SECONDS = 3600;
-    // 流式消息 sink 映射
-    private final ConcurrentHashMap<Long, Sinks.Many<String>> streamSinkMap = new ConcurrentHashMap<>();
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -84,7 +70,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         Message userMsg = new Message();
         userMsg.setConversationId(request.getConversationId());
         userMsg.setUserId(userId);
-        userMsg.setRole(MessageRoleEnum.USER.getCode()); // user
+        userMsg.setRole(MessageRoleEnum.USER.getCode());
         userMsg.setContent(request.getMessage());
         userMsg.setSequence(userSeq);
         if (messageMapper.insert(userMsg) != 1) {
@@ -95,7 +81,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         Message assistantMsg = new Message();
         assistantMsg.setConversationId(request.getConversationId());
         assistantMsg.setUserId(userId);
-        assistantMsg.setRole(2); // assistant
+        assistantMsg.setRole(2);
         assistantMsg.setContent("");
         assistantMsg.setSequence(assistantSeq);
         if (messageMapper.insert(assistantMsg) != 1) {
@@ -110,31 +96,13 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
                     PromptNames.GENERATE_CONVERSATION_TITLE,
                     null
             );
-            // 仅更新标题，避免回写旧的 message_count / last_message_at
             conversationMapper.updateTitleByIdAndUserId(request.getConversationId(), userId, title);
         }
 
-        // 5.创建流式消息
-        Long streamId = assistantMsg.getId();
-        String statusKey = StreamKeys.status(streamId);
-        String contentKey = StreamKeys.content(streamId);
-        String doneKey = StreamKeys.done(streamId);
-        String errorKey = StreamKeys.error(streamId);
-
-        // 6.初始化状态（失败则抛，创建流对调用方可见；成功后再登记 sink）
-        setStreamValue(statusKey, "streaming");
-        setStreamValue(contentKey, "");
-        setStreamValue(doneKey, "0");
-        redisTemplate.delete(errorKey);
-
-        Sinks.Many<String> sink = Sinks.many().multicast().onBackpressureBuffer();
-        streamSinkMap.put(streamId, sink);
-
+        // 5.方法内 sink：HTTP 断开后 LLM 仍跑完并落库；不跨请求、不进 Redis
+        Sinks.Many<String> sink = Sinks.many().unicast().onBackpressureBuffer();
         StringBuilder full = new StringBuilder(256);
-        AtomicLong lastFlushAt = new AtomicLong(System.currentTimeMillis());
-        AtomicInteger lastFlushedLen = new AtomicInteger(0);
 
-        // 7.调用 AI 服务
         List<Long> ragDocumentIds = resolveRagDocumentIds(request, conversation);
         boolean useSystemKnowledge = ConversationContextSupport.resolveUseSystemKnowledge(request, conversation);
         Map<String, Object> promptVars = ConversationContextSupport.buildChatPromptVars(conversation);
@@ -156,131 +124,31 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
             if (chunk == null || chunk.isEmpty()) {
                 return;
             }
-
-            // 追加内容
             full.append(chunk);
-            // 尝试发送消息
             sink.tryEmitNext(chunk);
-
-            int currLen = full.length();
-            long now = System.currentTimeMillis();
-
-            boolean flushByTime = now - lastFlushAt.get() > REDIS_FLUSH_INTERVAL_MS;
-            boolean flushByLength = currLen - lastFlushedLen.get() > REDIS_FLUSH_DELTA_CHARS;
-            boolean flush = flushByTime || flushByLength;
-
-            if (flush) {
-                // 节流写 Redis，避免每 chunk 全量覆盖
-                // TODO：可考虑引入 Redis Stream/消息队列 进一步优化
-                setStreamValue(contentKey, full.toString());
-                lastFlushAt.set(now);
-                lastFlushedLen.set(currLen);
-            }
         })
                 .doOnError(e -> {
-                    // 错误态 + 最终内容落缓存，方便前端恢复展示
-                    setStreamValue(contentKey, full.toString());
-                    setStreamValue(statusKey, "failed");
-                    setStreamValue(errorKey, e.getMessage() == null ? "stream failed" : e.getMessage());
+                    persistAssistantContent(assistantMsg, full.toString());
                     sink.tryEmitError(e);
                 })
                 .doOnComplete(() -> {
-                    // 完成时强刷缓存 + 回写 DB
                     String finalText = full.toString();
-                    setStreamValue(contentKey, finalText);
-
                     assistantMsg.setContent(finalText);
                     if (messageMapper.updateById(assistantMsg) != 1) {
-                        // 写入 DB 失败时标记失败，避免前端误判完成
-                        setStreamValue(statusKey, "failed");
-                        setStreamValue(errorKey, "assistant message persist failed");
                         sink.tryEmitError(new RuntimeException("assistant message persist failed"));
                         return;
                     }
-
-                    setStreamValue(statusKey, "completed");
-                    setStreamValue(doneKey, "1");
                     sink.tryEmitComplete();
-                })
-                .doFinally(signalType -> {
-                    // 无论 complete/error/cancel 都做资源清理
-                    streamSinkMap.remove(streamId);
                 })
                 .subscribe();
 
-        // 8.返回流式消息
-        Flux<ServerSentEvent<String>> meta = Flux.just(
-                ServerSentEvent.<String>builder()
-                        .event("meta")
-                        .id("0")
-                        .data("{\"streamId\":\"" + streamId + "\"}")
-                        .build());
-
-        Flux<ServerSentEvent<String>> body = sink.asFlux()
+        return sink.asFlux()
                 .index()
                 .map(tp -> ServerSentEvent.<String>builder()
                         .event("delta")
                         .id(String.valueOf(tp.getT1() + 1))
                         .data(toOpenAiDeltaJson(tp.getT2()))
                         .build());
-        return meta.concatWith(body);
-    }
-
-    /**
-     * 恢复流式消息
-     * @param streamId 流式消息 ID
-     * @param offset 偏移量
-     * @return 流式消息
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public Flux<ServerSentEvent<String>> resumeStream(Long streamId, int offset) {
-        if (streamId == null) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "streamId不能为空");
-        }
-        if (offset < 0) {
-            offset = 0;
-        }
-
-        String contentKey = StreamKeys.content(streamId);
-        String statusKey = StreamKeys.status(streamId);
-        String errorKey = StreamKeys.error(streamId);
-        String cached = redisTemplate.opsForValue().get(contentKey);
-        String status = redisTemplate.opsForValue().get(statusKey);
-
-        if (cached == null) {
-            cached = "";
-        }
-        if (status == null) {
-            status = "failed";
-        }
-
-        // 1.先补发历史缺失片段
-        String replay = offset < cached.length() ? cached.substring(offset) : "";
-        Flux<ServerSentEvent<String>> replayFlux = replay.isEmpty()
-                ? Flux.empty()
-                : Flux.just(ServerSentEvent.<String>builder().event("replay").data(toOpenAiDeltaJson(replay)).build());
-        // 2.已结束：补 done/error 后结束
-        if ("completed".equals(status)) {
-            Flux<ServerSentEvent<String>> done = Flux.just(
-                    ServerSentEvent.<String>builder().event("done").data("[DONE]").build());
-            return replayFlux.concatWith(done);
-        }
-        if ("failed".equals(status)) {
-            String err = redisTemplate.opsForValue().get(errorKey);
-            Flux<ServerSentEvent<String>> fail = Flux.just(
-                    ServerSentEvent.<String>builder().event("error").data(err == null ? "stream failed" : err).build());
-            return replayFlux.concatWith(fail);
-        }
-        // 3.streaming：继续订阅 live
-        Sinks.Many<String> sink = streamSinkMap.get(streamId);
-        if (sink == null) {
-            // 兜底：流刚结束或资源已回收，返回当前可补发内容
-            return replayFlux;
-        }
-        Flux<ServerSentEvent<String>> live = sink.asFlux()
-                .map(chunk -> ServerSentEvent.<String>builder().event("delta").data(toOpenAiDeltaJson(chunk)).build());
-        return replayFlux.concatWith(live);
     }
 
     /**
@@ -353,47 +221,19 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
                                             "delta",
                                             java.util.Map.of("content", content)))));
         } catch (JsonProcessingException e) {
-            // 极端场景兜底，至少保证流不中断
             return "{\"choices\":[{\"delta\":{\"content\":\"\"}}]}";
         }
     }
 
-    /** 流状态写入：固定 TTL，异常向上抛，不走 RedisUtil 的抖动与吞异常。 */
-    private void setStreamValue(String key, String value) {
-        redisTemplate.opsForValue().set(key, value, STREAM_TTL_SECONDS, TimeUnit.SECONDS);
+    /** 错误路径尽力回写已生成内容，失败不影响向下游抛错。 */
+    private void persistAssistantContent(Message assistantMsg, String content) {
+        assistantMsg.setContent(content);
+        messageMapper.updateById(assistantMsg);
     }
 
     private MessageResponse convertToResponse(Message message) {
         MessageResponse response = new MessageResponse();
         BeanUtils.copyProperties(message, response);
         return response;
-    }
-
-    /**
-     * 流式消息缓存前缀
-     */
-    public final class StreamKeys {
-        private StreamKeys() {
-        }
-
-        // 流式消息状态
-        public static String status(Long streamId) {
-            return "chat:stream:" + streamId + ":status";
-        } // streaming/completed/failed
-
-        // 流式消息内容
-        public static String content(Long streamId) {
-            return "chat:stream:" + streamId + ":content";
-        } // full text buffer
-
-        // 流式消息错误
-        public static String error(Long streamId) {
-            return "chat:stream:" + streamId + ":error";
-        }
-
-        // 流式消息完成
-        public static String done(Long streamId) {
-            return "chat:stream:" + streamId + ":done";
-        } // 1/0
     }
 }

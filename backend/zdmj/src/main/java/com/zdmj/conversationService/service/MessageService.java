@@ -24,9 +24,4 @@ public interface MessageService extends IService<Message> {
      * 创建流式消息
      */
     Flux<ServerSentEvent<String>> createStream(ChatStreamRequest request);
-
-    /**
-     * 恢复流式消息
-     */
-    Flux<ServerSentEvent<String>> resumeStream(Long streamId, int offset);
 }

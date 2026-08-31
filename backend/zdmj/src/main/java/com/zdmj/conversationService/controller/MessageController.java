@@ -65,17 +65,4 @@ public class MessageController {
     public Flux<ServerSentEvent<String>> chatStream(@Valid @RequestBody ChatStreamRequest request) {
         return messageService.createStream(request);
     }
-
-    /**
-     * 恢复流式消息
-     *
-     * @param streamId 流式消息ID
-     * @param offset   偏移量
-     * @return 流式消息
-     */
-    @PostMapping(value = "/chat/resume", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ServerSentEvent<String>> chatResume(@RequestParam Long streamId,
-            @RequestParam(defaultValue = "0") int offset) {
-        return messageService.resumeStream(streamId, offset);
-    }
 }

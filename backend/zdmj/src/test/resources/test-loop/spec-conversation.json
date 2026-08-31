@@ -173,51 +173,51 @@
     },
     {
       "className": "MessageServiceImpl",
-      "method": "resumeStream(Long,int)",
+      "method": "createStream(ChatStreamRequest)",
       "givenWhenThen": {
         "given": [
-          "读取 Redis content/status/error",
-          "offset 小于 0 归零"
+          "会话属于当前用户",
+          "LLM Flux 可完成或失败"
         ],
-        "when": "调用 resumeStream",
+        "when": "调用 createStream",
         "then": [
-          "completed 返回 done",
-          "failed 返回 error",
-          "streaming 返回 replay 与 live"
+          "成功时 SSE 推送 delta 并回写 assistant.content",
+          "LLM 失败时仍回写已生成部分",
+          "插入失败抛 MESSAGE_CREATE_FAILED"
         ]
       },
       "paths": [
         {
-          "pathId": "message.resumeStream.happy.completed_with_done",
+          "pathId": "message.createStream.happy.persist_and_emit_delta",
           "type": "happy",
-          "description": "completed 状态补发 done"
+          "description": "流完成回写全文并推送 delta"
         },
         {
-          "pathId": "message.resumeStream.happy.streaming_with_live_sink",
-          "type": "happy",
-          "description": "streaming 且 sink 存在"
-        },
-        {
-          "pathId": "message.resumeStream.boundary.offset_negative_to_zero",
-          "type": "boundary",
-          "description": "offset<0 归零"
-        },
-        {
-          "pathId": "message.resumeStream.negative.stream_id_null",
+          "pathId": "message.createStream.negative.user_insert_failed",
           "type": "negative",
-          "description": "streamId 为空抛 1001"
+          "description": "user 消息插入失败抛 9005"
         },
         {
-          "pathId": "message.resumeStream.negative.failed_status_error_event",
+          "pathId": "message.createStream.negative.assistant_insert_failed",
           "type": "negative",
-          "description": "failed 状态返回 error 事件"
+          "description": "assistant 预写失败抛 9005"
+        },
+        {
+          "pathId": "message.createStream.negative.llm_error_persist_partial",
+          "type": "negative",
+          "description": "LLM 失败仍落部分内容"
+        },
+        {
+          "pathId": "message.createStream.negative.persist_failed",
+          "type": "negative",
+          "description": "完成时 updateById 失败向下游抛错"
         }
       ],
       "assertionContract": [
         {
           "field": "exception.code",
-          "expected": "1001",
-          "reason": "streamId 参数校验"
+          "expected": "9005",
+          "reason": "消息创建失败错误码"
         }
       ]
     },
@@ -288,7 +288,7 @@
     {
       "caseId": "TC-MSG-01",
       "coversPathIds": [
-        "message.resumeStream.happy.completed_with_done"
+        "message.createStream.happy.persist_and_emit_delta"
       ]
     },
     {
@@ -309,8 +309,8 @@
     {
       "caseId": "TC-MSG-EXT-01",
       "coversPathIds": [
-        "message.resumeStream.negative.failed_status_error_event",
-        "message.resumeStream.boundary.offset_negative_to_zero"
+        "message.createStream.negative.llm_error_persist_partial",
+        "message.createStream.negative.persist_failed"
       ]
     }
   ],
@@ -321,7 +321,7 @@
     "pathCount": 6
   },
   "riskPoints": [
-    "createStream 异步回调分支较多，需要用流测试触发 doOnComplete/doOnError",
+    "createStream 独立 subscribe 后落库，需用流测试触发 doOnComplete/doOnError",
     "权限校验依赖 UserHolder 上下文，需在测试中稳定设置与清理",
     "缓存逻辑与 DB 逻辑并存，需分别覆盖 cache-hit 与 db-hit"
   ]
