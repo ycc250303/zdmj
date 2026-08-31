@@ -52,6 +52,9 @@ const bgColor = computed(() => {
 
 <template>
   <div class="relative size-full flex-center overflow-hidden" :style="{ backgroundColor: bgColor }">
+    <div class="absolute right-16px top-12px z-5">
+      <GithubButton />
+    </div>
     <WaveBg :theme-color="bgThemeColor" />
     <NCard :bordered="false" class="relative z-4 w-auto rd-12px">
       <div class="w-400px lt-sm:w-300px">

@@ -52,6 +52,7 @@ const { isFullscreen, toggle } = useFullscreen();
         @switch="themeStore.toggleThemeScheme"
       />
       <ThemeButton />
+      <GithubButton />
       <UserAvatar />
     </div>
   </DarkModeContainer>

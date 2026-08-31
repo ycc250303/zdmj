@@ -1201,6 +1201,7 @@ declare namespace App {
         expand: string;
         pin: string;
         unpin: string;
+        github: string;
       };
       datatable: {
         itemCount: string;

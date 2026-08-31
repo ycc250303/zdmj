@@ -1014,7 +1014,8 @@ const local: App.I18n.Schema = {
     collapse: 'Collapse Menu',
     expand: 'Expand Menu',
     pin: 'Pin',
-    unpin: 'Unpin'
+    unpin: 'Unpin',
+    github: 'GitHub Repository'
   },
   datatable: {
     itemCount: 'Total {total} items'

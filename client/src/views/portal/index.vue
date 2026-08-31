@@ -60,6 +60,8 @@ function handleAction() {
             </template>
           </NButton> -->
 
+          <GithubButton />
+
           <NDropdown :options="langOptions" placement="bottom" @select="handleLangSelect">
             <NButton quaternary circle>
               <template #icon>
