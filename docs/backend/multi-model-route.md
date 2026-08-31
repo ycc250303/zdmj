@@ -86,7 +86,7 @@ com.zdmj.userAuthService                # /users/llm-config CRUD + 连通性测�
 | `getChatClientWithMemory` | `{userId}:memory` | `MessageChatMemoryAdvisor` | 多轮对话 / RAG 答疑 |
 | `getPlatformChatClient` | `platform:{code}` | 无 | 简历 PDF/文本结构化识别 |
 
-记忆：PostgreSQL `SPRING_AI_CHAT_MEMORY`，窗口 40 条；对话时 `CONVERSATION_ID` = 会话主键字符串。结构化调用必须用 plain，避免历史串进 JSON。
+记忆：PostgreSQL `SPRING_AI_CHAT_MEMORY`，窗口 40 条；对话时 `CONVERSATION_ID` = 会话主键字符串。删除会话时 `ChatMemory.clear(id)`，并物理删除该会话 `messages`。结构化调用必须用 plain，避免历史串进 JSON。
 
 `ChatModelConfig` 里原先的全局 `@Bean ChatClient` 已注释掉，避免业务误注入平台单例。
 

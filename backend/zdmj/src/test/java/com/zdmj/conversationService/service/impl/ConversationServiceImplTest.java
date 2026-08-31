@@ -8,6 +8,7 @@ import com.zdmj.conversationService.dto.ConversationRequest;
 import com.zdmj.conversationService.dto.ConversationResponse;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.mapper.ConversationMapper;
+import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.support.ConversationContextSupport;
 import com.zdmj.resumeService.dto.ResumeContentResponse;
 import com.zdmj.resumeService.dto.ResumePersonalInfoDTO;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.ai.chat.memory.ChatMemory;
 
 import java.util.HashMap;
 import java.util.List;
@@ -43,13 +45,17 @@ class ConversationServiceImplTest {
     @Mock
     private ConversationMapper conversationMapper;
     @Mock
+    private MessageMapper messageMapper;
+    @Mock
+    private ChatMemory chatMemory;
+    @Mock
     private ResumeService resumeService;
 
     private ConversationServiceImpl conversationService;
 
     @BeforeEach
     void setUp() {
-        conversationService = spy(new ConversationServiceImpl(conversationMapper, resumeService));
+        conversationService = spy(new ConversationServiceImpl(conversationMapper, messageMapper, chatMemory, resumeService));
         lenient().when(resumeService.getMyResumeContent()).thenReturn(new ResumeContentResponse());
         UserHolder.set(UserContext.of(1L, "u1"));
     }
@@ -237,7 +243,25 @@ class ConversationServiceImplTest {
 
         assertEquals(ErrorCode.CONVERSATION_DELETE_FAILED.getCode(), ex.getCode());
         assertEquals(ErrorCode.CONVERSATION_DELETE_FAILED.getMessage(), ex.getMessage());
+        verify(messageMapper).delete(any());
+        verify(chatMemory).clear("21");
         verify(conversationService).removeById(21L);
+    }
+
+    @Test
+    void delete_shouldClearMessagesAndChatMemory() {
+        Conversation owned = new Conversation();
+        owned.setId(24L);
+        owned.setUserId(1L);
+        doReturn(owned).when(conversationService).requireOwned(24L);
+        doReturn(true).when(conversationService).removeById(24L);
+        doReturn(3).when(messageMapper).delete(any());
+
+        conversationService.delete(24L);
+
+        verify(messageMapper).delete(any());
+        verify(chatMemory).clear("24");
+        verify(conversationService).removeById(24L);
     }
 
     @Test
@@ -252,6 +276,8 @@ class ConversationServiceImplTest {
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         assertEquals(ErrorCode.NO_PERMISSION.getMessage(), ex.getMessage());
         verify(conversationService, never()).removeById(22L);
+        verify(messageMapper, never()).delete(any());
+        verify(chatMemory, never()).clear(any());
     }
 
     @Test

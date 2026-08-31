@@ -1,5 +1,6 @@
 package com.zdmj.conversationService.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
@@ -7,15 +8,19 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.conversationService.dto.ConversationRequest;
 import com.zdmj.conversationService.dto.ConversationResponse;
 import com.zdmj.conversationService.entity.Conversation;
+import com.zdmj.conversationService.entity.Message;
 import com.zdmj.conversationService.mapper.ConversationMapper;
+import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.service.ConversationService;
 import com.zdmj.conversationService.support.ConversationContextSupport;
 import com.zdmj.resumeService.service.ResumeService;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,6 +36,8 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         implements ConversationService {
 
     private final ConversationMapper conversationMapper;
+    private final MessageMapper messageMapper;
+    private final ChatMemory chatMemory;
     private final ResumeService resumeService;
 
     @Override
@@ -153,12 +160,15 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void delete(Long id) {
         Long userId = UserHolder.requireUserId();
         Conversation conversation = requireOwned(id);
         if (!conversation.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.NO_PERMISSION);
         }
+        messageMapper.delete(new LambdaQueryWrapper<Message>().eq(Message::getConversationId, id));
+        chatMemory.clear(String.valueOf(id));
         boolean deleted = removeById(id);
         if (!deleted) {
             throw new BusinessException(ErrorCode.CONVERSATION_DELETE_FAILED);

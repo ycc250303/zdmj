@@ -142,7 +142,7 @@
         ],
         "when": "调用 delete",
         "then": [
-          "removeById 成功后清理缓存",
+          "先删 messages 与 ChatMemory，再 removeById",
           "越权或删除失败抛异常"
         ]
       },
@@ -150,7 +150,7 @@
         {
           "pathId": "conversation.delete.happy.remove_and_evict_cache",
           "type": "happy",
-          "description": "删除成功并删缓存"
+          "description": "删除成功并清理 messages 与 ChatMemory"
         },
         {
           "pathId": "conversation.delete.negative.no_permission",
