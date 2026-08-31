@@ -339,7 +339,7 @@
 | `user_id`         | `BIGINT`       | 用户ID           | `NOT NULL`，逻辑外键 `users.id`       | -                                                                                                      |
 | `project_id`      | `BIGINT`       | 关联项目ID       | 可空，逻辑外键 `project_experiences.id` | -                                                                                                      |
 | `title`           | `VARCHAR(255)` | 会话标题         | 可空                                      | -                                                                                                      |
-| `config`          | `JSONB`        | 对话配置         | `DEFAULT '{}'::jsonb`                   | 示例：`{"ragEnabled":true,"useSystemKnowledge":true,"topK":10,"minScore":0.5}`（字段以应用约定为准） |
+| `config`          | `JSONB`        | 对话配置（首条消息发出后不可改） | `DEFAULT '{}'::jsonb`                   | `useSystemKnowledge`、`ragDocumentIds`（缺省键表示检索用户库全部文档） |
 | `context`         | `JSONB`        | RAG上下文列表    | `DEFAULT '[]'::jsonb`                   | 示例：`[{"type":"knowledge_base","id":456,"name":"知识库名称"}]`                                     |
 | `message_count`   | `INTEGER`      | 消息总数         | `DEFAULT 0`                             | -                                                                                                      |
 | `last_message_at` | `TIMESTAMP`    | 最后一条消息时间 | 可空                                      | -                                                                                                      |

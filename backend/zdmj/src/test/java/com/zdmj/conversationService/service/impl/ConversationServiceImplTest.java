@@ -17,6 +17,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -76,7 +77,7 @@ class ConversationServiceImplTest {
 
         assertEquals(1L, actual.getUserId());
         assertEquals(0, actual.getMessageCount());
-        assertEquals("gpt", actual.getConfig().get("model"));
+        assertFalse(actual.getConfig().containsKey("model"));
         assertFalse(Boolean.TRUE.equals(actual.getConfig().get(ConversationContextSupport.CONFIG_USE_SYSTEM_KNOWLEDGE)));
         verify(conversationService).save(any(Conversation.class));
     }
@@ -281,7 +282,24 @@ class ConversationServiceImplTest {
     }
 
     @Test
-    void updateConfig_shouldMergeConfigWithoutUsingUpdateById() {
+    void createConversation_shouldKeepOnlyFrozenConfigKeys() {
+        ConversationRequest dto = new ConversationRequest();
+        dto.setConfig(Map.of(
+                "model", "gpt",
+                ConversationContextSupport.CONFIG_USE_SYSTEM_KNOWLEDGE, true,
+                ConversationContextSupport.CONFIG_RAG_DOCUMENT_IDS, List.of(3, 4)));
+        doReturn(true).when(conversationService).save(any(Conversation.class));
+
+        ConversationResponse actual = conversationService.create(dto);
+
+        assertTrue(Boolean.TRUE.equals(actual.getConfig().get(ConversationContextSupport.CONFIG_USE_SYSTEM_KNOWLEDGE)));
+        assertEquals(List.of(3L, 4L), actual.getConfig().get(ConversationContextSupport.CONFIG_RAG_DOCUMENT_IDS));
+        assertFalse(actual.getConfig().containsKey("model"));
+        verify(conversationService, never()).updateById(any(Conversation.class));
+    }
+
+    @Test
+    void updateConfig_whenIdle_shouldSanitizeAndUpdate() {
         Conversation owned = new Conversation();
         owned.setId(23L);
         owned.setUserId(1L);
@@ -292,7 +310,7 @@ class ConversationServiceImplTest {
         Conversation refreshed = new Conversation();
         refreshed.setId(23L);
         refreshed.setUserId(1L);
-        refreshed.setMessageCount(6);
+        refreshed.setMessageCount(0);
         refreshed.setConfig(Map.of(
                 "useSystemKnowledge", true,
                 "ragDocumentIds", List.of(1L, 2L)));
@@ -300,11 +318,28 @@ class ConversationServiceImplTest {
 
         ConversationResponse out = conversationService.updateConfig(23L, Map.of(
                 "ragDocumentIds", List.of(1L, 2L),
-                "useSystemKnowledge", true));
+                "useSystemKnowledge", true,
+                "model", "gpt"));
 
-        assertEquals(6, out.getMessageCount());
         assertTrue(Boolean.TRUE.equals(out.getConfig().get("useSystemKnowledge")));
-        verify(conversationMapper).updateConfigByIdAndUserId(eq(23L), eq(1L), any());
+        ArgumentCaptor<Map<String, Object>> configCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(conversationMapper).updateConfigByIdAndUserId(eq(23L), eq(1L), configCaptor.capture());
+        assertFalse(configCaptor.getValue().containsKey("model"));
         verify(conversationService, never()).updateById(any(Conversation.class));
+    }
+
+    @Test
+    void updateConfig_afterFirstMessage_shouldThrow9006() {
+        Conversation owned = new Conversation();
+        owned.setId(25L);
+        owned.setUserId(1L);
+        owned.setMessageCount(2);
+        doReturn(owned).when(conversationService).requireOwned(25L);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> conversationService.updateConfig(25L, Map.of("useSystemKnowledge", true)));
+
+        assertEquals(ErrorCode.CONVERSATION_CONFIG_LOCKED.getCode(), ex.getCode());
+        verify(conversationMapper, never()).updateConfigByIdAndUserId(any(), any(), any());
     }
 }

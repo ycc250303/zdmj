@@ -21,6 +21,7 @@ export namespace ConversationApi {
     title: string;
     config: Record<string, any>;
     context: Array<Record<string, any>>;
+    messageCount?: number;
     createdAt: string;
     updatedAt: string;
   }
@@ -29,10 +30,6 @@ export namespace ConversationApi {
   export interface MessageDTO {
     conversationId: number;
     message: string;
-    /** 参与 RAG 检索的知识文档 ID；空数组表示不检索用户私有文档 */
-    ragDocumentIds?: number[];
-    /** 是否检索系统知识库；未传时沿用会话 config */
-    useSystemKnowledge?: boolean;
   }
 
   /** 消息实体 */
@@ -85,7 +82,7 @@ export function fetchUpdateConversationTitle(id: number, title: string) {
   });
 }
 
-/** 更新会话配置 */
+/** 更新会话检索配置（仅尚未发出首条消息时） */
 export function fetchUpdateConversationConfig(id: number, config: Record<string, any>) {
   return request<ConversationApi.Conversation>({
     url: `/conversations/${id}/config`,

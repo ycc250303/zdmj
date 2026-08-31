@@ -15,6 +15,7 @@ import com.zdmj.conversationService.entity.Message;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.service.ConversationService;
+import com.zdmj.conversationService.support.ConversationContextSupport;
 import com.zdmj.knowledgeService.service.KnowledgeRagService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +28,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -324,5 +326,35 @@ class MessageServiceImplTest {
             pool.shutdown();
             pool.awaitTermination(5, TimeUnit.SECONDS);
         }
+    }
+
+    @Test
+    void createStream_shouldUseConversationConfigForRag() {
+        ChatStreamRequest dto = new ChatStreamRequest();
+        dto.setConversationId(306L);
+        dto.setMessage("ask");
+        Conversation conversation = new Conversation();
+        conversation.setId(306L);
+        conversation.setConfig(Map.of(
+                ConversationContextSupport.CONFIG_USE_SYSTEM_KNOWLEDGE, true,
+                ConversationContextSupport.CONFIG_RAG_DOCUMENT_IDS, List.of(9L)));
+        doReturn(conversation).when(conversationService).requireOwned(306L);
+        doReturn(4).when(conversationMapper).incrementMessageCountAndGet(eq(306L), anyLong(), eq(2));
+        doReturn(true).when(ragConfig).isEnabled();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            Message m = invocation.getArgument(0);
+            if (m.getRole() == 2) {
+                m.setId(903L);
+            }
+            return 1;
+        }).when(messageMapper).insert(any(Message.class));
+        doReturn(1).when(messageMapper).updateById(any(Message.class));
+        doReturn(Flux.just("ok")).when(knowledgeRagService).streamAnswer(
+                eq(1L), eq(306L), eq("ask"), eq(List.of(9L)), eq(true), any());
+
+        messageService.createStream(dto).collectList().block();
+
+        verify(knowledgeRagService).streamAnswer(eq(1L), eq(306L), eq("ask"), eq(List.of(9L)), eq(true), any());
+        verify(chatUtil, never()).chatStreamInConversation(anyLong(), anyLong(), anyString(), anyString(), any());
     }
 }

@@ -141,6 +141,14 @@ const knowledgePanelCollapsed = ref(false);
 const enabledRagDocumentIds = ref<number[]>([]);
 const useSystemKnowledge = ref(false);
 const ragSelectionSyncedForConversationId = ref<number | null>(null);
+const draftSelectionTouched = ref(false);
+const currentConversation = computed(() =>
+  conversations.value.find(item => item.id === currentConversationId.value) ?? null
+);
+const configFrozen = computed(() => {
+  if (currentConversationId.value == null) return false;
+  return (currentConversation.value?.messageCount ?? 0) > 0 || messageList.value.length > 0;
+});
 const knowledgePanelWidth = ref(DEFAULT_KNOWLEDGE_PANEL_WIDTH);
 const isResizingKnowledgePanel = ref(false);
 
@@ -228,8 +236,15 @@ const buildConversationConfig = () => ({
   useSystemKnowledge: useSystemKnowledge.value
 });
 
+const resetDraftKnowledgeSelection = () => {
+  enabledRagDocumentIds.value = getAllKnowledgeDocumentIds();
+  useSystemKnowledge.value = false;
+  draftSelectionTouched.value = false;
+  ragSelectionSyncedForConversationId.value = null;
+};
+
 const persistRagSelection = async () => {
-  if (!currentConversationId.value) return true;
+  if (!currentConversationId.value || configFrozen.value) return true;
 
   const { data, error } = await fetchUpdateConversationConfig(
     currentConversationId.value,
@@ -256,6 +271,8 @@ const isRagDocumentEnabled = (documentId?: number) => {
 };
 
 const handleToggleRagDocument = async (documentId: number, enabled: boolean) => {
+  if (configFrozen.value) return;
+  draftSelectionTouched.value = true;
   if (enabled) {
     if (!enabledRagDocumentIds.value.includes(documentId)) {
       enabledRagDocumentIds.value = [...enabledRagDocumentIds.value, documentId];
@@ -267,6 +284,8 @@ const handleToggleRagDocument = async (documentId: number, enabled: boolean) => 
 };
 
 const handleToggleSystemKnowledge = async (enabled: boolean) => {
+  if (configFrozen.value) return;
+  draftSelectionTouched.value = true;
   useSystemKnowledge.value = enabled;
   await persistRagSelection();
 };
@@ -277,11 +296,12 @@ const loadKnowledgeDocuments = async () => {
     const { data, error } = await fetchGetKnowledgeDocumentList({ page: 1, limit: 100 });
     if (!error && data) {
       knowledgeDocuments.value = data.list || [];
-      if (
-        currentConversationId.value != null
-        && ragSelectionSyncedForConversationId.value !== currentConversationId.value
-      ) {
-        syncRagSelectionFromConversation();
+      if (currentConversationId.value != null) {
+        if (ragSelectionSyncedForConversationId.value !== currentConversationId.value) {
+          syncRagSelectionFromConversation();
+        }
+      } else if (!draftSelectionTouched.value) {
+        enabledRagDocumentIds.value = getAllKnowledgeDocumentIds();
       }
     }
   } finally {
@@ -308,13 +328,8 @@ const loadConversations = async () => {
 const handleNewChat = async () => {
   const { data, error } = await fetchCreateConversation({ config: buildConversationConfig(), context: [] });
   if (!error && data) {
-    // 重新加载会话列表
-    const { data: convData, error: convError } = await fetchGetConversations();
-    if (!convError && convData) {
-      conversations.value = convData;
-    }
-    // 选中新创建的会话
-    handleSelectConversation(data.id);
+    conversations.value = [data, ...conversations.value.filter(item => item.id !== data.id)];
+    await handleSelectConversation(data.id);
   } else {
     message.error('创建会话失败');
   }
@@ -382,25 +397,24 @@ const handleDeleteConversation = (id: number, event: Event) => {
 const handleSend = async () => {
   if (!inputText.value.trim() || sending.value) return;
 
-  // 如果没有当前会话，先创建一个
+  // 如果没有当前会话，先创建一个（此时尚无消息，config 仍可改）
   if (!currentConversationId.value) {
     const { data, error } = await fetchCreateConversation({ config: buildConversationConfig(), context: [] });
-    if (!error && data && data.id) {
-      // 创建成功后，先选中这个新会话，确保所有数据都加载完成
-      await handleSelectConversation(data.id);
-      return; // 选中会话后会重新触发，所以这里直接返回
+    if (error || !data?.id) {
+      message.error('创建会话失败');
+      return;
     }
-    message.error('创建会话失败');
+    conversations.value = [data, ...conversations.value.filter(item => item.id !== data.id)];
+    currentConversationId.value = data.id;
+    ragSelectionSyncedForConversationId.value = data.id;
+  }
+
+  if (!(await persistRagSelection())) {
     return;
   }
 
   const userText = inputText.value.trim();
   inputText.value = '';
-
-  if (!(await persistRagSelection())) {
-    inputText.value = userText;
-    return;
-  }
 
   // 添加用户消息到列表
   const tempUserMsg: ConversationApi.Message & { thinking?: boolean } = {
@@ -430,10 +444,9 @@ const handleSend = async () => {
   };
   messageList.value.push(tempAiMsg);
 
-  const requestData = {
+  const requestData: ConversationApi.MessageDTO = {
     conversationId: currentConversationId.value!,
-    message: userText,
-    ...buildConversationConfig()
+    message: userText
   };
   console.log('发送消息请求:', requestData);
 
@@ -794,7 +807,7 @@ onMounted(() => {
             {{ $t('page.chat.knowledgePanelTitle') }}
           </h3>
           <p class="text-xs text-gray-400 dark:text-gray-500 mt-1 mb-0">
-            {{ $t('page.chat.knowledgePanelDesc') }}
+            {{ configFrozen ? $t('page.chat.knowledgeConfigFrozen') : $t('page.chat.knowledgePanelDesc') }}
           </p>
         </div>
         <n-tooltip placement="bottom">
@@ -826,6 +839,7 @@ onMounted(() => {
               </div>
               <n-switch
                 :value="useSystemKnowledge"
+                :disabled="configFrozen"
                 size="small"
                 @update:value="handleToggleSystemKnowledge"
               />
@@ -861,7 +875,7 @@ onMounted(() => {
                 </div>
                 <n-switch
                   :value="isRagDocumentEnabled(item.id)"
-                  :disabled="!knowledgeEmbeddingReady(item) || item.id == null"
+                  :disabled="configFrozen || !knowledgeEmbeddingReady(item) || item.id == null"
                   size="small"
                   @update:value="(enabled: boolean) => item.id != null && handleToggleRagDocument(item.id, enabled)"
                 />

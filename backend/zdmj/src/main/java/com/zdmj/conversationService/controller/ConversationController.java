@@ -77,11 +77,7 @@ public class ConversationController {
     }
 
     /**
-     * 更新会话配置
-     *
-     * @param id     会话ID
-     * @param config 配置片段
-     * @return 更新后的会话
+     * 更新检索配置（仅尚未发出首条消息时）
      */
     @PutMapping("/{id}/config")
     public Result<ConversationResponse> updateConfig(@PathVariable Long id, @RequestBody Map<String, Object> config) {

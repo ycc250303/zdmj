@@ -16,7 +16,7 @@ public class ConversationRequest {
     private Long id;
 
     /**
-     * 对话配置（JSONB对象）
+     * 对话配置。创建后、发出首条消息前可改；有效键：useSystemKnowledge、ragDocumentIds。
      */
     private Map<String, Object> config;
 

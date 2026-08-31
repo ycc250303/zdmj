@@ -32,7 +32,7 @@ public class Conversation extends BaseEntity {
     private String title;
 
     /**
-     * 对话配置（JSONB对象）
+     * 对话配置（JSONB对象，首条消息发出后不可改）
      */
     @TableField(typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> config;

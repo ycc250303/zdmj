@@ -603,6 +603,16 @@ declare namespace App {
           createSuccess: string;
           createFailed: string;
           sendFailed: string;
+          knowledgePanelTitle: string;
+          knowledgePanelDesc: string;
+          knowledgeConfigFrozen: string;
+          collapseKnowledgePanel: string;
+          expandKnowledgePanel: string;
+          knowledgeEmpty: string;
+          knowledgeRagEnabled: string;
+          knowledgeNotEmbedded: string;
+          systemKnowledgeTitle: string;
+          systemKnowledgeDesc: string;
         };
         profile: {
           common: {

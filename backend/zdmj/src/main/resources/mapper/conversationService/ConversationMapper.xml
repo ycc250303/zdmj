@@ -33,5 +33,6 @@
             updated_at = NOW()
         WHERE id = #{conversationId}
           AND user_id = #{userId}
+          AND COALESCE(message_count, 0) = 0
     </update>
 </mapper>

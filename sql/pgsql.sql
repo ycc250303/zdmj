@@ -694,13 +694,11 @@ CREATE TABLE IF NOT EXISTS conversations (
     title VARCHAR(255),
     -- 对话标题（可由AI生成或用户自定义，首次消息时可为空）
     config JSONB DEFAULT '{}'::jsonb,
-    -- 对话配置（ragEnabled、max_tokens、top_p等参数）
+    -- 对话配置（首条消息发出后不可改：useSystemKnowledge、ragDocumentIds）
     -- config 示例（JSON 仅为说明，实际由应用解析）
     -- {
-    --   "ragEnabled": true,
     --   "useSystemKnowledge": true,
-    --   "topK": 10,
-    --   "minScore": 0.5
+    --   "ragDocumentIds": [1, 2]
     -- }
     context JSONB DEFAULT '[]'::jsonb,
     -- 上下文信息（可关联知识库等，用于RAG检索）

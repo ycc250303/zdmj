@@ -45,33 +45,19 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         Long userId = UserHolder.requireUserId();
 
         Conversation conversation = new Conversation();
-        if (request != null) {
-            Map<String, Object> config = request.getConfig() == null
-                    ? new HashMap<>()
-                    : new HashMap<>(request.getConfig());
-            config.putIfAbsent(ConversationContextSupport.CONFIG_USE_SYSTEM_KNOWLEDGE, false);
-            conversation.setConfig(config);
+        conversation.setConfig(ConversationContextSupport.freezeConfig(request == null ? null : request.getConfig()));
 
-            List<Map<String, Object>> contextList = request.getContext() == null
-                    ? new ArrayList<>()
-                    : new ArrayList<>(request.getContext());
-            boolean hasResume = contextList.stream()
-                    .anyMatch(item -> item != null
-                            && ConversationContextSupport.CONTEXT_TYPE_RESUME.equals(String.valueOf(item.get("type"))));
-            if (!hasResume) {
-                ConversationContextSupport.buildResumeContextEntry(resumeService.getMyResumeContent())
-                        .ifPresent(contextList::add);
-            }
-            conversation.setContext(contextList.isEmpty() ? null : contextList);
-        } else {
-            Map<String, Object> config = new HashMap<>();
-            config.put(ConversationContextSupport.CONFIG_USE_SYSTEM_KNOWLEDGE, false);
-            conversation.setConfig(config);
-            List<Map<String, Object>> contextList = new ArrayList<>();
+        List<Map<String, Object>> contextList = (request == null || request.getContext() == null)
+                ? new ArrayList<>()
+                : new ArrayList<>(request.getContext());
+        boolean hasResume = contextList.stream()
+                .anyMatch(item -> item != null
+                        && ConversationContextSupport.CONTEXT_TYPE_RESUME.equals(String.valueOf(item.get("type"))));
+        if (!hasResume) {
             ConversationContextSupport.buildResumeContextEntry(resumeService.getMyResumeContent())
                     .ifPresent(contextList::add);
-            conversation.setContext(contextList.isEmpty() ? null : contextList);
         }
+        conversation.setContext(contextList.isEmpty() ? null : contextList);
         conversation.setUserId(userId);
         conversation.setMessageCount(0);
 
@@ -134,17 +120,22 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         }
         Long userId = UserHolder.requireUserId();
         Conversation conversation = requireOwned(id);
-        if (!conversation.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION);
+        if (conversation.getMessageCount() != null && conversation.getMessageCount() > 0) {
+            throw new BusinessException(ErrorCode.CONVERSATION_CONFIG_LOCKED);
         }
 
         Map<String, Object> merged = conversation.getConfig() == null
                 ? new HashMap<>()
                 : new HashMap<>(conversation.getConfig());
         merged.putAll(config);
+        Map<String, Object> sanitized = ConversationContextSupport.freezeConfig(merged);
 
-        int rows = conversationMapper.updateConfigByIdAndUserId(id, userId, merged);
+        int rows = conversationMapper.updateConfigByIdAndUserId(id, userId, sanitized);
         if (rows != 1) {
+            Conversation latest = conversationMapper.selectById(id);
+            if (latest != null && latest.getMessageCount() != null && latest.getMessageCount() > 0) {
+                throw new BusinessException(ErrorCode.CONVERSATION_CONFIG_LOCKED);
+            }
             throw new BusinessException(ErrorCode.CONVERSATION_UPDATE_FAILED);
         }
         return convertToResponse(requireById(id));

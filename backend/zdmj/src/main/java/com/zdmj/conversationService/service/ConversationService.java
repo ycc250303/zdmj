@@ -39,7 +39,7 @@ public interface ConversationService extends IService<Conversation> {
     ConversationResponse updateTitle(Long id, String title);
 
     /**
-     * 更新会话配置（合并写入，保留未传入字段）
+     * 更新检索配置。仅在尚未发出首条消息时允许（message_count = 0）。
      */
     ConversationResponse updateConfig(Long id, Map<String, Object> config);
 

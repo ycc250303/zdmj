@@ -46,12 +46,9 @@ public interface ConversationMapper extends BaseMapper<Conversation> {
             @Param("title") String title);
 
     /**
-     * 仅更新会话 config，避免回写 Redis 缓存中过期的 message_count / last_message_at。
+     * 仅在尚未发出首条消息时更新 config（WHERE message_count = 0）。
      *
-     * @param conversationId 会话ID
-     * @param userId         用户ID（权限隔离）
-     * @param config         合并后的完整 config
-     * @return 影响行数
+     * @return 影响行数；已开始对话时为 0
      */
     int updateConfigByIdAndUserId(
             @Param("conversationId") Long conversationId,

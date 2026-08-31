@@ -31,7 +31,7 @@ public class Skill {
 
 - 第 2 类：根是对象数组 → Service `TypeReference<List<Foo>>`。
 - 第 3 类：根是对象（可嵌套）→ Service `Foo.class` 或嵌套 DTO 树。
-- 开放键值袋（会话 `config`、知识库 `metadata`）本轮仍 `JacksonTypeHandler` + `Map`，不强制改成 String。
+- 开放键值袋（知识库 `metadata`、会话 `context`）本轮仍 `JacksonTypeHandler` + `Map`，不强制改成 String。会话 `config` 首条消息发出后不可改，写入时只保留 `useSystemKnowledge` / `ragDocumentIds`。
 
 ---
 

@@ -105,6 +105,7 @@ public enum ErrorCode {
     CONVERSATION_NOT_FOUND(9003, "会话不存在", HttpStatus.NOT_FOUND),
     CONVERSATION_UPDATE_FAILED(9004, "更新会话失败", HttpStatus.BAD_REQUEST),
     MESSAGE_CREATE_FAILED(9005, "创建消息失败", HttpStatus.BAD_REQUEST),
+    CONVERSATION_CONFIG_LOCKED(9006, "会话已开始对话，无法修改检索配置", HttpStatus.CONFLICT),
 
     // ========== 岗位 jobService 100xx ==========
     JOB_NOT_FOUND(10001, "岗位不存在", HttpStatus.NOT_FOUND),
