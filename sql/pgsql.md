@@ -105,7 +105,7 @@
 | `description`   | `TEXT`         | 项目描述         | 可空                                | -                                                                           |
 | `contribution`  | `VARCHAR(500)` | 核心贡献         | 可空                                | -                                                                           |
 | `tech_stack`    | `JSONB`        | 技术栈           | `DEFAULT '[]'::jsonb`             | 示例：`["React","TypeScript","Node.js"]`                                  |
-| `highlights`    | `JSONB`        | 项目亮点         | `DEFAULT '[]'::jsonb`             | 数组项结构：`{"type":"技术难点","content":"实现了分布式锁"}`              |
+| `highlights`    | `JSONB`        | 项目亮点         | `DEFAULT '[]'::jsonb`             | 字符串数组，示例：`["实现了分布式锁","提升了50%的性能"]`                  |
 | `url`           | `VARCHAR(500)` | 项目链接         | 可空                                | -                                                                           |
 | `status`        | `SMALLINT`     | AI分析状态       | `NOT NULL, DEFAULT 1`             | `1=committed已提交, 2=mining挖掘中, 3=polishing打磨中, 4=completed已完成` |
 | `lookup_result` | `JSONB`        | AI分析结果       | 可空                                | 示例：`{"problem":[...],"solution":[...],"score":85}`                     |

@@ -1,7 +1,6 @@
 package com.zdmj.conversationService.service.impl;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.zdmj.common.cache.RedisUtil;
 import com.zdmj.common.ai.config.RagConfig;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
@@ -24,6 +23,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.test.util.ReflectionTestUtils;
 import reactor.core.publisher.Flux;
@@ -62,7 +63,9 @@ import static org.mockito.Mockito.atLeastOnce;
 class MessageServiceImplTest {
 
     @Mock
-    private RedisUtil redisUtil;
+    private StringRedisTemplate redisTemplate;
+    @Mock
+    private ValueOperations<String, String> valueOperations;
     @Mock
     private ChatUtil chatUtil;
     @Mock
@@ -80,8 +83,9 @@ class MessageServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         messageService = spy(new MessageServiceImpl(
-                redisUtil,
+                redisTemplate,
                 chatUtil,
                 messageMapper,
                 conversationService,
@@ -103,14 +107,14 @@ class MessageServiceImplTest {
 
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
         assertEquals("streamId不能为空", ex.getMessage());
-        verify(redisUtil, never()).getString(any());
+        verify(valueOperations, never()).get(any());
     }
 
     @Test
     void resumeStream_completed_shouldReplayAndDone() {
         Long streamId = 101L;
-        doReturn("abcdef").when(redisUtil).getString("chat:stream:" + streamId + ":content");
-        doReturn("completed").when(redisUtil).getString("chat:stream:" + streamId + ":status");
+        doReturn("abcdef").when(valueOperations).get("chat:stream:" + streamId + ":content");
+        doReturn("completed").when(valueOperations).get("chat:stream:" + streamId + ":status");
 
         List<ServerSentEvent<String>> events = messageService.resumeStream(streamId, 2).collectList().block();
 
@@ -121,15 +125,15 @@ class MessageServiceImplTest {
         assertEquals(true, replayData.contains("\"cdef\""));
         assertEquals("done", events.get(1).event());
         assertEquals("[DONE]", events.get(1).data());
-        verify(redisUtil).getString("chat:stream:" + streamId + ":content");
-        verify(redisUtil).getString("chat:stream:" + streamId + ":status");
+        verify(valueOperations).get("chat:stream:" + streamId + ":content");
+        verify(valueOperations).get("chat:stream:" + streamId + ":status");
     }
 
     @Test
     void resumeStream_offsetNegative_shouldTreatAsZero() {
         Long streamId = 102L;
-        doReturn("abc").when(redisUtil).getString("chat:stream:" + streamId + ":content");
-        doReturn("completed").when(redisUtil).getString("chat:stream:" + streamId + ":status");
+        doReturn("abc").when(valueOperations).get("chat:stream:" + streamId + ":content");
+        doReturn("completed").when(valueOperations).get("chat:stream:" + streamId + ":status");
 
         List<ServerSentEvent<String>> events = messageService.resumeStream(streamId, -1).collectList().block();
 
@@ -137,15 +141,15 @@ class MessageServiceImplTest {
         String replayData = events.get(0).data();
         assertFalse(replayData == null);
         assertEquals(true, replayData.contains("\"abc\""));
-        verify(redisUtil).getString("chat:stream:" + streamId + ":content");
+        verify(valueOperations).get("chat:stream:" + streamId + ":content");
     }
 
     @Test
     void resumeStream_failed_shouldReturnErrorEvent() {
         Long streamId = 103L;
-        doReturn("hi").when(redisUtil).getString("chat:stream:" + streamId + ":content");
-        doReturn("failed").when(redisUtil).getString("chat:stream:" + streamId + ":status");
-        doReturn("persist failed").when(redisUtil).getString("chat:stream:" + streamId + ":error");
+        doReturn("hi").when(valueOperations).get("chat:stream:" + streamId + ":content");
+        doReturn("failed").when(valueOperations).get("chat:stream:" + streamId + ":status");
+        doReturn("persist failed").when(valueOperations).get("chat:stream:" + streamId + ":error");
 
         List<ServerSentEvent<String>> events = messageService.resumeStream(streamId, 10).collectList().block();
 
@@ -154,14 +158,14 @@ class MessageServiceImplTest {
         String errorData = events.get(0).data();
         assertFalse(errorData == null);
         assertEquals(true, errorData.contains("persist failed"));
-        verify(redisUtil).getString("chat:stream:" + streamId + ":error");
+        verify(valueOperations).get("chat:stream:" + streamId + ":error");
     }
 
     @Test
     void resumeStream_streamingWithLiveSink_shouldReplayAndDelta() {
         Long streamId = 104L;
-        doReturn("abcd").when(redisUtil).getString("chat:stream:" + streamId + ":content");
-        doReturn("streaming").when(redisUtil).getString("chat:stream:" + streamId + ":status");
+        doReturn("abcd").when(valueOperations).get("chat:stream:" + streamId + ":content");
+        doReturn("streaming").when(valueOperations).get("chat:stream:" + streamId + ":status");
 
         @SuppressWarnings("unchecked")
         ConcurrentHashMap<Long, Sinks.Many<String>> sinkMap =
@@ -270,8 +274,8 @@ class MessageServiceImplTest {
         ArgumentCaptor<Message> assistantCaptor = ArgumentCaptor.forClass(Message.class);
         verify(messageMapper).updateById(assistantCaptor.capture());
         assertEquals("hello", assistantCaptor.getValue().getContent());
-        verify(redisUtil).setString("chat:stream:900:status", "completed", 3600);
-        verify(redisUtil).setString("chat:stream:900:done", "1", 3600);
+        verify(valueOperations).set("chat:stream:900:status", "completed", 3600, TimeUnit.SECONDS);
+        verify(valueOperations).set("chat:stream:900:done", "1", 3600, TimeUnit.SECONDS);
     }
 
     @Test
@@ -316,8 +320,8 @@ class MessageServiceImplTest {
                 .when(chatUtil).chatStreamInConversation(eq(1L), eq(304L), eq("ask"), anyString(), any());
 
         assertThrows(RuntimeException.class, () -> messageService.createStream(dto).collectList().block());
-        verify(redisUtil).setString("chat:stream:901:status", "failed", 3600);
-        verify(redisUtil).setString("chat:stream:901:error", "boom", 3600);
+        verify(valueOperations).set("chat:stream:901:status", "failed", 3600, TimeUnit.SECONDS);
+        verify(valueOperations).set("chat:stream:901:error", "boom", 3600, TimeUnit.SECONDS);
     }
 
     @Test
@@ -341,8 +345,35 @@ class MessageServiceImplTest {
         doReturn(0).when(messageMapper).updateById(any(Message.class));
 
         assertThrows(RuntimeException.class, () -> messageService.createStream(dto).collectList().block());
-        verify(redisUtil).setString("chat:stream:902:status", "failed", 3600);
-        verify(redisUtil).setString("chat:stream:902:error", "assistant message persist failed", 3600);
+        verify(valueOperations).set("chat:stream:902:status", "failed", 3600, TimeUnit.SECONDS);
+        verify(valueOperations).set("chat:stream:902:error", "assistant message persist failed", 3600, TimeUnit.SECONDS);
+    }
+
+    @Test
+    void createStream_redisInitFailed_shouldThrowBeforeLlmSubscribe() {
+        ChatStreamRequest dto = new ChatStreamRequest();
+        dto.setConversationId(306L);
+        dto.setMessage("hello");
+        Conversation conversation = new Conversation();
+        conversation.setId(306L);
+        conversation.setMessageCount(2);
+        doReturn(conversation).when(conversationService).requireOwned(306L);
+        doReturn(4).when(conversationMapper).incrementMessageCountAndGet(anyLong(), anyLong(), anyInt());
+        org.mockito.Mockito.doAnswer(invocation -> {
+            Message m = invocation.getArgument(0);
+            if (m.getRole() == 2) {
+                m.setId(903L);
+            }
+            return 1;
+        }).when(messageMapper).insert(any(Message.class));
+        doThrow(new RuntimeException("redis down")).when(valueOperations)
+                .set(eq("chat:stream:903:status"), eq("streaming"), eq(3600L), eq(TimeUnit.SECONDS));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> messageService.createStream(dto));
+
+        assertEquals("redis down", ex.getMessage());
+        verify(chatUtil, never()).chatStreamInConversation(anyLong(), anyLong(), anyString(), anyString(), any());
+        verify(chatUtil, never()).chatOnce(anyLong(), anyString(), anyString(), any());
     }
 
     @Test

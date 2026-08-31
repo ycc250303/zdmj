@@ -3,7 +3,6 @@ package com.zdmj.conversationService.service.impl;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zdmj.common.cache.RedisUtil;
 import com.zdmj.common.ai.config.RagConfig;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.model.PageDTO;
@@ -29,6 +28,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
 import org.springframework.beans.BeanUtils;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -47,7 +48,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @Service
 public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> implements MessageService {
 
-    private final RedisUtil redisUtil;
+    private final StringRedisTemplate redisTemplate;
     private final ChatUtil chatUtil;
     private final MessageMapper messageMapper;
     private final ConversationService conversationService;
@@ -120,14 +121,14 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         String doneKey = StreamKeys.done(streamId);
         String errorKey = StreamKeys.error(streamId);
 
+        // 6.初始化状态（失败则抛，创建流对调用方可见；成功后再登记 sink）
+        setStreamValue(statusKey, "streaming");
+        setStreamValue(contentKey, "");
+        setStreamValue(doneKey, "0");
+        redisTemplate.delete(errorKey);
+
         Sinks.Many<String> sink = Sinks.many().multicast().onBackpressureBuffer();
         streamSinkMap.put(streamId, sink);
-
-        // 6.初始化状态
-        redisUtil.setString(statusKey, "streaming", STREAM_TTL_SECONDS);
-        redisUtil.setString(contentKey, "", STREAM_TTL_SECONDS);
-        redisUtil.setString(doneKey, "0", STREAM_TTL_SECONDS);
-        redisUtil.delete(errorKey);
 
         StringBuilder full = new StringBuilder(256);
         AtomicLong lastFlushAt = new AtomicLong(System.currentTimeMillis());
@@ -171,35 +172,34 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
             if (flush) {
                 // 节流写 Redis，避免每 chunk 全量覆盖
                 // TODO：可考虑引入 Redis Stream/消息队列 进一步优化
-                redisUtil.setString(contentKey, full.toString(), STREAM_TTL_SECONDS);
+                setStreamValue(contentKey, full.toString());
                 lastFlushAt.set(now);
                 lastFlushedLen.set(currLen);
             }
         })
                 .doOnError(e -> {
                     // 错误态 + 最终内容落缓存，方便前端恢复展示
-                    redisUtil.setString(contentKey, full.toString(), STREAM_TTL_SECONDS);
-                    redisUtil.setString(statusKey, "failed", STREAM_TTL_SECONDS);
-                    redisUtil.setString(errorKey, e.getMessage() == null ? "stream failed" : e.getMessage(),
-                            STREAM_TTL_SECONDS);
+                    setStreamValue(contentKey, full.toString());
+                    setStreamValue(statusKey, "failed");
+                    setStreamValue(errorKey, e.getMessage() == null ? "stream failed" : e.getMessage());
                     sink.tryEmitError(e);
                 })
                 .doOnComplete(() -> {
                     // 完成时强刷缓存 + 回写 DB
                     String finalText = full.toString();
-                    redisUtil.setString(contentKey, finalText, STREAM_TTL_SECONDS);
+                    setStreamValue(contentKey, finalText);
 
                     assistantMsg.setContent(finalText);
                     if (messageMapper.updateById(assistantMsg) != 1) {
                         // 写入 DB 失败时标记失败，避免前端误判完成
-                        redisUtil.setString(statusKey, "failed", STREAM_TTL_SECONDS);
-                        redisUtil.setString(errorKey, "assistant message persist failed", STREAM_TTL_SECONDS);
+                        setStreamValue(statusKey, "failed");
+                        setStreamValue(errorKey, "assistant message persist failed");
                         sink.tryEmitError(new RuntimeException("assistant message persist failed"));
                         return;
                     }
 
-                    redisUtil.setString(statusKey, "completed", STREAM_TTL_SECONDS);
-                    redisUtil.setString(doneKey, "1", STREAM_TTL_SECONDS);
+                    setStreamValue(statusKey, "completed");
+                    setStreamValue(doneKey, "1");
                     sink.tryEmitComplete();
                 })
                 .doFinally(signalType -> {
@@ -226,6 +226,12 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         return meta.concatWith(body);
     }
 
+    /**
+     * 恢复流式消息
+     * @param streamId 流式消息 ID
+     * @param offset 偏移量
+     * @return 流式消息
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Flux<ServerSentEvent<String>> resumeStream(Long streamId, int offset) {
@@ -239,8 +245,8 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         String contentKey = StreamKeys.content(streamId);
         String statusKey = StreamKeys.status(streamId);
         String errorKey = StreamKeys.error(streamId);
-        String cached = redisUtil.getString(contentKey);
-        String status = redisUtil.getString(statusKey);
+        String cached = redisTemplate.opsForValue().get(contentKey);
+        String status = redisTemplate.opsForValue().get(statusKey);
 
         if (cached == null) {
             cached = "";
@@ -261,7 +267,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
             return replayFlux.concatWith(done);
         }
         if ("failed".equals(status)) {
-            String err = redisUtil.getString(errorKey);
+            String err = redisTemplate.opsForValue().get(errorKey);
             Flux<ServerSentEvent<String>> fail = Flux.just(
                     ServerSentEvent.<String>builder().event("error").data(err == null ? "stream failed" : err).build());
             return replayFlux.concatWith(fail);
@@ -277,6 +283,13 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         return replayFlux.concatWith(live);
     }
 
+    /**
+     * 获取会话消息列表
+     * @param conversationId 会话 ID
+     * @param page 页码
+     * @param limit 每页条数
+     * @return 消息列表
+     */
     @Override
     public PageDTO<MessageResponse> getMessagesByConversationId(Long conversationId, Integer page, Integer limit) {
         requireConversationAccess(conversationId);
@@ -343,6 +356,11 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
             // 极端场景兜底，至少保证流不中断
             return "{\"choices\":[{\"delta\":{\"content\":\"\"}}]}";
         }
+    }
+
+    /** 流状态写入：固定 TTL，异常向上抛，不走 RedisUtil 的抖动与吞异常。 */
+    private void setStreamValue(String key, String value) {
+        redisTemplate.opsForValue().set(key, value, STREAM_TTL_SECONDS, TimeUnit.SECONDS);
     }
 
     private MessageResponse convertToResponse(Message message) {

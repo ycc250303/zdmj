@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.zdmj.common.model.BaseEntity;
+import com.zdmj.common.typehandler.JsonbStringTypeHandler;
 import com.zdmj.resumeService.enums.ProjectStatusEnum;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -68,8 +69,10 @@ public class ProjectExperience extends BaseEntity {
     private List<String> techStack;
 
     /**
-     * 项目亮点（JSONB数组，包含技术难点、成果等）
+     * 项目亮点 JSON 原文（JSONB 字符串数组）
+     * 示例：["实现了分布式锁","提升了50%的性能"]
      */
+    @TableField(typeHandler = JsonbStringTypeHandler.class)
     private String highlights;
 
     /**
@@ -83,24 +86,10 @@ public class ProjectExperience extends BaseEntity {
     private Integer status;
 
     /**
-     * AI分析结果（JSONB格式，包含问题、解决方案、评分）
-     * 示例：
-     * {
-     * "problem": [
-     * {
-     * "type": "问题类型",
-     * "content": "问题描述"
-     * }
-     * ],
-     * "solution": [
-     * {
-     * "type": "解决方案类型",
-     * "content": "解决方案描述"
-     * }
-     * ],
-     * "score": 85
-     * }
+     * AI 分析结果 JSON 原文（JSONB 对象）
+     * 示例：{"problem":[{"name":"...","desc":"..."}],"solution":[...],"score":85}
      */
+    @TableField(typeHandler = JsonbStringTypeHandler.class)
     private String lookupResult;
 
     /**

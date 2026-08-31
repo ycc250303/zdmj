@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.zdmj.conversationService.mapper.ConversationMapper">
-    <select id="selectByUserId" resultType="com.zdmj.conversationService.entity.Conversation">
+    <select id="selectByUserId" resultMap="mybatis-plus_Conversation">
         SELECT * FROM conversations WHERE user_id = #{userId} ORDER BY updated_at DESC
     </select>
 

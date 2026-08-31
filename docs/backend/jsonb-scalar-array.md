@@ -2,7 +2,7 @@
 
 同质标量数组（`number[]` / `string[]`）在 Entity 上就是 `List<Long>` 或 `List<String>`，由 MyBatis-Plus **3.5.6+** 的 `JacksonTypeHandler` 完成 JSONB ↔ List。Service **不再**对这些列做 `readValue` / `writeValueAsString`。
 
-结构化对象 / 对象数组（技能 content、画像 score_detail、匹配 weights 等）仍走 `String` + `JsonbStringTypeHandler`，见各域 Service。本篇只管第 1 类。
+结构化对象 / 对象数组走 `String` + `JsonbStringTypeHandler`，见 [`jsonb-structured.md`](jsonb-structured.md)。本篇只管第 1 类。
 
 ---
 
@@ -41,6 +41,6 @@ public class Resume {
 | `job_capability_profiles.strengths/missing_skills/weak_evidence_items` | `List<String>` |
 | `job_student_matches.matched_highlights/critical_gaps/matched_keywords/missing_keywords` | `List<String>` |
 
-未纳入：`highlights`（schema 与代码形状不一致）、`knowledge_sources`（对象数组）、第 3/4 类对象。
+未纳入：开放袋（会话 `config`/`context`、知识库 `metadata`）仍 `JacksonTypeHandler` + `Map`。第 2/3 类列清单见 [`jsonb-structured.md`](jsonb-structured.md)。
 
 已删除自定义 `JsonbListTypeHandler`，勿再新增按表的 List TypeHandler。

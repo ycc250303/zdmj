@@ -194,18 +194,9 @@ CREATE TABLE IF NOT EXISTS project_experiences (
     -- tech_stack 示例
     -- ["React", "TypeScript", "Node.js", "PostgreSQL"]
     highlights JSONB DEFAULT '[]'::jsonb,
-    -- 项目亮点（JSONB数组，包含技术难点、成果等）
+    -- 项目亮点（JSONB 字符串数组）
     -- highlights 示例
-    -- [
-    --   {
-    --     "type": "技术难点",
-    --     "content": "实现了分布式锁"
-    --   },
-    --   {
-    --     "type": "成果",
-    --     "content": "提升了50%的性能"
-    --   }
-    -- ]
+    -- ["实现了分布式锁", "提升了50%的性能"]
     url VARCHAR(500),
     -- 项目链接
     status SMALLINT NOT NULL DEFAULT 1,

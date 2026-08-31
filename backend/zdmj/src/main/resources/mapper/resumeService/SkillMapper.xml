@@ -27,6 +27,5 @@
         SELECT id, user_id, content, created_at, updated_at
         FROM skills WHERE content @> '[{"type": #{type}}]'::jsonb AND user_id = #{userId}
     </select>
-    <select id="selectByResumeId" resultType="com.zdmj.resumeService.entity.Skill"></select>
 
 </mapper>
