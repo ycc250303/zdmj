@@ -11,6 +11,7 @@ import com.zdmj.common.ai.prompt.PromptNames;
 import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.resumeService.dto.ResumeContentResponse;
 import com.zdmj.resumeService.dto.ResumeRequest;
+import com.zdmj.resumeService.dto.ResumeImportAwardsResponse;
 import com.zdmj.resumeService.dto.ResumeImportParseRequest;
 import com.zdmj.resumeService.dto.ResumeImportParseResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -29,11 +30,13 @@ import com.zdmj.resumeService.service.CareerService;
 import com.zdmj.resumeService.service.EducationService;
 import com.zdmj.resumeService.service.ProjectExperienceService;
 import com.zdmj.resumeService.service.SkillService;
+import com.zdmj.resumeService.support.AwardImportSupport;
 import jakarta.validation.Validator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -42,6 +45,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -412,16 +416,20 @@ class ResumeServiceImplTest {
     void parseImport_awardYearOnlyInName_shouldNormalizeAward() {
         UserHolder.set(UserContext.of(1L, "u1"));
         ResumeImportParseRequest request = new ResumeImportParseRequest();
-        request.setRawText("resume");
+        request.setRawText("2024年同济大学本科生奖学金");
 
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
+        ResumeImportAwardsResponse awardsResult = new ResumeImportAwardsResponse();
         ResumeImportParseResponse.AwardItem award = new ResumeImportParseResponse.AwardItem();
         award.setName("2024年同济大学本科生奖学金");
-        llmResult.setAwards(List.of(award));
+        awardsResult.setAwards(List.of(award));
 
         doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
                 any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
                 eq(ResumeImportParseResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
+        doReturn(awardsResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
+                any(String.class), eq(PromptNames.RESUME_IMPORT_AWARDS), isNull(),
+                eq(ResumeImportAwardsResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
 
         ResumeImportParseResponse out = resumeService.parseImport(request);
 
@@ -431,7 +439,61 @@ class ResumeServiceImplTest {
     }
 
     @Test
-    void parseImport_scholarshipFromSourceText_shouldSupplementWhenLlmMisses() {
+    void parseImport_shouldSendCompleteAwardCandidateSentencesToLlm() {
+        UserHolder.set(UserContext.of(1L, "u1"));
+        ResumeImportParseRequest request = new ResumeImportParseRequest();
+        request.setRawText("""
+                GPA: 4.43/5.00，获同济大学本科优秀学生奖学金二等奖
+                以项目负责人身份获 2025 年中国高校计算机大赛智能交互创新赛全国一等奖、AIGC 创新赛全国三等奖
+                """);
+
+        ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
+        ResumeImportAwardsResponse awardsResult = new ResumeImportAwardsResponse();
+        ResumeImportParseResponse.AwardItem scholarship = new ResumeImportParseResponse.AwardItem();
+        scholarship.setName("同济大学本科优秀学生奖学金二等奖");
+        scholarship.setAwardType(1);
+        scholarship.setAwardDate("2025-01-01");
+        ResumeImportParseResponse.AwardItem first = new ResumeImportParseResponse.AwardItem();
+        first.setName("2025年中国高校计算机大赛智能交互创新赛全国一等奖");
+        first.setAwardType(2);
+        first.setAwardDate("2025-01-01");
+        ResumeImportParseResponse.AwardItem second = new ResumeImportParseResponse.AwardItem();
+        second.setName("AIGC创新赛全国三等奖");
+        second.setAwardType(2);
+        second.setAwardDate("2025-01-01");
+        awardsResult.setAwards(List.of(scholarship, first, second));
+
+        doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
+                any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
+                eq(ResumeImportParseResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
+        doReturn(awardsResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
+                any(String.class), eq(PromptNames.RESUME_IMPORT_AWARDS), isNull(),
+                eq(ResumeImportAwardsResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
+
+        ResumeImportParseResponse out = resumeService.parseImport(request);
+
+        ArgumentCaptor<String> parseMsg = ArgumentCaptor.forClass(String.class);
+        verify(chatUtil).chatStructuredOnceWithPlatformModel(
+                parseMsg.capture(), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
+                eq(ResumeImportParseResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
+        assertTrue(parseMsg.getValue().contains("GPA: 4.43/5.00"));
+        assertFalse(parseMsg.getValue().contains(AwardImportSupport.CANDIDATE_SECTION_HEADER));
+
+        ArgumentCaptor<String> awardsMsg = ArgumentCaptor.forClass(String.class);
+        verify(chatUtil).chatStructuredOnceWithPlatformModel(
+                awardsMsg.capture(), eq(PromptNames.RESUME_IMPORT_AWARDS), isNull(),
+                eq(ResumeImportAwardsResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
+        String sent = awardsMsg.getValue();
+        assertTrue(sent.startsWith(AwardImportSupport.CANDIDATE_SECTION_HEADER));
+        assertTrue(sent.contains("1. GPA: 4.43/5.00，获同济大学本科优秀学生奖学金二等奖"));
+        assertTrue(sent.contains("全国一等奖、AIGC 创新赛全国三等奖"));
+        assertFalse(sent.contains("【简历原文】"));
+        assertEquals(3, out.getAwards().size());
+        assertEquals(1, out.getAwards().stream().filter(a -> a.getName().contains("优秀学生奖学金")).count());
+    }
+
+    @Test
+    void parseImport_llmMissesScholarship_shouldNotRegexFillFromSource() {
         UserHolder.set(UserContext.of(1L, "u1"));
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("""
@@ -441,39 +503,51 @@ class ResumeServiceImplTest {
                 """);
 
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
+        ResumeImportAwardsResponse awardsResult = new ResumeImportAwardsResponse();
         ResumeImportParseResponse.AwardItem competition = new ResumeImportParseResponse.AwardItem();
         competition.setName("全国大学生数学建模竞赛省一等奖");
         competition.setAwardType(2);
         competition.setAwardDate("2023-11-01");
-        llmResult.setAwards(List.of(competition));
+        awardsResult.setAwards(List.of(competition));
 
         doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
                 any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
                 eq(ResumeImportParseResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
+        doReturn(awardsResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
+                any(String.class), eq(PromptNames.RESUME_IMPORT_AWARDS), isNull(),
+                eq(ResumeImportAwardsResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
 
         ResumeImportParseResponse out = resumeService.parseImport(request);
 
-        assertEquals(2, out.getAwards().size());
-        assertTrue(out.getAwards().stream().anyMatch(a ->
-                a.getName().contains("本科生奖学金") && Integer.valueOf(1).equals(a.getAwardType())));
+        assertEquals(1, out.getAwards().size());
+        assertTrue(out.getAwards().get(0).getName().contains("数学建模"));
+        ArgumentCaptor<String> awardsMsg = ArgumentCaptor.forClass(String.class);
+        verify(chatUtil).chatStructuredOnceWithPlatformModel(
+                awardsMsg.capture(), eq(PromptNames.RESUME_IMPORT_AWARDS), isNull(),
+                eq(ResumeImportAwardsResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
+        assertTrue(awardsMsg.getValue().contains("2024年同济大学本科生奖学金"));
     }
 
     @Test
     void parseImport_awardMisclassifiedAsCompetition_shouldResolveToScholarship() {
         UserHolder.set(UserContext.of(1L, "u1"));
         ResumeImportParseRequest request = new ResumeImportParseRequest();
-        request.setRawText("resume");
+        request.setRawText("获同济大学本科生奖学金");
 
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
+        ResumeImportAwardsResponse awardsResult = new ResumeImportAwardsResponse();
         ResumeImportParseResponse.AwardItem award = new ResumeImportParseResponse.AwardItem();
         award.setName("同济大学本科生奖学金");
         award.setAwardType(2);
         award.setAwardDate("2024-09-01");
-        llmResult.setAwards(List.of(award));
+        awardsResult.setAwards(List.of(award));
 
         doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
                 any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
                 eq(ResumeImportParseResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
+        doReturn(awardsResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
+                any(String.class), eq(PromptNames.RESUME_IMPORT_AWARDS), isNull(),
+                eq(ResumeImportAwardsResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
 
         ResumeImportParseResponse out = resumeService.parseImport(request);
 
@@ -482,7 +556,25 @@ class ResumeServiceImplTest {
     }
 
     @Test
-    void parseImport_awardFromProjectHighlight_shouldSupplement() {
+    void parseImport_noAwardHint_shouldSkipAwardsLlm() {
+        UserHolder.set(UserContext.of(1L, "u1"));
+        ResumeImportParseRequest request = new ResumeImportParseRequest();
+        request.setRawText("resume body");
+
+        doReturn(new ResumeImportParseResponse()).when(chatUtil).chatStructuredOnceWithPlatformModel(
+                any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
+                eq(ResumeImportParseResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
+
+        ResumeImportParseResponse out = resumeService.parseImport(request);
+
+        assertEquals(0, out.getAwards().size());
+        verify(chatUtil, never()).chatStructuredOnceWithPlatformModel(
+                any(), eq(PromptNames.RESUME_IMPORT_AWARDS), isNull(),
+                eq(ResumeImportAwardsResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
+    }
+
+    @Test
+    void parseImport_projectHighlightAlone_shouldNotInventAwardFromRegex() {
         UserHolder.set(UserContext.of(1L, "u1"));
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("resume");
@@ -501,9 +593,8 @@ class ResumeServiceImplTest {
 
         ResumeImportParseResponse out = resumeService.parseImport(request);
 
-        assertEquals(1, out.getAwards().size());
-        assertTrue(out.getAwards().get(0).getName().contains("一等奖"));
-        assertEquals("2025-01-01", out.getAwards().get(0).getAwardDate());
+        assertEquals(0, out.getAwards().size());
+        assertEquals(1, out.getProjects().size());
     }
 
     @Test

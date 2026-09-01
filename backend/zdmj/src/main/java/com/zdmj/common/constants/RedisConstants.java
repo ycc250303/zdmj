@@ -32,4 +32,31 @@ public class RedisConstants {
     // 岗位不存在时的空值标记 TTL（秒）
     public static final int JOB_DETAIL_NULL_TTL = 60;
 
+    // ========== Redis Stream 异步任务（见 docs/backend/llm-async-stream.md）==========
+    public static final String LLM_STREAM_KEY = "zdmj:llm:stream";
+    public static final String EMBED_STREAM_KEY = "zdmj:embed:stream";
+    public static final String LLM_STREAM_GROUP = "zdmj:llm:group";
+    public static final String EMBED_STREAM_GROUP = "zdmj:embed:group";
+    /** 去重锁：zdmj:tasklock:{taskType}:{bizKey} */
+    public static final String TASK_LOCK_KEY_PREFIX = "zdmj:tasklock:";
+    /** 锁 TTL（秒），须大于单次 LLM 上限 */
+    public static final int TASK_LOCK_TTL_SECONDS = 600;
+    /** Stream 近似裁剪上限，防止撑爆 */
+    public static final long STREAM_MAXLEN = 1000;
+    public static final int STREAM_MAX_RETRY = 3;
+    public static final int STREAM_BLOCK_SECONDS = 2;
+    public static final int STREAM_READ_COUNT = 1;
+    /** PEL 最短空闲时间（秒）后再 XCLAIM，须大于锁 TTL */
+    public static final int STREAM_CLAIM_MIN_IDLE_SECONDS = 700;
+
+    public static final String STREAM_FIELD_TASK_ID = "taskId";
+    public static final String STREAM_FIELD_TYPE = "type";
+    public static final String STREAM_FIELD_USER_ID = "userId";
+    public static final String STREAM_FIELD_BIZ_KEY = "bizKey";
+    public static final String STREAM_FIELD_RETRY_COUNT = "retryCount";
+
+    public static String taskLockKey(int taskType, String bizKey) {
+        return TASK_LOCK_KEY_PREFIX + taskType + ":" + bizKey;
+    }
+
 }

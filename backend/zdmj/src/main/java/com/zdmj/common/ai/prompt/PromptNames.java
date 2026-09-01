@@ -22,6 +22,8 @@ public final class PromptNames {
     public static final String JOB_DETECT = "job-detect";
     /** 简历导入：从纯文本结构化提取字段 */
     public static final String RESUME_IMPORT_PARSE = "resume-import-parse";
+    /** 简历导入：根据候选句判断奖项 */
+    public static final String RESUME_IMPORT_AWARDS = "resume-import-awards";
     /** 职业发展报告 生成 */
     public static final String CAREER_REPORT_GENERATE = "career-report/generate";
     /** 职业发展报告 润色 */

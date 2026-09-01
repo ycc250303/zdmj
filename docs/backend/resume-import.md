@@ -8,7 +8,7 @@
 
 1. 前端 `POST /files/upload?prefix=resume` 上传 PDF，取得 `url`
 2. 调用 `POST /resumes/import/parse`，body `{ "pdfUrl": "..." }` 或 `{ "rawText": "..." }`
-3. 后端：Tika 抽文本 → 截断 15000 字符 → LLM 结构化 → 日期/degree 归一化
+3. 后端：Tika 抽文本 → 全文送 LLM 抽经历/技能；奖项按关键词切完整句后**另一次** LLM 判断 → 日期/degree 归一化
 4. 识别成功后前端直接调用 `PUT /resumes/me/content` **全量覆盖**当前简历（旧经历不在请求中则删除）
 
 ## 模型与配置
@@ -16,7 +16,7 @@
 - 优先使用 `ModelEnum.DEEPSEEK_FLASH`（**忽略**用户 LLM 自配）；未配置 `DEEPSEEK_API_KEY` 时回退平台默认模型（`AL_MODEL` / DashScope）
 - API Key：`DEEPSEEK_API_KEY`（DeepSeek 场景）或 `SPRING_AI_OPENAI_API_KEY` / `DASHSCOPE_API_KEY`（回退场景）
 - Docker Compose 须映射 `DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}`
-- 提示词：`classpath:prompts/resume-import-parse.md`
+- 提示词：`classpath:prompts/resume-import-parse.md`（经历/技能）、`classpath:prompts/resume-import-awards.md`（奖项）
 
 ## 限流
 
@@ -34,7 +34,13 @@
 | `skill` | `skills` | content[{type, content[]}] |
 | `warnings[]` | — | 截断、解析修正等 |
 
-日期输出 `yyyy-MM-dd`（前端按月展示）。**仅有年份无月份 → null**；有年月无日 → 该月 1 号；「至今」→ `endDate` 为 null。
+日期输出 `yyyy-MM-dd`（前端按月展示）。**仅有年份无月份 → null**；有年月无日 → 该月 1 号；「至今」→ `endDate` 为 null。教育 / 实习 / 项目 / 奖项的时间**逐条独立识别**，认不出写 null，禁止跨模块套用。项目 `contribution` 为 TEXT，与描述一样不截断。
+
+## 奖项抽取
+
+1. 按行/句切分原文，保留含「等奖 / 奖学金 / 第 x 名 / 获奖」等线索的**完整句子**
+2. 将句子列表单独送给 LLM（`resume-import-awards`）判断并结构化；一句话可拆多条获奖；无候选句则 `awards=[]`
+3. 全文解析那一次不填奖项；不再用正则从原文截奖项名，也不从项目 `highlights` 事后补奖
 
 ## 错误码
 

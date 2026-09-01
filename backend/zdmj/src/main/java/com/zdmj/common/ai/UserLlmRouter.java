@@ -128,6 +128,19 @@ public class UserLlmRouter {
 
     @PostConstruct
     void initEncryptor() {
+        // #region agent log
+        boolean keyPresent = StringUtils.hasText(encryptionKey);
+        int keyLen = encryptionKey == null ? 0 : encryptionKey.trim().length();
+        try {
+            String line = "{\"sessionId\":\"a14696\",\"runId\":\"post-fix\",\"hypothesisId\":\"C\",\"location\":\"UserLlmRouter.initEncryptor\",\"message\":\"encryptor-init\",\"data\":{\"keyPresent\":"
+                    + keyPresent + ",\"keyLen\":" + keyLen + "},\"timestamp\":" + System.currentTimeMillis() + "}\n";
+            try (java.io.FileWriter fw = new java.io.FileWriter(
+                    "/Users/yinchengcheng/Documents/GitHub/ycc/zdmj/.cursor/debug-a14696.log", true)) {
+                fw.write(line);
+            }
+        } catch (Exception ignored) {
+        }
+        // #endregion
         textEncryptor = UserApiKeyCipher.createEncryptor(encryptionKey);
     }
 

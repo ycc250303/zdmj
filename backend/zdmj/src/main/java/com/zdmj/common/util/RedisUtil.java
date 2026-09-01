@@ -1,8 +1,22 @@
 package com.zdmj.common.util;
 
+import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
+import org.springframework.data.domain.Range;
+import org.springframework.data.redis.connection.RedisStreamCommands.XAddOptions;
+import org.springframework.data.redis.connection.stream.Consumer;
+import org.springframework.data.redis.connection.stream.MapRecord;
+import org.springframework.data.redis.connection.stream.PendingMessages;
+import org.springframework.data.redis.connection.stream.ReadOffset;
+import org.springframework.data.redis.connection.stream.RecordId;
+import org.springframework.data.redis.connection.stream.StreamOffset;
+import org.springframework.data.redis.connection.stream.StreamReadOptions;
+import org.springframework.data.redis.core.StreamOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -180,6 +194,151 @@ public class RedisUtil {
     public void deleteNullValue(String key) {
         String nullKey = RedisConstants.NULL_VALUE_KEY + key;
         delete(nullKey);
+    }
+
+    // ========== Redis Stream 消息队列（失败上抛，与上方缓存吞异常不同）==========
+
+    /**
+     * 抢占任务锁：{@code SET key value NX EX}。未抢到返回 {@code false}；Redis 异常上抛，由调用方回退到 DB 唯一索引。
+     */
+    public boolean tryLock(String key, String value, long expireSeconds) {
+        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(key, value, expireSeconds, TimeUnit.SECONDS);
+        boolean ok = Boolean.TRUE.equals(acquired);
+        log.debug("任务锁 SET NX: key={}, acquired={}", key, ok);
+        return ok;
+    }
+
+    /**
+     * 释放任务锁。消费者 SUCCESS/FAILED 时调用；进程宕机靠 TTL。
+     */
+    public void unlock(String key) {
+        redisTemplate.delete(key);
+        log.debug("释放任务锁: key={}", key);
+    }
+
+    /**
+     * {@code XADD} 并按 {@link RedisConstants#STREAM_MAXLEN} 近似裁剪。
+     *
+     * @return 消息 ID
+     */
+    public RecordId xadd(String streamKey, Map<String, String> fields) {
+        return xadd(streamKey, fields, RedisConstants.STREAM_MAXLEN);
+    }
+
+    /**
+     * {@code XADD MAXLEN ~ maxlen}。
+     */
+    public RecordId xadd(String streamKey, Map<String, String> fields, long maxlen) {
+        XAddOptions options = XAddOptions.maxlen(maxlen).approximateTrimming(true);
+        RecordId recordId = streamOps().add(streamKey, fields, options);
+        if (recordId == null) {
+            throw new IllegalStateException("XADD 返回空 recordId: stream=" + streamKey);
+        }
+        log.debug("XADD: stream={}, id={}, fields={}", streamKey, recordId, fields);
+        return recordId;
+    }
+
+    /**
+     * 写入异步任务消息（仅标识字段，payload 在 DB）。
+     */
+    public RecordId xaddTask(String streamKey, long taskId, int taskType, long userId, String bizKey, int retryCount) {
+        Map<String, String> fields = new LinkedHashMap<>();
+        fields.put(RedisConstants.STREAM_FIELD_TASK_ID, Long.toString(taskId));
+        fields.put(RedisConstants.STREAM_FIELD_TYPE, Integer.toString(taskType));
+        fields.put(RedisConstants.STREAM_FIELD_USER_ID, Long.toString(userId));
+        fields.put(RedisConstants.STREAM_FIELD_BIZ_KEY, bizKey);
+        fields.put(RedisConstants.STREAM_FIELD_RETRY_COUNT, Integer.toString(retryCount));
+        return xadd(streamKey, fields);
+    }
+
+    /**
+     * 确保消费组存在（{@code XGROUP CREATE ... MKSTREAM}）。组已存在时忽略 BUSYGROUP。
+     */
+    public void ensureConsumerGroup(String streamKey, String group) {
+        try {
+            streamOps().createGroup(streamKey, ReadOffset.from("0-0"), group);
+            log.info("创建 Stream 消费组: stream={}, group={}", streamKey, group);
+        } catch (RuntimeException e) {
+            if (isBusyGroup(e)) {
+                log.debug("消费组已存在: stream={}, group={}", streamKey, group);
+                return;
+            }
+            log.error("创建消费组失败: stream={}, group={}", streamKey, group, e);
+            throw e;
+        }
+    }
+
+    /**
+     * {@code XREADGROUP}，读取本消费者尚未投递的新消息（{@code >}）。
+     */
+    public List<MapRecord<String, String, String>> xreadGroup(String streamKey, String group, String consumerName,
+            int count, Duration block) {
+        StreamReadOptions options = StreamReadOptions.empty().count(count);
+        if (block != null && !block.isZero() && !block.isNegative()) {
+            options = options.block(block);
+        }
+        List<MapRecord<String, String, String>> records = streamOps().read(
+                Consumer.from(group, consumerName),
+                options,
+                StreamOffset.create(streamKey, ReadOffset.lastConsumed()));
+        return records == null ? List.of() : records;
+    }
+
+    /**
+     * {@code XACK}，从 PEL 移除已处理消息。
+     */
+    public long xack(String streamKey, String group, String... recordIds) {
+        if (recordIds == null || recordIds.length == 0) {
+            return 0L;
+        }
+        Long acked = streamOps().acknowledge(streamKey, group, recordIds);
+        long n = acked == null ? 0L : acked;
+        log.debug("XACK: stream={}, group={}, ids={}, acked={}", streamKey, group, recordIds, n);
+        return n;
+    }
+
+    public long xack(String streamKey, String group, RecordId recordId) {
+        if (recordId == null) {
+            return 0L;
+        }
+        return xack(streamKey, group, recordId.getValue());
+    }
+
+    /**
+     * {@code XPENDING}，查看组内 PEL。
+     */
+    public PendingMessages xpending(String streamKey, String group, long count) {
+        return streamOps().pending(streamKey, group, Range.unbounded(), count);
+    }
+
+    /**
+     * {@code XCLAIM}，接管空闲超过 {@code minIdle} 的 PEL 消息。
+     */
+    public List<MapRecord<String, String, String>> xclaim(String streamKey, String group, String consumerName,
+            Duration minIdle, RecordId... recordIds) {
+        if (recordIds == null || recordIds.length == 0) {
+            return List.of();
+        }
+        List<MapRecord<String, String, String>> claimed = streamOps().claim(streamKey, group, consumerName, minIdle,
+                recordIds);
+        return claimed == null ? List.of() : claimed;
+    }
+
+    @SuppressWarnings("unchecked")
+    private StreamOperations<String, String, String> streamOps() {
+        return redisTemplate.opsForStream();
+    }
+
+    private static boolean isBusyGroup(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && message.contains("BUSYGROUP")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
 }

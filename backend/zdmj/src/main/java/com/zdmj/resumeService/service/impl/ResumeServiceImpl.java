@@ -162,6 +162,27 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     public ResumeContentResponse saveMyResumeContent(ResumeContentSaveRequest request) {
         Long userId = UserHolder.requireUserId();
         Resume resume = ensureResumeForUser(userId);
+        // #region agent log
+        try {
+            int projectN = request.getProjects() == null ? 0 : request.getProjects().size();
+            int maxContrib = 0;
+            if (request.getProjects() != null) {
+                for (var p : request.getProjects()) {
+                    if (p != null && p.getContribution() != null) {
+                        maxContrib = Math.max(maxContrib, p.getContribution().length());
+                    }
+                }
+            }
+            String line = "{\"sessionId\":\"a14696\",\"runId\":\"pre-fix\",\"hypothesisId\":\"C\",\"location\":\"ResumeServiceImpl.saveMyResumeContent\",\"message\":\"save-start\",\"data\":{\"projectN\":"
+                    + projectN + ",\"maxContribLen\":" + maxContrib
+                    + "},\"timestamp\":" + System.currentTimeMillis() + "}\n";
+            try (java.io.FileWriter fw = new java.io.FileWriter(
+                    "/Users/yinchengcheng/Documents/GitHub/ycc/zdmj/.cursor/debug-a14696.log", true)) {
+                fw.write(line);
+            }
+        } catch (Exception ignored) {
+        }
+        // #endregion
 
         Long skillId = syncSkill(userId, resume.getSkillId(), request.getSkill());
         resume.setSkillId(skillId);
@@ -180,6 +201,17 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
             throw new BusinessException(ErrorCode.RESUME_UPDATE_FAILED);
         }
         log.info("全量保存简历成功: userId={}, resumeId={}", userId, resume.getId());
+        // #region agent log
+        try {
+            String line = "{\"sessionId\":\"a14696\",\"runId\":\"post-fix\",\"hypothesisId\":\"C\",\"location\":\"ResumeServiceImpl.saveMyResumeContent\",\"message\":\"save-success\",\"data\":{\"resumeId\":"
+                    + resume.getId() + "},\"timestamp\":" + System.currentTimeMillis() + "}\n";
+            try (java.io.FileWriter fw = new java.io.FileWriter(
+                    "/Users/yinchengcheng/Documents/GitHub/ycc/zdmj/.cursor/debug-a14696.log", true)) {
+                fw.write(line);
+            }
+        } catch (Exception ignored) {
+        }
+        // #endregion
         return buildResumeContent(resume);
     }
 
@@ -451,6 +483,20 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     public ResumeImportParseResponse parseImport(ResumeImportParseRequest request) {
         log.info("开始识别简历结构化字段");
         UserHolder.requireUserId();
+        // #region agent log
+        try {
+            boolean hasPdf = request != null && StringUtils.hasText(request.getPdfUrl());
+            boolean hasText = request != null && request.getRawText() != null
+                    && !request.getRawText().isBlank();
+            String line = "{\"sessionId\":\"a14696\",\"runId\":\"pre-fix\",\"hypothesisId\":\"B\",\"location\":\"ResumeServiceImpl.parseImport\",\"message\":\"parse-start\",\"data\":{\"hasPdf\":"
+                    + hasPdf + ",\"hasText\":" + hasText + "},\"timestamp\":" + System.currentTimeMillis() + "}\n";
+            try (java.io.FileWriter fw = new java.io.FileWriter(
+                    "/Users/yinchengcheng/Documents/GitHub/ycc/zdmj/.cursor/debug-a14696.log", true)) {
+                fw.write(line);
+            }
+        } catch (Exception ignored) {
+        }
+        // #endregion
         List<String> warnings = new ArrayList<>();
         String sourceText = resolveImportSourceText(request);
         sourceText = preprocessImportText(sourceText, warnings);
@@ -465,6 +511,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
                     null,
                     ResumeImportParseResponse.class,
                     importModel);
+            parsed.setAwards(judgeAwardsFromCandidates(sourceText, importModel));
         } catch (BusinessException e) {
             throw e;
         } catch (IllegalStateException e) {
@@ -475,8 +522,42 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
             throw new BusinessException(ErrorCode.RESUME_IMPORT_PARSE_FAILED);
         }
 
-        normalizeImportResult(parsed, sourceText, warnings);
+        normalizeImportResult(parsed, warnings);
+        // #region agent log
+        try {
+            int awardN = parsed.getAwards() == null ? 0 : parsed.getAwards().size();
+            int projectN = parsed.getProjects() == null ? 0 : parsed.getProjects().size();
+            String line = "{\"sessionId\":\"a14696\",\"runId\":\"pre-fix\",\"hypothesisId\":\"B\",\"location\":\"ResumeServiceImpl.parseImport\",\"message\":\"parse-success\",\"data\":{\"awardN\":"
+                    + awardN + ",\"projectN\":" + projectN + "},\"timestamp\":" + System.currentTimeMillis() + "}\n";
+            try (java.io.FileWriter fw = new java.io.FileWriter(
+                    "/Users/yinchengcheng/Documents/GitHub/ycc/zdmj/.cursor/debug-a14696.log", true)) {
+                fw.write(line);
+            }
+        } catch (Exception ignored) {
+        }
+        // #endregion
         return parsed;
+    }
+
+    /**
+     * 关键词切出完整候选句后，单独让 LLM 判断其中的奖项；无候选句则空列表。
+     */
+    private List<ResumeImportParseResponse.AwardItem> judgeAwardsFromCandidates(
+            String sourceText, ModelEnum importModel) {
+        List<String> candidates = AwardImportSupport.detectCandidateSentences(sourceText);
+        if (candidates.isEmpty()) {
+            return new ArrayList<>();
+        }
+        ResumeImportAwardsResponse judged = chatUtil.chatStructuredOnceWithPlatformModel(
+                AwardImportSupport.buildAwardsJudgeUserMessage(candidates),
+                PromptNames.RESUME_IMPORT_AWARDS,
+                null,
+                ResumeImportAwardsResponse.class,
+                importModel);
+        if (judged == null || judged.getAwards() == null) {
+            return new ArrayList<>();
+        }
+        return judged.getAwards();
     }
 
     private String resolveImportSourceText(ResumeImportParseRequest request) {
@@ -516,7 +597,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         return normalized;
     }
 
-    private void normalizeImportResult(ResumeImportParseResponse result, String sourceText, List<String> warnings) {
+    private void normalizeImportResult(ResumeImportParseResponse result, List<String> warnings) {
         if (result == null) {
             throw new BusinessException(ErrorCode.RESUME_IMPORT_PARSE_FAILED);
         }
@@ -574,6 +655,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         result.setProjects(projects);
 
         List<ResumeImportParseResponse.AwardItem> awards = new ArrayList<>();
+        Set<String> seenAwardKeys = new HashSet<>();
         for (ResumeImportParseResponse.AwardItem item : result.getAwards()) {
             if (item == null) {
                 continue;
@@ -587,20 +669,14 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
             }
             item.setAwardType(AwardImportSupport.resolveAwardType(item.getAwardType(), item.getName()));
             LocalDate awardDate = parseAwardDate(item, warnings);
-            if (awardDate == null) {
+            item.setName(AwardImportSupport.cleanAwardName(item.getName()));
+            String key = AwardImportSupport.normalizeAwardNameKey(item.getName());
+            if (!seenAwardKeys.add(key)) {
                 continue;
             }
             item.setAwardDate(formatDateString(awardDate));
             awards.add(item);
         }
-        supplementAwardsFromProjects(projects, awards, warnings);
-        AwardImportSupport.supplementScholarshipsFromSourceText(
-                sourceText,
-                awards,
-                warnings,
-                item -> parseAwardDate(item, warnings),
-                (context, name) -> extractYearAsJanFirst(context, warnings, name),
-                this::formatDateString);
         result.setAwards(awards);
 
         if (result.getSkill() != null && result.getSkill().getContent() == null) {
@@ -678,55 +754,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
             return LocalDate.of(year, 1, 1);
         }
         return null;
-    }
-
-    private void supplementAwardsFromProjects(List<ResumeImportParseResponse.ProjectItem> projects,
-            List<ResumeImportParseResponse.AwardItem> awards, List<String> warnings) {
-        Set<String> existingNames = awards.stream()
-                .map(ResumeImportParseResponse.AwardItem::getName)
-                .filter(StringUtils::hasText)
-                .collect(Collectors.toSet());
-        Pattern awardPattern = Pattern.compile("(?:获|获得|荣获)\\s*([^，。；;\\n]+?奖)");
-        for (ResumeImportParseResponse.ProjectItem project : projects) {
-            String text = highlightsAsPlainText(project.getHighlights());
-            if (!StringUtils.hasText(text) || !text.contains("奖")) {
-                continue;
-            }
-            var matcher = awardPattern.matcher(text);
-            while (matcher.find()) {
-                String awardName = matcher.group(1).trim();
-                if (!StringUtils.hasText(awardName) || existingNames.contains(awardName)) {
-                    continue;
-                }
-                ResumeImportParseResponse.AwardItem item = new ResumeImportParseResponse.AwardItem();
-                item.setName(awardName);
-                item.setAwardType(AwardImportSupport.inferAwardTypeFromName(awardName));
-                LocalDate awardDate = parseAwardDate(item, warnings);
-                if (awardDate == null) {
-                    awardDate = extractYearAsJanFirst(text, warnings, awardName);
-                }
-                if (awardDate == null) {
-                    continue;
-                }
-                item.setAwardDate(formatDateString(awardDate));
-                awards.add(item);
-                existingNames.add(awardName);
-                warnings.add("已从项目亮点补充奖项：" + awardName);
-            }
-        }
-    }
-
-    private String highlightsAsPlainText(Object highlights) {
-        if (highlights == null) {
-            return null;
-        }
-        if (highlights instanceof String s) {
-            return ProjectHighlightsSupport.toPlainText(s);
-        }
-        if (highlights instanceof List<?> list) {
-            return ProjectHighlightsSupport.toPlainText(ProjectHighlightsSupport.normalizeForStorage(list));
-        }
-        return ProjectHighlightsSupport.toPlainText(String.valueOf(highlights));
     }
 
     private LocalDate parseFlexibleDate(String raw) {

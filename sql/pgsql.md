@@ -6,7 +6,7 @@
 ### 脚本约定（与 `pgsql.sql` 一致）
 
 - **扩展**：`vector`（pgvector）；`pg_trgm`（岗位/公司名称模糊搜索 GIN 索引）；`hnsw` 在部分环境不存在独立扩展，若初始化失败可注释 `CREATE EXTENSION hnsw`。
-- **删表顺序**（与脚本 `DROP TABLE` 自上而下一致）：`users` → `user_profiles` → `user_behavior_logs` → `educations` → `skills` → `careers` → `project_experiences` → `resumes` → `resume_matches` → `job_student_matches` / 相关岗位侧表 → `jobs` → `companies` → `knowledge_documents` → `knowledge_bases` → `knowledge_vectors` → `knowledge_vector_tasks` → `conversations` → `messages` → `SPRING_AI_CHAT_MEMORY`。
+- **删表顺序**（与脚本 `DROP TABLE` 自上而下一致）：`users` → `user_profiles` → `user_behavior_logs` → `educations` → `skills` → `careers` → `project_experiences` → `resumes` → `resume_matches` → `job_student_matches` / 相关岗位侧表 → `jobs` → `companies` → `knowledge_documents` → `knowledge_bases` → `knowledge_vectors` → `knowledge_vector_tasks` → `async_llm_tasks` → `conversations` → `messages` → `SPRING_AI_CHAT_MEMORY`。
 - **知识库模型（当前）**：每用户**一个** `scope=1` 的用户私有库；全系统**一个** `scope=2` 的系统默认库。`knowledge_bases` **仅存标识**（`user_id`、`scope`）；向量化状态、分块数等均在 **`knowledge_documents`**。
 - **系统库占位**：`knowledge_bases` / `knowledge_documents` / `knowledge_vectors` 在系统场景下 `user_id` 约定为 `0`（与真实用户 ID 区分）。
 
@@ -103,7 +103,7 @@
 | `end_date`      | `DATE`         | 结束时间         | 可空                                | -                                                                           |
 | `role`          | `VARCHAR(255)` | 项目角色         | 可空                                | -                                                                           |
 | `description`   | `TEXT`         | 项目描述         | 可空                                | -                                                                           |
-| `contribution`  | `VARCHAR(500)` | 核心贡献         | 可空                                | -                                                                           |
+| `contribution`  | `TEXT`         | 核心贡献         | 可空                                | -                                                                           |
 | `tech_stack`    | `JSONB`        | 技术栈           | `DEFAULT '[]'::jsonb`             | 示例：`["React","TypeScript","Node.js"]`                                  |
 | `highlights`    | `JSONB`        | 项目亮点         | `DEFAULT '[]'::jsonb`             | 字符串数组，示例：`["实现了分布式锁","提升了50%的性能"]`                  |
 | `url`           | `VARCHAR(500)` | 项目链接         | 可空                                | -                                                                           |
@@ -372,3 +372,29 @@
 | `"timestamp"`     | `TIMESTAMP`   | 时间戳         | `NOT NULL, DEFAULT CURRENT_TIMESTAMP` | 列名为保留字，脚本中使用双引号                          |
 
 **索引**：`idx_spring_ai_chat_memory_conv_ts` — `(conversation_id, "timestamp")`。
+
+## 7 异步 LLM 任务模块
+
+### 7.1 表 `async_llm_tasks`
+
+Redis Stream 入队后的任务真相与抢占表；**不**把异步状态塞进匹配/报告等业务表。`KB_*` 第一期仍可用 `knowledge_vector_tasks`，本表预留类型 9/10。
+
+| 字段名称          | 字段类型         | 字段含义     | 约束                                | 枚举/JSON字段含义 |
+| ----------------- | ---------------- | ------------ | ----------------------------------- | ----------------- |
+| `id`            | `BIGSERIAL`    | 任务ID（对外 taskId） | `PK`                          | - |
+| `user_id`       | `BIGINT`       | 发起人       | `NOT NULL`，逻辑外键 `users.id` | 消费者无 `UserHolder`，权限与写库用此字段 |
+| `task_type`     | `SMALLINT`     | 任务类型     | `NOT NULL`，`CHECK (1..10)`     | `1=STUDENT_PROFILE 学生能力画像, 2=JOB_PROFILE 岗位能力画像, 3=JOB_GRAPH 岗位职业图谱, 4=JOB_MATCH 人岗匹配, 5=CAREER_REPORT 职业发展报告, 6=REPORT_POLISH 报告润色, 7=REPORT_CHECK 报告完整性检查, 8=RESUME_PARSE 简历识别, 9=KB_EMBED 知识库向量化, 10=KB_DELETE 知识库向量删除` |
+| `biz_key`       | `VARCHAR(128)` | 去重键       | `NOT NULL`                        | 如 `user:{userId}`、`job:{jobId}`、`user:{userId}:job:{jobId}`、`report:{reportId}`、`doc:{documentId}` |
+| `status`        | `SMALLINT`     | 任务状态     | `NOT NULL DEFAULT 1`，`CHECK (1,2,3,4)` | `1=pending, 2=running, 3=success, 4=failed`（与向量任务一致） |
+| `payload`       | `JSONB`        | 入队参数     | 可空                                | 如 match 的 `weights`、简历 `pdfUrl`/`rawText` |
+| `result`        | `JSONB`        | 成功结果     | 可空                                | 无独立业务表时写入（如 `RESUME_PARSE`） |
+| `error_message` | `TEXT`         | 失败摘要     | 可空                                | 不落堆栈 |
+| `started_at`    | `TIMESTAMP`    | 开始执行时间 | 可空                                | claim 时写入 |
+| `completed_at`  | `TIMESTAMP`    | 完成时间     | 可空                                | SUCCESS/FAILED |
+| `created_at`    | `TIMESTAMP`    | 创建时间     | `DEFAULT CURRENT_TIMESTAMP`       | - |
+| `updated_at`    | `TIMESTAMP`    | 更新时间     | `DEFAULT CURRENT_TIMESTAMP`       | - |
+
+**索引**（与 `pgsql.sql` 一致，单表 2 条，不含 PK）：
+
+- `uk_async_llm_tasks_inflight` — `UNIQUE (task_type, biz_key) WHERE status IN (1, 2)`，保证进行中只有一条；SUCCESS/FAILED 不占坑，可再点。
+- `idx_async_llm_tasks_user_id` — `(user_id)`。

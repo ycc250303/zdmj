@@ -58,7 +58,7 @@ public class ProjectExperience extends BaseEntity {
     private String description;
 
     /**
-     * 项目贡献
+     * 项目贡献（TEXT，与 description 同为长文本）
      */
     private String contribution;
 
