@@ -126,12 +126,11 @@ POST /jobs/{id}/career-graph
 ```
 岗位详情 (DB)
     ↓
-buildJobContext() — 拼接岗位名/公司/描述/职责/要求/关键词/行业
+getJobCapabilityProfileOrNull；缺失则 getJobCapabilityProfile（内含一次 JobRoleDetector）
     ↓
-detectRole() — 关键词直出（≥4 命中）；否则 LLM job-detect 兜底
+JobRole.fromString(profile.targetRoleType)
     ↓
-PromptUtil.getJobCareerGraphPromptName() — 路由到 4 个 prompt：
-    java-backend / frontend / ai-agent / default
+PromptUtil.resolve(JOB_CAREER_GRAPH, role) — `{slug}.md`，缺文件回退 default
     ↓
 ChatUtil.chatStructuredOnce() — 通义 qwen-plus 按 JSON Schema 结构化输出
     ↓
@@ -139,20 +138,19 @@ validateGraph() — 强校验：垂直≥3、换岗≥5、每条≥2；不合规
 markCurrentNode() — 自动打 current=true 高亮
     ↓
 toEntity() + JSONB 序列化 → DB upsert（getOne → updateById / save）
+图谱 `role_confidence` 直接拷贝岗位画像，不再二次估计
 ```
 
 ### 5.2 提示词组织
 
 ```
 src/main/resources/prompts/job-career-graph/
-├── default.md       # 通用兜底
-├── java-backend.md  # Java 后端专属
-├── frontend.md      # 前端专属
-└── ai-agent.md      # AI/Agent 专属
+├── default.md
+├── java-backend.md / frontend.md / cpp.md / ...
+└── （每个 JobRole.slug 一份；缺文件则 resolve 回退 default.md）
 ```
 
-`PromptUtil.getJobCareerGraphPromptName(JobRole)` 只为主流岗位提供专属图谱提示词，
-其它角色统一走 `default.md` 以控制维护成本。
+路由见 [`job-role-prompt.md`](job-role-prompt.md)：`PromptUtil.resolve(PromptScenario.JOB_CAREER_GRAPH, role)`，不再手写「哪些方向有专属图谱提示词」。
 
 ### 5.3 核心类
 
@@ -166,7 +164,7 @@ src/main/resources/prompts/job-career-graph/
 
 ### 5.4 与岗位能力画像的一致性
 
-- 两个功能共用 `PromptUtil.JobRole` 枚举与 `KEYWORDS` 关键词表；
+- 岗位类型以岗位画像 `target_role_type` 为唯一来源（见 [`job-role-prompt.md`](job-role-prompt.md)）；图谱生成时若画像缺失会先生成画像，不再自行 `JobRoleDetector.detect`；
 - 两者都采用 `ServiceImpl<Mapper, Entity>` 的 MyBatis-Plus 单表访问范式；
 - JSONB：同质标量数组用 `List` + `JacksonTypeHandler`；图谱 `current_node` / 路径等结构化 JSON 仍为 `String` + `JsonbStringTypeHandler`，Service 转 DTO（见 [`jsonb-scalar-array.md`](jsonb-scalar-array.md)）；
 - 出错返回约定：`Result.error(code, message)` 统一格式。

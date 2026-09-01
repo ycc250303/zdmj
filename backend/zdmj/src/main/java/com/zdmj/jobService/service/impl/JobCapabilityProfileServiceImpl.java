@@ -6,8 +6,10 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.common.ai.JobRole;
+import com.zdmj.common.ai.JobRoleDetector;
+import com.zdmj.common.ai.PromptScenario;
 import com.zdmj.common.ai.PromptUtil;
-import com.zdmj.common.ai.PromptUtil.JobRole;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.entity.JobCapabilityProfile;
@@ -15,8 +17,6 @@ import com.zdmj.jobService.mapper.JobCapabilityProfileMapper;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobService;
 import java.math.BigDecimal;
-import java.util.List;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,19 +28,9 @@ import org.springframework.util.StringUtils;
 public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityProfileMapper, JobCapabilityProfile>
         implements JobCapabilityProfileService {
 
-    /** 关键词命中达到该分数则直接采用规则结果，不调 LLM 分类 */
-    private static final int KEYWORD_DIRECT_HIT_THRESHOLD = 4;
-
     private final JobService jobService;
     private final ChatUtil chatUtil;
-
-    private static final Map<JobRole, List<String>> KEYWORDS = Map.of(
-            JobRole.JAVA, List.of("java", "spring", "spring boot", "mybatis", "mysql", "redis", "jvm"),
-            JobRole.FRONTEND,
-            List.of("react", "vue", "typescript", "javascript", "webpack", "vite", "css", "html"),
-            JobRole.CPP, List.of("c++", "cpp", "stl", "cmake", "gdb", "linux", "多线程", "内存"),
-            JobRole.SOFTWARE_TEST,
-            List.of("测试", "test case", "pytest", "selenium", "jmeter", "postman", "缺陷"));
+    private final PromptUtil promptUtil;
 
     @Override
     public JobCapabilityProfileResponse getJobCapabilityProfile(Long jobId) {
@@ -53,10 +43,10 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         String jobContext = JobAnalysisSupport.buildJobContext(
                 jobDetail,
                 "这是待分析的岗位信息（面向求职者输出岗位要求画像）：");
-        JobRole role = JobAnalysisSupport.detectRole(
-                userId, jobContext, chatUtil, KEYWORDS, KEYWORD_DIRECT_HIT_THRESHOLD, log);
+        JobRoleDetector.DetectResult detected = JobRoleDetector.detect(userId, jobContext, chatUtil, log);
+        JobRole role = detected.role();
         log.info("岗位类型识别: role={}", role);
-        String promptName = PromptUtil.getJobRequirementPromptName(role);
+        String promptName = promptUtil.resolve(PromptScenario.JOB_REQUIREMENT, role);
         log.info("使用提示词: {}", promptName);
 
         JobCapabilityProfileResponse aiResult;
@@ -72,10 +62,9 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
 
         JobCapabilityProfile newProfile = toEntity(aiResult);
         newProfile.setJobId(jobId);
-        newProfile.setRoleConfidence(BigDecimal.valueOf(
-                JobAnalysisSupport.estimateRoleConfidence(role, jobContext, KEYWORDS)));
+        newProfile.setRoleConfidence(BigDecimal.valueOf(detected.confidence()));
         newProfile.setPromptName(promptName);
-        newProfile.setTargetRoleType(PromptUtil.getPromptDisplayType(promptName));
+        newProfile.setTargetRoleType(role.slug());
 
         if (existingProfile != null) {
             newProfile.setId(existingProfile.getId());
@@ -107,7 +96,8 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         }
         JobCapabilityProfileResponse dto = new JobCapabilityProfileResponse();
         dto.setTargetRoleType(StringUtils.hasText(entity.getTargetRoleType()) ? entity.getTargetRoleType()
-                : PromptUtil.getPromptDisplayType(entity.getPromptName()));
+                : JobRole.fromPromptName(entity.getPromptName()).slug());
+        dto.setRoleConfidence(entity.getRoleConfidence());
         dto.setProfessionalSkills(entity.getProfessionalSkills());
         dto.setCertificates(entity.getCertificates());
         dto.setInnovationAbility(entity.getInnovationAbility());

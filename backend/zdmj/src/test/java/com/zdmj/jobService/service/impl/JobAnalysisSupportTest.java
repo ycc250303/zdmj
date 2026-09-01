@@ -1,9 +1,7 @@
 package com.zdmj.jobService.service.impl;
 
-import com.zdmj.common.ai.ChatUtil;
-import com.zdmj.common.ai.PromptUtil.JobRole;
-import com.zdmj.jobService.dto.JobListItemResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zdmj.jobService.dto.JobListItemResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -12,16 +10,11 @@ import org.slf4j.Logger;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -29,77 +22,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class JobAnalysisSupportTest {
 
     @Mock
-    private ChatUtil chatUtil;
-
-    @Mock
     private Logger logger;
-
-    @Test
-    void detectRole_whenEmptyText_shouldReturnUnknown() {
-        Map<JobRole, List<String>> keywords = Map.of(JobRole.JAVA, List.of("java", "spring"));
-
-        JobRole role = JobAnalysisSupport.detectRole(1L, "", chatUtil, keywords, 4, logger);
-
-        assertEquals(JobRole.UNKNOWN, role);
-        verify(chatUtil, never()).chatStructuredOnce(any(), any(), any(), eq(null), any());
-    }
-
-    @Test
-    void detectRole_whenLlmFail_shouldFallbackToKeywordBestRole() {
-        Map<JobRole, List<String>> keywords = Map.of(
-                JobRole.JAVA, List.of("java", "spring"),
-                JobRole.FRONTEND, List.of("react"));
-        String text = "需要 Java 与 Spring 能力，熟悉微服务";
-        doThrow(new RuntimeException("llm unavailable")).when(chatUtil)
-                .chatStructuredOnce(any(), any(), any(), eq(null), any());
-
-        JobRole role = JobAnalysisSupport.detectRole(1L, text, chatUtil, keywords, 4, logger);
-
-        assertEquals(JobRole.JAVA, role);
-        verify(chatUtil).chatStructuredOnce(any(), any(), any(), eq(null), any());
-    }
-
-    @Test
-    void profile_estimateRoleConfidence_whenUnknown_shouldReturnLowConfidence() {
-        double score = JobAnalysisSupport.estimateRoleConfidence(JobRole.UNKNOWN, "java spring",
-                Map.of(JobRole.JAVA, List.of("java")));
-
-        assertEquals(0.2, score);
-        verify(logger, never()).warn(any());
-    }
-
-    @Test
-    void profile_estimateRoleConfidence_whenKeywordHit_shouldIncreaseScore() {
-        double score = JobAnalysisSupport.estimateRoleConfidence(
-                JobRole.JAVA,
-                "java spring redis mysql mybatis jvm",
-                Map.of(JobRole.JAVA, List.of("java", "spring", "redis", "mysql", "mybatis", "jvm")));
-
-        assertEquals(0.95, score);
-        verify(logger, never()).warn(any());
-    }
-
-    @Test
-    void profile_estimateRoleConfidence_whenNoKeywordHit_shouldReturnBaseScore() {
-        double score = JobAnalysisSupport.estimateRoleConfidence(
-                JobRole.JAVA,
-                "python golang",
-                Map.of(JobRole.JAVA, List.of("java", "spring")));
-
-        assertEquals(0.35, score);
-        verify(logger, never()).warn(any());
-    }
-
-    @Test
-    void profile_estimateRoleConfidence_whenTextMissing_shouldReturnLowConfidence() {
-        double score = JobAnalysisSupport.estimateRoleConfidence(
-                JobRole.JAVA,
-                "   ",
-                Map.of(JobRole.JAVA, List.of("java")));
-
-        assertEquals(0.2, score);
-        verify(logger, never()).warn(any());
-    }
 
     @Test
     void graph_buildJobContext_whenFieldsMissing_shouldRenderDefaultText() {

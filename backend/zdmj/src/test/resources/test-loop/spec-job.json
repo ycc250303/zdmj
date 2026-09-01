@@ -603,7 +603,7 @@
         },
         {
           "field": "entity.roleConfidence",
-          "expected": "由estimateRoleConfidence计算并落库",
+          "expected": "由 JobRoleDetector.DetectResult.confidence 落库",
           "reason": "保证角色识别置信度可追踪"
         },
         {
@@ -709,7 +709,7 @@
       "givenWhenThen": {
         "given": [
           "岗位详情存在并可构造岗位上下文",
-          "通过角色识别选择图谱提示词并调用结构化LLM",
+          "复用岗位画像 targetRoleType（缺失则先生成画像）选择图谱提示词并调用结构化LLM",
           "图谱需满足垂直路径与换岗路径硬性校验"
         ],
         "when": "调用 generate",
@@ -754,6 +754,11 @@
           "pathId": "GRAPH-GEN-BOUND-CURRENT-NODE-FALLBACK",
           "type": "boundary",
           "description": "currentNode缺失level/title时按中间层回填并标记verticalPath.current"
+        },
+        {
+          "pathId": "GRAPH-GEN-HAPPY-PROFILE-MISSING",
+          "type": "happy",
+          "description": "岗位画像缺失时先调用getJobCapabilityProfile再生成图谱"
         }
       ],
       "assertionContract": [

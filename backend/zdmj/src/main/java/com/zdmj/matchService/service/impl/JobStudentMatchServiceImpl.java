@@ -9,8 +9,9 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.common.ai.JobRole;
+import com.zdmj.common.ai.PromptScenario;
 import com.zdmj.common.ai.PromptUtil;
-import com.zdmj.common.ai.PromptUtil.JobRole;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.PageRequests;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
@@ -62,6 +63,7 @@ public class JobStudentMatchServiceImpl
     private final StudentCapabilityProfileService studentCapabilityProfileService;
     private final ChatUtil chatUtil;
     private final ObjectMapper objectMapper;
+    private final PromptUtil promptUtil;
 
     // ============================================================
     // 公共接口
@@ -116,10 +118,10 @@ public class JobStudentMatchServiceImpl
         }
 
         // 3. 解析权重（默认 + 覆盖 → 归一化）
-        JobRole role = PromptUtil.getJobRoleByString(jobProfile.getTargetRoleType());
+        JobRole role = JobRole.fromString(jobProfile.getTargetRoleType());
         MatchWeightConfigResponse weights = MatchWeightResolver.resolve(
                 role, req == null ? null : req.getWeights());
-        String promptName = PromptUtil.getJobStudentMatchPromptName(role);
+        String promptName = promptUtil.resolve(PromptScenario.JOB_STUDENT_MATCH, role);
         log.info("人岗匹配开始: jobId={}, userId={}, role={}, prompt={}", jobId, userId, role, promptName);
 
         // 4. 拼装 LLM 上下文（权重 / 关键词 全部内联进 user message，避免触发 Spring AI
@@ -172,7 +174,7 @@ public class JobStudentMatchServiceImpl
         }
         JobCapabilityProfileResponse profile = jobCapabilityProfileService.getJobCapabilityProfileOrNull(jobId);
         JobRole role = profile == null ? JobRole.UNKNOWN
-                : PromptUtil.getJobRoleByString(profile.getTargetRoleType());
+                : JobRole.fromString(profile.getTargetRoleType());
         return MatchWeightResolver.defaultFor(role);
     }
 

@@ -6,6 +6,7 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.entity.JobCapabilityProfile;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.springframework.core.io.DefaultResourceLoader;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
@@ -44,7 +46,8 @@ class JobCapabilityProfileServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        profileService = spy(new JobCapabilityProfileServiceImpl(jobService, chatUtil));
+        profileService = spy(new JobCapabilityProfileServiceImpl(
+                jobService, chatUtil, new PromptUtil(new DefaultResourceLoader())));
         UserHolder.set(UserContext.of(1L, "u1"));
     }
 

@@ -8,6 +8,7 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
@@ -29,6 +30,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
@@ -88,7 +90,8 @@ class JobStudentMatchServiceImplTest {
                 jobCapabilityProfileService,
                 studentCapabilityProfileService,
                 chatUtil,
-                new ObjectMapper()));
+                new ObjectMapper(),
+                new PromptUtil(new DefaultResourceLoader())));
         ReflectionTestUtils.setField(matchService, "baseMapper", matchMapper);
         UserHolder.set(new UserContext(USER_ID, "tester", "tester@example.com"));
     }

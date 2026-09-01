@@ -10,9 +10,10 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.common.storage.FileUploadService;
 import com.zdmj.common.util.PdfParserUtil;
+import com.zdmj.common.ai.JobRole;
+import com.zdmj.common.ai.JobRoleDetector;
+import com.zdmj.common.ai.PromptScenario;
 import com.zdmj.common.ai.PromptUtil;
-import com.zdmj.common.ai.prompt.PromptNames;
-import com.zdmj.common.ai.PromptUtil.JobRole;
 import com.zdmj.resumeService.dto.CapabilityProfileGenerateRequest;
 import com.zdmj.resumeService.dto.ResumeRoleDetectDTO;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
@@ -23,7 +24,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
-import java.util.Map;
 import java.math.BigDecimal;
 
 import org.springframework.stereotype.Service;
@@ -35,9 +35,6 @@ import org.springframework.util.StringUtils;
 public class StudentCapabilityProfileServiceImpl
         extends ServiceImpl<StudentCapabilityProfileMapper, StudentCapabilityProfile>
         implements StudentCapabilityProfileService {
-
-    /** 关键词命中达到该分数则直接采用规则结果，不调 LLM */
-    private static final int KEYWORD_DIRECT_HIT_THRESHOLD = 4;
 
     /** scoreDetail 五项上限，与 resume-analysis 评分标准（40-20-15-15-10）一致 */
     private static final int MAX_PROJECT_EXPERIENCE_SCORE = 40;
@@ -53,18 +50,7 @@ public class StudentCapabilityProfileServiceImpl
     private final ObjectMapper objectMapper;
     private final FileUploadService fileUploadService;
     private final PdfParserUtil pdfParserUtil;
-
-    private static final Map<JobRole, List<String>> KEYWORDS = Map.of(
-        JobRole.JAVA, List.of("java", "spring", "spring boot", "mybatis", "mysql", "redis", "jvm"),
-        JobRole.FRONTEND, List.of("react", "vue", "typescript", "javascript", "webpack", "vite", "css", "html"),
-        JobRole.CPP, List.of("c++", "cpp", "stl", "cmake", "gdb", "linux", "多线程", "内存管理"),
-        JobRole.SOFTWARE_TEST, List.of("测试", "test case", "pytest", "selenium", "jmeter", "postman", "缺陷"),
-        JobRole.AI_AGENT, List.of("llm", "大模型", "agent", "rag", "langchain", "prompt", "embedding"),
-        JobRole.ALGORITHM, List.of("算法", "machine learning", "深度学习", "pytorch", "tensorflow"),
-        JobRole.DATA_ANALYST, List.of("数据分析", "sql", "tableau", "powerbi", "excel", "指标"),
-        JobRole.BIG_DATA, List.of("hadoop", "spark", "flink", "hive", "数仓", "kafka"),
-        JobRole.DEVOPS_SRE, List.of("devops", "sre", "k8s", "kubernetes", "docker", "ci/cd", "ansible"),
-        JobRole.CYBERSECURITY, List.of("安全", "渗透", "漏洞", "owasp", "攻防", "合规"));
+    private final PromptUtil promptUtil;
 
     @Override
     public StudentCapabilityProfileResponse getCurrentUserProfile() {
@@ -107,7 +93,7 @@ public class StudentCapabilityProfileServiceImpl
         log.info("开始调用大模型生成能力画像...");
         StudentCapabilityProfileResponse aiResult;
         try {
-            String promptName = PromptUtil.getResumeAnalysisPromptName(jobRole);
+            String promptName = promptUtil.resolve(PromptScenario.RESUME_ANALYSIS, jobRole);
             log.info("使用提示词: {}", promptName);
             aiResult = chatUtil.chatStructuredOnce(userId, sourceText, promptName, null,
                     StudentCapabilityProfileResponse.class);
@@ -132,9 +118,9 @@ public class StudentCapabilityProfileServiceImpl
         StudentCapabilityProfile newProfile = toEntity(aiResult);
         newProfile.setUserId(userId);
         newProfile.setRoleConfidence(BigDecimal.valueOf(resumeRole.getConfidence()));
-        String promptName = PromptUtil.getResumeAnalysisPromptName(jobRole);
+        String promptName = promptUtil.resolve(PromptScenario.RESUME_ANALYSIS, jobRole);
         newProfile.setPromptName(promptName);
-        newProfile.setTargetRoleType(PromptUtil.getPromptDisplayType(promptName));
+        newProfile.setTargetRoleType(jobRole.slug());
         newProfile.setScoreDetail(toJson(aiResult.getScoreDetail()));
         newProfile.setSuggestions(toJson(aiResult.getSuggestions()));
 
@@ -172,7 +158,7 @@ public class StudentCapabilityProfileServiceImpl
         }
         StudentCapabilityProfileResponse dto = new StudentCapabilityProfileResponse();
         dto.setTargetRoleType(StringUtils.hasText(entity.getTargetRoleType()) ? entity.getTargetRoleType()
-                : PromptUtil.getPromptDisplayType(entity.getPromptName()));
+                : JobRole.fromPromptName(entity.getPromptName()).slug());
         dto.setProfessionalSkills(entity.getProfessionalSkills());
         dto.setHonorsAndAwards(entity.getHonorsAndAwards());
         dto.setInnovationAbility(entity.getInnovationAbility());
@@ -355,50 +341,11 @@ public class StudentCapabilityProfileServiceImpl
      * @return 岗位画像
      */
     private ResumeRoleDetectDTO detect(Long userId, String resumeText) {
-        if (!StringUtils.hasText(resumeText)) {
-            return new ResumeRoleDetectDTO(JobRole.UNKNOWN, 0.0, "简历文本为空");
-        }
-
-        // 1. 关键词规则命中
-        String lower = resumeText.toLowerCase();
-        JobRole bestRole = JobRole.UNKNOWN;
-        int bestScore = 0;
-
-        for (var entry : KEYWORDS.entrySet()) {
-            int score = 0;
-            for (String kw : entry.getValue()) {
-                if (lower.contains(kw.toLowerCase())) {
-                    score++;
-                }
-            }
-            if (score > bestScore) {
-                bestScore = score;
-                bestRole = entry.getKey();
-            }
-        }
-
-        if (bestScore >= KEYWORD_DIRECT_HIT_THRESHOLD) {
-            double conf = Math.min(0.9, 0.45 + bestScore * 0.1);
-            return new ResumeRoleDetectDTO(bestRole, conf, "关键词规则命中: " + bestScore);
-        }
-
-        try {
-            RoleDetectLLMResult llmResult = chatUtil.chatStructuredOnce(userId, resumeText, PromptNames.JOB_DETECT,
-                    null, RoleDetectLLMResult.class);
-            JobRole role = PromptUtil.getJobRoleByString(llmResult.getRoleCode());
-            if (role == JobRole.UNKNOWN && bestRole != JobRole.UNKNOWN) {
-                return new ResumeRoleDetectDTO(bestRole, 0.45,
-                        "LLM 返回 unknown，采用关键词弱命中: " + bestScore);
-            }
-            return new ResumeRoleDetectDTO(role, llmResult.getConfidence(),
-                    llmResult.getReason() != null ? llmResult.getReason() : "LLM 分类");
-        } catch (Exception e) {
-            log.warn("岗位分类 LLM 失败，回退关键词: {}", e.getMessage());
-            if (bestRole != JobRole.UNKNOWN) {
-                return new ResumeRoleDetectDTO(bestRole, 0.35, "LLM 失败，回退关键词弱命中");
-            }
-            return new ResumeRoleDetectDTO(JobRole.UNKNOWN, 0.2, "规则与 LLM 均未明确岗位");
-        }
+        JobRoleDetector.DetectResult detected = JobRoleDetector.detect(userId, resumeText, chatUtil, log);
+        String reason = !StringUtils.hasText(resumeText)
+                ? "简历文本为空"
+                : detected.reason();
+        return new ResumeRoleDetectDTO(detected.role(), detected.confidence(), reason);
     }
 
     private String toJson(Object value) {
@@ -411,12 +358,5 @@ public class StudentCapabilityProfileServiceImpl
             log.warn("JSON 序列化失败，字段将置空: {}", e.getMessage());
             return null;
         }
-    }
-
-    @lombok.Data
-    private static class RoleDetectLLMResult {
-        private String roleCode;
-        private double confidence;
-        private String reason;
     }
 }

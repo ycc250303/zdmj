@@ -8,17 +8,19 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.common.ai.JobRole;
+import com.zdmj.common.ai.PromptScenario;
 import com.zdmj.common.ai.PromptUtil;
-import com.zdmj.common.ai.PromptUtil.JobRole;
+import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobCareerGraphResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.entity.JobCareerGraph;
 import com.zdmj.jobService.mapper.JobCareerGraphMapper;
+import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobCareerGraphService;
 import com.zdmj.jobService.service.JobService;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,7 +29,8 @@ import org.springframework.util.StringUtils;
 /**
  * 岗位关联图谱服务实现（DB 持久化版本）。
  *
- * <p>整体流程：岗位识别（关键词 + LLM 兜底） → 选取对应图谱提示词 → 结构化调用 LLM →
+ * <p>整体流程：复用岗位画像已识别的 {@code targetRoleType}（缺失则先生成画像）
+ * → 选取对应图谱提示词 → 结构化调用 LLM →
  * 图谱规范校验（晋升路径 ≥3 节点、换岗路径 ≥5 条且每条 ≥2 节点） → 写入 {@code job_career_graphs}
  * 表（1 个岗位最多 1 条记录，存在则 update、否则 insert）。</p>
  *
@@ -46,29 +49,12 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
     private static final int MIN_TRANSITION_PATHS = 5;
     /** 单条换岗路径的最少节点数（任务书硬性要求） */
     private static final int MIN_NODES_PER_TRANSITION_PATH = 2;
-    /** 关键词直出阈值，与岗位能力画像保持一致 */
-    private static final int KEYWORD_DIRECT_HIT_THRESHOLD = 4;
-
-    /**
-     * 岗位关键词表（与 {@link JobCapabilityProfileServiceImpl} 保持一致）。
-     */
-    private static final Map<JobRole, List<String>> KEYWORDS = Map.of(
-            JobRole.JAVA, List.of("java", "spring", "spring boot", "mybatis", "mysql", "redis", "jvm"),
-            JobRole.FRONTEND,
-            List.of("react", "vue", "typescript", "javascript", "webpack", "vite", "css", "html"),
-            JobRole.CPP, List.of("c++", "cpp", "stl", "cmake", "gdb", "linux", "多线程", "内存"),
-            JobRole.SOFTWARE_TEST,
-            List.of("测试", "test case", "pytest", "selenium", "jmeter", "postman", "缺陷"),
-            JobRole.AI_AGENT, List.of("llm", "大模型", "agent", "rag", "langchain", "prompt", "embedding"),
-            JobRole.ALGORITHM, List.of("算法", "machine learning", "深度学习", "pytorch", "tensorflow"),
-            JobRole.DATA_ANALYST, List.of("数据分析", "sql", "tableau", "powerbi", "excel", "指标"),
-            JobRole.BIG_DATA, List.of("hadoop", "spark", "flink", "hive", "数仓", "kafka"),
-            JobRole.DEVOPS_SRE, List.of("devops", "sre", "k8s", "kubernetes", "docker", "ci/cd", "ansible"),
-            JobRole.CYBERSECURITY, List.of("安全", "渗透", "漏洞", "owasp", "攻防", "合规"));
 
     private final JobService jobService;
     private final ChatUtil chatUtil;
     private final ObjectMapper objectMapper;
+    private final PromptUtil promptUtil;
+    private final JobCapabilityProfileService jobCapabilityProfileService;
 
     @Override
     public JobCareerGraphResponse getOrNull(Long jobId) {
@@ -86,9 +72,13 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
         String jobContext = JobAnalysisSupport.buildJobContext(
                 jobDetail,
                 "这是待分析的岗位信息（请基于它生成岗位关联图谱，包含岗位晋升路径与跨岗位转岗路径）：");
-        JobRole role = JobAnalysisSupport.detectRole(
-                userId, jobContext, chatUtil, KEYWORDS, KEYWORD_DIRECT_HIT_THRESHOLD, log);
-        String promptName = PromptUtil.getJobCareerGraphPromptName(role);
+        JobCapabilityProfileResponse jobProfile = jobCapabilityProfileService.getJobCapabilityProfileOrNull(jobId);
+        if (jobProfile == null) {
+            log.info("岗位画像缺失，生成图谱前先识别并生成画像: jobId={}", jobId);
+            jobProfile = jobCapabilityProfileService.getJobCapabilityProfile(jobId);
+        }
+        JobRole role = JobRole.fromString(jobProfile.getTargetRoleType());
+        String promptName = promptUtil.resolve(PromptScenario.JOB_CAREER_GRAPH, role);
         log.info("生成岗位关联图谱: jobId={}, role={}, prompt={}", jobId, role, promptName);
 
         JobCareerGraphResponse aiResult;
@@ -102,7 +92,7 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
         validateGraph(aiResult);
 
         aiResult.setJobId(jobId);
-        aiResult.setTargetRoleType(PromptUtil.getPromptDisplayType(promptName));
+        aiResult.setTargetRoleType(role.slug());
         markCurrentNode(aiResult);
 
         JobCareerGraph existing = getOne(
@@ -110,9 +100,10 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
         JobCareerGraph entity = toEntity(aiResult);
         entity.setJobId(jobId);
         entity.setPromptName(promptName);
-        entity.setTargetRoleType(PromptUtil.getPromptDisplayType(promptName));
-        entity.setRoleConfidence(BigDecimal.valueOf(
-                JobAnalysisSupport.estimateRoleConfidence(role, jobContext, KEYWORDS)));
+        entity.setTargetRoleType(role.slug());
+        entity.setRoleConfidence(jobProfile.getRoleConfidence() != null
+                ? jobProfile.getRoleConfidence()
+                : BigDecimal.valueOf(0.2));
         if (existing != null) {
             entity.setId(existing.getId());
             updateById(entity);
@@ -216,7 +207,7 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
         JobCareerGraphResponse dto = new JobCareerGraphResponse();
         dto.setJobId(entity.getJobId());
         dto.setTargetRoleType(StringUtils.hasText(entity.getTargetRoleType()) ? entity.getTargetRoleType()
-                : PromptUtil.getPromptDisplayType(entity.getPromptName()));
+                : JobRole.fromPromptName(entity.getPromptName()).slug());
         dto.setSummary(entity.getSummary());
         try {
             if (StringUtils.hasText(entity.getCurrentNode())) {

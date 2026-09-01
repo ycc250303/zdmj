@@ -7,17 +7,23 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.common.ai.PromptUtil;
+import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobCareerGraphResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.entity.JobCareerGraph;
+import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.io.DefaultResourceLoader;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,12 +47,16 @@ class JobCareerGraphServiceImplTest {
     private JobService jobService;
     @Mock
     private ChatUtil chatUtil;
+    @Mock
+    private JobCapabilityProfileService jobCapabilityProfileService;
 
     private JobCareerGraphServiceImpl graphService;
 
     @BeforeEach
     void setUp() {
-        graphService = spy(new JobCareerGraphServiceImpl(jobService, chatUtil, new ObjectMapper()));
+        graphService = spy(new JobCareerGraphServiceImpl(
+                jobService, chatUtil, new ObjectMapper(), new PromptUtil(new DefaultResourceLoader()),
+                jobCapabilityProfileService));
         UserHolder.set(UserContext.of(1L, "u1"));
     }
 
@@ -58,6 +68,7 @@ class JobCareerGraphServiceImplTest {
     @Test
     void graph_generate_fail_shouldThrow10004() {
         Long jobId = 31L;
+        stubExistingJavaProfile(jobId);
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
         doThrow(new RuntimeException("llm timeout")).when(chatUtil)
                 .chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCareerGraphResponse.class));
@@ -71,6 +82,7 @@ class JobCareerGraphServiceImplTest {
     @Test
     void graph_generate_invalid_shouldThrow10005() {
         Long jobId = 32L;
+        stubExistingJavaProfile(jobId);
         JobCareerGraphResponse invalidGraph = new JobCareerGraphResponse();
         invalidGraph.setVerticalPath(List.of(vNode(1, "初级"), vNode(2, "中级")));
         invalidGraph.setTransitionPaths(List.of());
@@ -85,6 +97,7 @@ class JobCareerGraphServiceImplTest {
     @Test
     void graph_generate_success_shouldMarkCurrentAndSave() {
         Long jobId = 33L;
+        stubExistingJavaProfile(jobId);
         JobCareerGraphResponse valid = buildValidGraphWithoutCurrent();
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
         doReturn(valid).when(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCareerGraphResponse.class));
@@ -96,7 +109,10 @@ class JobCareerGraphServiceImplTest {
         assertEquals(2, result.getCurrentNode().getLevel());
         assertEquals("中级Java工程师", result.getCurrentNode().getTitle());
         assertEquals("java-backend", result.getTargetRoleType());
-        verify(graphService).save(any(JobCareerGraph.class));
+        ArgumentCaptor<JobCareerGraph> saved = ArgumentCaptor.forClass(JobCareerGraph.class);
+        verify(graphService).save(saved.capture());
+        assertEquals(new BigDecimal("0.75"), saved.getValue().getRoleConfidence());
+        verify(jobCapabilityProfileService, never()).getJobCapabilityProfile(jobId);
     }
 
     @Test
@@ -153,7 +169,7 @@ class JobCareerGraphServiceImplTest {
 
         assertEquals(jobId, dto.getJobId());
         assertEquals("broken", dto.getSummary());
-        assertEquals("JOB_CAREER_GRAPH_JAVA", dto.getTargetRoleType());
+        assertEquals("default", dto.getTargetRoleType());
         assertNull(dto.getCurrentNode());
         assertNull(dto.getVerticalPath());
         assertNull(dto.getTransitionPaths());
@@ -162,6 +178,7 @@ class JobCareerGraphServiceImplTest {
     @Test
     void graph_generate_update_whenExisting_shouldUpdateById() {
         Long jobId = 38L;
+        stubExistingJavaProfile(jobId);
         JobCareerGraphResponse valid = buildValidGraphWithoutCurrent();
         JobCareerGraph existing = new JobCareerGraph();
         existing.setId(999L);
@@ -181,6 +198,7 @@ class JobCareerGraphServiceImplTest {
     @Test
     void graph_generate_whenCurrentNodeGiven_shouldPreserveLevelAndTitle() {
         Long jobId = 39L;
+        stubExistingJavaProfile(jobId);
         JobCareerGraphResponse valid = buildValidGraphWithoutCurrent();
         JobCareerGraphResponse.CurrentNode current = new JobCareerGraphResponse.CurrentNode();
         current.setLevel(3);
@@ -202,6 +220,7 @@ class JobCareerGraphServiceImplTest {
     @Test
     void graph_generate_fail_whenTransitionNodeTooShort_shouldThrow10005() {
         Long jobId = 36L;
+        stubExistingJavaProfile(jobId);
         JobCareerGraphResponse invalidGraph = new JobCareerGraphResponse();
         invalidGraph.setVerticalPath(List.of(vNode(1, "初级"), vNode(2, "中级"), vNode(3, "高级")));
         List<JobCareerGraphResponse.TransitionPath> transitions = new ArrayList<>();
@@ -226,6 +245,7 @@ class JobCareerGraphServiceImplTest {
     @Test
     void graph_generate_fail_whenTransitionPathCountTooFew_shouldThrow10005() {
         Long jobId = 40L;
+        stubExistingJavaProfile(jobId);
         JobCareerGraphResponse invalidGraph = new JobCareerGraphResponse();
         invalidGraph.setVerticalPath(List.of(vNode(1, "初级"), vNode(2, "中级"), vNode(3, "高级")));
         List<JobCareerGraphResponse.TransitionPath> transitions = new ArrayList<>();
@@ -245,6 +265,35 @@ class JobCareerGraphServiceImplTest {
         assertEquals(ErrorCode.JOB_CAREER_GRAPH_INVALID.getCode(), ex.getCode());
         verify(graphService, never()).save(any(JobCareerGraph.class));
         verify(graphService, never()).updateById(any(JobCareerGraph.class));
+    }
+
+    @Test
+    void graph_generate_whenProfileMissing_shouldGenerateProfileFirst() {
+        Long jobId = 41L;
+        doReturn(null).when(jobCapabilityProfileService).getJobCapabilityProfileOrNull(jobId);
+        doReturn(javaProfile()).when(jobCapabilityProfileService).getJobCapabilityProfile(jobId);
+        JobCareerGraphResponse valid = buildValidGraphWithoutCurrent();
+        doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
+        doReturn(valid).when(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCareerGraphResponse.class));
+        doReturn(null).when(graphService).getOne(any(LambdaQueryWrapper.class));
+        doReturn(true).when(graphService).save(any(JobCareerGraph.class));
+
+        JobCareerGraphResponse result = graphService.generate(jobId);
+
+        assertEquals("java-backend", result.getTargetRoleType());
+        verify(jobCapabilityProfileService).getJobCapabilityProfile(jobId);
+        verify(graphService).save(any(JobCareerGraph.class));
+    }
+
+    private JobCapabilityProfileResponse javaProfile() {
+        JobCapabilityProfileResponse profile = new JobCapabilityProfileResponse();
+        profile.setTargetRoleType("java-backend");
+        profile.setRoleConfidence(new BigDecimal("0.75"));
+        return profile;
+    }
+
+    private void stubExistingJavaProfile(Long jobId) {
+        doReturn(javaProfile()).when(jobCapabilityProfileService).getJobCapabilityProfileOrNull(jobId);
     }
 
     private JobCareerGraphResponse buildValidGraphWithoutCurrent() {

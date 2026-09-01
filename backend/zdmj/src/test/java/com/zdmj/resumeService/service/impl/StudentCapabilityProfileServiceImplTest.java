@@ -10,9 +10,10 @@ import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.common.storage.FileUploadService;
 import com.zdmj.common.util.PdfParserUtil;
+import com.zdmj.common.ai.JobRole;
+import com.zdmj.common.ai.JobRoleDetector;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.ai.prompt.PromptNames;
-import com.zdmj.common.ai.PromptUtil.JobRole;
 import com.zdmj.resumeService.dto.CapabilityProfileGenerateRequest;
 import com.zdmj.resumeService.dto.ResumeRoleDetectDTO;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
@@ -25,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
@@ -65,7 +67,7 @@ class StudentCapabilityProfileServiceImplTest {
     void setUp() {
         initMybatisPlusLambdaCache();
         service = spy(new StudentCapabilityProfileServiceImpl(chatUtil, new ObjectMapper(), fileUploadService,
-                pdfParserUtil));
+                pdfParserUtil, new PromptUtil(new DefaultResourceLoader())));
         ReflectionTestUtils.setField(service, "baseMapper", studentCapabilityProfileMapper);
         UserHolder.set(UserContext.of(1L, "u1"));
     }
@@ -89,7 +91,7 @@ class StudentCapabilityProfileServiceImplTest {
     void getCurrentUserProfile_found_shouldReturnDto() {
         StudentCapabilityProfile profile = new StudentCapabilityProfile();
         profile.setUserId(1L);
-        profile.setPromptName(PromptNames.RESUME_ANALYSIS_JAVA_BACKEND);
+        profile.setPromptName("resume-analysis/java-backend");
         profile.setCompetitivenessScore(74);
         doReturn(profile).when(service).getOne(any());
 
@@ -324,7 +326,7 @@ class StudentCapabilityProfileServiceImplTest {
     void getCurrentUserProfileOrNull_profileExistsAndJsonValid_shouldHydrateNestedFields() {
         StudentCapabilityProfile profile = new StudentCapabilityProfile();
         profile.setUserId(1L);
-        profile.setPromptName(PromptNames.RESUME_ANALYSIS_JAVA_BACKEND);
+        profile.setPromptName("resume-analysis/java-backend");
         profile.setCompetitivenessScore(72);
         profile.setScoreDetail("{\"contentCompletenessScore\":8}");
         profile.setSuggestions("[{\"category\":\"项目\",\"issue\":\"缺量化\",\"recommendation\":\"补充结果\"}]");
@@ -344,7 +346,7 @@ class StudentCapabilityProfileServiceImplTest {
     void getCurrentUserProfileOrNull_jsonInvalid_shouldNotThrowAndKeepBaseFields() {
         StudentCapabilityProfile profile = new StudentCapabilityProfile();
         profile.setUserId(1L);
-        profile.setPromptName(PromptNames.RESUME_ANALYSIS_FRONTEND);
+        profile.setPromptName("resume-analysis/frontend");
         profile.setCompetitivenessScore(61);
         profile.setScoreDetail("{bad-json");
         doReturn(profile).when(service).getOne(any());
@@ -458,12 +460,12 @@ class StudentCapabilityProfileServiceImplTest {
         verify(service, never()).getOne(any());
     }
 
-    private static Object buildRoleDetectLlmResult(String roleCode, double confidence, String reason) throws Exception {
-        Class<?> clazz = Class.forName("com.zdmj.resumeService.service.impl.StudentCapabilityProfileServiceImpl$RoleDetectLLMResult");
-        Object result = clazz.getDeclaredConstructor().newInstance();
-        ReflectionTestUtils.setField(result, "roleCode", roleCode);
-        ReflectionTestUtils.setField(result, "confidence", confidence);
-        ReflectionTestUtils.setField(result, "reason", reason);
+    private static JobRoleDetector.RoleDetectLLMResult buildRoleDetectLlmResult(
+            String roleCode, double confidence, String reason) {
+        JobRoleDetector.RoleDetectLLMResult result = new JobRoleDetector.RoleDetectLLMResult();
+        result.setRoleCode(roleCode);
+        result.setConfidence(confidence);
+        result.setReason(reason);
         return result;
     }
 

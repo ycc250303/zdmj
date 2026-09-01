@@ -1,6 +1,6 @@
 package com.zdmj.matchService.service.impl;
 
-import com.zdmj.common.ai.PromptUtil.JobRole;
+import com.zdmj.common.ai.JobRole;
 import com.zdmj.matchService.dto.MatchWeightConfigResponse;
 import java.math.BigDecimal;
 import java.math.RoundingMode;

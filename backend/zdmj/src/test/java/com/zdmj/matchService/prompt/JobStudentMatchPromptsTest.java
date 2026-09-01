@@ -2,6 +2,7 @@ package com.zdmj.matchService.prompt;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -9,8 +10,9 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.util.StreamUtils;
 
+import com.zdmj.common.ai.JobRole;
+import com.zdmj.common.ai.PromptScenario;
 import com.zdmj.common.ai.PromptUtil;
-import com.zdmj.common.ai.prompt.PromptNames;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -37,22 +39,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class JobStudentMatchPromptsTest {
 
-    private static final List<String> PROMPT_NAMES = List.of(
-            PromptNames.JOB_STUDENT_MATCH_DEFAULT,
-            PromptNames.JOB_STUDENT_MATCH_JAVA_BACKEND,
-            PromptNames.JOB_STUDENT_MATCH_FRONTEND,
-            PromptNames.JOB_STUDENT_MATCH_ALGORITHM,
-            PromptNames.JOB_STUDENT_MATCH_AI_AGENT,
-            PromptNames.JOB_STUDENT_MATCH_CPP,
-            PromptNames.JOB_STUDENT_MATCH_SOFTWARE_TEST,
-            PromptNames.JOB_STUDENT_MATCH_DATA_ANALYST,
-            PromptNames.JOB_STUDENT_MATCH_BIG_DATA,
-            PromptNames.JOB_STUDENT_MATCH_DEVOPS_SRE,
-            PromptNames.JOB_STUDENT_MATCH_CYBERSECURITY);
+    private static List<String> matchPromptNames() {
+        List<String> names = new ArrayList<>();
+        PromptUtil promptUtil = new PromptUtil(new DefaultResourceLoader());
+        for (JobRole role : JobRole.values()) {
+            names.add(promptUtil.resolve(PromptScenario.JOB_STUDENT_MATCH, role));
+        }
+        return names.stream().distinct().toList();
+    }
 
     @Test
     void allMatchPrompts_shouldNotContainDollarBracePlaceholders() throws IOException {
-        for (String promptName : PROMPT_NAMES) {
+        for (String promptName : matchPromptNames()) {
             String content = loadRaw(promptName);
             assertFalse(content.contains("${"),
                     promptName + " 仍包含 ${...} 字面占位符；Spring AI 的 PromptTemplate"
@@ -64,7 +62,7 @@ class JobStudentMatchPromptsTest {
     @Test
     void allMatchPrompts_shouldBeLoadable_viaPromptUtil() {
         PromptUtil promptUtil = new PromptUtil(new DefaultResourceLoader());
-        assertAll(PROMPT_NAMES.stream().map(name -> () -> {
+        assertAll(matchPromptNames().stream().map(name -> () -> {
             String content = promptUtil.load(name);
             assertTrue(content != null && !content.isBlank(),
                     name + " 加载失败或内容为空");
