@@ -412,4 +412,22 @@ class KnowledgeDocumentServiceImplTest {
         verify(knowledgeEmbeddingService).deleteVectors(5201L);
         verify(knowledgeDocumentMapper, never()).deleteById(5201L);
     }
+
+    @Test
+    void createProjectDocumentNonCosUrl_shouldThrowUrlFormatError() {
+        UserHolder.set(UserContext.of(216L, "u"));
+        when(fileUploadService.isManagedCosUrl("https://evil.example/file.pdf")).thenReturn(false);
+        KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
+                knowledgeDocumentMapper, knowledgeVectorTaskMapper, knowledgeBasesService, knowledgeEmbeddingService, fileUploadService));
+        KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
+        dto.setType(KnowledgeTypeEnum.PROJECT_DOCUMENT.getCode());
+        dto.setContent("https://evil.example/file.pdf");
+        dto.setTitle("doc");
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
+
+        assertEquals(ErrorCode.URL_FORMAT_ERROR.getCode(), ex.getCode());
+        verify(service, never()).save(any(KnowledgeDocument.class));
+        verify(fileUploadService, never()).exists(any());
+    }
 }

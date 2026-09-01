@@ -87,12 +87,6 @@ public class UserLlmRouter {
     private boolean platformFallbackEnabled;
 
     /**
-     * 是否强制配置 API Key 加密密钥
-     */
-    @Value("${app.ai.user-llm.require-encryption-key:false}")
-    private boolean requireEncryptionKey;
-
-    /**
      * 用户 API Key 落库加密密钥
      */
     @Value("${app.ai.user-llm.encryption-key:}")
@@ -134,7 +128,7 @@ public class UserLlmRouter {
 
     @PostConstruct
     void initEncryptor() {
-        textEncryptor = UserApiKeyCipher.createEncryptor(encryptionKey, requireEncryptionKey);
+        textEncryptor = UserApiKeyCipher.createEncryptor(encryptionKey);
     }
 
     /**

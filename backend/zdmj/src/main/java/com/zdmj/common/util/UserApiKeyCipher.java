@@ -9,6 +9,7 @@ import com.zdmj.common.exception.ErrorCode;
 
 /**
  * 用户 LLM API Key 对称加密（Spring Security Encryptors.text）。
+ * <p>必须配置 {@code APP_AI_USER_KEY_ENCRYPTION_KEY}（偶数位 hex），无源码内默认口令。
  */
 public class UserApiKeyCipher {
     /** Spring Encryptors.text 要求 password/salt 均为偶数位 hex 字符串 */
@@ -18,23 +19,13 @@ public class UserApiKeyCipher {
     }
 
     /**
-     * 创建加密器
-     * @param configuredKey
-     * @param requireKey
-     * @return
+     * 创建加密器。未配置或非偶数位 hex 时启动失败，避免使用仓库内默认口令。
      */
-    public static TextEncryptor createEncryptor(String configuredKey, boolean requireKey) {
-        String password = resolvePassword(configuredKey, requireKey);
+    public static TextEncryptor createEncryptor(String configuredKey) {
+        String password = resolvePassword(configuredKey);
         return Encryptors.text(password, SALT);
-
     }
 
-    /**
-     * 加密 API Key
-     * @param encryptor
-     * @param plainText
-     * @return
-     */
     public static String encrypt(TextEncryptor encryptor, String plainText) {
         try {
             return encryptor.encrypt(plainText);
@@ -43,12 +34,6 @@ public class UserApiKeyCipher {
         }
     }
 
-    /**
-     * 解密 API Key
-     * @param encryptor
-     * @param ciphertext
-     * @return
-     */
     public static String decrypt(TextEncryptor encryptor, String ciphertext) {
         try {
             return encryptor.decrypt(ciphertext);
@@ -57,11 +42,6 @@ public class UserApiKeyCipher {
         }
     }
 
-    /**
-     * 掩码 API Key
-     * @param apiKey
-     * @return
-     */
     public static String mask(String apiKey) {
         if (!StringUtils.hasText(apiKey)) {
             return "";
@@ -73,21 +53,30 @@ public class UserApiKeyCipher {
         return trimmed.substring(0, 3) + "****" + trimmed.substring(trimmed.length() - 4);
     }
 
-    /**
-     * 解析密码
-     * @param configuredKey
-     * @param requireKey
-     * @return
-     */
-    private static String resolvePassword(String configuredKey, boolean requireKey) {
-        if (StringUtils.hasText(configuredKey)) {
-            return configuredKey.trim();
-        }
-        if (requireKey) {
+    private static String resolvePassword(String configuredKey) {
+        if (!StringUtils.hasText(configuredKey)) {
             throw new BusinessException(
                     ErrorCode.USER_LLM_API_KEY_DECRYPT_FAILED.getCode(),
                     "APP_AI_USER_KEY_ENCRYPTION_KEY 未配置（须为偶数位 hex 字符串）");
         }
-        return "0123456789abcdef0123456789abcdef";
+        String password = configuredKey.trim();
+        if (!isEvenHex(password)) {
+            throw new BusinessException(
+                    ErrorCode.USER_LLM_API_KEY_DECRYPT_FAILED.getCode(),
+                    "APP_AI_USER_KEY_ENCRYPTION_KEY 须为偶数位 hex 字符串");
+        }
+        return password;
+    }
+
+    private static boolean isEvenHex(String value) {
+        if (value.length() % 2 != 0) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.digit(value.charAt(i), 16) < 0) {
+                return false;
+            }
+        }
+        return true;
     }
 }

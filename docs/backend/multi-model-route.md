@@ -117,8 +117,7 @@ Spring AI `OpenAiApi` 默认会补 `/v1/chat/completions`。当前目录里 Dash
 | 项 | 约定 |
 | --- | --- |
 | 环境变量 | `APP_AI_USER_KEY_ENCRYPTION_KEY`（偶数位 hex） |
-| 开发未配 | 内置兜底 password，应用可启动 |
-| 生产 | `app.ai.user-llm.require-encryption-key=true`，缺密钥启动失败 |
+| 未配置 | 启动失败（`UserLlmRouter` `@PostConstruct`），**无源码内默认口令** |
 | 对外 | DTO 只回 `apiKeyMasked`（前 3 + `****` + 后 4） |
 | 换密钥 | 须先用旧密钥解密再重加密；无自动轮换 |
 
@@ -144,8 +143,7 @@ spring.ai.openai.embedding.options:
 | --- | --- | --- |
 | `app.ai.user-llm.require-user-config` | `false` | true 则强制自配，不走平台 |
 | `app.ai.user-llm.platform-fallback-enabled` | `true` | 无用户配置时允许平台 Key |
-| `app.ai.user-llm.require-encryption-key` | `false` | 生产建议 true |
-| `app.ai.user-llm.encryption-key` | 空 | 见上 |
+| `app.ai.user-llm.encryption-key` | 空（须由 env 注入） | 偶数位 hex；缺则启动失败 |
 | `app.ai.user-llm.advisors.*` | `false` | **预留，代码未读取** |
 | `app.ai.deepseek.api-key` | 空 | 平台 DeepSeek |
 | `spring.ai.openai.*` | DashScope + `AL_MODEL` | 平台 Chat / Embedding |

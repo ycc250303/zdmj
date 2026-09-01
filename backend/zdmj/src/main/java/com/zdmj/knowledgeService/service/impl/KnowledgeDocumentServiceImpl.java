@@ -1,6 +1,5 @@
 package com.zdmj.knowledgeService.service.impl;
 
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.LinkedHashMap;
@@ -260,7 +259,6 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
 
         // 根据知识类型进行验证
         if (type == KnowledgeTypeEnum.PROJECT_DOCUMENT.getCode()) {
-            // type=1：项目文档，必须是COS链接的PDF或MD文件
             String lowerContent = content.toLowerCase();
             boolean isPdf = lowerContent.contains(".pdf") || lowerContent.contains("/pdf/");
             boolean isMd = lowerContent.contains(".md") || content.endsWith(".md");
@@ -270,9 +268,12 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
                         "项目文档类型（type=1）仅支持PDF和Markdown文件");
             }
 
-            // 验证COS文件是否存在
-            String cosKey = extractCosKeyFromUrl(content);
-            if (cosKey != null && !fileUploadService.exists(cosKey)) {
+            if (!fileUploadService.isManagedCosUrl(content)) {
+                throw new BusinessException(ErrorCode.URL_FORMAT_ERROR.getCode(),
+                        "项目文档须为本系统已上传的文件");
+            }
+            String cosKey = fileUploadService.extractKeyFromUrl(content);
+            if (cosKey.isBlank() || !fileUploadService.exists(cosKey)) {
                 throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS);
             }
 
@@ -291,25 +292,6 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
             // 未知的知识类型
             throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS.getCode(),
                     "不支持的知识类型: " + type);
-        }
-    }
-
-    /**
-     * 从COS URL中提取key
-     */
-    private String extractCosKeyFromUrl(String url) {
-        try {
-            URI uri = new URI(url);
-            String path = uri.getPath();
-            // 移除开头的斜杠
-            if (path != null && path.startsWith("/")) {
-                path = path.substring(1);
-            }
-            // 移除查询参数（URI已经自动处理了）
-            return path;
-        } catch (Exception e) {
-            log.error("解析COS URL失败: {}", url, e);
-            return null;
         }
     }
 

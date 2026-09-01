@@ -227,6 +227,8 @@ public class StudentCapabilityProfileServiceImpl
             log.info("从 PDF 解析内容: {}", reqDTO.getPdfUrl());
             try {
                 sourceText = pdfParserUtil.extractTextFromUrl(reqDTO.getPdfUrl());
+            } catch (BusinessException e) {
+                throw e;
             } catch (Exception e) {
                 log.error("PDF 解析失败", e);
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "PDF 解析失败，请检查文件是否合法");

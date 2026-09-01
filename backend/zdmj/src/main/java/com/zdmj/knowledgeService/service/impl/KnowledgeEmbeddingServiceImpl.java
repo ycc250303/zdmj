@@ -261,7 +261,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
 
     private String extractText(KnowledgeDocument kd) {
         if (kd.getType() != null && kd.getType().equals(KnowledgeTypeEnum.PROJECT_DOCUMENT.getCode())) {
-            return pdfParserUtil.extractTextFromUrl(kd.getContent());
+            return pdfParserUtil.extractTextFromUrl(kd.getContent(), kd.getUserId());
         }
         throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED.getCode(), "当前知识类型暂不支持向量化");
     }

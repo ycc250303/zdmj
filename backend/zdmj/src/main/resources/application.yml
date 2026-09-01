@@ -110,7 +110,6 @@ app:
     user-llm:
       require-user-config: false
       platform-fallback-enabled: true
-      require-encryption-key: false
       encryption-key: ${APP_AI_USER_KEY_ENCRYPTION_KEY:}
       advisors:
         enabled: false

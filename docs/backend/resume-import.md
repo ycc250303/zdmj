@@ -54,5 +54,6 @@ mvn test -Dtest=ResumeServiceImplTest
 ## 已知限制
 
 - 扫描版 PDF 文本质量差，建议上传文字版 PDF
+- `pdfUrl` **仅允许**本系统 COS 桶内、且属于当前用户的对象（拒绝任意外链，防 SSRF）
 - 不识别 `project_experiences.status`、`lookup_result`
 - 识别成功后自动覆盖写库，无需用户确认

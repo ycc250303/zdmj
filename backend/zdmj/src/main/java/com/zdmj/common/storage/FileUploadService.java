@@ -121,11 +121,8 @@ public class FileUploadService {
             return;
         }
         Long userId = UserHolder.requireUserId();
-        String key = extractKeyFromUrl(fileUrl);
-        if (key.isBlank()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "无效的文件 URL");
-        }
-        String expectedPrefix = String.format("user-%d/%s/", userId, sanitizeBizArea(bizArea));
+        String key = requireOwnedKey(extractKeyFromUrl(fileUrl), userId);
+        String expectedPrefix = UserObjectKeys.ownedPrefix(userId) + sanitizeBizArea(bizArea) + "/";
         if (!key.startsWith(expectedPrefix)) {
             throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(), "无权删除该文件");
         }
@@ -144,7 +141,7 @@ public class FileUploadService {
         String queryPrefix = (prefix == null || prefix.isBlank())
                 ? String.format("user-%d/", userId)
                 : String.format("user-%d/%s/", userId, sanitizeBizArea(prefix));
-        List<String> keys = listKeysByPrefix(queryPrefix);
+        List<String> keys = listKeysByPrefix(queryPrefix, userId);
         List<FileUploadListItemResponse> result = new ArrayList<>(keys.size());
         for (String key : keys) {
             result.add(FileUploadListItemResponse.builder()
@@ -158,8 +155,9 @@ public class FileUploadService {
     }
 
     public boolean exists(String key) {
+        String ownedKey = requireOwnedKey(key, UserHolder.requireUserId());
         try {
-            cosClient.getObjectMetadata(new GetObjectMetadataRequest(bucketName, key));
+            cosClient.getObjectMetadata(new GetObjectMetadataRequest(bucketName, ownedKey));
             return true;
         } catch (CosServiceException e) {
             if (e.getStatusCode() == 404) {
@@ -177,6 +175,9 @@ public class FileUploadService {
         }
         try {
             URI uri = URI.create(sourceUri.trim());
+            if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getUserInfo() != null) {
+                return false;
+            }
             String host = uri.getHost();
             if (isBlank(host)) {
                 return false;
@@ -189,14 +190,24 @@ public class FileUploadService {
     }
 
     /**
-     * 从 COS URL 读取对象流（使用 SDK 鉴权，适用于私有桶）。调用方须关闭返回的 InputStream。
+     * 从 COS URL 读取当前用户拥有的对象流（SDK 鉴权，适用于私有桶）。调用方须关闭返回的 InputStream。
      */
     public InputStream openInputStreamFromUrl(String sourceUri) {
+        return openInputStreamFromUrl(sourceUri, UserHolder.requireUserId());
+    }
+
+    /**
+     * 从 COS URL 读取指定用户拥有的对象流。异步任务须传入文档所属 {@code ownerUserId}，勿依赖 ThreadLocal。
+     */
+    public InputStream openInputStreamFromUrl(String sourceUri, Long ownerUserId) {
         ensureInitialized();
-        String key = extractKeyFromUrl(sourceUri);
-        if (isBlank(key)) {
-            throw new RuntimeException("无法从 URL 解析 COS 对象键");
+        if (ownerUserId == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_LOGIN);
         }
+        if (!isManagedCosUrl(sourceUri)) {
+            throw new BusinessException(ErrorCode.URL_FORMAT_ERROR.getCode(), "仅支持本系统已上传的文件");
+        }
+        String key = requireOwnedKey(extractKeyFromUrl(sourceUri), ownerUserId);
         return execute("读取文件", () -> {
             COSObject cosObject = cosClient.getObject(new GetObjectRequest(bucketName, key));
             return cosObject.getObjectContent();
@@ -216,18 +227,13 @@ public class FileUploadService {
         } catch (Exception ignore) {
             // 非标准 URI 时按原字符串兜底处理
         }
-        rawPath = rawPath.replace('\\', '/');
-        while (rawPath.startsWith("/")) {
-            rawPath = rawPath.substring(1);
-        }
-        if (isBlank(rawPath)) {
-            return "";
-        }
         try {
-            return URLDecoder.decode(rawPath, StandardCharsets.UTF_8);
+            rawPath = URLDecoder.decode(rawPath, StandardCharsets.UTF_8);
         } catch (Exception ignore) {
-            return rawPath;
+            // 保持未解码路径，后续 normalize 会拒绝非法段
         }
+        String normalized = UserObjectKeys.normalize(rawPath);
+        return normalized == null ? "" : normalized;
     }
 
     private String putObject(MultipartFile file, String key) {
@@ -269,7 +275,7 @@ public class FileUploadService {
         return String.format("https://%s.cos.%s.myqcloud.com/%s", bucketName, region, key);
     }
 
-    private List<String> listKeysByPrefix(String prefix) {
+    private List<String> listKeysByPrefix(String prefix, long userId) {
         ensureInitialized();
         return execute("查询文件列表", () -> {
             String normalizedPrefix = prefix == null ? "" : prefix.trim();
@@ -285,7 +291,7 @@ public class FileUploadService {
                 ObjectListing listing = cosClient.listObjects(request);
                 for (COSObjectSummary summary : listing.getObjectSummaries()) {
                     String objectKey = summary.getKey();
-                    if (objectKey != null && !objectKey.endsWith("/")) {
+                    if (objectKey != null && !objectKey.endsWith("/") && UserObjectKeys.isOwnedBy(objectKey, userId)) {
                         keys.add(objectKey);
                     }
                 }
@@ -334,14 +340,18 @@ public class FileUploadService {
     }
 
     private void validateUserKey(String key) {
-        if (key == null || key.isBlank()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        requireOwnedKey(key, UserHolder.requireUserId());
+    }
+
+    private static String requireOwnedKey(String key, long userId) {
+        String normalized = UserObjectKeys.normalize(key);
+        if (normalized == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "无效的文件路径");
         }
-        Long userId = UserHolder.requireUserId();
-        String expectedPrefix = "user-" + userId + "/";
-        if (!key.startsWith(expectedPrefix)) {
+        if (!UserObjectKeys.isOwnedBy(normalized, userId)) {
             throw new BusinessException(ErrorCode.NO_PERMISSION);
         }
+        return normalized;
     }
 
     private String extractFileName(String key) {

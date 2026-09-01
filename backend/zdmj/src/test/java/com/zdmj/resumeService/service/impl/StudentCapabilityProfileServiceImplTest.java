@@ -451,6 +451,19 @@ class StudentCapabilityProfileServiceImplTest {
     }
 
     @Test
+    void generateProfile_pdfUrlRejected_shouldPropagateBusinessException() {
+        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
+        req.setPdfUrl("https://evil.example/resume.pdf");
+        when(pdfParserUtil.extractTextFromUrl("https://evil.example/resume.pdf"))
+                .thenThrow(new BusinessException(ErrorCode.URL_FORMAT_ERROR.getCode(), "仅支持本系统已上传的文件"));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
+
+        assertEquals(ErrorCode.URL_FORMAT_ERROR.getCode(), ex.getCode());
+        verify(chatUtil, never()).chatStructuredOnce(any(), any(), any(), any(), any());
+    }
+
+    @Test
     void getCurrentUserProfileOrNull_userNotLogin_shouldThrow() {
         UserHolder.clear();
 
