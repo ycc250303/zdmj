@@ -20,7 +20,7 @@
 
 ## 限流
 
-- USER 维度：10 次/分钟（`LlmRateLimits.RESUME_IMPORT_PARSE_PER_MIN`）
+- USER 维度：10 次/分钟（`ResumeController` 上 `@RateLimit`）
 
 ## 响应字段
 

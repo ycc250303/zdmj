@@ -26,7 +26,6 @@ com.zdmj.common.ai
   ChatUtil               # 业务门面（once / structured / stream / conversation）
   ModelEnum              # 可选模型目录（code → baseUrl + apiModelName）
   PromptUtil / PromptNames
-  LlmInputLimits / LlmRateLimits
   config/ChatModelConfig # 仅 ChatMemory（JDBC）；ChatClient 不再注册 Bean
   config/EmbeddingConfig # Token 切分 + embedding 线程池
   config/RagConfig       # RAG 检索阈值（与 Chat 路由无关）
@@ -185,7 +184,7 @@ spring.ai.openai.embedding.options:
 | SSE 多轮 | `chatStreamInConversation(userId, conversationId, …)`（`POST /messages/chat`） |
 | 提示词 | `classpath:prompts/{PromptNames}.md`；占位符只替换 `${key}` / `{key}`，避免 JSON 花括号被模板引擎吃掉 |
 
-长耗时接口加 `@RateLimit(USER)`，阈值 `LlmRateLimits`。异步入队见 [`llm-async-stream.md`](llm-async-stream.md)（未落地）。
+长耗时接口加 `@RateLimit(USER)`，阈值写在各 Controller 方法上。异步入队见 [`llm-async-stream.md`](llm-async-stream.md)（未落地）。
 
 ---
 

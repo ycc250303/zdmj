@@ -160,7 +160,7 @@ public Result<?> updateMe(...) { ... }
 
 ### 当前已接入（LLM 推理接口）
 
-阈值常量见 `com.zdmj.common.ai.LlmRateLimits`；威胁模型见 [`prompt-security.md`](prompt-security.md)。
+阈值写在各接口的 `@RateLimit` 上，与 `UserController` 一致；威胁模型见 [`prompt-security.md`](prompt-security.md)。
 
 | 接口 | 规则 |
 |------|------|

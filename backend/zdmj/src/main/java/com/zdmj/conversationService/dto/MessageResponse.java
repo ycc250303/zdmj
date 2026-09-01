@@ -1,6 +1,5 @@
 package com.zdmj.conversationService.dto;
 
-import com.zdmj.common.ai.LlmInputLimits;
 import com.zdmj.conversationService.enums.MessageRoleEnum;
 import lombok.Data;
 

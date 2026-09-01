@@ -1,7 +1,6 @@
 package com.zdmj.resumeService.controller;
 
 import com.zdmj.common.annotation.RateLimit;
-import com.zdmj.common.ai.LlmRateLimits;
 import com.zdmj.common.model.CreateGroup;
 import com.zdmj.common.model.Result;
 import com.zdmj.common.model.UpdateGroup;
@@ -75,8 +74,7 @@ public class ResumeController {
         return Result.success("删除简历成功", null);
     }
 
-    @RateLimit(dimension = RateLimit.Dimension.USER, count = LlmRateLimits.RESUME_IMPORT_PARSE_PER_MIN,
-            interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/import/parse")
     public Result<ResumeImportParseResponse> parseResumeImport(
             @Validated @RequestBody ResumeImportParseRequest request) {

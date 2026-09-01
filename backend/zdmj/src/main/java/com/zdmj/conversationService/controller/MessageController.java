@@ -11,7 +11,6 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import com.zdmj.common.annotation.RateLimit;
-import com.zdmj.common.ai.LlmRateLimits;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.Result;
 import jakarta.validation.Valid;
@@ -59,8 +58,7 @@ public class MessageController {
      * @param request 流式对话请求
      * @return 流式消息
      */
-    @RateLimit(dimension = RateLimit.Dimension.USER, count = LlmRateLimits.CHAT_PER_MIN, interval = 1,
-            timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimit.Dimension.USER, count = 30, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> chatStream(@Valid @RequestBody ChatStreamRequest request) {
         return messageService.createStream(request);

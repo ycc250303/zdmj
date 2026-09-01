@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.zdmj.common.annotation.RateLimit;
-import com.zdmj.common.ai.LlmRateLimits;
 import com.zdmj.common.model.CreateGroup;
 
 import java.util.concurrent.TimeUnit;
@@ -143,8 +142,7 @@ public class JobController {
      * @param id 岗位ID
      * @return 岗位能力画像
      */
-    @RateLimit(dimension = RateLimit.Dimension.USER, count = LlmRateLimits.JOB_CAPABILITY_PROFILE_PER_MIN,
-            interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/{id}/capability-profile")
     public Result<JobCapabilityProfileResponse> getJobCapabilityProfile(@PathVariable Long id) {
         return Result.success("获取岗位能力画像成功", jobCapabilityProfileService.getJobCapabilityProfile(id));
@@ -173,8 +171,7 @@ public class JobController {
          * @param id 岗位ID
          * @return 岗位关联图谱
          */
-        @RateLimit(dimension = RateLimit.Dimension.USER, count = LlmRateLimits.JOB_CAREER_GRAPH_PER_MIN, interval = 1,
-                timeUnit = TimeUnit.MINUTES)
+        @RateLimit(dimension = RateLimit.Dimension.USER, count = 5, interval = 1, timeUnit = TimeUnit.MINUTES)
         @PostMapping("/{id}/career-graph")
         public Result<JobCareerGraphResponse> generateJobCareerGraph(@PathVariable Long id) {
             return Result.success("生成岗位关联图谱成功", jobCareerGraphService.generate(id));

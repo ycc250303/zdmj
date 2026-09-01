@@ -3,7 +3,6 @@ package com.zdmj.resumeService.service.impl;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.ai.ChatUtil;
-import com.zdmj.common.ai.LlmInputLimits;
 import com.zdmj.common.ai.ModelEnum;
 import com.zdmj.common.ai.UserLlmRouter;
 import com.zdmj.common.ai.prompt.PromptNames;
@@ -62,6 +61,8 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     private static final Pattern WHITESPACE_RUN = Pattern.compile("\\s{3,}");
     private static final Pattern PRESENT_END = Pattern.compile("^(至今|现在|present|current|now)$",
             Pattern.CASE_INSENSITIVE);
+    /** 送入 LLM 前的纯文本截断上限（字符数） */
+    private static final int IMPORT_TEXT_TRUNCATE_CHARS = 15000;
 
     private final EducationMapper educationMapper;
     private final ProjectExperienceMapper projectExperienceMapper;
@@ -507,7 +508,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
     private String preprocessImportText(String sourceText, List<String> warnings) {
         String normalized = WHITESPACE_RUN.matcher(sourceText.trim()).replaceAll("\n\n");
-        int limit = LlmInputLimits.RESUME_IMPORT_TEXT_TRUNCATE_CHARS;
+        int limit = IMPORT_TEXT_TRUNCATE_CHARS;
         if (normalized.length() > limit) {
             warnings.add("简历文本过长，已截断至前 " + limit + " 个字符，部分经历可能未识别");
             normalized = normalized.substring(0, limit);
