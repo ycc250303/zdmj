@@ -1,4 +1,4 @@
-package com.zdmj.common.cache;
+package com.zdmj.common.util;
 
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -7,6 +7,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zdmj.common.constants.RedisConstants;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

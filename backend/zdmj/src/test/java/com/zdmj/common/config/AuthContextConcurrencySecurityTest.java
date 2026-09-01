@@ -1,7 +1,7 @@
 package com.zdmj.common.config;
 
-import com.zdmj.common.cache.RedisConstants;
-import com.zdmj.common.cache.RedisUtil;
+import com.zdmj.common.constants.RedisConstants;
+import com.zdmj.common.util.RedisUtil;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.userAuthService.util.JwtUtil;

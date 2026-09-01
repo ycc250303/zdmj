@@ -1,10 +1,10 @@
 package com.zdmj.jobService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.zdmj.common.cache.RedisUtil;
+import com.zdmj.common.util.RedisUtil;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.cache.RedisConstants;
+import com.zdmj.common.constants.RedisConstants;
 import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.dto.JobPageQueryDTO;
 import com.zdmj.jobService.dto.JobRequest;

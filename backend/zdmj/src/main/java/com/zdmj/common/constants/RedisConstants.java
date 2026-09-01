@@ -1,4 +1,4 @@
-package com.zdmj.common.cache;
+package com.zdmj.common.constants;
 
 import com.zdmj.userAuthService.enums.VerificationCodeScene;
 
