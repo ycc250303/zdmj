@@ -44,7 +44,7 @@ async function loadResume() {
 }
 
 function enterEdit() {
-  if (!resume.value) return;
+  if (!resume.value || importing.value) return;
   draft.value = cloneResumeForEdit(resume.value);
   isEditing.value = true;
 }
@@ -207,13 +207,15 @@ onMounted(() => {
         </div>
         <div v-if="resume" class="flex items-center gap-2 shrink-0">
           <template v-if="!isEditing">
-            <NButton type="primary" @click="enterEdit">{{ $t('page.resumeImport.edit') }}</NButton>
+            <NButton type="primary" :disabled="importing" @click="enterEdit">
+              {{ $t('page.resumeImport.edit') }}
+            </NButton>
           </template>
           <template v-else>
-            <NButton type="primary" :loading="saving" @click="handleSave">
+            <NButton type="primary" :loading="saving" :disabled="importing" @click="handleSave">
               {{ $t('page.resumeImport.save') }}
             </NButton>
-            <NButton @click="cancelEdit">{{ $t('page.resumeImport.cancelEdit') }}</NButton>
+            <NButton :disabled="importing" @click="cancelEdit">{{ $t('page.resumeImport.cancelEdit') }}</NButton>
           </template>
         </div>
       </div>
