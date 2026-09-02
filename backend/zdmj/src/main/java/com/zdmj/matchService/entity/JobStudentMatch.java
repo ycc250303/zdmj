@@ -104,7 +104,6 @@ public class JobStudentMatch extends BaseEntity {
 
     /**
      * 关键技能匹配率（0~1，命中关键词数 / 岗位关键词数）。
-     * 赛题指标：≥ 0.80。
      */
     private BigDecimal keySkillMatchRate;
 

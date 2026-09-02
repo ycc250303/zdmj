@@ -485,7 +485,7 @@ CREATE TABLE IF NOT EXISTS job_student_matches (
     missing_keywords JSONB DEFAULT '[]'::jsonb,
     -- 缺失的岗位关键词
     key_skill_match_rate NUMERIC(5,4) NOT NULL DEFAULT 0.0,
-    -- 关键技能匹配率（命中关键词 / 岗位关键词总数；赛题指标 ≥ 0.80）
+    -- 关键技能匹配率（命中关键词 / 岗位关键词总数）
     summary TEXT,
     -- 总结
     target_role_type VARCHAR(64) NOT NULL DEFAULT 'default',

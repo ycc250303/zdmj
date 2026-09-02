@@ -11,8 +11,8 @@ import lombok.NoArgsConstructor;
 /**
  * 四维度权重配置。
  *
- * <p>赛题《题目.md》要求：「最后根据当前岗位在不同维度的权重设置进行综合打分综合处理」。
- * 因此本对象既支持后端按 {@code targetRoleType} 路由出默认权重，也支持前端通过请求体覆盖。
+ * <p>综合分按各维度权重加权。本对象既支持后端按 {@code targetRoleType} 路由出默认权重，
+ * 也支持前端通过请求体覆盖。
  * 字段类型用 {@link BigDecimal} 保证序列化精度。</p>
  */
 @Data

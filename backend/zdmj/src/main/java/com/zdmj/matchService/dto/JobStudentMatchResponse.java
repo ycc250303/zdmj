@@ -74,7 +74,7 @@ public class JobStudentMatchResponse {
     /**
      * 关键技能匹配率（0~1）。
      *
-     * <p>赛题指标：≥ 0.80。后端会基于 {@code matchedKeywords} 与岗位 keywords 总数兜底重算，
+     * <p>后端会基于 {@code matchedKeywords} 与岗位 keywords 总数兜底重算，
      * 避免完全依赖 LLM 自报。</p>
      */
     private BigDecimal keySkillMatchRate;

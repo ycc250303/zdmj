@@ -49,7 +49,7 @@ import org.springframework.util.StringUtils;
  *
  * <p>核心思路：把「岗位画像七维 + 关键词 + 学生画像七维」通过结构化 Prompt 喂给 LLM，让模型按
  * 「基础要求 / 职业技能 / 职业素养 / 发展潜力」四维做对比分析与打分，再用代码兜底重算「关键技能
- * 匹配率」与「综合分」，保证赛题指标与权重设置严格生效。</p>
+ * 匹配率」与「综合分」，保证权重设置严格生效。</p>
  */
 @Slf4j
 @Service
@@ -324,7 +324,7 @@ public class JobStudentMatchServiceImpl
 
     /**
      * 关键技能匹配率兜底：以 student 画像七维拼成的 corpus 为基准，对岗位关键词做包含判断；
-     * 若 LLM 自报的 matchedKeywords 与 corpus 不一致，以 corpus 命中为准（保证赛题指标可复算）。
+     * 若 LLM 自报的 matchedKeywords 与 corpus 不一致，以 corpus 命中为准。
      */
     private KeywordMatchResult recomputeKeywordMatch(
             List<String> jobKeywords,

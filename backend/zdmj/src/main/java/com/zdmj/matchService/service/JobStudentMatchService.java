@@ -9,13 +9,7 @@ import com.zdmj.matchService.dto.MatchWeightConfigResponse;
 import com.zdmj.matchService.entity.JobStudentMatch;
 
 /**
- * 人岗匹配分析服务。
- *
- * <p>此模块对应赛题《题目.md》中：</p>
- * <ul>
- *   <li>4) 构建学生职业生涯发展报告 - a) 职业探索与岗位匹配</li>
- *   <li>技术指标 - 人岗匹配准确性判断</li>
- * </ul>
+ * 人岗匹配分析服务：基于岗位画像与学生画像做四维对比，输出可解释的匹配结果与综合分。
  */
 public interface JobStudentMatchService extends IService<JobStudentMatch> {
 
