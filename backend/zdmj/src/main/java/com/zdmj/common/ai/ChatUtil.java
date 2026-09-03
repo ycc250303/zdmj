@@ -6,6 +6,9 @@ import java.util.Map;
 import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.converter.BeanOutputConverter;
+import org.springframework.ai.converter.StructuredOutputConverter;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.ResponseFormat;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -19,37 +22,38 @@ import reactor.core.publisher.Flux;
 @Component
 public class ChatUtil {
 
+    /**
+     * 仅结构化调用附带 JSON Mode。请求 options 会与 ChatModel 默认项（model / extraBody）合并，
+     * 不改缓存的 ChatClient，因此 SSE 对话不受影响。DeepSeek 不支持 json_schema。
+     */
+    private static final OpenAiChatOptions JSON_OBJECT_OPTIONS = OpenAiChatOptions.builder()
+            .responseFormat(ResponseFormat.builder().type(ResponseFormat.Type.JSON_OBJECT).build())
+            .build();
+
     private final PromptUtil promptUtil;
 
     private final UserLlmRouter userLlmRouter;
 
     /**
      * 单次对话（按用户路由模型）。
-     *
-     * @param userId      当前用户 ID，null 则未登录
-     * @param userMessage 用户消息
-     * @param promptName  提示词名称
-     * @param promptVars  提示词模板变量
-     * @return 对话内容
      */
     public String chatOnce(Long userId, String userMessage, String promptName, Map<String, Object> promptVars) {
-        ChatClientRequestSpec spec = buildSpecWithoutMemory(userId, promptName, promptVars);
-        return spec.user(userMessage).call().content();
+        requireUserId(userId);
+        return applySystemPrompt(userLlmRouter.getChatClient(userId).prompt(), promptName, promptVars)
+                .user(userMessage)
+                .call()
+                .content();
     }
 
     /**
-     * 单次结构化对话：在 user 侧附加 JSON Schema，只调用一次模型，解析失败直接抛出异常。
-     *
-     * @param userId      当前用户 ID，null 则未登录
-     * @param userMessage 用户消息（如简历全文）
-     * @param promptName  提示词名称（system）
-     * @param promptVars  提示词模板变量
-     * @param outputType  输出 POJO 类型
+     * 单次结构化对话：JSON Mode + {@code ChatClient.entity()}，解析失败直接抛出异常。
      */
     public <T> T chatStructuredOnce(Long userId, String userMessage, String promptName, Map<String, Object> promptVars,
             Class<T> outputType) {
-        ChatClientRequestSpec spec = buildSpecWithoutMemory(userId, promptName, promptVars);
-        return invokeStructured(spec, userMessage, outputType);
+        requireUserId(userId);
+        return invokeStructured(
+                applySystemPrompt(userLlmRouter.getChatClient(userId).prompt(), promptName, promptVars),
+                userMessage, outputType);
     }
 
     /**
@@ -57,82 +61,49 @@ public class ChatUtil {
      */
     public <T> T chatStructuredOnceWithPlatformModel(String userMessage, String promptName,
             Map<String, Object> promptVars, Class<T> outputType, ModelEnum model) {
-        ChatClientRequestSpec spec = userLlmRouter.getPlatformChatClient(model).prompt();
-        spec = applySystemPrompt(spec, promptName, promptVars);
-        return invokeStructured(spec, userMessage, outputType);
+        return invokeStructured(
+                applySystemPrompt(userLlmRouter.getPlatformChatClient(model).prompt(), promptName, promptVars),
+                userMessage, outputType);
     }
 
     /**
      * 在会话中流式对话（按用户路由模型）。
-     *
-     * @param userId         当前用户 ID，null 则未登录
-     * @param conversationId 会话ID
-     * @param userMessage    用户消息
-     * @param promptName     提示词名称
-     * @param promptVars     提示词模板变量
-     * @return 对话内容
      */
     public Flux<String> chatStreamInConversation(Long userId, Long conversationId, String userMessage,
             String promptName, Map<String, Object> promptVars) {
-        ChatClientRequestSpec spec = buildSpecWithMemory(userId, conversationId, promptName, promptVars);
-        return spec.user(userMessage).stream().content();
-    }
-
-    /**
-     * 调用结构化输出
-     * 
-     * @param spec 请求规范
-     * @param userMessage 用户消息
-     * @param outputType 输出类型
-     * @return 结构化输出
-     */
-    private <T> T invokeStructured(ChatClientRequestSpec spec, String userMessage, Class<T> outputType) {
-        BeanOutputConverter<T> converter = new BeanOutputConverter<>(outputType);
-        String userPayload = buildStructuredUserPayload(userMessage, converter.getFormat());
-        String content = spec.user(userPayload).call().content();
-        String cleaned = stripCodeFence(content);
-        T parsed = converter.convert(cleaned);
-        if (parsed == null) {
-            throw new IllegalStateException("结构化输出解析结果为空");
-        }
-        return parsed;
-    }
-
-    /**
-     * 构建结构化用户消息
-     *
-     * @param userMessage 用户消息
-     * @param schemaHint  JSON Schema 提示
-     * @return 结构化用户消息
-     */
-    private String buildStructuredUserPayload(String userMessage, String schemaHint) {
-        StringBuilder sb = new StringBuilder(userMessage == null ? "" : userMessage);
-        sb.append("\n\n请严格按照以下 JSON Schema 输出（仅 JSON 对象，无 Markdown、无前后说明）：\n");
-        sb.append(schemaHint);
-        return sb.toString();
-    }
-
-    /**
-     * 构建不带记忆的请求
-     */
-    private ChatClientRequestSpec buildSpecWithoutMemory(Long userId, String promptName, Map<String, Object> promptVars) {
-        requireUserId(userId);
-        ChatClientRequestSpec spec = userLlmRouter.getChatClient(userId).prompt();
-        return applySystemPrompt(spec, promptName, promptVars);
-    }
-
-    /**
-     * 构建带记忆的请求
-     */
-    private ChatClientRequestSpec buildSpecWithMemory(Long userId, Long conversationId, String promptName,
-            Map<String, Object> promptVars) {
         if (conversationId == null) {
             throw new IllegalArgumentException("Conversation ID cannot be null");
         }
         requireUserId(userId);
-        ChatClientRequestSpec spec = userLlmRouter.getChatClientWithMemory(userId).prompt()
-                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, String.valueOf(conversationId)));
-        return applySystemPrompt(spec, promptName, promptVars);
+        return applySystemPrompt(
+                userLlmRouter.getChatClientWithMemory(userId).prompt()
+                        .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, String.valueOf(conversationId))),
+                promptName, promptVars)
+                .user(userMessage)
+                .stream()
+                .content();
+    }
+
+    /**
+     * JSON Mode + {@code .entity()}。Schema 由 ChatClient 追加到 user 消息。
+     * DeepSeek JSON Mode 要求 prompt 含 "json"。
+     * 
+     * @param spec 聊天客户端请求规范
+     * @param userMessage 用户消息
+     * @param outputType 输出类型
+     * @return 结构化输出结果
+     */
+    private <T> T invokeStructured(ChatClientRequestSpec spec, String userMessage, Class<T> outputType) {
+        String payload = (userMessage == null ? "" : userMessage)
+                + "\n\n请输出 JSON 对象（无 Markdown、无前后说明）。";
+        T parsed = spec.options(JSON_OBJECT_OPTIONS)
+                .user(payload)
+                .call()
+                .entity(new JsonOutputConverter<>(outputType));
+        if (parsed == null) {
+            throw new IllegalStateException("结构化输出解析结果为空");
+        }
+        return parsed;
     }
 
     private static void requireUserId(Long userId) {
@@ -141,8 +112,13 @@ public class ChatUtil {
         }
     }
 
-    /*
-     * 应用系统提示词
+    /**
+     * 应用系统提示词。
+     * 
+     * @param spec       聊天客户端请求规范
+     * @param promptName 提示词名称
+     * @param promptVars 提示词变量
+     * @return 应用系统提示词后的聊天客户端请求规范
      */
     private ChatClientRequestSpec applySystemPrompt(ChatClientRequestSpec spec, String promptName,
             Map<String, Object> promptVars) {
@@ -156,7 +132,8 @@ public class ChatUtil {
 
     /**
      * 用变量值替换提示词中的占位符。支持 {@code ${key}} 与 {@code {key}}，仅替换 map 中声明的 key，
-     * 避免 Spring AI {@code PromptTemplate}（StringTemplate）将 JSON 花括号或 {@code default} 等保留字误解析。
+     * 避免 Spring AI {@code PromptTemplate}（StringTemplate）将 JSON 花括号或
+     * {@code default} 等保留字误解析。
      */
     static String renderPlaceholders(String template, Map<String, Object> variables) {
         if (!StringUtils.hasText(template) || variables == null || variables.isEmpty()) {
@@ -176,21 +153,38 @@ public class ChatUtil {
     }
 
     /**
-     * 去除代码块
-     *
-     * @param text 文本
-     * @return 去除代码块后的文本
+     * 剥 markdown 围栏后再交给 {@link BeanOutputConverter}。
+     * 框架 cleaner 能处理多行围栏，但会把单行 {@code ```json {...} ```} 清成空串。
      */
-    private String stripCodeFence(String text) {
-        String t = text == null ? "" : text.trim();
-        if (t.startsWith("```json")) {
-            t = t.substring(7).trim();
-        } else if (t.startsWith("```")) {
-            t = t.substring(3).trim();
+    private static final class JsonOutputConverter<T> implements StructuredOutputConverter<T> {
+
+        private final BeanOutputConverter<T> delegate;
+
+        private JsonOutputConverter(Class<T> outputType) {
+            this.delegate = new BeanOutputConverter<>(outputType);
         }
-        if (t.endsWith("```")) {
-            t = t.substring(0, t.length() - 3).trim();
+
+        @Override
+        public T convert(String text) {
+            return this.delegate.convert(stripCodeFence(text));
         }
-        return t;
+
+        @Override
+        public String getFormat() {
+            return this.delegate.getFormat();
+        }
+
+        private static String stripCodeFence(String text) {
+            String t = text == null ? "" : text.trim();
+            if (t.startsWith("```json")) {
+                t = t.substring(7).trim();
+            } else if (t.startsWith("```")) {
+                t = t.substring(3).trim();
+            }
+            if (t.endsWith("```")) {
+                t = t.substring(0, t.length() - 3).trim();
+            }
+            return t;
+        }
     }
 }

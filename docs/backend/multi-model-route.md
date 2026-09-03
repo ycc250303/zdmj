@@ -178,7 +178,7 @@ spring.ai.openai.embedding.options:
 | 场景 | 方法 |
 | --- | --- |
 | 单次文本 | `chatOnce(userId, …)` |
-| 结构化 JSON | `chatStructuredOnce(userId, …)`（user 侧附 Schema；失败抛错） |
+| 结构化 JSON | `chatStructuredOnce(userId, …)`：请求级 `response_format=json_object` + `ChatClient.entity()`（Schema 由框架追加；失败抛错）。**不开** `json_schema`（DeepSeek 会 400）。 |
 | 简历识别 | `chatStructuredOnceWithPlatformModel`（平台模型，不传 userId） |
 | SSE 多轮 | `chatStreamInConversation(userId, conversationId, …)`（`POST /messages/chat`） |
 | 提示词 | 与岗位无关的用 `PromptNames`；按方向拆分的经 `JobRole` + `PromptUtil.resolve`（见 [`job-role-prompt.md`](job-role-prompt.md)）。占位符只替换 `${key}` / `{key}`，避免 JSON 花括号被模板引擎吃掉 |
@@ -193,4 +193,4 @@ spring.ai.openai.embedding.options:
 - Embedding / RAG 不跟用户 Chat Key。
 - 平台 Client 缓存不随 `.env` 热更新。
 - `advisors.enabled` 未生效；无 Tool Calling。
-- `UserLlmRouter` / `ChatUtil` 尚无独立单测（业务侧 mock `ChatUtil`）。
+- `UserLlmRouter` 尚无独立单测（业务侧 mock `ChatUtil`）；`ChatUtil` 结构化路径有单测。
