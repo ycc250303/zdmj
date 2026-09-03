@@ -84,7 +84,7 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
         } else if (q.getSalaryType() != null) {
             int type = q.getSalaryType();
             if (type < 1 || type > 3) {
-                throw new IllegalArgumentException("salaryType 必须为 1、2 或 3");
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "salaryType 必须为 1、2 或 3");
             }
             q.setResolvedSalaryType(type);
         } else {
@@ -102,7 +102,7 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
         Integer min = q.getFilterSalaryMin();
         Integer max = q.getFilterSalaryMax();
         if (min != null && max != null && min > max) {
-            throw new IllegalArgumentException("最低薪资不能大于最高薪资");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "最低薪资不能大于最高薪资");
         }
     }
 

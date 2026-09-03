@@ -109,7 +109,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
         try {
             return objectMapper.writeValueAsString(items == null ? List.of() : items);
         } catch (Exception e) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "技能内容序列化失败");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "技能内容序列化失败");
         }
     }
 
@@ -132,7 +132,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
             String detail = violations.stream()
                     .map(v -> v.getPropertyPath() + ": " + v.getMessage())
                     .collect(Collectors.joining("; "));
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), detail);
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, detail);
         }
     }
 
@@ -155,7 +155,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
     private Skill requireSkillAndCheckOwnership(Long id, Long userId, String action) {
         Skill skill = requireSkill(id);
         if (!skill.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(),
+            throw new BusinessException(ErrorCode.NO_PERMISSION,
                     ErrorCode.NO_PERMISSION.getMessage() + action + "他人技能");
         }
         return skill;

@@ -105,7 +105,7 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
     private Career requireCareerAndCheckOwnership(Long id, Long userId, String action) {
         Career career = requireCareer(id);
         if (!career.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(),
+            throw new BusinessException(ErrorCode.NO_PERMISSION,
                     ErrorCode.NO_PERMISSION.getMessage() + action + "他人工作经历");
         }
         return career;

@@ -56,13 +56,13 @@ public class UserApiKeyCipher {
     private static String resolvePassword(String configuredKey) {
         if (!StringUtils.hasText(configuredKey)) {
             throw new BusinessException(
-                    ErrorCode.USER_LLM_API_KEY_DECRYPT_FAILED.getCode(),
+                    ErrorCode.USER_LLM_API_KEY_DECRYPT_FAILED,
                     "APP_AI_USER_KEY_ENCRYPTION_KEY 未配置（须为偶数位 hex 字符串）");
         }
         String password = configuredKey.trim();
         if (!isEvenHex(password)) {
             throw new BusinessException(
-                    ErrorCode.USER_LLM_API_KEY_DECRYPT_FAILED.getCode(),
+                    ErrorCode.USER_LLM_API_KEY_DECRYPT_FAILED,
                     "APP_AI_USER_KEY_ENCRYPTION_KEY 须为偶数位 hex 字符串");
         }
         return password;

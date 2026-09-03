@@ -435,7 +435,8 @@ class JobServiceImplTest {
         query.setFilterSalaryMin(20000);
         query.setFilterSalaryMax(10000);
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> jobService.getPage(query));
+        BusinessException ex = assertThrows(BusinessException.class, () -> jobService.getPage(query));
+        assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
         assertEquals("最低薪资不能大于最高薪资", ex.getMessage());
         verify(jobMapper, never()).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
     }

@@ -111,7 +111,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
                     && task.getTaskType() == KnowledgeVectorTaskTypeEnum.DELETE.getCode()) {
                 runDeleteTask(task);
             } else {
-                throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED.getCode(), "未知任务类型");
+                throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "未知任务类型");
             }
             knowledgeVectorTaskMapper.markTaskSuccess(taskId);
         } catch (Exception e) {
@@ -166,7 +166,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
 
             List<Document> chunks = textSplitter.apply(List.of(new Document(rawText)));
             if (chunks.isEmpty()) {
-                throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED.getCode(), "分块结果为空");
+                throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "分块结果为空");
             }
 
             int totalChunks = chunks.size();
@@ -180,7 +180,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
                 List<float[]> batchVectors = embeddingModel.embed(batchTexts);
                 if (batchVectors == null || batchVectors.size() != batchTexts.size()) {
                     throw new BusinessException(
-                            ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED.getCode(),
+                            ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED,
                             "批量向量化结果数量异常");
                 }
                 List<KnowledgeVector> rows = new ArrayList<>(batchTexts.size());
@@ -263,7 +263,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
         if (kd.getType() != null && kd.getType().equals(KnowledgeTypeEnum.PROJECT_DOCUMENT.getCode())) {
             return pdfParserUtil.extractTextFromUrl(kd.getContent(), kd.getUserId());
         }
-        throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED.getCode(), "当前知识类型暂不支持向量化");
+        throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "当前知识类型暂不支持向量化");
     }
 
 

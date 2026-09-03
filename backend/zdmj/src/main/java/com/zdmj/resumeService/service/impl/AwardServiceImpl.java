@@ -108,7 +108,7 @@ public class AwardServiceImpl extends ServiceImpl<AwardMapper, Award> implements
     private Award requireAwardAndCheckOwnership(Long id, Long userId, String action) {
         Award award = requireAward(id);
         if (!award.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(),
+            throw new BusinessException(ErrorCode.NO_PERMISSION,
                     ErrorCode.NO_PERMISSION.getMessage() + action + "他人获奖信息");
         }
         return award;

@@ -3,89 +3,35 @@ package com.zdmj.common.exception;
 import lombok.Getter;
 
 /**
- * 业务异常类
+ * 业务异常：只携带 {@link ErrorCode}，可选覆盖对外 detail。
  */
 @Getter
 public class BusinessException extends RuntimeException {
 
-    /**
-     * 业务错误码（与 HTTP 状态码分离，见 {@link ErrorCode}）
-     */
-    private final Integer code;
+    private final ErrorCode errorCode;
 
-    /**
-     * 错误消息
-     */
-    private final String message;
-
-    /**
-     * 构造函数
-     * 
-     * @param message 错误消息
-     */
-    public BusinessException(String message) {
-        super(message);
-        this.code = ErrorCode.SYSTEM_EXCEPTION.getCode();
-        this.message = message;
-    }
-
-    /**
-     * 构造函数
-     * 
-     * @param code    业务错误码
-     * @param message 错误消息
-     */
-    public BusinessException(Integer code, String message) {
-        super(message);
-        this.code = code;
-        this.message = message;
-    }
-
-    /**
-     * 构造函数
-     * 
-     * @param message 错误消息
-     * @param cause   异常原因
-     */
-    public BusinessException(String message, Throwable cause) {
-        super(message, cause);
-        this.code = ErrorCode.SYSTEM_EXCEPTION.getCode();
-        this.message = message;
-    }
-
-    /**
-     * 构造函数
-     * 
-     * @param code    业务错误码
-     * @param message 错误消息
-     * @param cause   异常原因
-     */
-    public BusinessException(Integer code, String message, Throwable cause) {
-        super(message, cause);
-        this.code = code;
-        this.message = message;
-    }
-
-    /**
-     * 构造函数
-     * 
-     * @param errorCode 错误码枚举
-     */
     public BusinessException(ErrorCode errorCode) {
         super(errorCode.getMessage());
-        this.code = errorCode.getCode();
-        this.message = errorCode.getMessage();
+        this.errorCode = errorCode;
     }
 
-    /**
-     * 构造函数
-     * 
-     * @param errorCode 错误码枚举
-     * @param cause     异常原因
-     */
+    public BusinessException(ErrorCode errorCode, String detail) {
+        super(detail);
+        this.errorCode = errorCode;
+    }
+
     public BusinessException(ErrorCode errorCode, Throwable cause) {
         super(errorCode.getMessage(), cause);
-        this.code = errorCode.getCode();
-        this.message = errorCode.getMessage();
+        this.errorCode = errorCode;
+    }
+
+    public BusinessException(ErrorCode errorCode, String detail, Throwable cause) {
+        super(detail, cause);
+        this.errorCode = errorCode;
+    }
+
+    /** 与 {@link ErrorCode#getCode()} 对齐，便于既有断言。 */
+    public Integer getCode() {
+        return errorCode.getCode();
     }
 }

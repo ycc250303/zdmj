@@ -253,7 +253,7 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
 
         // 验证URL格式
         if (!content.startsWith("http://") && !content.startsWith("https://")) {
-            throw new BusinessException(ErrorCode.URL_FORMAT_ERROR.getCode(),
+            throw new BusinessException(ErrorCode.URL_FORMAT_ERROR,
                     "内容必须是有效的URL链接");
         }
 
@@ -264,12 +264,12 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
             boolean isMd = lowerContent.contains(".md") || content.endsWith(".md");
 
             if (!isPdf && !isMd) {
-                throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS.getCode(),
+                throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS,
                         "项目文档类型（type=1）仅支持PDF和Markdown文件");
             }
 
             if (!fileUploadService.isManagedCosUrl(content)) {
-                throw new BusinessException(ErrorCode.URL_FORMAT_ERROR.getCode(),
+                throw new BusinessException(ErrorCode.URL_FORMAT_ERROR,
                         "项目文档须为本系统已上传的文件");
             }
             String cosKey = fileUploadService.extractKeyFromUrl(content);
@@ -280,17 +280,17 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
         } else if (type == KnowledgeTypeEnum.GITHUB_REPO.getCode()) {
             // type=2：GitHub链接，必须是GitHub链接
             if (!content.contains("github.com")) {
-                throw new BusinessException(ErrorCode.URL_FORMAT_ERROR.getCode(),
+                throw new BusinessException(ErrorCode.URL_FORMAT_ERROR,
                         "GitHub链接类型（type=2）必须是GitHub链接，当前内容不是GitHub链接");
             }
 
         } else if (type == KnowledgeTypeEnum.PROJECT_DEEPWIKI.getCode()) {
             // type=3：DeepWiki文档，暂不支持
-            throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS.getCode(),
+            throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS,
                     "项目DeepWiki文档类型（type=3）暂不支持");
         } else {
             // 未知的知识类型
-            throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS.getCode(),
+            throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS,
                     "不支持的知识类型: " + type);
         }
     }

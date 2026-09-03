@@ -44,7 +44,7 @@ Filter 三态：
 | 1002 | 401 | 未带有效会话 | `logoutCodes` 含 1002，且 HTTP 401 会清登录 |
 | 1012 | 503 | Redis 登录态不可用 | **不会**踢登录（`VITE_SERVICE_LOGOUT_CODES` 不含 1012） |
 
-Filter 与 Security 入口共用 `ProblemDetailHttpWriter`（尚未进入 MVC 时写 RFC 9457）。
+Filter 与 Security 入口共用 `ProblemDetailHttpWriter`（尚未进入 MVC 时写 RFC 9457；响应已提交则 Writer 内跳过）。MVC 内异常见 [exception-handling.md](exception-handling.md)。
 
 ## 不采用
 

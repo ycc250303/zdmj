@@ -171,7 +171,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
      */
     private Conversation requireConversationAccess(Long conversationId) {
         if (conversationId == null) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "会话ID不能为空");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "会话ID不能为空");
         }
         return conversationService.requireOwned(conversationId);
     }

@@ -37,7 +37,7 @@ HTTP 请求
   → RateLimitAspect.around()
   → 读取方法上全部 @RateLimit 规则
   → 逐条：生成 Redis Key → execute(lua) → 1 放行 / 0 拒绝
-  → 任一规则失败 → throw BusinessException(1011)
+  → 任一规则失败 → throw BusinessException(RATE_LIMIT_EXCEEDED)
   → 全部通过 → joinPoint.proceed()
 ```
 
@@ -111,11 +111,11 @@ ratelimit:{UserController:updateCurrentUser}:user:42
 
 ## 超限响应
 
-由 `GlobalExceptionHandler` 统一处理，无需额外配置：
+由 `GlobalExceptionHandler` 将 `BusinessException(RATE_LIMIT_EXCEEDED)` 写成 RFC 9457，详见 [exception-handling.md](exception-handling.md)：
 
 ```json
 {
-  "title": "Too Many Requests",
+  "title": "请求过于频繁，请稍后再试",
   "status": 429,
   "detail": "请求过于频繁，请稍后再试",
   "code": 1011

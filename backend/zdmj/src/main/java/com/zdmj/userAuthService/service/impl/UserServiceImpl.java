@@ -215,7 +215,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     private void rejectBlankField(String value, String message) {
         if (value.isBlank()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), message);
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, message);
         }
     }
 

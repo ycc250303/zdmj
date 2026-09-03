@@ -18,12 +18,10 @@ import java.util.Arrays;
 import java.util.List;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Spring Security 配置类
  */
-@Slf4j
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
@@ -74,25 +72,11 @@ public class SecurityConfig {
                         // 其他所有请求需要认证（包括/api/zdmj/users/{id}等）
                         .anyRequest().authenticated())
 
-                // 配置异常处理：对于已提交的响应，完全跳过异常处理
-                // 这可以避免 "Unable to handle the Spring Security Exception because the response is already committed" 错误
                 .exceptionHandling(exceptions -> exceptions
-                        .authenticationEntryPoint((request, response, authException) -> {
-                            // 如果响应已提交，完全跳过处理，不尝试发送任何响应
-                            if (response.isCommitted()) {
-                                log.debug("响应已提交，跳过认证异常处理");
-                                return;
-                            }
-                            problemDetailHttpWriter.write(response, ErrorCode.USER_NOT_LOGIN);
-                        })
-                        .accessDeniedHandler((request, response, accessDeniedException) -> {
-                            // 如果响应已提交，完全跳过处理，不尝试发送任何响应
-                            if (response.isCommitted()) {
-                                log.debug("响应已提交，跳过授权异常处理");
-                                return;
-                            }
-                            problemDetailHttpWriter.write(response, ErrorCode.NO_PERMISSION);
-                        }));
+                        .authenticationEntryPoint((request, response, authException) ->
+                                problemDetailHttpWriter.write(response, ErrorCode.USER_NOT_LOGIN))
+                        .accessDeniedHandler((request, response, accessDeniedException) ->
+                                problemDetailHttpWriter.write(response, ErrorCode.NO_PERMISSION)));
 
         return http.build();
     }

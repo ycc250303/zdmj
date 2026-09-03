@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.jobService.enums.JobEmploymentEnum;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -135,7 +137,7 @@ public class JobPageQueryDTO {
         if (value instanceof Number number) {
             double doubleValue = number.doubleValue();
             if (doubleValue % 1 != 0) {
-                throw new IllegalArgumentException(fieldName + " 必须是整数");
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 必须是整数");
             }
             return number.intValue();
         }
@@ -147,10 +149,10 @@ public class JobPageQueryDTO {
             try {
                 return Integer.valueOf(trimmed);
             } catch (NumberFormatException ex) {
-                throw new IllegalArgumentException(fieldName + " 必须是整数");
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 必须是整数");
             }
         }
-        throw new IllegalArgumentException(fieldName + " 必须是整数");
+        throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 必须是整数");
     }
 
     private static List<Integer> parseIntegerList(Object value, String fieldName) {
@@ -191,15 +193,15 @@ public class JobPageQueryDTO {
                 return null;
             }
             if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) {
-                throw new IllegalArgumentException(fieldName + " 必须使用 [] 包裹");
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 必须使用 [] 包裹");
             }
             try {
                 return OBJECT_MAPPER.readValue(trimmed, new TypeReference<List<Object>>() {
                 });
             } catch (Exception ex) {
-                throw new IllegalArgumentException(fieldName + " 数组格式不合法");
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 数组格式不合法");
             }
         }
-        throw new IllegalArgumentException(fieldName + " 必须是数组");
+        throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 必须是数组");
     }
 }

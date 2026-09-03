@@ -33,21 +33,21 @@ public class PdfParserUtil {
      */
     public String extractTextFromUrl(String url, Long ownerUserId) {
         if (url == null || url.isBlank()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "文件地址不能为空");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "文件地址不能为空");
         }
         if (ownerUserId == null) {
             throw new BusinessException(ErrorCode.USER_NOT_LOGIN);
         }
         String trimmed = url.trim();
         if (!fileUploadService.isManagedCosUrl(trimmed)) {
-            throw new BusinessException(ErrorCode.URL_FORMAT_ERROR.getCode(), "仅支持本系统已上传的文件");
+            throw new BusinessException(ErrorCode.URL_FORMAT_ERROR, "仅支持本系统已上传的文件");
         }
         try (InputStream inputStream = fileUploadService.openInputStreamFromUrl(trimmed, ownerUserId)) {
             return normalize(TIKA.parseToString(inputStream));
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "PDF解析失败：" + e.getMessage(), e);
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "PDF解析失败：" + e.getMessage(), e);
         }
     }
 

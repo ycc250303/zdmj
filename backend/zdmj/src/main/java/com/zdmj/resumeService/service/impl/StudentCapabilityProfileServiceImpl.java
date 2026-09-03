@@ -106,7 +106,7 @@ public class StudentCapabilityProfileServiceImpl
         } catch (Exception e) {
             log.error("大模型生成能力画像失败", e);
             throw new BusinessException(
-                    ErrorCode.CAPABILITY_PROFILE_GENERATION_FAILED.getCode(),
+                    ErrorCode.CAPABILITY_PROFILE_GENERATION_FAILED,
                     "大模型生成能力画像失败，请稍后重试");
         }
 
@@ -231,16 +231,16 @@ public class StudentCapabilityProfileServiceImpl
                 throw e;
             } catch (Exception e) {
                 log.error("PDF 解析失败", e);
-                throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "PDF 解析失败，请检查文件是否合法");
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "PDF 解析失败，请检查文件是否合法");
             }
         } else if (StringUtils.hasText(reqDTO.getRawText())) {
             log.info("从纯文本解析内容");
             sourceText = reqDTO.getRawText();
         } else {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "必须提供 pdfUrl 或 rawText");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "必须提供 pdfUrl 或 rawText");
         }
         if (!StringUtils.hasText(sourceText)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "提取到的文本为空，无法生成画像");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "提取到的文本为空，无法生成画像");
         }
         return sourceText;
     }
@@ -286,7 +286,7 @@ public class StudentCapabilityProfileServiceImpl
         }
         if (score < 0 || score > max) {
             throw new BusinessException(
-                    ErrorCode.CAPABILITY_PROFILE_SCORE_INVALID.getCode(),
+                    ErrorCode.CAPABILITY_PROFILE_SCORE_INVALID,
                     String.format("scoreDetail.%s 超出合法范围 0~%d，实际值 %d", fieldName, max, score));
         }
     }

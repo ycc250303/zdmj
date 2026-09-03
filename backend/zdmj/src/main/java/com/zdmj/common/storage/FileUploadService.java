@@ -124,7 +124,7 @@ public class FileUploadService {
         String key = requireOwnedKey(extractKeyFromUrl(fileUrl), userId);
         String expectedPrefix = UserObjectKeys.ownedPrefix(userId) + sanitizeBizArea(bizArea) + "/";
         if (!key.startsWith(expectedPrefix)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(), "无权删除该文件");
+            throw new BusinessException(ErrorCode.NO_PERMISSION, "无权删除该文件");
         }
         deleteObject(key);
         log.info("用户域文件已清理，key={}", key);
@@ -205,7 +205,7 @@ public class FileUploadService {
             throw new BusinessException(ErrorCode.USER_NOT_LOGIN);
         }
         if (!isManagedCosUrl(sourceUri)) {
-            throw new BusinessException(ErrorCode.URL_FORMAT_ERROR.getCode(), "仅支持本系统已上传的文件");
+            throw new BusinessException(ErrorCode.URL_FORMAT_ERROR, "仅支持本系统已上传的文件");
         }
         String key = requireOwnedKey(extractKeyFromUrl(sourceUri), ownerUserId);
         return execute("读取文件", () -> {
@@ -346,7 +346,7 @@ public class FileUploadService {
     private static String requireOwnedKey(String key, long userId) {
         String normalized = UserObjectKeys.normalize(key);
         if (normalized == null) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "无效的文件路径");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "无效的文件路径");
         }
         if (!UserObjectKeys.isOwnedBy(normalized, userId)) {
             throw new BusinessException(ErrorCode.NO_PERMISSION);

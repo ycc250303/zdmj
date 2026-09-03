@@ -113,7 +113,7 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
     private Education requireEducationAndCheckOwnership(Long id, Long userId, String action) {
         Education education = requireEducation(id);
         if (!education.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(),
+            throw new BusinessException(ErrorCode.NO_PERMISSION,
                     ErrorCode.NO_PERMISSION.getMessage() + action + "他人教育经历");
         }
         return education;

@@ -20,12 +20,12 @@ public final class VerificationCodeSceneResolver {
             return null;
         }
         if (type.isBlank()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "type 不能为空");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "type 不能为空");
         }
         return switch (type.trim().toLowerCase()) {
             case "register" -> VerificationCodeScene.REGISTER;
             case "reset_password", "reset-password", "reset" -> VerificationCodeScene.RESET_PASSWORD;
-            default -> throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "type 无效");
+            default -> throw new BusinessException(ErrorCode.VALIDATION_ERROR, "type 无效");
         };
     }
 }

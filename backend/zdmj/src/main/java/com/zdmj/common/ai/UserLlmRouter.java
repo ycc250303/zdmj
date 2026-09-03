@@ -192,7 +192,7 @@ public class UserLlmRouter {
             return ModelEnum.DEEPSEEK_FLASH;
         }
         if (!StringUtils.hasText(platformApiKey)) {
-            throw new BusinessException(ErrorCode.USER_LLM_NOT_CONFIGURED.getCode(),
+            throw new BusinessException(ErrorCode.USER_LLM_NOT_CONFIGURED,
                     "平台大模型 API Key 未配置，请配置 DEEPSEEK_API_KEY 或 SPRING_AI_OPENAI_API_KEY");
         }
         try {
@@ -343,7 +343,7 @@ public class UserLlmRouter {
     private ResolvedProvider resolvePlatformProvider(ModelEnum model) {
         String apiKey = resolvePlatformApiKey(model);
         if (!StringUtils.hasText(apiKey)) {
-            throw new BusinessException(ErrorCode.USER_LLM_NOT_CONFIGURED.getCode(),
+            throw new BusinessException(ErrorCode.USER_LLM_NOT_CONFIGURED,
                     "平台大模型 API Key 未配置，请配置 DEEPSEEK_API_KEY 或 SPRING_AI_OPENAI_API_KEY");
         }
         return new ResolvedProvider(model.baseUrl(), apiKey.trim(), model.apiModelName(), true);

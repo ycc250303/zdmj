@@ -406,7 +406,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
             Long id = extractId(item);
             if (id != null) {
                 if (!ids.add(id)) {
-                    throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "提交的数据中存在重复的经历 ID");
+                    throw new BusinessException(ErrorCode.VALIDATION_ERROR, "提交的数据中存在重复的经历 ID");
                 }
             }
         }
@@ -435,7 +435,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
             String detail = violations.stream()
                     .map(v -> v.getPropertyPath() + ": " + v.getMessage())
                     .collect(Collectors.joining("; "));
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), detail);
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, detail);
         }
     }
 
@@ -573,7 +573,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
                 throw e;
             } catch (Exception e) {
                 log.error("PDF 解析失败", e);
-                throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "PDF 解析失败，请检查文件是否合法");
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "PDF 解析失败，请检查文件是否合法");
             }
         }
         if (request.getRawText() != null) {
@@ -584,7 +584,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
             log.info("简历识别：使用纯文本");
             return text;
         }
-        throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "必须提供 pdfUrl 或 rawText");
+        throw new BusinessException(ErrorCode.VALIDATION_ERROR, "必须提供 pdfUrl 或 rawText");
     }
 
     private String preprocessImportText(String sourceText, List<String> warnings) {
@@ -868,7 +868,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     private Resume requireResumeAndCheckOwnership(Long id, Long userId, String action) {
         Resume resume = requireResume(id);
         if (!resume.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(),
+            throw new BusinessException(ErrorCode.NO_PERMISSION,
                     ErrorCode.NO_PERMISSION.getMessage() + action + "他人简历");
         }
         return resume;

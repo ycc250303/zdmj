@@ -455,7 +455,7 @@ class StudentCapabilityProfileServiceImplTest {
         CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setPdfUrl("https://evil.example/resume.pdf");
         when(pdfParserUtil.extractTextFromUrl("https://evil.example/resume.pdf"))
-                .thenThrow(new BusinessException(ErrorCode.URL_FORMAT_ERROR.getCode(), "仅支持本系统已上传的文件"));
+                .thenThrow(new BusinessException(ErrorCode.URL_FORMAT_ERROR, "仅支持本系统已上传的文件"));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
 

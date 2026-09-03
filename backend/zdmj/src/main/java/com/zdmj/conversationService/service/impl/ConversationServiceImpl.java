@@ -76,7 +76,7 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
     @Override
     public Conversation requireOwned(Long id) {
         if (id == null) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "会话ID不能为空");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "会话ID不能为空");
         }
         Conversation conversation = conversationMapper.selectById(id);
         if (conversation == null) {
@@ -97,7 +97,7 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
     @Override
     public ConversationResponse updateTitle(Long id, String title) {
         if (title == null || title.trim().isEmpty()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "会话标题不能为空");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "会话标题不能为空");
         }
         Long userId = UserHolder.requireUserId();
         Conversation conversation = requireOwned(id);
@@ -116,7 +116,7 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
     @Override
     public ConversationResponse updateConfig(Long id, Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "会话配置不能为空");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "会话配置不能为空");
         }
         Long userId = UserHolder.requireUserId();
         Conversation conversation = requireOwned(id);

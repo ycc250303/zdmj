@@ -6,9 +6,9 @@ import org.springframework.http.HttpStatus;
 /**
  * 统一业务错误码。
  *
- * <p>约定：{@code 0} 表示成功；{@code 1xxx} 起为业务错误码。每个枚举项显式绑定
- * {@link HttpStatus}，由 {@link GlobalExceptionHandler} 与 {@link ProblemDetailSupport} 写入
- * RFC 9457 响应，不再依赖错误文案推断 HTTP 状态。</p>
+ * <p>约定：{@code 0} 表示成功；{@code 1xxx} 起为业务错误码。每个枚举项绑定
+ * {@link HttpStatus}，由 {@link GlobalExceptionHandler} / {@link ProblemDetailSupport} 写入
+ * RFC 9457 响应。</p>
  */
 @Getter
 public enum ErrorCode {
@@ -132,35 +132,5 @@ public enum ErrorCode {
         this.code = code;
         this.message = message;
         this.httpStatus = httpStatus;
-    }
-
-    /**
-     * 按业务错误码解析 HTTP 状态；未知码回退为 400。
-     */
-    public static HttpStatus httpStatusOf(Integer code) {
-        if (code == null) {
-            return HttpStatus.INTERNAL_SERVER_ERROR;
-        }
-        for (ErrorCode value : values()) {
-            if (value.code.equals(code)) {
-                return value.httpStatus;
-            }
-        }
-        return HttpStatus.BAD_REQUEST;
-    }
-
-    /**
-     * 按业务错误码解析枚举；未知码回退为 {@link #SYSTEM_EXCEPTION}。
-     */
-    public static ErrorCode of(Integer code) {
-        if (code == null) {
-            return SYSTEM_EXCEPTION;
-        }
-        for (ErrorCode value : values()) {
-            if (value.code.equals(code)) {
-                return value;
-            }
-        }
-        return SYSTEM_EXCEPTION;
     }
 }

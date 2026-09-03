@@ -151,7 +151,7 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
     private ProjectExperience requireProjectExperienceAndCheckOwnership(Long id, Long userId, String action) {
         ProjectExperience projectExperience = requireProjectExperience(id);
         if (!projectExperience.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION.getCode(),
+            throw new BusinessException(ErrorCode.NO_PERMISSION,
                     ErrorCode.NO_PERMISSION.getMessage() + action + "他人项目经历");
         }
         return projectExperience;

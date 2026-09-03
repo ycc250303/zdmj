@@ -82,7 +82,7 @@ public class JobStudentMatchServiceImpl
     public JobStudentMatchResponse getOrNull(Long jobId) {
         Long userId = UserHolder.requireUserId();
         if (jobId == null) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "jobId不能为空");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "jobId不能为空");
         }
         JobStudentMatch match = getOne(new LambdaQueryWrapper<JobStudentMatch>()
                 .eq(JobStudentMatch::getUserId, userId)
@@ -97,7 +97,7 @@ public class JobStudentMatchServiceImpl
     public JobStudentMatchResponse generate(Long jobId, JobStudentMatchGenerateRequest req) {
         Long userId = UserHolder.requireUserId();
         if (jobId == null) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR.getCode(), "jobId不能为空");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "jobId不能为空");
         }
 
         // 1. 岗位详情 + 岗位画像（缺失则自动生成）
