@@ -76,29 +76,29 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void httpMessageNotReadable_shouldReturnRequestBodyError() throws Exception {
+    void httpMessageNotReadable_shouldBeBadRequestWithoutBusinessCode() throws Exception {
         mockMvc.perform(post("/__exception-probe/validate")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{"))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentType(ProblemDetailSupport.PROBLEM_JSON))
-                .andExpect(jsonPath("$.code").value(ErrorCode.REQUEST_BODY_ERROR.getCode()));
+                .andExpect(jsonPath("$.code").doesNotExist());
     }
 
     @Test
-    void methodNotAllowed_shouldUseCode1006() throws Exception {
+    void methodNotAllowed_shouldBe405WithoutBusinessCode() throws Exception {
         mockMvc.perform(post("/__exception-probe/only-get"))
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(content().contentType(ProblemDetailSupport.PROBLEM_JSON))
-                .andExpect(jsonPath("$.code").value(ErrorCode.REQUEST_METHOD_NOT_SUPPORTED.getCode()));
+                .andExpect(jsonPath("$.code").doesNotExist());
     }
 
     @Test
-    void noResource_shouldUseCode1006() throws Exception {
+    void noResource_shouldBe404WithoutBusinessCode() throws Exception {
         mockMvc.perform(get("/__exception-probe/no-resource"))
                 .andExpect(status().isNotFound())
                 .andExpect(content().contentType(ProblemDetailSupport.PROBLEM_JSON))
-                .andExpect(jsonPath("$.code").value(ErrorCode.REQUEST_METHOD_NOT_SUPPORTED.getCode()));
+                .andExpect(jsonPath("$.code").doesNotExist());
     }
 
     @Test

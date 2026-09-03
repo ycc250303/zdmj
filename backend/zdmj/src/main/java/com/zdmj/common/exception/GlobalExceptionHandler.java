@@ -3,14 +3,12 @@ package com.zdmj.common.exception;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import java.net.URI;
-import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 import org.springframework.validation.BindException;
@@ -24,7 +22,7 @@ import org.springframework.web.method.annotation.HandlerMethodValidationExceptio
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /**
- * 全局异常处理：业务异常与 Spring MVC 异常统一为 RFC 9457 + 业务 {@code code}。
+ * 业务异常带 {@code code}；Spring MVC 异常沿用框架 Problem Details，不再翻译成业务码。
  */
 @Slf4j
 @RestControllerAdvice
@@ -98,17 +96,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     @Override
-    protected ResponseEntity<Object> handleHttpMessageNotReadable(
-            @NonNull HttpMessageNotReadableException ex,
-            @NonNull HttpHeaders headers,
-            @NonNull HttpStatusCode status,
-            @NonNull WebRequest request) {
-        log.warn("请求体不可读: {}", ex.getMessage());
-        return handleExceptionInternal(
-                ex, ProblemDetailSupport.of(ErrorCode.REQUEST_BODY_ERROR), headers, status, request);
-    }
-
-    @Override
     protected ResponseEntity<Object> createResponseEntity(
             @Nullable Object body,
             @NonNull HttpHeaders headers,
@@ -116,15 +103,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             @NonNull WebRequest request) {
         if (body instanceof ProblemDetail problem) {
             applyInstance(problem, request);
-            if (!hasCode(problem)) {
-                ErrorCode errorCode = errorCodeForStatus(statusCode);
-                problem.setProperty("code", errorCode.getCode());
-                problem.setTitle(errorCode.getMessage());
-            }
         }
         HttpHeaders responseHeaders = new HttpHeaders();
         responseHeaders.putAll(headers);
-        // ErrorResponse 可能给出只读 HttpHeaders.EMPTY，必须拷贝后再写 Content-Type
+        // ErrorResponse 可能给出只读 HttpHeaders.EMPTY
         responseHeaders.setContentType(ProblemDetailSupport.PROBLEM_JSON);
         return new ResponseEntity<>(body, responseHeaders, statusCode);
     }
@@ -139,22 +121,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 new HttpHeaders(),
                 ErrorCode.VALIDATION_ERROR.getHttpStatus(),
                 request);
-    }
-
-    private static boolean hasCode(ProblemDetail problem) {
-        Map<String, Object> properties = problem.getProperties();
-        return properties != null && properties.containsKey("code");
-    }
-
-    private static ErrorCode errorCodeForStatus(HttpStatusCode status) {
-        return switch (status.value()) {
-            case 400 -> ErrorCode.VALIDATION_ERROR;
-            case 401 -> ErrorCode.USER_NOT_LOGIN;
-            case 403 -> ErrorCode.NO_PERMISSION;
-            case 404, 405 -> ErrorCode.REQUEST_METHOD_NOT_SUPPORTED;
-            case 413 -> ErrorCode.FILE_SIZE_EXCEEDED;
-            default -> status.is5xxServerError() ? ErrorCode.SYSTEM_EXCEPTION : ErrorCode.VALIDATION_ERROR;
-        };
     }
 
     private static void applyInstance(ProblemDetail problem, WebRequest request) {
