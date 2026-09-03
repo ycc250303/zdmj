@@ -119,20 +119,17 @@ public class AuditUtil {
 
 ### 1. 过滤器层设置用户信息
 
-在 `JwtAuthenticationFilter` 中：
+`JwtAuthenticationFilter` 验签通过后，用 `JwtSessionStore.find(userId)` 与请求 token 比对；匹配才写入 `UserHolder` 与 `SecurityContext`。Redis 故障写 503 并中断链路，见 [jwt-session.md](jwt-session.md)。
 
 ```java
-// 解析JWT Token获取用户信息
-Long userId = JwtUtil.getUserIdFromToken(token);
-String username = JwtUtil.getUsernameFromToken(token);
-
-// 存储到ThreadLocal
-UserContext userContext = UserContext.of(userId, username);
-UserHolder.set(userContext);
-
-// 请求结束后清除（在finally块中）
-UserHolder.clear();
+Optional<String> stored = jwtSessionStore.find(userId);
+if (stored.isPresent() && stored.get().equals(token)) {
+    UserContext userContext = UserContext.of(userId, username);
+    UserHolder.set(userContext);
+}
 ```
+
+请求结束时的清理由 `RequestContextCleanupFilter` 在 `finally` 中执行（`UserHolder.clear()` + `SecurityContextHolder.clearContext()`），不在 JWT Filter 内。
 
 ### 2. 业务层获取用户信息
 
@@ -236,7 +233,7 @@ boolean hasPermission = UserHolder.get()
 
 ### 1. ThreadLocal清理
 
-`JwtAuthenticationFilter` 已经在 `finally` 块中调用 `UserHolder.clear()`，确保请求结束后清理ThreadLocal，避免内存泄漏。
+`RequestContextCleanupFilter` 在 `finally` 中调用 `UserHolder.clear()` 与 `SecurityContextHolder.clearContext()`，确保请求结束后清理，避免线程复用串扰。JWT Filter 只负责写入，不负责清理。
 
 ### 2. 异步场景
 

@@ -4,12 +4,11 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import com.zdmj.common.constants.RedisConstants;
-import com.zdmj.common.util.RedisUtil;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.common.security.JwtSessionStore;
 import com.zdmj.userAuthService.dto.UserResponse;
 import com.zdmj.userAuthService.dto.UserLoginRequest;
 import com.zdmj.userAuthService.dto.UserLoginResponse;
@@ -19,8 +18,10 @@ import com.zdmj.userAuthService.dto.UserUpdateRequest;
 import com.zdmj.userAuthService.entity.User;
 import com.zdmj.userAuthService.enums.VerificationCodeScene;
 import com.zdmj.userAuthService.service.VerificationCodeService;
+import com.zdmj.userAuthService.util.JwtUtil;
 import com.zdmj.userAuthService.util.PasswordUtil;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +29,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
+import org.springframework.data.redis.RedisConnectionFailureException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -35,10 +37,11 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -52,15 +55,20 @@ class UserServiceImplTest {
     private VerificationCodeService verificationCodeService;
 
     @Mock
-    private RedisUtil redisUtil;
+    private JwtSessionStore jwtSessionStore;
 
     private UserServiceImpl userService;
     private static boolean tableInfoInitialized = false;
 
+    @BeforeAll
+    static void initJwtSecret() {
+        JwtUtil.initSecret("test-jwt-secret-key-for-jwt-token-generation-2024-very-long-secret-key");
+    }
+
     @BeforeEach
     void setUp() {
         initMybatisPlusLambdaCache();
-        userService = spy(new UserServiceImpl(verificationCodeService, redisUtil));
+        userService = spy(new UserServiceImpl(verificationCodeService, jwtSessionStore));
     }
 
     @AfterEach
@@ -160,7 +168,7 @@ class UserServiceImplTest {
 
         assertEquals(ErrorCode.USER_NOT_FOUND.getCode(), ex.getCode());
         verify(userService).getUserByUsername("ghost");
-        verify(redisUtil, never()).exists(anyString());
+        verify(jwtSessionStore, never()).replace(anyLong(), anyString());
     }
 
     @Test
@@ -178,11 +186,11 @@ class UserServiceImplTest {
 
         assertEquals(ErrorCode.USER_PASSWORD_WRONG.getCode(), ex.getCode());
         verify(userService).getUserByUsername("alice");
-        verify(redisUtil, never()).setString(anyString(), anyString(), anyInt());
+        verify(jwtSessionStore, never()).replace(anyLong(), anyString());
     }
 
     @Test
-    void login_whenSuccess_shouldDeleteOldTokenAndWriteNewToken() {
+    void login_whenSuccess_shouldReplaceSessionAndReturnToken() {
         UserLoginRequest dto = new UserLoginRequest();
         dto.setUsernameOrEmail("alice");
         dto.setPassword("right-password");
@@ -191,16 +199,30 @@ class UserServiceImplTest {
         user.setUsername("alice");
         user.setPassword(PasswordUtil.encode("right-password"));
         doReturn(user).when(userService).getUserByUsername("alice");
-        doReturn(true).when(redisUtil).exists(RedisConstants.JWT_TOKEN_KEY + 1L);
 
         UserLoginResponse response = userService.login(dto);
 
         assertEquals("alice", response.getUser().getUsername());
         assertEquals(3, response.getToken().split("\\.").length);
-        verify(redisUtil).exists(RedisConstants.JWT_TOKEN_KEY + 1L);
-        verify(redisUtil).delete(RedisConstants.JWT_TOKEN_KEY + 1L);
-        verify(redisUtil).setString(eq(RedisConstants.JWT_TOKEN_KEY + 1L), eq(response.getToken()),
-                eq(RedisConstants.JWT_TOKEN_TTL));
+        verify(jwtSessionStore).replace(eq(1L), eq(response.getToken()));
+    }
+
+    @Test
+    void login_whenSessionStoreFails_shouldThrow1012AndNotReturnToken() {
+        UserLoginRequest dto = new UserLoginRequest();
+        dto.setUsernameOrEmail("alice");
+        dto.setPassword("right-password");
+        User user = new User();
+        user.setId(1L);
+        user.setUsername("alice");
+        user.setPassword(PasswordUtil.encode("right-password"));
+        doReturn(user).when(userService).getUserByUsername("alice");
+        doThrow(new RedisConnectionFailureException("down")).when(jwtSessionStore).replace(eq(1L), anyString());
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> userService.login(dto));
+
+        assertEquals(ErrorCode.AUTH_STORE_UNAVAILABLE.getCode(), ex.getCode());
+        verify(jwtSessionStore).replace(eq(1L), anyString());
     }
 
     @Test

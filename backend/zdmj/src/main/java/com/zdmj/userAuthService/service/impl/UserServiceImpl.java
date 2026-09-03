@@ -6,9 +6,8 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.DateTimeUtil;
-import com.zdmj.common.constants.RedisConstants;
-import com.zdmj.common.util.RedisUtil;
 import com.zdmj.common.context.UserHolder;
+import com.zdmj.common.security.JwtSessionStore;
 import com.zdmj.userAuthService.util.JwtUtil;
 import com.zdmj.userAuthService.util.PasswordUtil;
 import com.zdmj.userAuthService.dto.UserResponse;
@@ -25,6 +24,7 @@ import com.zdmj.userAuthService.service.VerificationCodeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,7 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
     private final VerificationCodeService verificationCodeService;
-    private final RedisUtil redisCacheUtil;
+    private final JwtSessionStore jwtSessionStore;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -99,23 +99,16 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new BusinessException(ErrorCode.USER_PASSWORD_WRONG);
         }
 
+        String token = JwtUtil.generateToken(user.getId(), user.getUsername());
+        try {
+            jwtSessionStore.replace(user.getId(), token);
+        } catch (DataAccessException e) {
+            log.error("写入登录态失败: userId={}", user.getId(), e);
+            throw new BusinessException(ErrorCode.AUTH_STORE_UNAVAILABLE, e);
+        }
         log.info("用户登录成功: {}", user.getUsername());
 
-        // 4. 删除用户旧的JWT Token（如果存在）
-        String tokenKey = RedisConstants.JWT_TOKEN_KEY + user.getId();
-        if (redisCacheUtil.exists(tokenKey)) {
-            redisCacheUtil.delete(tokenKey);
-            log.debug("删除用户旧Token: userId={}", user.getId());
-        }
-
-        // 5. 生成新的JWT Token
-        String token = JwtUtil.generateToken(user.getId(), user.getUsername());
-
-        // 6. 将新Token存储到Redis，过期时间为7天
-        redisCacheUtil.setString(tokenKey, token, RedisConstants.JWT_TOKEN_TTL);
-        log.debug("存储JWT Token到Redis: userId={}, expire={}秒", user.getId(), RedisConstants.JWT_TOKEN_TTL);
-
-        // 7. 构建登录响应
+        // 构建登录响应
         UserLoginResponse response = new UserLoginResponse();
         response.setToken(token);
         response.setUser(convertToResponse(user));

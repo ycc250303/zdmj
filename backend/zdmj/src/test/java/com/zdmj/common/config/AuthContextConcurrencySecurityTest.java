@@ -1,17 +1,20 @@
 package com.zdmj.common.config;
 
-import com.zdmj.common.constants.RedisConstants;
-import com.zdmj.common.util.RedisUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
+import com.zdmj.common.exception.ProblemDetailHttpWriter;
+import com.zdmj.common.security.JwtSessionStore;
 import com.zdmj.userAuthService.util.JwtUtil;
 import jakarta.servlet.ServletException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.Authentication;
@@ -20,20 +23,24 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class AuthContextConcurrencySecurityTest {
@@ -42,11 +49,18 @@ class AuthContextConcurrencySecurityTest {
             "test-jwt-secret-key-for-jwt-token-generation-2024-very-long-secret-key";
 
     @Mock
-    private RedisUtil redisUtil;
+    private JwtSessionStore jwtSessionStore;
+
+    private ProblemDetailHttpWriter problemDetailHttpWriter;
 
     @BeforeAll
     static void initJwtSecret() {
         JwtUtil.initSecret(TEST_JWT_SECRET);
+    }
+
+    @BeforeEach
+    void setUpWriter() {
+        problemDetailHttpWriter = new ProblemDetailHttpWriter(new ObjectMapper());
     }
 
     @AfterEach
@@ -55,16 +69,20 @@ class AuthContextConcurrencySecurityTest {
         SecurityContextHolder.clearContext();
     }
 
+    private JwtAuthenticationFilter jwtFilter() {
+        return new JwtAuthenticationFilter(jwtSessionStore, problemDetailHttpWriter);
+    }
+
     @Test
     void validTokenAndRedisMatch_shouldAuthenticateAndCleanupAfterRequest()
             throws ServletException, IOException {
-        JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(redisUtil);
+        JwtAuthenticationFilter jwtFilter = jwtFilter();
         RequestContextCleanupFilter cleanupFilter = new RequestContextCleanupFilter();
 
         Long userId = 1001L;
         String username = "alice";
         String token = JwtUtil.generateToken(userId, username);
-        lenient().when(redisUtil.getString(RedisConstants.JWT_TOKEN_KEY + userId)).thenReturn(token);
+        lenient().when(jwtSessionStore.find(userId)).thenReturn(Optional.of(token));
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("Authorization", "Bearer " + token);
@@ -88,12 +106,12 @@ class AuthContextConcurrencySecurityTest {
     @Test
     void validTokenButRedisMismatch_shouldNotAuthenticate()
             throws ServletException, IOException {
-        JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(redisUtil);
+        JwtAuthenticationFilter jwtFilter = jwtFilter();
         RequestContextCleanupFilter cleanupFilter = new RequestContextCleanupFilter();
 
         Long userId = 1002L;
         String token = JwtUtil.generateToken(userId, "bob");
-        lenient().when(redisUtil.getString(RedisConstants.JWT_TOKEN_KEY + userId)).thenReturn("another-token");
+        lenient().when(jwtSessionStore.find(userId)).thenReturn(Optional.of("another-token"));
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("Authorization", "Bearer " + token);
@@ -107,14 +125,36 @@ class AuthContextConcurrencySecurityTest {
     }
 
     @Test
+    void redisUnavailable_shouldWrite503AndNotContinueChain() throws ServletException, IOException {
+        JwtAuthenticationFilter jwtFilter = jwtFilter();
+
+        Long userId = 1004L;
+        String token = JwtUtil.generateToken(userId, "dave");
+        when(jwtSessionStore.find(userId)).thenThrow(new RedisConnectionFailureException("down"));
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("Authorization", "Bearer " + token);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        AtomicBoolean continued = new AtomicBoolean(false);
+        jwtFilter.doFilter(request, response, (req, resp) -> continued.set(true));
+
+        assertFalse(continued.get());
+        assertEquals(503, response.getStatus());
+        assertTrue(response.getContentAsString().contains("1012"));
+        assertNull(UserHolder.get());
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+    }
+
+    @Test
     void sameThreadSequentialRequests_shouldNotLeakPreviousUser()
             throws ServletException, IOException {
-        JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(redisUtil);
+        JwtAuthenticationFilter jwtFilter = jwtFilter();
         RequestContextCleanupFilter cleanupFilter = new RequestContextCleanupFilter();
 
         Long userId = 1003L;
         String token = JwtUtil.generateToken(userId, "charlie");
-        lenient().when(redisUtil.getString(RedisConstants.JWT_TOKEN_KEY + userId)).thenReturn(token);
+        lenient().when(jwtSessionStore.find(userId)).thenReturn(Optional.of(token));
 
         MockHttpServletRequest req1 = new MockHttpServletRequest();
         req1.addHeader("Authorization", "Bearer " + token);
@@ -133,13 +173,13 @@ class AuthContextConcurrencySecurityTest {
 
     @Test
     void concurrentMixedRequests_shouldNeverCrossUserContext() throws Exception {
-        JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(redisUtil);
+        JwtAuthenticationFilter jwtFilter = jwtFilter();
         RequestContextCleanupFilter cleanupFilter = new RequestContextCleanupFilter();
 
         String tokenU1 = JwtUtil.generateToken(2001L, "u1");
         String tokenU2 = JwtUtil.generateToken(2002L, "u2");
-        lenient().when(redisUtil.getString(RedisConstants.JWT_TOKEN_KEY + 2001L)).thenReturn(tokenU1);
-        lenient().when(redisUtil.getString(RedisConstants.JWT_TOKEN_KEY + 2002L)).thenReturn(tokenU2);
+        lenient().when(jwtSessionStore.find(2001L)).thenReturn(Optional.of(tokenU1));
+        lenient().when(jwtSessionStore.find(2002L)).thenReturn(Optional.of(tokenU2));
 
         ExecutorService pool = Executors.newFixedThreadPool(8);
         try {
@@ -154,7 +194,7 @@ class AuthContextConcurrencySecurityTest {
                         request.addHeader("Authorization", "Bearer " + tokenU1);
                     } else if (index % 3 == 1) {
                         request.addHeader("Authorization", "Bearer " + tokenU2);
-                    } // index%3==2: 无 token 请求
+                    }
                     MockHttpServletResponse response = new MockHttpServletResponse();
 
                     cleanupFilter.doFilter(request, response, (req1, resp1) ->

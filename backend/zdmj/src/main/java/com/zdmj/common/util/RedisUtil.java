@@ -26,6 +26,17 @@ import com.zdmj.common.constants.RedisConstants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Redis 辅助：岗位等业务缓存（软失败）与 Stream/任务锁（硬失败）。
+ *
+ * <p><b>禁止</b>用于登录 allowlist、验证码、限流。登录态见 {@code com.zdmj.common.security.JwtSessionStore}；
+ * 验证码与限流已直连 {@link StringRedisTemplate}。</p>
+ *
+ * <ul>
+ *   <li>缓存 API（{@code get}/{@code set}/{@code setString} 等）：故障记日志并返回 {@code null}/{@code false}，调用方可回源 DB。</li>
+ *   <li>Stream / 任务锁（{@link #tryLock} 起）：失败上抛，由调用方回退。</li>
+ * </ul>
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -37,8 +48,8 @@ public class RedisUtil {
     private static final Double RANDOM_OFFSET = 0.05;
 
     /**
-     * 计算带随机偏移的过期时间（偏移量为原时间的10%）
-     * 
+     * 计算带随机偏移的过期时间（偏移量为原时间的 0–5%）
+     *
      * @param baseSeconds 基础过期时间（秒）
      * @return 带随机偏移的过期时间（秒）
      */
@@ -53,7 +64,7 @@ public class RedisUtil {
      * 
      * @param key           缓存键
      * @param value         缓存值（对象会被序列化为JSON）
-     * @param expireSeconds 基础过期时间，单位为秒，会自动添加10%的随机偏移
+     * @param expireSeconds 基础过期时间，单位为秒，会自动添加 0–5% 的随机偏移
      */
     public void set(String key, Object value, int expireSeconds) {
         try {
@@ -73,7 +84,7 @@ public class RedisUtil {
      * 
      * @param key           缓存键
      * @param value         缓存值（字符串）
-     * @param expireSeconds 基础过期时间，单位为秒，会自动添加10%的随机偏移
+     * @param expireSeconds 基础过期时间，单位为秒，会自动添加 0–5% 的随机偏移
      */
     public void setString(String key, String value, int expireSeconds) {
         try {
@@ -101,7 +112,7 @@ public class RedisUtil {
             if (jsonValue == null) {
                 return null;
             }
-            log.debug("获取缓存成功: key={}, value={}", key, jsonValue);
+            log.debug("获取缓存成功: key={}", key);
             return objectMapper.readValue(jsonValue, clazz);
         } catch (org.springframework.dao.QueryTimeoutException | io.lettuce.core.RedisCommandTimeoutException e) {
             log.warn("获取缓存超时（不影响主流程）: key={}, error={}", key, e.getMessage());

@@ -1,12 +1,9 @@
 package com.zdmj.common.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.exception.ProblemDetailSupport;
+import com.zdmj.common.exception.ProblemDetailHttpWriter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ProblemDetail;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -34,7 +31,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final RequestContextCleanupFilter requestContextCleanupFilter;
-    private final ObjectMapper objectMapper;
+    private final ProblemDetailHttpWriter problemDetailHttpWriter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -86,15 +83,7 @@ public class SecurityConfig {
                                 log.debug("响应已提交，跳过认证异常处理");
                                 return;
                             }
-                            try {
-                                ProblemDetail problem = ProblemDetailSupport.of(ErrorCode.USER_NOT_LOGIN);
-                                response.setStatus(HttpStatus.UNAUTHORIZED.value());
-                                response.setContentType(ProblemDetailSupport.PROBLEM_JSON.toString());
-                                response.getWriter().write(objectMapper.writeValueAsString(problem));
-                            } catch (Exception e) {
-                                // 如果响应在检查后提交，忽略异常
-                                log.debug("无法发送认证错误响应: {}", e.getMessage());
-                            }
+                            problemDetailHttpWriter.write(response, ErrorCode.USER_NOT_LOGIN);
                         })
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
                             // 如果响应已提交，完全跳过处理，不尝试发送任何响应
@@ -102,15 +91,7 @@ public class SecurityConfig {
                                 log.debug("响应已提交，跳过授权异常处理");
                                 return;
                             }
-                            try {
-                                ProblemDetail problem = ProblemDetailSupport.of(ErrorCode.NO_PERMISSION);
-                                response.setStatus(HttpStatus.FORBIDDEN.value());
-                                response.setContentType(ProblemDetailSupport.PROBLEM_JSON.toString());
-                                response.getWriter().write(objectMapper.writeValueAsString(problem));
-                            } catch (Exception e) {
-                                // 如果响应在检查后提交，忽略异常
-                                log.debug("无法发送授权错误响应: {}", e.getMessage());
-                            }
+                            problemDetailHttpWriter.write(response, ErrorCode.NO_PERMISSION);
                         }));
 
         return http.build();

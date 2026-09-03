@@ -20,9 +20,9 @@ public class RedisConstants {
     // 空值标记前缀（用于防止缓存穿透）
     public static final String NULL_VALUE_KEY = "null:value:";
 
-    // JWT Token缓存前缀
+    /** JWT 登录 allowlist 前缀（见 docs/backend/jwt-session.md）；勿走 RedisUtil 缓存 API */
     public static final String JWT_TOKEN_KEY = "jwt:token:";
-    // JWT Token过期时间（秒）- 7天
+    /** JWT 登录态 TTL（秒），须与 JwtUtil 过期时间一致，且不加随机偏移 */
     public static final int JWT_TOKEN_TTL = 7 * 24 * 60 * 60;
 
     // 岗位详情缓存前缀
