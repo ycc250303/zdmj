@@ -69,7 +69,7 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
         Long userId = UserHolder.requireUserId();
         JobListItemResponse jobDetail = jobService.getDetail(jobId);
 
-        String jobContext = JobAnalysisSupport.buildJobContext(
+        String jobContext = buildJobContext(
                 jobDetail,
                 "这是待分析的岗位信息（请基于它生成岗位关联图谱，包含岗位晋升路径与跨岗位转岗路径）：");
         JobCapabilityProfileResponse jobProfile = jobCapabilityProfileService.getJobCapabilityProfileOrNull(jobId);
@@ -193,12 +193,9 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
     private JobCareerGraph toEntity(JobCareerGraphResponse dto) {
         JobCareerGraph entity = new JobCareerGraph();
         entity.setSummary(dto.getSummary());
-        entity.setCurrentNode(JobAnalysisSupport.toJson(
-                dto.getCurrentNode(), objectMapper, log, "岗位图谱 JSON 序列化失败，字段将置空"));
-        entity.setVerticalPath(JobAnalysisSupport.toJson(
-                dto.getVerticalPath(), objectMapper, log, "岗位图谱 JSON 序列化失败，字段将置空"));
-        entity.setTransitionPaths(JobAnalysisSupport.toJson(
-                dto.getTransitionPaths(), objectMapper, log, "岗位图谱 JSON 序列化失败，字段将置空"));
+        entity.setCurrentNode(toJson(dto.getCurrentNode(), "岗位图谱 JSON 序列化失败，字段将置空"));
+        entity.setVerticalPath(toJson(dto.getVerticalPath(), "岗位图谱 JSON 序列化失败，字段将置空"));
+        entity.setTransitionPaths(toJson(dto.getTransitionPaths(), "岗位图谱 JSON 序列化失败，字段将置空"));
         return entity;
     }
 
@@ -228,6 +225,58 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
             log.warn("反序列化岗位关联图谱 JSON 失败，jobId={}, err={}", entity.getJobId(), e.getMessage());
         }
         return dto;
+    }
+
+    private static String buildJobContext(JobListItemResponse job, String intro) {
+        return """
+                %s
+                岗位名称：%s
+                公司名称：%s
+                工作地点：%s
+                薪资：%s
+                岗位描述：%s
+                岗位职责：%s
+                岗位要求：%s
+                关键词：%s
+                公司行业：%s
+                """.formatted(
+                intro,
+                valueOrNA(job.getJobName()),
+                valueOrNA(job.getCompanyName()),
+                valueOrNA(job.getLocation()),
+                valueOrNA(job.getSalary()),
+                valueOrNA(job.getDescription()),
+                joinList(job.getJobDuties()),
+                joinList(job.getJobRequirements()),
+                joinList(job.getKeywords()),
+                joinList(job.getCompanyIndustries()));
+    }
+
+    private static String joinList(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return "未提供";
+        }
+        return values.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .reduce((a, b) -> a + "；" + b)
+                .orElse("未提供");
+    }
+
+    private static String valueOrNA(String value) {
+        return StringUtils.hasText(value) ? value.trim() : "未提供";
+    }
+
+    private String toJson(Object value, String warnMessage) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception e) {
+            log.warn("{}: {}", warnMessage, e.getMessage());
+            return null;
+        }
     }
 
 }

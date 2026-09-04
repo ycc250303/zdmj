@@ -22,6 +22,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.io.DefaultResourceLoader;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -283,6 +284,26 @@ class JobCareerGraphServiceImplTest {
         assertEquals("java-backend", result.getTargetRoleType());
         verify(jobCapabilityProfileService).getJobCapabilityProfile(jobId);
         verify(graphService).save(any(JobCareerGraph.class));
+    }
+
+    @Test
+    void graph_toJson_whenValueNull_shouldReturnNull() {
+        assertNull(ReflectionTestUtils.invokeMethod(graphService, "toJson", null, "serialize fail"));
+    }
+
+    @Test
+    void graph_toJson_whenMapperThrows_shouldReturnNull() {
+        ObjectMapper throwing = new ObjectMapper() {
+            @Override
+            public String writeValueAsString(Object value) {
+                throw new RuntimeException("json fail");
+            }
+        };
+        JobCareerGraphServiceImpl service = spy(new JobCareerGraphServiceImpl(
+                jobService, chatUtil, throwing, new PromptUtil(new DefaultResourceLoader()),
+                jobCapabilityProfileService));
+
+        assertNull(ReflectionTestUtils.invokeMethod(service, "toJson", List.of("a"), "serialize fail"));
     }
 
     private JobCapabilityProfileResponse javaProfile() {
