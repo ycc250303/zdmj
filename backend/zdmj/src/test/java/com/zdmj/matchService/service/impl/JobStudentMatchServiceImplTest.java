@@ -197,6 +197,9 @@ class JobStudentMatchServiceImplTest {
                 userMessage.contains("岗位关键词"),
                 "userMessage 必须内联岗位关键词；否则 LLM 没法做命中判断：" + userMessage);
         org.junit.jupiter.api.Assertions.assertTrue(
+                userMessage.contains("补充要求") && userMessage.contains("SQL/MySQL"),
+                "userMessage 必须内联岗位补充要求：" + userMessage);
+        org.junit.jupiter.api.Assertions.assertTrue(
                 userMessage.contains("Spring") && userMessage.contains("MySQL"),
                 "userMessage 必须包含具体的岗位关键词列表内容：" + userMessage);
     }
@@ -367,6 +370,7 @@ class JobStudentMatchServiceImplTest {
         p.setPracticalAbility("有实习/项目落地经验");
         p.setSummary("Java 后端校招岗位");
         p.setStrengths(List.of("工程化能力扎实"));
+        p.setMissingSkills(List.of("SQL/MySQL"));
         return p;
     }
 

@@ -42,6 +42,7 @@ import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 /**
@@ -65,9 +66,6 @@ public class JobStudentMatchServiceImpl
     private final ObjectMapper objectMapper;
     private final PromptUtil promptUtil;
 
-    // ============================================================
-    // 公共接口
-    // ============================================================
 
     @Override
     public PageDTO<JobStudentMatchListItemResponse> getMyPage(Integer page, Integer limit) {
@@ -94,6 +92,7 @@ public class JobStudentMatchServiceImpl
     }
 
     @Override
+    @Transactional
     public JobStudentMatchResponse generate(Long jobId, JobStudentMatchGenerateRequest req) {
         Long userId = UserHolder.requireUserId();
         if (jobId == null) {
@@ -217,6 +216,10 @@ public class JobStudentMatchServiceImpl
         if (jobProfile.getStrengths() != null && !jobProfile.getStrengths().isEmpty()) {
             sb.append("- 岗位优势点：").append(String.join("；", jobProfile.getStrengths())).append('\n');
         }
+        if (jobProfile.getMissingSkills() != null && !jobProfile.getMissingSkills().isEmpty()) {
+            sb.append("- 补充要求（JD 未写明的该方向常见门槛）：")
+                    .append(String.join("；", jobProfile.getMissingSkills())).append('\n');
+        }
         sb.append('\n');
 
         sb.append("## 学生就业能力画像（七维）\n");
@@ -285,10 +288,6 @@ public class JobStudentMatchServiceImpl
             return "{}";
         }
     }
-
-    // ============================================================
-    // 兜底重算 / 数据清洗
-    // ============================================================
 
     /**
      * LLM 输出的 dimensions 可能缺维或多维，这里把它统一成 4 维。
