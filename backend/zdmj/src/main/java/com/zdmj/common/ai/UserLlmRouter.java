@@ -16,7 +16,6 @@ import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
-import org.springframework.security.crypto.encrypt.TextEncryptor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
@@ -27,7 +26,6 @@ import com.zdmj.common.util.UserApiKeyCipher;
 import com.zdmj.userAuthService.entity.UserLlmConfig;
 import com.zdmj.userAuthService.mapper.UserLlmConfigMapper;
 
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -65,6 +63,11 @@ public class UserLlmRouter {
     private final UserLlmConfigMapper userLlmConfigMapper;
 
     /**
+     * 用户 API Key 加解密
+     */
+    private final UserApiKeyCipher userApiKeyCipher;
+
+    /**
      * 聊天记忆（多轮对话 Advisor 使用）
      */
     private final ChatMemory chatMemory;
@@ -75,27 +78,15 @@ public class UserLlmRouter {
     private final Map<String, ChatClient> clientCache = new ConcurrentHashMap<>();
 
     /**
-     * 是否强制用户自配 LLM（true 时无配置直接报错，不走平台兜底）
-     */
-    @Value("${app.ai.user-llm.require-user-config:false}")
-    private boolean requireUserConfig;
-
-    /**
      * 无用户配置时是否允许使用平台 Key 兜底
      */
     @Value("${app.ai.user-llm.platform-fallback-enabled:true}")
     private boolean platformFallbackEnabled;
 
     /**
-     * 用户 API Key 落库加密密钥
+     * 平台兜底：OpenAI 兼容 baseUrl（默认值在 YAML）
      */
-    @Value("${app.ai.user-llm.encryption-key:}")
-    private String encryptionKey;
-
-    /**
-     * 平台兜底：OpenAI 兼容 baseUrl
-     */
-    @Value("${spring.ai.openai.base-url:https://dashscope.aliyuncs.com/compatible-mode}")
+    @Value("${spring.ai.openai.base-url}")
     private String platformBaseUrl;
 
     /**
@@ -105,9 +96,9 @@ public class UserLlmRouter {
     private String platformApiKey;
 
     /**
-     * 平台兜底：默认 Chat 模型名
+     * 平台兜底：默认 Chat 模型名（默认值在 YAML）
      */
-    @Value("${spring.ai.openai.chat.options.model:qwen3.7-max}")
+    @Value("${spring.ai.openai.chat.options.model}")
     private String platformModel;
 
     /**
@@ -122,35 +113,12 @@ public class UserLlmRouter {
     private final Map<String, ChatClient> platformClientCache = new ConcurrentHashMap<>();
 
     /**
-     * 用户 API Key 加解密器
-     */
-    private TextEncryptor textEncryptor;
-
-    @PostConstruct
-    void initEncryptor() {
-        // #region agent log
-        boolean keyPresent = StringUtils.hasText(encryptionKey);
-        int keyLen = encryptionKey == null ? 0 : encryptionKey.trim().length();
-        try {
-            String line = "{\"sessionId\":\"a14696\",\"runId\":\"post-fix\",\"hypothesisId\":\"C\",\"location\":\"UserLlmRouter.initEncryptor\",\"message\":\"encryptor-init\",\"data\":{\"keyPresent\":"
-                    + keyPresent + ",\"keyLen\":" + keyLen + "},\"timestamp\":" + System.currentTimeMillis() + "}\n";
-            try (java.io.FileWriter fw = new java.io.FileWriter(
-                    "/Users/yinchengcheng/Documents/GitHub/ycc/zdmj/.cursor/debug-a14696.log", true)) {
-                fw.write(line);
-            }
-        } catch (Exception ignored) {
-        }
-        // #endregion
-        textEncryptor = UserApiKeyCipher.createEncryptor(encryptionKey);
-    }
-
-    /**
      * 当前环境是否允许「未配置用户使用平台默认模型」
      *
-     * @return 平台兜底且非强制自配时为 true
+     * @return 平台兜底开启时为 true
      */
     public boolean isPlatformFallbackEnabled() {
-        return platformFallbackEnabled && !requireUserConfig;
+        return platformFallbackEnabled;
     }
 
     /**
@@ -185,7 +153,7 @@ public class UserLlmRouter {
     }
 
     /**
-     * 简历 PDF/文本结构化识别所用平台模型：优先 DeepSeek；未配置 {@code DEEPSEEK_API_KEY} 时回退平台默认模型（DashScope）。
+     * 简历 PDF/文本结构化识别所用平台模型：优先 DeepSeek；未配置 {@code DEEPSEEK_API_KEY} 时回退 {@link ModelEnum#QWEN_PLUS}，不跟随平台默认 Max。
      */
     public ModelEnum resolveResumeImportModel() {
         if (StringUtils.hasText(deepseekApiKey)) {
@@ -195,12 +163,8 @@ public class UserLlmRouter {
             throw new BusinessException(ErrorCode.USER_LLM_NOT_CONFIGURED,
                     "平台大模型 API Key 未配置，请配置 DEEPSEEK_API_KEY 或 SPRING_AI_OPENAI_API_KEY");
         }
-        try {
-            return ModelEnum.fromCode(platformModel);
-        } catch (BusinessException ex) {
-            log.warn("平台默认模型 {} 不在 ModelEnum 目录，简历识别回退 {}", platformModel, ModelEnum.QWEN_PLUS.code());
-            return ModelEnum.QWEN_PLUS;
-        }
+        // 简历解析不跟随平台默认 Max，无 DeepSeek 时用 Flash 档
+        return ModelEnum.QWEN_PLUS;
     }
 
     /**
@@ -260,26 +224,6 @@ public class UserLlmRouter {
     }
 
     /**
-     * 加密用户 API Key（落库前调用）
-     *
-     * @param plainApiKey 明文 Key
-     * @return 密文
-     */
-    public String encryptApiKey(String plainApiKey) {
-        return UserApiKeyCipher.encrypt(textEncryptor, plainApiKey);
-    }
-
-    /**
-     * 解密用户 API Key（路由解析时调用）
-     *
-     * @param ciphertext 密文
-     * @return 明文 Key
-     */
-    public String decryptApiKey(String ciphertext) {
-        return UserApiKeyCipher.decrypt(textEncryptor, ciphertext);
-    }
-
-    /**
      * 从缓存获取或懒创建 ChatClient
      *
      * @param userId      用户 ID
@@ -301,7 +245,8 @@ public class UserLlmRouter {
     private ChatClient createChatClient(Long userId, boolean withMemory) {
         ResolvedProvider resolved = resolveProvider(userId);
         ChatClient.Builder builder = ChatClient.builder(
-                chatModel(resolved.baseUrl(), resolved.apiKey(), resolved.model()));
+                buildChatModel(resolved.baseUrl(), resolved.apiKey(), resolved.model(),
+                        CHAT_CONNECT_TIMEOUT_MS, CHAT_READ_TIMEOUT_MS, false));
         if (withMemory) {
             builder.defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build());
         }
@@ -322,13 +267,13 @@ public class UserLlmRouter {
         UserLlmConfig config = userLlmConfigMapper.selectById(userId);
         if (config != null) {
             ModelEnum meta = ModelEnum.fromCode(config.getModelCode());
-            String apiKey = decryptApiKey(config.getApiKeyCiphertext());
+            String apiKey = userApiKeyCipher.decrypt(config.getApiKeyCiphertext());
             if (!StringUtils.hasText(apiKey)) {
                 throw new BusinessException(ErrorCode.USER_LLM_CONFIG_INVALID);
             }
             return new ResolvedProvider(meta.baseUrl(), apiKey.trim(), meta.apiModelName(), false);
         }
-        if (requireUserConfig || !platformFallbackEnabled) {
+        if (!platformFallbackEnabled) {
             throw new BusinessException(ErrorCode.USER_LLM_NOT_CONFIGURED);
         }
         if (!StringUtils.hasText(platformApiKey)) {
@@ -359,23 +304,11 @@ public class UserLlmRouter {
     private ChatClient createPlatformChatClient(ModelEnum model) {
         ResolvedProvider resolved = resolvePlatformProvider(model);
         ChatClient client = ChatClient.builder(
-                chatModel(resolved.baseUrl(), resolved.apiKey(), resolved.model())).build();
+                buildChatModel(resolved.baseUrl(), resolved.apiKey(), resolved.model(),
+                        CHAT_CONNECT_TIMEOUT_MS, CHAT_READ_TIMEOUT_MS, false)).build();
         log.info("[UserLlmRouter] created platform ChatClient model={} baseUrl={}",
                 resolved.model(), resolved.baseUrl());
         return client;
-    }
-
-    /**
-     * 构建业务用 ChatModel（长超时、正常生成参数）
-     *
-     * @param baseUrl   厂商 baseUrl
-     * @param apiKey    API Key
-     * @param modelName 真实 API 模型名
-     * @return OpenAiChatModel 实例
-     */
-    private ChatModel chatModel(String baseUrl, String apiKey, String modelName) {
-        return buildChatModel(baseUrl, apiKey, modelName,
-                CHAT_CONNECT_TIMEOUT_MS, CHAT_READ_TIMEOUT_MS, false);
     }
 
     /**

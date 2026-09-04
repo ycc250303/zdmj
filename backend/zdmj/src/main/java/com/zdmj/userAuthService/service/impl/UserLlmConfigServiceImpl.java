@@ -8,8 +8,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.zdmj.common.ai.ModelEnum;
 import com.zdmj.common.ai.UserLlmRouter;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.exception.BusinessException;
-import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.UserApiKeyCipher;
 import com.zdmj.userAuthService.dto.LlmModelOptionResponse;
 import com.zdmj.userAuthService.dto.UserLlmConfigResponse;
@@ -26,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 public class UserLlmConfigServiceImpl implements UserLlmConfigService {
     private final UserLlmConfigMapper userLlmConfigMapper;
     private final UserLlmRouter userLlmRouter;
+    private final UserApiKeyCipher userApiKeyCipher;
 
     @Override
     public UserLlmConfigResponse getMyConfig(){
@@ -38,12 +37,13 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
             return dto;
         }
 
-        String plain = userLlmRouter.decryptApiKey(config.getApiKeyCiphertext());
+        String plain = userApiKeyCipher.decrypt(config.getApiKeyCiphertext());
         UserLlmConfigResponse dto = new UserLlmConfigResponse();
+        ModelEnum meta = ModelEnum.fromCode(config.getModelCode());
         dto.setConfigured(true);
         dto.setUsingPlatformDefault(false);
-        dto.setModelCode(config.getModelCode());
-        dto.setModelDisplayName(ModelEnum.fromCode(config.getModelCode()).displayName());
+        dto.setModelCode(meta.code());
+        dto.setModelDisplayName(meta.displayName());
         dto.setApiKeyMasked(UserApiKeyCipher.mask(plain));
         return dto;
     }
@@ -65,7 +65,7 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
     public void saveMyConfig(UserLlmConfigRequest request){
         Long userId = UserHolder.requireUserId();
         userLlmRouter.validateModelCode(request.getModelCode());
-        String ciphertext = userLlmRouter.encryptApiKey(request.getApiKey().trim());
+        String ciphertext = userApiKeyCipher.encrypt(request.getApiKey().trim());
         
         UserLlmConfig existingConfig = userLlmConfigMapper.selectById(userId);
         if(existingConfig == null){

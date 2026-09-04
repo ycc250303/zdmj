@@ -1,7 +1,6 @@
 package com.zdmj.common.util;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.security.crypto.encrypt.TextEncryptor;
 
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -16,26 +15,26 @@ class UserApiKeyCipherTest {
     private static final String KEY = "0123456789abcdef0123456789abcdef";
 
     @Test
-    void createEncryptor_missingKey_shouldFail() {
-        BusinessException ex = assertThrows(BusinessException.class, () -> UserApiKeyCipher.createEncryptor(null));
+    void constructor_missingKey_shouldFail() {
+        BusinessException ex = assertThrows(BusinessException.class, () -> new UserApiKeyCipher(null));
         assertEquals(ErrorCode.USER_LLM_API_KEY_DECRYPT_FAILED.getCode(), ex.getCode());
-        assertThrows(BusinessException.class, () -> UserApiKeyCipher.createEncryptor("  "));
+        assertThrows(BusinessException.class, () -> new UserApiKeyCipher("  "));
     }
 
     @Test
-    void createEncryptor_invalidHex_shouldFail() {
+    void constructor_invalidHex_shouldFail() {
         BusinessException odd = assertThrows(BusinessException.class,
-                () -> UserApiKeyCipher.createEncryptor("abc"));
+                () -> new UserApiKeyCipher("abc"));
         assertEquals(ErrorCode.USER_LLM_API_KEY_DECRYPT_FAILED.getCode(), odd.getCode());
-        assertThrows(BusinessException.class, () -> UserApiKeyCipher.createEncryptor("not-hex-zz"));
+        assertThrows(BusinessException.class, () -> new UserApiKeyCipher("not-hex-zz"));
     }
 
     @Test
     void encryptDecrypt_shouldRoundTrip() {
-        TextEncryptor encryptor = UserApiKeyCipher.createEncryptor(KEY);
-        String cipher = UserApiKeyCipher.encrypt(encryptor, "sk-test-secret");
-        assertNotEquals("sk-test-secret", cipher);
-        assertEquals("sk-test-secret", UserApiKeyCipher.decrypt(encryptor, cipher));
+        UserApiKeyCipher cipher = new UserApiKeyCipher(KEY);
+        String ciphertext = cipher.encrypt("sk-test-secret");
+        assertNotEquals("sk-test-secret", ciphertext);
+        assertEquals("sk-test-secret", cipher.decrypt(ciphertext));
     }
 
     @Test

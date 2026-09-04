@@ -69,7 +69,7 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 -- 1.2 用户大模型配置表
 CREATE TABLE IF NOT EXISTS user_llm_config (
     user_id         BIGINT PRIMARY KEY,          -- users.id，每用户一行
-    model_code      VARCHAR(32) NOT NULL,        -- qwen3.6-plus / qwen3.7-max 等
+    model_code      VARCHAR(32) NOT NULL,        -- qwen3.8-flash / qwen3.8-max 等
     api_key_ciphertext TEXT NOT NULL,            -- AES-GCM 密文（Base64）
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP

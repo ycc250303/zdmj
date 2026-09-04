@@ -13,7 +13,7 @@
 
 ## 模型与配置
 
-- 优先使用 `ModelEnum.DEEPSEEK_FLASH`（**忽略**用户 LLM 自配）；未配置 `DEEPSEEK_API_KEY` 时回退平台默认模型（`AL_MODEL` / DashScope）
+- 优先使用 `ModelEnum.DEEPSEEK_FLASH`（**忽略**用户 LLM 自配与平台默认 Max）；未配置 `DEEPSEEK_API_KEY` 时回退 `qwen3.8-flash`
 - API Key：`DEEPSEEK_API_KEY`（DeepSeek 场景）或 `SPRING_AI_OPENAI_API_KEY` / `DASHSCOPE_API_KEY`（回退场景）
 - Docker Compose 须映射 `DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}`
 - 提示词：`classpath:prompts/resume-import-parse.md`（个人信息、教育、实习、项目、技能、奖项）

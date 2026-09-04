@@ -22,7 +22,7 @@
 
 ```
 com.zdmj.common.ai
-  UserLlmRouter          # 路由、缓存、探测、加解密委托
+  UserLlmRouter          # 路由、缓存、探测（加解密委托 UserApiKeyCipher）
   ChatUtil               # 业务门面（once / structured / stream / conversation）
   ModelEnum              # 可选模型目录（code → baseUrl + apiModelName）
   PromptUtil / PromptNames
@@ -31,7 +31,7 @@ com.zdmj.common.ai
   config/EmbeddingConfig # Token 切分 + embedding 线程池
   config/RagConfig       # RAG 检索阈值（与 Chat 路由无关）
 
-com.zdmj.common.util.UserApiKeyCipher   # Encryptors.text 加解密 + 掩码
+com.zdmj.common.util.UserApiKeyCipher   # Bean：Encryptors.text 加解密 + 掩码；缺密钥启动失败
 com.zdmj.userAuthService                # /users/llm-config CRUD + 连通性测试
 ```
 
@@ -58,23 +58,23 @@ com.zdmj.userAuthService                # /users/llm-config CRUD + 连通性测�
 查 user_llm_config
   ├─ 有记录 → ModelEnum.fromCode(modelCode) + 解密 api_key_ciphertext
   └─ 无记录
-        ├─ require-user-config 或关闭 platform-fallback → 2010
+        ├─ 关闭 platform-fallback → 2010
         ├─ 平台 API Key 为空 → 2010
         └─ 否则 → spring.ai.openai.{base-url, api-key, chat.options.model}
 ```
 
-平台指定模型（简历识别）走 `resolvePlatformProvider`：DeepSeek 用 `DEEPSEEK_API_KEY`，其余用 `SPRING_AI_OPENAI_API_KEY`。`resolveResumeImportModel()`：有 DeepSeek Key → `DEEPSEEK_FLASH`，否则回退平台默认模型（不在目录则 `QWEN_PLUS`）。
+平台指定模型（简历识别）走 `resolvePlatformProvider`：DeepSeek 用 `DEEPSEEK_API_KEY`，其余用 `SPRING_AI_OPENAI_API_KEY`。`resolveResumeImportModel()`：有 DeepSeek Key → `DEEPSEEK_FLASH`；否则回退 `QWEN_PLUS`（`qwen3.8-flash`），**不跟随**平台默认 Max。
 
 ### 模型目录（`ModelEnum`）
 
 | code | 展示名 | baseUrl | API 模型名 |
 | --- | --- | --- | --- |
-| `qwen3.6-plus` | 通义千问 3.6 Plus | DashScope compatible-mode | `qwen3.6-plus` |
-| `qwen3.7-max` | 通义千问 3.7 Max | 同上 | `qwen3.7-max` |
+| `qwen3.8-flash` | 通义千问 3.8 Flash | DashScope compatible-mode | `qwen3.8-flash` |
+| `qwen3.8-max` | 通义千问 3.8 Max | 同上 | `qwen3.8-max` |
 | `deepseek-v4-flash` | DeepSeek V4 Flash | `https://api.deepseek.com` | `deepseek-v4-flash` |
 | `deepseek-v4-pro` | DeepSeek V4 Pro | 同上 | `deepseek-v4-pro` |
 
-用户只能选目录内 code；非法 code → `USER_LLM_CONFIG_INVALID`（2011）。扩容：改枚举即可，无需动态 Provider 表。
+用户只能选目录内 code；非法 code → `USER_LLM_CONFIG_INVALID`（2011）。扩容：改枚举即可，无需动态 Provider 表。读库时兼容旧 code：`qwen3.6-plus` → Flash，`qwen3.7-max` → Max。
 
 ---
 
@@ -117,7 +117,7 @@ Spring AI `OpenAiApi` 默认会补 `/v1/chat/completions`。当前目录里 Dash
 | 项 | 约定 |
 | --- | --- |
 | 环境变量 | `APP_AI_USER_KEY_ENCRYPTION_KEY`（偶数位 hex） |
-| 未配置 | 启动失败（`UserLlmRouter` `@PostConstruct`），**无源码内默认口令** |
+| 未配置 | 启动失败（`UserApiKeyCipher` 构造），**无源码内默认口令** |
 | 对外 | DTO 只回 `apiKeyMasked`（前 3 + `****` + 后 4） |
 | 换密钥 | 须先用旧密钥解密再重加密；无自动轮换 |
 
@@ -141,10 +141,8 @@ spring.ai.openai.embedding.options:
 
 | Key | 默认 | 含义 |
 | --- | --- | --- |
-| `app.ai.user-llm.require-user-config` | `false` | true 则强制自配，不走平台 |
-| `app.ai.user-llm.platform-fallback-enabled` | `true` | 无用户配置时允许平台 Key |
+| `app.ai.user-llm.platform-fallback-enabled` | `true` | 无用户配置时允许平台 Key；`false` 则强制自配 |
 | `app.ai.user-llm.encryption-key` | 空（须由 env 注入） | 偶数位 hex；缺则启动失败 |
-| `app.ai.user-llm.advisors.*` | `false` | **预留，代码未读取** |
 | `app.ai.deepseek.api-key` | 空 | 平台 DeepSeek |
 | `spring.ai.openai.*` | DashScope + `AL_MODEL` | 平台 Chat / Embedding |
 
@@ -192,5 +190,5 @@ spring.ai.openai.embedding.options:
 - 无动态 Provider 表、无运行时改 YAML；扩模型改 `ModelEnum`。
 - Embedding / RAG 不跟用户 Chat Key。
 - 平台 Client 缓存不随 `.env` 热更新。
-- `advisors.enabled` 未生效；无 Tool Calling。
+- 无 Tool Calling。
 - `UserLlmRouter` 尚无独立单测（业务侧 mock `ChatUtil`）；`ChatUtil` 结构化路径有单测。

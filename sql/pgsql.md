@@ -32,7 +32,7 @@
 | 字段名称               | 字段类型        | 字段含义                         | 约束                          | 枚举/JSON字段含义                                                    |
 | ---------------------- | --------------- | -------------------------------- | ----------------------------- | -------------------------------------------------------------------- |
 | `user_id`            | `BIGINT`      | 用户ID                           | `PK`，逻辑外键 `users.id` | -                                                                    |
-| `model_code`         | `VARCHAR(32)` | 模型目录 code                    | `NOT NULL`                  | `qwen3.6-plus` / `qwen3.7-max` / `deepseek-v4-flash` / `deepseek-v4-pro` |
+| `model_code`         | `VARCHAR(32)` | 模型目录 code                    | `NOT NULL`                  | `qwen3.8-flash` / `qwen3.8-max` / `deepseek-v4-flash` / `deepseek-v4-pro` |
 | `api_key_ciphertext` | `TEXT`        | Encryptors.text 加密后的 API Key | `NOT NULL`                  | -                                                                    |
 | `created_at`         | `TIMESTAMP`   | 创建时间                         | `DEFAULT CURRENT_TIMESTAMP` | -                                                                    |
 | `updated_at`         | `TIMESTAMP`   | 更新时间                         | `DEFAULT CURRENT_TIMESTAMP` | -                                                                    |

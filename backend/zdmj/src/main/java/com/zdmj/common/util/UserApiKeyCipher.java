@@ -1,7 +1,9 @@
 package com.zdmj.common.util;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.encrypt.Encryptors;
 import org.springframework.security.crypto.encrypt.TextEncryptor;
+import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import com.zdmj.common.exception.BusinessException;
@@ -11,32 +13,41 @@ import com.zdmj.common.exception.ErrorCode;
  * 用户 LLM API Key 对称加密（Spring Security Encryptors.text）。
  * <p>必须配置 {@code APP_AI_USER_KEY_ENCRYPTION_KEY}（偶数位 hex），无源码内默认口令。
  */
+@Component
 public class UserApiKeyCipher {
+
     /** Spring Encryptors.text 要求 password/salt 均为偶数位 hex 字符串 */
     private static final String SALT = "7a646d6a757365726c6c6d00";
 
-    private UserApiKeyCipher() {
+    private final TextEncryptor textEncryptor;
+
+    public UserApiKeyCipher(@Value("${app.ai.user-llm.encryption-key:}") String encryptionKey) {
+        this.textEncryptor = Encryptors.text(resolvePassword(encryptionKey), SALT);
     }
 
     /**
-     * 创建加密器。未配置或非偶数位 hex 时启动失败，避免使用仓库内默认口令。
+     * 加密用户 API Key（落库前调用）
+     *
+     * @param plainText 明文 Key
+     * @return 密文
      */
-    public static TextEncryptor createEncryptor(String configuredKey) {
-        String password = resolvePassword(configuredKey);
-        return Encryptors.text(password, SALT);
-    }
-
-    public static String encrypt(TextEncryptor encryptor, String plainText) {
+    public String encrypt(String plainText) {
         try {
-            return encryptor.encrypt(plainText);
+            return textEncryptor.encrypt(plainText);
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.USER_LLM_API_KEY_ENCRYPT_FAILED, e);
         }
     }
 
-    public static String decrypt(TextEncryptor encryptor, String ciphertext) {
+    /**
+     * 解密用户 API Key（路由解析或回显掩码时调用）
+     *
+     * @param ciphertext 密文
+     * @return 明文 Key
+     */
+    public String decrypt(String ciphertext) {
         try {
-            return encryptor.decrypt(ciphertext);
+            return textEncryptor.decrypt(ciphertext);
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.USER_LLM_API_KEY_DECRYPT_FAILED, e);
         }
