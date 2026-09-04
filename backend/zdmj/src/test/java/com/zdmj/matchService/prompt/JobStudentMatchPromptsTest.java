@@ -69,6 +69,27 @@ class JobStudentMatchPromptsTest {
         }));
     }
 
+    @Test
+    void allMatchPrompts_shouldHavePerDimensionEvaluationStandards() throws IOException {
+        for (String promptName : matchPromptNames()) {
+            String content = loadRaw(promptName);
+            assertTrue(content.contains("## basic（基础要求）"),
+                    promptName + " 缺少 basic 评分档");
+            assertTrue(content.contains("## professionalSkill（职业技能）"),
+                    promptName + " 缺少 professionalSkill 评分档");
+            assertTrue(content.contains("## professionalQuality（职业素养）"),
+                    promptName + " 缺少 professionalQuality 评分档");
+            assertTrue(content.contains("## developmentPotential（发展潜力）"),
+                    promptName + " 缺少 developmentPotential 评分档");
+            assertTrue(content.contains("维度间打分相互独立"),
+                    promptName + " 缺少四维独立打分约束");
+            assertTrue(content.contains("`basic.gap`"),
+                    promptName + " 缺少 basic.gap 输出约束");
+            assertTrue(content.contains("`professionalQuality.gap`"),
+                    promptName + " 缺少 professionalQuality.gap 输出约束");
+        }
+    }
+
     private static String loadRaw(String promptName) throws IOException {
         return StreamUtils.copyToString(
                 new ClassPathResource("prompts/" + promptName + ".md").getInputStream(),
