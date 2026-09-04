@@ -44,41 +44,7 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
         projectExperience.setUrl(projectExperienceRequest.getUrl());
         projectExperience.setStatus(ProjectStatusEnum.COMMITTED.getCode());
         projectExperience.setLookupResult(null);
-        // #region agent log
-        try {
-            String contrib = projectExperienceRequest.getContribution();
-            String url = projectExperienceRequest.getUrl();
-            String name = projectExperienceRequest.getName();
-            String desc = projectExperienceRequest.getDescription();
-            String hl = projectExperience.getHighlights();
-            String line = "{\"sessionId\":\"a14696\",\"runId\":\"pre-fix\",\"hypothesisId\":\"A\",\"location\":\"ProjectExperienceServiceImpl.create\",\"message\":\"project-field-lengths\",\"data\":{\"nameLen\":"
-                    + (name == null ? 0 : name.length())
-                    + ",\"contribLen\":" + (contrib == null ? 0 : contrib.length())
-                    + ",\"urlLen\":" + (url == null ? 0 : url.length())
-                    + ",\"descLen\":" + (desc == null ? 0 : desc.length())
-                    + ",\"highlightsLen\":" + (hl == null ? 0 : hl.length())
-                    + ",\"contribOver500\":" + (contrib != null && contrib.length() > 500)
-                    + ",\"urlOver500\":" + (url != null && url.length() > 500)
-                    + "},\"timestamp\":" + System.currentTimeMillis() + "}\n";
-            try (java.io.FileWriter fw = new java.io.FileWriter(
-                    "/Users/yinchengcheng/Documents/GitHub/ycc/zdmj/.cursor/debug-a14696.log", true)) {
-                fw.write(line);
-            }
-        } catch (Exception ignored) {
-        }
-        // #endregion
         boolean saved = save(projectExperience);
-        // #region agent log
-        try {
-            String line = "{\"sessionId\":\"a14696\",\"runId\":\"post-fix\",\"hypothesisId\":\"A\",\"location\":\"ProjectExperienceServiceImpl.create\",\"message\":\"project-create-saved\",\"data\":{\"saved\":"
-                    + saved + "},\"timestamp\":" + System.currentTimeMillis() + "}\n";
-            try (java.io.FileWriter fw = new java.io.FileWriter(
-                    "/Users/yinchengcheng/Documents/GitHub/ycc/zdmj/.cursor/debug-a14696.log", true)) {
-                fw.write(line);
-            }
-        } catch (Exception ignored) {
-        }
-        // #endregion
         if (!saved) {
             throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_ADD_FAILED);
         }
