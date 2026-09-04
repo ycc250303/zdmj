@@ -12,6 +12,7 @@ import org.springframework.util.StreamUtils;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -83,10 +84,36 @@ class JobRoleDetectorTest {
         doThrow(new RuntimeException("llm timeout")).when(chatUtil)
                 .chatStructuredOnce(any(), any(), any(), eq(null), any());
 
-        JobRoleDetector.DetectResult result = JobRoleDetector.detect(1L, "golang rust", chatUtil, logger);
+        JobRoleDetector.DetectResult result = JobRoleDetector.detect(1L, "rust elixir", chatUtil, logger);
 
         assertEquals(JobRole.UNKNOWN, result.role());
         assertEquals(0.2, result.confidence());
+    }
+
+    @Test
+    void detect_whenJavascriptStack_shouldNotCountAsJava() {
+        JobRoleDetector.DetectResult result = JobRoleDetector.detect(
+                1L, "JavaScript TypeScript React Vue CSS Webpack", chatUtil, logger);
+
+        assertEquals(JobRole.FRONTEND, result.role());
+        verify(chatUtil, never()).chatStructuredOnce(any(), any(), any(), eq(null), any());
+    }
+
+    @Test
+    void detect_whenJunitStack_shouldDirectHitSoftwareTest() {
+        JobRoleDetector.DetectResult result = JobRoleDetector.detect(
+                1L, "测试工程师，JUnit + Selenium + Postman，负责缺陷跟踪", chatUtil, logger);
+
+        assertEquals(JobRole.SOFTWARE_TEST, result.role());
+        verify(chatUtil, never()).chatStructuredOnce(any(), any(), any(), eq(null), any());
+    }
+
+    @Test
+    void containsKeyword_shouldUseAsciiWordBoundary() {
+        assertTrue(JobRoleDetector.containsKeyword("java spring boot", "java"));
+        assertFalse(JobRoleDetector.containsKeyword("javascript react", "java"));
+        assertTrue(JobRoleDetector.containsKeyword("javascript react", "javascript"));
+        assertTrue(JobRoleDetector.containsKeyword("熟悉测试与缺陷", "测试"));
     }
 
     @Test

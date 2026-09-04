@@ -1,6 +1,6 @@
 # 岗位方向识别与提示词路由
 
-`JobRole` 是岗位方向的单一事实源：落库 `targetRoleType`、提示词路径末段都用 hyphen slug（如 `java-backend`）。`fromString` 兼容 underscore 与短别名。
+`JobRole` 是岗位方向的单一事实源：落库 `targetRoleType`、提示词路径末段都用 hyphen slug（如 `java-backend`）。`fromString` 兼容 underscore（如 `java_backend`）；短码如 `qa`/`fe` 视为无法识别。
 
 ## 提示词路由
 
@@ -26,7 +26,7 @@ GET 查询接口不识别。图谱若画像不存在会先跑完整岗位要求 
 
 ## 识别步骤（Detector 内部）
 
-1. 关键词命中 ≥4：直接出角色，置信度 `min(0.9, 0.45 + hit*0.1)`
+1. 关键词命中 ≥4：直接出角色，置信度 `min(0.9, 0.45 + hit*0.1)`。各方向词表等长，覆盖语言 / 框架 / 技术栈 / 工具；同类替代可并列（pytest 与 junit），不含缩写与中英重复。ASCII 词按单词边界匹配。
 2. 否则 LLM `job-detect.md`（slug 全集）
 3. LLM 失败或 unknown：弱关键词 0.45 / 0.35，全空 0.2
 

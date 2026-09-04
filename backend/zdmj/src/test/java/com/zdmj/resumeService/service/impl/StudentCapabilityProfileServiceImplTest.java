@@ -301,7 +301,7 @@ class StudentCapabilityProfileServiceImplTest {
 
     @Test
     void detect_llmThrowsAndNoKeyword_shouldReturnUnknownFallback() {
-        String resumeText = "golang rust";
+        String resumeText = "rust elixir";
         doThrow(new RuntimeException("llm timeout")).when(chatUtil)
                 .chatStructuredOnce(eq(1L), eq(resumeText), eq(PromptNames.JOB_DETECT), isNull(), any());
 
