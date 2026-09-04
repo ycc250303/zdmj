@@ -86,9 +86,8 @@ export namespace JobApi {
     pressureResistance?: string; // 抗压能力
     communicationAbility?: string; // 沟通能力
     practicalAbility?: string; // 实践能力
-    strengths?: string[]; // 岗位优势亮点
-    missingSkills?: string[]; // 缺失技能项
-    weakEvidenceItems?: string[]; // 证据不足项
+    strengths?: string[]; // 岗位已写明的核心要求亮点
+    missingSkills?: string[]; // 补充要求：JD 未写明的该方向常见核心门槛
     summary?: string; // 一句话总结
   }
 

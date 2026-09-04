@@ -407,11 +407,9 @@ CREATE TABLE IF NOT EXISTS job_capability_profiles (
     target_role_type VARCHAR(64) NOT NULL DEFAULT 'default',
     -- 岗位类型展示值（如 software-test）
     strengths JSONB DEFAULT '[]'::jsonb,
-    -- 重要要求项
+    -- 岗位已写明的核心要求亮点
     missing_skills JSONB DEFAULT '[]'::jsonb,
-    -- 缺失要求项
-    weak_evidence_items JSONB DEFAULT '[]'::jsonb,
-    -- 缺少描述的要求项
+    -- 补充要求：JD 未写明的该方向常见核心门槛
     summary TEXT,
     -- 一句话总结
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -57,19 +57,14 @@ public class JobCapabilityProfileResponse {
     private String practicalAbility;
 
     /**
-     * 岗位优势亮点
+     * 岗位已写明的核心要求亮点。
      */
     private List<String> strengths;
 
     /**
-     * 缺失技能项
+     * 补充要求：JD 未写明、但该方向校招几乎总会考查的隐含核心门槛（JSON 键名沿用 missingSkills）。
      */
     private List<String> missingSkills;
-
-    /**
-     * 证据不足项
-     */
-    private List<String> weakEvidenceItems;
 
     /**
      * 一句话总结

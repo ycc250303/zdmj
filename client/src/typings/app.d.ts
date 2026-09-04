@@ -1082,7 +1082,6 @@ declare namespace App {
           practicalAbility: string;
           strengths: string;
           missingSkills: string;
-          weakEvidenceItems: string;
           summary: string;
           infoSuffix: string;
           industryLabel: string;

@@ -17,6 +17,7 @@ import com.zdmj.jobService.mapper.JobCapabilityProfileMapper;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobService;
 import java.math.BigDecimal;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -40,7 +41,7 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
 
-        String jobContext = JobAnalysisSupport.buildJobContext(
+        String jobContext = buildJobContext(
                 jobDetail,
                 "这是待分析的岗位信息（面向求职者输出岗位要求画像）：");
         JobRoleDetector.DetectResult detected = JobRoleDetector.detect(userId, jobContext, chatUtil, log);
@@ -108,7 +109,6 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         dto.setSummary(entity.getSummary());
         dto.setStrengths(entity.getStrengths());
         dto.setMissingSkills(entity.getMissingSkills());
-        dto.setWeakEvidenceItems(entity.getWeakEvidenceItems());
         return dto;
     }
 
@@ -127,8 +127,47 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         entity.setSummary(dto.getSummary());
         entity.setStrengths(dto.getStrengths());
         entity.setMissingSkills(dto.getMissingSkills());
-        entity.setWeakEvidenceItems(dto.getWeakEvidenceItems());
         return entity;
+    }
+
+    private static String buildJobContext(JobListItemResponse job, String intro) {
+        return """
+                %s
+                岗位名称：%s
+                公司名称：%s
+                工作地点：%s
+                薪资：%s
+                岗位描述：%s
+                岗位职责：%s
+                岗位要求：%s
+                关键词：%s
+                公司行业：%s
+                """.formatted(
+                intro,
+                valueOrNA(job.getJobName()),
+                valueOrNA(job.getCompanyName()),
+                valueOrNA(job.getLocation()),
+                valueOrNA(job.getSalary()),
+                valueOrNA(job.getDescription()),
+                joinList(job.getJobDuties()),
+                joinList(job.getJobRequirements()),
+                joinList(job.getKeywords()),
+                joinList(job.getCompanyIndustries()));
+    }
+
+    private static String joinList(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return "未提供";
+        }
+        return values.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .reduce((a, b) -> a + "；" + b)
+                .orElse("未提供");
+    }
+
+    private static String valueOrNA(String value) {
+        return StringUtils.hasText(value) ? value.trim() : "未提供";
     }
 
 }

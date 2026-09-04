@@ -81,22 +81,16 @@ public class JobCapabilityProfile extends BaseEntity {
     private String targetRoleType;
 
     /**
-     * 岗位优势亮点（JSONB）
+     * 岗位已写明的核心要求亮点（JSONB）
      */
     @TableField(typeHandler = JacksonTypeHandler.class)
     private List<String> strengths;
 
     /**
-     * 缺失技能项（JSONB）
+     * 补充要求：JD 未写明的该方向常见核心门槛（JSONB，列名 missing_skills）
      */
     @TableField(typeHandler = JacksonTypeHandler.class)
     private List<String> missingSkills;
-
-    /**
-     * 证据不足项（JSONB）
-     */
-    @TableField(typeHandler = JacksonTypeHandler.class)
-    private List<String> weakEvidenceItems;
 
     /**
      * 摘要

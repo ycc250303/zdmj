@@ -1051,30 +1051,16 @@ onMounted(() => {
                 </ul>
               </div>
 
-              <!-- 缺失技能 -->
+              <!-- 补充要求：JD 未写明的该方向常见门槛 -->
               <div v-if="capabilityProfile.missingSkills && capabilityProfile.missingSkills.length > 0">
                 <h4 class="font-semibold text-slate-800 dark:text-gray-200 mb-2 flex items-center gap-2">
-                  <span class="text-red-500">⚠️</span>
+                  <span class="text-blue-500">＋</span>
                   {{ $t('page.jobs.missingSkills') }}
                 </h4>
                 <ul class="space-y-1">
                   <li v-for="(skill, idx) in capabilityProfile.missingSkills" :key="idx" class="text-sm text-slate-700 dark:text-gray-300 flex items-start gap-2">
-                    <span class="text-red-500">✗</span>
+                    <span class="text-blue-500">•</span>
                     <span>{{ skill }}</span>
-                  </li>
-                </ul>
-              </div>
-
-              <!-- 证据不足项 -->
-              <div v-if="capabilityProfile.weakEvidenceItems && capabilityProfile.weakEvidenceItems.length > 0">
-                <h4 class="font-semibold text-slate-800 dark:text-gray-200 mb-2 flex items-center gap-2">
-                  <span class="text-orange-500">❓</span>
-                  {{ $t('page.jobs.weakEvidenceItems') }}
-                </h4>
-                <ul class="space-y-1">
-                  <li v-for="(item, idx) in capabilityProfile.weakEvidenceItems" :key="idx" class="text-sm text-slate-700 dark:text-gray-300 flex items-start gap-2">
-                    <span class="text-orange-500">!</span>
-                    <span>{{ item }}</span>
                   </li>
                 </ul>
               </div>

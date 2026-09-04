@@ -7,16 +7,15 @@
 
 # Evaluation Scope
 按七维顶层字段输出，每维 2～4 句，描述岗位通常要求；禁止 `capabilityProfile` 嵌套。
-七维字段只写正向岗位要求，不写“但未说明/但未提及/未明确”等反向补充句；信息缺口统一写入 `missingSkills` 或 `weakEvidenceItems`。
+七维字段只写正向岗位要求，不写“但未说明”等反向句。JD 未写明的该方向隐含核心门槛写入 `missingSkills`（补充要求，不是岗位缺技能）。
 
 # Evidence Constraints
-1. 仅可基于输入岗位文本，不得臆测未出现要求。
-2. `missingSkills` 与 `weakEvidenceItems` 严格基于文本缺失/模糊。
+1. 七维与 `strengths` 仅基于输入岗位文本，不得把未出现的要求写进这些字段。
+2. `missingSkills`（补充要求）只列「JD 未写明、但该类技术岗校招几乎总会考查的隐含核心门槛」；只允许硬门槛级惯例；已在岗位文本或 strengths 出现过的不得再列。
 3. 本任务不生成行动建议。
-4. `missingSkills` 与 `weakEvidenceItems` 不得重复同一项；同一能力只能在“缺失”或“细节不足”二者中二选一。
 
 # Output Format
-请直接输出 JSON 对象（不要 Markdown 代码块），**不得**包含 competitivenessScore、overallScore、scoreDetail 或任何 `*Score` 字段：
+请直接输出 JSON 对象（不要 Markdown 代码块），**不得**包含 competitivenessScore、overallScore、scoreDetail、weakEvidenceItems 或任何 `*Score` 字段：
 {
   "professionalSkills": "",
   "certificates": "",
@@ -27,13 +26,11 @@
   "practicalAbility": "",
   "summary": "",
   "strengths": [],
-  "missingSkills": [],
-  "weakEvidenceItems": []
+  "missingSkills": []
 }
 
 # Additional Requirements
 - 七维顶层字段必须全部有内容，且每维 2～4 句；内容只写岗位要求本身，不在七维字段中描述缺口或“不足”。
 - `summary` 需覆盖：岗位定位、核心能力门槛、通用职业素质要求、信息完备度判断；不得输出求职建议口吻。
 - `strengths` 输出 3～6 条，每条需写“能力点 + 岗位文本依据（关键词/职责/要求）”。
-- `missingSkills` 输出 0～5 条，仅列岗位文本未明确但该类技术岗通常应明确的核心要求。
-- `weakEvidenceItems` 输出 0～5 条，每条必须写成「已提及项 + 缺失细节类型（场景/范围/深度/验收标准）」。
+- `missingSkills` 输出 0～5 条，语义是补充要求。仅列该类技术岗最常见的硬门槛（语言或数据库等）；已在岗位文本或 strengths 出现过的不得再列。

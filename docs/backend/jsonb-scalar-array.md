@@ -38,7 +38,7 @@ public class Resume {
 | `jobs.content/requirements/keywords` | `List<String>` |
 | `companies.industries` | `List<String>` |
 | `project_experiences.tech_stack` | `List<String>` |
-| `job_capability_profiles.strengths/missing_skills/weak_evidence_items` | `List<String>` |
+| `job_capability_profiles.strengths/missing_skills` | `List<String>` |
 | `job_student_matches.matched_highlights/critical_gaps/matched_keywords/missing_keywords` | `List<String>` |
 
 未纳入：开放袋（会话 `context`、知识库 `metadata`）仍 `JacksonTypeHandler` + `Map`。会话 `config` 首条消息发出后不可改。第 2/3 类列清单见 [`jsonb-structured.md`](jsonb-structured.md)。

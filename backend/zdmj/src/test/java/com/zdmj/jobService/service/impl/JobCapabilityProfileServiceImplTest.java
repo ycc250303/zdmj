@@ -15,16 +15,20 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -79,7 +83,6 @@ class JobCapabilityProfileServiceImplTest {
         aiResult.setSummary("summary");
         aiResult.setStrengths(List.of("基础扎实"));
         aiResult.setMissingSkills(List.of("分布式"));
-        aiResult.setWeakEvidenceItems(List.of("高并发案例"));
         JobCapabilityProfile existing = new JobCapabilityProfile();
         existing.setId(900L);
 
@@ -105,7 +108,6 @@ class JobCapabilityProfileServiceImplTest {
         aiResult.setSummary("new-profile");
         aiResult.setStrengths(List.of("工程化"));
         aiResult.setMissingSkills(List.of("分布式"));
-        aiResult.setWeakEvidenceItems(List.of("高并发"));
 
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
         doReturn(aiResult).when(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
@@ -154,7 +156,6 @@ class JobCapabilityProfileServiceImplTest {
         entity.setProfessionalSkills("Java");
         entity.setStrengths(List.of("编码能力"));
         entity.setMissingSkills(List.of("分布式"));
-        entity.setWeakEvidenceItems(List.of("项目深度"));
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
         doReturn(entity).when(profileService).getOne(any(LambdaQueryWrapper.class));
 
@@ -185,8 +186,64 @@ class JobCapabilityProfileServiceImplTest {
         assertEquals("no-lists", result.getSummary());
         assertNull(result.getStrengths());
         assertNull(result.getMissingSkills());
-        assertNull(result.getWeakEvidenceItems());
         verify(profileService).getOne(any(LambdaQueryWrapper.class));
+    }
+
+    @Test
+    void profile_generate_shouldRenderMissingFieldsAsNotProvided() {
+        Long jobId = 18L;
+        JobListItemResponse dto = new JobListItemResponse();
+        dto.setJobName("  Java开发  ");
+        dto.setDescription("Java Spring Boot MySQL Redis Maven");
+        dto.setJobDuties(Collections.emptyList());
+        dto.setJobRequirements(List.of(" ", "熟悉Spring"));
+        JobCapabilityProfileResponse aiResult = new JobCapabilityProfileResponse();
+        aiResult.setSummary("ok");
+        doReturn(dto).when(jobService).getDetail(jobId);
+        doReturn(aiResult).when(chatUtil).chatStructuredOnce(
+                anyLong(), any(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
+        doReturn(null).when(profileService).getOne(any(LambdaQueryWrapper.class));
+        doReturn(true).when(profileService).save(any(JobCapabilityProfile.class));
+
+        profileService.getJobCapabilityProfile(jobId);
+
+        ArgumentCaptor<String> context = ArgumentCaptor.forClass(String.class);
+        verify(chatUtil).chatStructuredOnce(
+                anyLong(), context.capture(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
+        assertTrue(context.getValue().contains("岗位名称：Java开发"));
+        assertTrue(context.getValue().contains("公司名称：未提供"));
+        assertTrue(context.getValue().contains("岗位职责：未提供"));
+        assertTrue(context.getValue().contains("岗位要求：熟悉Spring"));
+    }
+
+    @Test
+    void profile_generate_shouldRenderBlankListsAsNotProvided() {
+        Long jobId = 19L;
+        JobListItemResponse dto = new JobListItemResponse();
+        dto.setJobName("后端开发");
+        dto.setDescription("Java Spring Boot MySQL Redis Maven");
+        dto.setJobDuties(List.of(" ", "   "));
+        dto.setJobRequirements(List.of("", "\t"));
+        dto.setKeywords(List.of("  ", "\n"));
+        dto.setCompanyIndustries(List.of(" ", ""));
+        JobCapabilityProfileResponse aiResult = new JobCapabilityProfileResponse();
+        aiResult.setSummary("ok");
+        doReturn(dto).when(jobService).getDetail(jobId);
+        doReturn(aiResult).when(chatUtil).chatStructuredOnce(
+                anyLong(), any(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
+        doReturn(null).when(profileService).getOne(any(LambdaQueryWrapper.class));
+        doReturn(true).when(profileService).save(any(JobCapabilityProfile.class));
+
+        profileService.getJobCapabilityProfile(jobId);
+
+        ArgumentCaptor<String> context = ArgumentCaptor.forClass(String.class);
+        verify(chatUtil).chatStructuredOnce(
+                anyLong(), context.capture(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
+        assertTrue(context.getValue().contains("岗位职责：未提供"));
+        assertTrue(context.getValue().contains("岗位要求：未提供"));
+        assertTrue(context.getValue().contains("关键词：未提供"));
+        assertTrue(context.getValue().contains("公司行业：未提供"));
+        assertFalse(context.getValue().contains("；"));
     }
 
     private JobListItemResponse buildJobDetail() {
