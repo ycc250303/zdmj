@@ -72,21 +72,18 @@ public class RateLimitAspect {
         return Long.valueOf(1L).equals(result);
     }
 
-    private String generateKey(String className, String methodName, RateLimit.Dimension dimension) {
-        return switch (dimension) {
-            case GLOBAL -> rateLimitKey(className, methodName, "global", null);
-            case IP -> rateLimitKey(className, methodName, "ip", getClientIp());
-            case USER -> rateLimitKey(className, methodName, "user", getCurrentUserId());
-        };
-    }
-
     /**
      * 构建限流 Redis Key。
      * hash tag {@code {Class:method}} 便于 Redis Cluster 同 slot 路由。
      */
-    private static String rateLimitKey(String className, String methodName, String dimension, String suffix) {
+    private String generateKey(String className, String methodName, RateLimit.Dimension dimension) {
+        String suffix = switch (dimension) {
+            case GLOBAL -> null;
+            case IP -> getClientIp();
+            case USER -> getCurrentUserId();
+        };
         String hashTag = "{" + className + ":" + methodName + "}";
-        String key = RATE_LIMIT_KEY_PREFIX + hashTag + ":" + dimension.toLowerCase();
+        String key = RATE_LIMIT_KEY_PREFIX + hashTag + ":" + dimension.name().toLowerCase();
         if (suffix != null && !suffix.isEmpty()) {
             key += ":" + suffix;
         }
