@@ -43,7 +43,7 @@ public class PdfParserUtil {
             throw new BusinessException(ErrorCode.URL_FORMAT_ERROR, "仅支持本系统已上传的文件");
         }
         try (InputStream inputStream = fileUploadService.openInputStreamFromUrl(trimmed, ownerUserId)) {
-            return normalize(TIKA.parseToString(inputStream));
+            return normalizeExtractedText(TIKA.parseToString(inputStream));
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
@@ -51,15 +51,25 @@ public class PdfParserUtil {
         }
     }
 
+    /**
+     * 从本地文件路径提取 PDF 文本内容。
+     * 
+     * @param path 文件路径
+     * @return 标准化后的 PDF 文本内容
+     */
     public String extractTextFromLocalPath(String path) {
         try (InputStream inputStream = Files.newInputStream(Path.of(path))) {
-            return normalize(TIKA.parseToString(inputStream));
+            return normalizeExtractedText(TIKA.parseToString(inputStream));
         } catch (Exception e) {
             throw new RuntimeException("PDF解析失败：" + e.getMessage(), e);
         }
     }
 
-    private static String normalize(String text) {
+    /**
+     * 抽取后的纯文本规范化：换行统一为 {@code \n}，连续空格/Tab 合并，连续空行压成一段。
+     * PDF 抽取与简历 {@code rawText} 导入共用，避免两套空白规则。
+     */
+    public static String normalizeExtractedText(String text) {
         if (text == null) {
             return "";
         }

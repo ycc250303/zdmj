@@ -32,7 +32,7 @@
 | `projects[]` | `project_experiences` | name, role, dates, description, contribution, techStack, highlights, url |
 | `awards[]` | `awards` | awardType(1–3), name, awardDate, description |
 | `skill` | `skills` | content[{type, content[]}] |
-| `warnings[]` | — | 截断、解析修正等 |
+| `warnings[]` | — | 解析修正等（如奖项仅有年份） |
 
 日期输出 `yyyy-MM-dd`（前端按月展示）。**仅有年份无月份 → null**；有年月无日 → 该月 1 号；「至今」→ `endDate` 为 null。教育 / 实习 / 项目 / 奖项的时间**逐条独立识别**，认不出写 null，禁止跨模块套用。项目 `contribution` 为 TEXT，与描述一样不截断。
 

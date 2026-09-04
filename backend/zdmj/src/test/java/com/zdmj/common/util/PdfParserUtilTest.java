@@ -118,4 +118,12 @@ class PdfParserUtilTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> pdfParserUtil.extractTextFromUrl("  "));
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
     }
+
+    @Test
+    void normalizeExtractedText_shouldCollapseHorizontalAndVerticalWhitespace() {
+        String raw = "Hello   world\r\n\n\n\nNext";
+        assertEquals("Hello world\n\nNext", PdfParserUtil.normalizeExtractedText(raw));
+        assertEquals("", PdfParserUtil.normalizeExtractedText(null));
+        assertEquals("same", PdfParserUtil.normalizeExtractedText(PdfParserUtil.normalizeExtractedText("same")));
+    }
 }

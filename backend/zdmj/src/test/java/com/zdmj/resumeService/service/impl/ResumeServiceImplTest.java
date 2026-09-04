@@ -13,7 +13,6 @@ import com.zdmj.resumeService.dto.ResumeContentResponse;
 import com.zdmj.resumeService.dto.ResumeRequest;
 import com.zdmj.resumeService.dto.ResumeImportParseRequest;
 import com.zdmj.resumeService.dto.ResumeImportParseResponse;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.resumeService.entity.Resume;
 import com.zdmj.resumeService.dto.ResumeResponse;
 import com.zdmj.resumeService.mapper.AwardMapper;
@@ -93,14 +92,13 @@ class ResumeServiceImplTest {
     @Mock
     private PdfParserUtil pdfParserUtil;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
     private ResumeServiceImpl resumeService;
 
     @BeforeEach
     void setUp() {
         resumeService = spy(new ResumeServiceImpl(
                 educationMapper, projectExperienceMapper, careerMapper, awardMapper, skillMapper, userMapper, chatUtil,
-                userLlmRouter, objectMapper,
+                userLlmRouter,
                 educationService, careerService, awardService, projectExperienceService, skillService, validator,
                 pdfParserUtil));
         ReflectionTestUtils.setField(Objects.requireNonNull(resumeService), "baseMapper", resumeMapper);
@@ -594,10 +592,11 @@ class ResumeServiceImplTest {
     }
 
     @Test
-    void parseImport_longText_shouldTruncateAndAddWarning() {
+    void parseImport_shouldNotTruncateLongRawText() {
         UserHolder.set(UserContext.of(1L, "u1"));
         ResumeImportParseRequest request = new ResumeImportParseRequest();
-        request.setRawText("a".repeat(16000));
+        String raw = "a".repeat(16000);
+        request.setRawText(raw);
 
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
         doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
@@ -606,8 +605,12 @@ class ResumeServiceImplTest {
 
         ResumeImportParseResponse out = resumeService.parseImport(request);
 
-        assertNotNull(out.getWarnings());
-        assertEquals(true, out.getWarnings().stream().anyMatch(w -> w.contains("截断")));
+        ArgumentCaptor<String> parseMsg = ArgumentCaptor.forClass(String.class);
+        verify(chatUtil).chatStructuredOnceWithPlatformModel(
+                parseMsg.capture(), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
+                eq(ResumeImportParseResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
+        assertEquals(16000, parseMsg.getValue().length());
+        assertEquals(true, out.getWarnings() == null || out.getWarnings().stream().noneMatch(w -> w.contains("截断")));
     }
 
     @Test

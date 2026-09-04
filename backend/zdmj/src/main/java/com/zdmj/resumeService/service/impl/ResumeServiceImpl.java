@@ -1,7 +1,6 @@
 package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.common.ai.ModelEnum;
 import com.zdmj.common.ai.UserLlmRouter;
@@ -57,11 +56,8 @@ import java.util.stream.Collectors;
 @Service
 public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> implements ResumeService {
 
-    private static final Pattern WHITESPACE_RUN = Pattern.compile("\\s{3,}");
     private static final Pattern PRESENT_END = Pattern.compile("^(至今|现在|present|current|now)$",
             Pattern.CASE_INSENSITIVE);
-    /** 送入 LLM 前的纯文本截断上限（字符数） */
-    private static final int IMPORT_TEXT_TRUNCATE_CHARS = 15000;
 
     private final EducationMapper educationMapper;
     private final ProjectExperienceMapper projectExperienceMapper;
@@ -71,7 +67,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     private final UserMapper userMapper;
     private final ChatUtil chatUtil;
     private final UserLlmRouter userLlmRouter;
-    private final ObjectMapper objectMapper;
     private final EducationService educationService;
     private final CareerService careerService;
     private final AwardService awardService;
@@ -161,27 +156,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     public ResumeContentResponse saveMyResumeContent(ResumeContentSaveRequest request) {
         Long userId = UserHolder.requireUserId();
         Resume resume = ensureResumeForUser(userId);
-        // #region agent log
-        try {
-            int projectN = request.getProjects() == null ? 0 : request.getProjects().size();
-            int maxContrib = 0;
-            if (request.getProjects() != null) {
-                for (var p : request.getProjects()) {
-                    if (p != null && p.getContribution() != null) {
-                        maxContrib = Math.max(maxContrib, p.getContribution().length());
-                    }
-                }
-            }
-            String line = "{\"sessionId\":\"a14696\",\"runId\":\"pre-fix\",\"hypothesisId\":\"C\",\"location\":\"ResumeServiceImpl.saveMyResumeContent\",\"message\":\"save-start\",\"data\":{\"projectN\":"
-                    + projectN + ",\"maxContribLen\":" + maxContrib
-                    + "},\"timestamp\":" + System.currentTimeMillis() + "}\n";
-            try (java.io.FileWriter fw = new java.io.FileWriter(
-                    "/Users/yinchengcheng/Documents/GitHub/ycc/zdmj/.cursor/debug-a14696.log", true)) {
-                fw.write(line);
-            }
-        } catch (Exception ignored) {
-        }
-        // #endregion
 
         Long skillId = syncSkill(userId, resume.getSkillId(), request.getSkill());
         resume.setSkillId(skillId);
@@ -200,17 +174,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
             throw new BusinessException(ErrorCode.RESUME_UPDATE_FAILED);
         }
         log.info("全量保存简历成功: userId={}, resumeId={}", userId, resume.getId());
-        // #region agent log
-        try {
-            String line = "{\"sessionId\":\"a14696\",\"runId\":\"post-fix\",\"hypothesisId\":\"C\",\"location\":\"ResumeServiceImpl.saveMyResumeContent\",\"message\":\"save-success\",\"data\":{\"resumeId\":"
-                    + resume.getId() + "},\"timestamp\":" + System.currentTimeMillis() + "}\n";
-            try (java.io.FileWriter fw = new java.io.FileWriter(
-                    "/Users/yinchengcheng/Documents/GitHub/ycc/zdmj/.cursor/debug-a14696.log", true)) {
-                fw.write(line);
-            }
-        } catch (Exception ignored) {
-        }
-        // #endregion
         return buildResumeContent(resume);
     }
 
@@ -478,13 +441,18 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         }
     }
 
+    /**
+     * 解析导入的简历
+     * 
+     * @param request 导入请求
+     * @return 解析后的简历
+     */
     @Override
     public ResumeImportParseResponse parseImport(ResumeImportParseRequest request) {
         log.info("开始识别简历结构化字段");
         UserHolder.requireUserId();
         List<String> warnings = new ArrayList<>();
-        String sourceText = resolveImportSourceText(request);
-        sourceText = preprocessImportText(sourceText, warnings);
+        String sourceText = PdfParserUtil.normalizeExtractedText(resolveImportSourceText(request));
 
         ModelEnum importModel = userLlmRouter.resolveResumeImportModel();
         log.info("简历识别：使用平台模型 {}", importModel.code());
@@ -507,22 +475,15 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         }
 
         normalizeImportResult(parsed, warnings);
-        // #region agent log
-        try {
-            int awardN = parsed.getAwards() == null ? 0 : parsed.getAwards().size();
-            int projectN = parsed.getProjects() == null ? 0 : parsed.getProjects().size();
-            String line = "{\"sessionId\":\"a14696\",\"runId\":\"pre-fix\",\"hypothesisId\":\"B\",\"location\":\"ResumeServiceImpl.parseImport\",\"message\":\"parse-success\",\"data\":{\"awardN\":"
-                    + awardN + ",\"projectN\":" + projectN + "},\"timestamp\":" + System.currentTimeMillis() + "}\n";
-            try (java.io.FileWriter fw = new java.io.FileWriter(
-                    "/Users/yinchengcheng/Documents/GitHub/ycc/zdmj/.cursor/debug-a14696.log", true)) {
-                fw.write(line);
-            }
-        } catch (Exception ignored) {
-        }
-        // #endregion
         return parsed;
     }
 
+    /**
+     * 解析导入的简历文本
+     * 
+     * @param request 导入请求
+     * @return 解析后的文本
+     */
     private String resolveImportSourceText(ResumeImportParseRequest request) {
         if (StringUtils.hasText(request.getPdfUrl())) {
             log.info("简历识别：从 PDF 解析文本");
@@ -548,16 +509,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
             return text;
         }
         throw new BusinessException(ErrorCode.VALIDATION_ERROR, "必须提供 pdfUrl 或 rawText");
-    }
-
-    private String preprocessImportText(String sourceText, List<String> warnings) {
-        String normalized = WHITESPACE_RUN.matcher(sourceText.trim()).replaceAll("\n\n");
-        int limit = IMPORT_TEXT_TRUNCATE_CHARS;
-        if (normalized.length() > limit) {
-            warnings.add("简历文本过长，已截断至前 " + limit + " 个字符，部分经历可能未识别");
-            normalized = normalized.substring(0, limit);
-        }
-        return normalized;
     }
 
     private void normalizeImportResult(ResumeImportParseResponse result, List<String> warnings) {
