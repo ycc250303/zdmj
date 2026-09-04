@@ -8,7 +8,7 @@
 
 1. 前端 `POST /files/upload?prefix=resume` 上传 PDF，取得 `url`
 2. 调用 `POST /resumes/import/parse`，body `{ "pdfUrl": "..." }` 或 `{ "rawText": "..." }`
-3. 后端：Tika 抽文本 → 全文送 LLM 抽经历/技能；奖项按关键词切完整句后**另一次** LLM 判断 → 日期/degree 归一化
+3. 后端：Tika 抽文本 → 全文一次送 LLM 抽经历/技能/奖项 → 日期/degree/奖项类型归一化
 4. 识别成功后前端直接调用 `PUT /resumes/me/content` **全量覆盖**当前简历（旧经历不在请求中则删除）
 
 ## 模型与配置
@@ -16,7 +16,7 @@
 - 优先使用 `ModelEnum.DEEPSEEK_FLASH`（**忽略**用户 LLM 自配）；未配置 `DEEPSEEK_API_KEY` 时回退平台默认模型（`AL_MODEL` / DashScope）
 - API Key：`DEEPSEEK_API_KEY`（DeepSeek 场景）或 `SPRING_AI_OPENAI_API_KEY` / `DASHSCOPE_API_KEY`（回退场景）
 - Docker Compose 须映射 `DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}`
-- 提示词：`classpath:prompts/resume-import-parse.md`（经历/技能）、`classpath:prompts/resume-import-awards.md`（奖项）
+- 提示词：`classpath:prompts/resume-import-parse.md`（个人信息、教育、实习、项目、技能、奖项）
 
 ## 限流
 
@@ -38,9 +38,9 @@
 
 ## 奖项抽取
 
-1. 按行/句切分原文，保留含「等奖 / 奖学金 / 第 x 名 / 获奖」等线索的**完整句子**
-2. 将句子列表单独送给 LLM（`resume-import-awards`）判断并结构化；一句话可拆多条获奖；无候选句则 `awards=[]`
-3. 全文解析那一次不填奖项；不再用正则从原文截奖项名，也不从项目 `highlights` 事后补奖
+1. 与经历/技能同一次 LLM 调用写入 `awards[]`；一句话含多条获奖必须拆成多条
+2. 后端只做类型校正（奖学金/竞赛关键词覆盖模型误标）、名称清洗与同名去重；**不用正则从原文补奖**
+3. 项目 `highlights` 可以提及获奖，但不能替代 `awards[]`；模型未写入则保持空列表
 
 ## 错误码
 

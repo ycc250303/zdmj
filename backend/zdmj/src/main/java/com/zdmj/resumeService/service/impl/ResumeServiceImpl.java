@@ -7,12 +7,11 @@ import com.zdmj.common.ai.ModelEnum;
 import com.zdmj.common.ai.UserLlmRouter;
 import com.zdmj.common.ai.prompt.PromptNames;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.model.CreateGroup;
 import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.resumeService.dto.*;
-import com.zdmj.resumeService.enums.AwardTypeEnum;
 import com.zdmj.resumeService.entity.*;
 import com.zdmj.resumeService.mapper.AwardMapper;
 import com.zdmj.resumeService.mapper.CareerMapper;
@@ -483,20 +482,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     public ResumeImportParseResponse parseImport(ResumeImportParseRequest request) {
         log.info("开始识别简历结构化字段");
         UserHolder.requireUserId();
-        // #region agent log
-        try {
-            boolean hasPdf = request != null && StringUtils.hasText(request.getPdfUrl());
-            boolean hasText = request != null && request.getRawText() != null
-                    && !request.getRawText().isBlank();
-            String line = "{\"sessionId\":\"a14696\",\"runId\":\"pre-fix\",\"hypothesisId\":\"B\",\"location\":\"ResumeServiceImpl.parseImport\",\"message\":\"parse-start\",\"data\":{\"hasPdf\":"
-                    + hasPdf + ",\"hasText\":" + hasText + "},\"timestamp\":" + System.currentTimeMillis() + "}\n";
-            try (java.io.FileWriter fw = new java.io.FileWriter(
-                    "/Users/yinchengcheng/Documents/GitHub/ycc/zdmj/.cursor/debug-a14696.log", true)) {
-                fw.write(line);
-            }
-        } catch (Exception ignored) {
-        }
-        // #endregion
         List<String> warnings = new ArrayList<>();
         String sourceText = resolveImportSourceText(request);
         sourceText = preprocessImportText(sourceText, warnings);
@@ -511,7 +496,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
                     null,
                     ResumeImportParseResponse.class,
                     importModel);
-            parsed.setAwards(judgeAwardsFromCandidates(sourceText, importModel));
         } catch (BusinessException e) {
             throw e;
         } catch (IllegalStateException e) {
@@ -537,27 +521,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         }
         // #endregion
         return parsed;
-    }
-
-    /**
-     * 关键词切出完整候选句后，单独让 LLM 判断其中的奖项；无候选句则空列表。
-     */
-    private List<ResumeImportParseResponse.AwardItem> judgeAwardsFromCandidates(
-            String sourceText, ModelEnum importModel) {
-        List<String> candidates = AwardImportSupport.detectCandidateSentences(sourceText);
-        if (candidates.isEmpty()) {
-            return new ArrayList<>();
-        }
-        ResumeImportAwardsResponse judged = chatUtil.chatStructuredOnceWithPlatformModel(
-                AwardImportSupport.buildAwardsJudgeUserMessage(candidates),
-                PromptNames.RESUME_IMPORT_AWARDS,
-                null,
-                ResumeImportAwardsResponse.class,
-                importModel);
-        if (judged == null || judged.getAwards() == null) {
-            return new ArrayList<>();
-        }
-        return judged.getAwards();
     }
 
     private String resolveImportSourceText(ResumeImportParseRequest request) {
