@@ -228,19 +228,12 @@ public class RedisUtil {
     }
 
     /**
-     * {@code XADD} 并按 {@link RedisConstants#STREAM_MAXLEN} 近似裁剪。
+     * {@code XADD MAXLEN ~} {@link RedisConstants#STREAM_MAXLEN}。
      *
      * @return 消息 ID
      */
     public RecordId xadd(String streamKey, Map<String, String> fields) {
-        return xadd(streamKey, fields, RedisConstants.STREAM_MAXLEN);
-    }
-
-    /**
-     * {@code XADD MAXLEN ~ maxlen}。
-     */
-    public RecordId xadd(String streamKey, Map<String, String> fields, long maxlen) {
-        XAddOptions options = XAddOptions.maxlen(maxlen).approximateTrimming(true);
+        XAddOptions options = XAddOptions.maxlen(RedisConstants.STREAM_MAXLEN).approximateTrimming(true);
         RecordId recordId = streamOps().add(streamKey, fields, options);
         if (recordId == null) {
             throw new IllegalStateException("XADD 返回空 recordId: stream=" + streamKey);
@@ -298,7 +291,7 @@ public class RedisUtil {
     /**
      * {@code XACK}，从 PEL 移除已处理消息。
      */
-    public long xack(String streamKey, String group, String... recordIds) {
+    public long xack(String streamKey, String group, RecordId... recordIds) {
         if (recordIds == null || recordIds.length == 0) {
             return 0L;
         }
@@ -306,13 +299,6 @@ public class RedisUtil {
         long n = acked == null ? 0L : acked;
         log.debug("XACK: stream={}, group={}, ids={}, acked={}", streamKey, group, recordIds, n);
         return n;
-    }
-
-    public long xack(String streamKey, String group, RecordId recordId) {
-        if (recordId == null) {
-            return 0L;
-        }
-        return xack(streamKey, group, recordId.getValue());
     }
 
     /**

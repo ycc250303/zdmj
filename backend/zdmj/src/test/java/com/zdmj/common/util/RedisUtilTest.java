@@ -157,11 +157,18 @@ class RedisUtilTest {
     }
 
     @Test
-    void xack_shouldDelegateRecordId() {
+    void xack_shouldAcknowledgeRecordId() {
         stubStreamOps();
-        when(streamOps.acknowledge("s", "g", "1-0")).thenReturn(1L);
+        RecordId id = RecordId.of("1-0");
+        when(streamOps.acknowledge("s", "g", id)).thenReturn(1L);
 
-        assertEquals(1L, redisUtil.xack("s", "g", RecordId.of("1-0")));
+        assertEquals(1L, redisUtil.xack("s", "g", id));
+    }
+
+    @Test
+    void xack_emptyIds_shouldSkipRedis() {
+        assertEquals(0L, redisUtil.xack("s", "g"));
+        verify(redisTemplate, never()).opsForStream();
     }
 
     @Test
