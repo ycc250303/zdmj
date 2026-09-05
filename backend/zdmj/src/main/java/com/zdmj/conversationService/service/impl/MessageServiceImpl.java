@@ -3,7 +3,6 @@ package com.zdmj.conversationService.service.impl;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zdmj.common.ai.config.RagConfig;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.PageRequests;
@@ -47,7 +46,6 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     private final ConversationService conversationService;
     private final ConversationMapper conversationMapper;
     private final KnowledgeRagService knowledgeRagService;
-    private final RagConfig ragConfig;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Override
@@ -98,27 +96,20 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
             conversationMapper.updateTitleByIdAndUserId(request.getConversationId(), userId, title);
         }
 
-        // 5.方法内 sink：HTTP 断开后 LLM 仍跑完并落库；不跨请求、不进 Redis
+        // 5.方法内 sink：HTTP 断开后 LLM 仍跑完并落库
         Sinks.Many<String> sink = Sinks.many().unicast().onBackpressureBuffer();
         StringBuilder full = new StringBuilder(256);
 
         List<Long> ragDocumentIds = ConversationContextSupport.resolveRagDocumentIds(conversation);
         boolean useSystemKnowledge = ConversationContextSupport.resolveUseSystemKnowledge(conversation);
         Map<String, Object> promptVars = ConversationContextSupport.buildChatPromptVars(conversation);
-        Flux<String> chatFlux = ragConfig.isEnabled()
-                ? knowledgeRagService.streamAnswer(
-                        userId,
-                        request.getConversationId(),
-                        request.getMessage(),
-                        ragDocumentIds,
-                        useSystemKnowledge,
-                        promptVars)
-                : chatUtil.chatStreamInConversation(
-                        userId,
-                        request.getConversationId(),
-                        request.getMessage(),
-                        PromptNames.SYSTEM,
-                        promptVars);
+        Flux<String> chatFlux = knowledgeRagService.streamAnswer(
+                userId,
+                request.getConversationId(),
+                request.getMessage(),
+                ragDocumentIds,
+                useSystemKnowledge,
+                promptVars);
         chatFlux.doOnNext(chunk -> {
             if (chunk == null || chunk.isEmpty()) {
                 return;

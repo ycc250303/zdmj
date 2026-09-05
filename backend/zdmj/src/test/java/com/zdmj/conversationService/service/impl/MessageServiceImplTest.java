@@ -1,7 +1,6 @@
 package com.zdmj.conversationService.service.impl;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.zdmj.common.ai.config.RagConfig;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
@@ -47,6 +46,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
@@ -69,8 +69,6 @@ class MessageServiceImplTest {
     private ConversationMapper conversationMapper;
     @Mock
     private KnowledgeRagService knowledgeRagService;
-    @Mock
-    private RagConfig ragConfig;
 
     private MessageServiceImpl messageService;
 
@@ -81,8 +79,7 @@ class MessageServiceImplTest {
                 messageMapper,
                 conversationService,
                 conversationMapper,
-                knowledgeRagService,
-                ragConfig));
+                knowledgeRagService));
         lenient().doReturn(2).when(conversationMapper).incrementMessageCountAndGet(anyLong(), anyLong(), anyInt());
         UserHolder.set(UserContext.of(1L, "u1"));
     }
@@ -152,10 +149,9 @@ class MessageServiceImplTest {
         conversation.setId(302L);
         conversation.setMessageCount(0);
         doReturn(conversation).when(conversationService).requireOwned(302L);
-        doReturn(false).when(ragConfig).isEnabled();
         doReturn("title").when(chatUtil).chatOnce(anyLong(), anyString(), anyString(), any());
-        doReturn(Flux.just("he", "llo")).when(chatUtil)
-                .chatStreamInConversation(eq(1L), eq(302L), eq("hello"), anyString(), any());
+        doReturn(Flux.just("he", "llo")).when(knowledgeRagService)
+                .streamAnswer(eq(1L), eq(302L), eq("hello"), isNull(), eq(false), any());
         AtomicInteger insertTimes = new AtomicInteger(0);
         org.mockito.Mockito.doAnswer(invocation -> {
             Message m = invocation.getArgument(0);
@@ -209,7 +205,6 @@ class MessageServiceImplTest {
         conversation.setId(304L);
         conversation.setMessageCount(1);
         doReturn(conversation).when(conversationService).requireOwned(304L);
-        doReturn(false).when(ragConfig).isEnabled();
         org.mockito.Mockito.doAnswer(invocation -> {
             Message m = invocation.getArgument(0);
             if (m.getRole() == 2) {
@@ -219,7 +214,7 @@ class MessageServiceImplTest {
         }).when(messageMapper).insert(any(Message.class));
         doReturn(1).when(messageMapper).updateById(any(Message.class));
         doReturn(Flux.concat(Flux.just("x"), Flux.error(new RuntimeException("boom"))))
-                .when(chatUtil).chatStreamInConversation(eq(1L), eq(304L), eq("ask"), anyString(), any());
+                .when(knowledgeRagService).streamAnswer(eq(1L), eq(304L), eq("ask"), isNull(), eq(false), any());
 
         assertThrows(RuntimeException.class, () -> messageService.createStream(dto).collectList().block());
         ArgumentCaptor<Message> assistantCaptor = ArgumentCaptor.forClass(Message.class);
@@ -236,7 +231,6 @@ class MessageServiceImplTest {
         conversation.setId(305L);
         conversation.setMessageCount(1);
         doReturn(conversation).when(conversationService).requireOwned(305L);
-        doReturn(false).when(ragConfig).isEnabled();
         org.mockito.Mockito.doAnswer(invocation -> {
             Message m = invocation.getArgument(0);
             if (m.getRole() == 2) {
@@ -244,7 +238,8 @@ class MessageServiceImplTest {
             }
             return 1;
         }).when(messageMapper).insert(any(Message.class));
-        doReturn(Flux.just("ok")).when(chatUtil).chatStreamInConversation(eq(1L), eq(305L), eq("go"), anyString(), any());
+        doReturn(Flux.just("ok")).when(knowledgeRagService)
+                .streamAnswer(eq(1L), eq(305L), eq("go"), isNull(), eq(false), any());
         doReturn(0).when(messageMapper).updateById(any(Message.class));
 
         assertThrows(RuntimeException.class, () -> messageService.createStream(dto).collectList().block());
@@ -259,10 +254,9 @@ class MessageServiceImplTest {
         conversation.setMessageCount(0);
         doReturn(conversation).when(conversationService).requireOwned(conversationId);
 
-        doReturn(false).when(ragConfig).isEnabled();
         doReturn("title-once").when(chatUtil).chatOnce(anyLong(), anyString(), anyString(), any());
-        doReturn(Flux.just("ok")).when(chatUtil)
-                .chatStreamInConversation(eq(1L), eq(conversationId), anyString(), anyString(), any());
+        doReturn(Flux.just("ok")).when(knowledgeRagService)
+                .streamAnswer(eq(1L), eq(conversationId), anyString(), isNull(), eq(false), any());
 
         AtomicInteger counter = new AtomicInteger(0);
         doReturn(1).when(conversationMapper).updateTitleByIdAndUserId(eq(conversationId), anyLong(), anyString());
@@ -340,7 +334,6 @@ class MessageServiceImplTest {
                 ConversationContextSupport.CONFIG_RAG_DOCUMENT_IDS, List.of(9L)));
         doReturn(conversation).when(conversationService).requireOwned(306L);
         doReturn(4).when(conversationMapper).incrementMessageCountAndGet(eq(306L), anyLong(), eq(2));
-        doReturn(true).when(ragConfig).isEnabled();
         org.mockito.Mockito.doAnswer(invocation -> {
             Message m = invocation.getArgument(0);
             if (m.getRole() == 2) {

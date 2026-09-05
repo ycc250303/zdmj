@@ -1,0 +1,5 @@
+# 含系统知识库原文，与 system-knowledge 一样不入库
+dataset.jsonl
+details.jsonl
+report.json
+report.txt
