@@ -12,6 +12,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -100,8 +101,6 @@ class KnowledgeRagServiceImplTest {
         hit.setMetadata(Map.of("source", "test"));
         when(knowledgeVectorMapper.searchBySimilarity(402L, 502L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of(hit));
-        when(knowledgeVectorMapper.selectChunksByDocuments(eq(402L), eq(502L), any()))
-                .thenReturn(List.of(hit));
         when(chatUtil.chatStreamInConversation(eq(402L), eq(14L), eq("hello question"),
                 eq(PromptNames.KNOWLEDGEBASE_RAG_SYSTEM), any()))
                 .thenReturn(Flux.just("rag-answer"));
@@ -115,6 +114,8 @@ class KnowledgeRagServiceImplTest {
         verify(chatUtil).chatStreamInConversation(eq(402L), eq(14L), eq("hello question"),
                 eq(PromptNames.KNOWLEDGEBASE_RAG_SYSTEM), any());
         verify(knowledgeVectorMapper).searchBySimilarity(402L, 502L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium());
+        verify(knowledgeVectorMapper, never()).selectChunksByDocuments(any(), any(), any());
+        verify(embeddingModel).embed("hello question");
     }
 
     @Test
@@ -137,8 +138,6 @@ class KnowledgeRagServiceImplTest {
         hit.setContent("命中内容");
         when(knowledgeVectorMapper.searchBySimilarity(eq(403L), eq(503L), eq("[0.3,0.4]"), anyInt()))
                 .thenReturn(List.of(hit));
-        when(knowledgeVectorMapper.selectChunksByDocuments(eq(403L), eq(503L), any()))
-                .thenReturn(List.of(hit));
         when(chatUtil.chatStreamInConversation(eq(403L), eq(15L), eq("raw question"),
                 eq(PromptNames.KNOWLEDGEBASE_RAG_SYSTEM), any()))
                 .thenReturn(Flux.just("rewritten-rag-answer"));
@@ -152,6 +151,10 @@ class KnowledgeRagServiceImplTest {
         verify(chatUtil).chatOnce(eq(403L), eq("raw question"), eq(PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE), any());
         verify(chatUtil).chatStreamInConversation(eq(403L), eq(15L), eq("raw question"),
                 eq(PromptNames.KNOWLEDGEBASE_RAG_SYSTEM), any());
+        verify(embeddingModel).embed("raw question");
+        verify(embeddingModel).embed("rewritten question");
+        verify(knowledgeVectorMapper, Mockito.times(2)).searchBySimilarity(eq(403L), eq(503L), eq("[0.3,0.4]"), anyInt());
+        verify(knowledgeVectorMapper, never()).selectChunksByDocuments(any(), any(), any());
     }
 
     @Test
@@ -173,7 +176,6 @@ class KnowledgeRagServiceImplTest {
     void streamAnswerSystemKnowledgeOnly_shouldSearchSystemKbWhenUserDocsDisabled() {
         UserHolder.set(UserContext.of(404L, "u"));
         ragConfig.getRewrite().setEnabled(false);
-        when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(504L);
         when(knowledgeBasesService.findKnowledgeBaseIdByScope(KnowledgeScopeEnum.SYSTEM.getCode())).thenReturn(11L);
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.5,0.6]");
         when(embeddingModel.embed(anyString())).thenReturn(new float[] {0.5f, 0.6f});
@@ -187,9 +189,6 @@ class KnowledgeRagServiceImplTest {
         when(knowledgeVectorMapper.searchBySimilarity(
                 KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.5,0.6]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of(hit));
-        when(knowledgeVectorMapper.selectChunksByDocuments(
-                eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(11L), any()))
-                .thenReturn(List.of(hit));
         when(chatUtil.chatStreamInConversation(eq(404L), eq(17L), eq("system only"),
                 eq(PromptNames.KNOWLEDGEBASE_RAG_SYSTEM), any()))
                 .thenReturn(Flux.just("system-rag"));
@@ -202,7 +201,9 @@ class KnowledgeRagServiceImplTest {
         assertEquals(List.of("system-rag"), chunks);
         verify(knowledgeVectorMapper).searchBySimilarity(
                 KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.5,0.6]", ragConfig.getSearch().getTopkMedium());
-        verify(knowledgeVectorMapper, never()).searchBySimilarity(eq(404L), eq(504L), any(), anyInt());
+        verify(knowledgeBasesService, never()).getOrCreateKnowledgeBaseId();
+        verify(knowledgeVectorMapper, never()).searchBySimilarity(eq(404L), any(), any(), anyInt());
+        verify(knowledgeVectorMapper, never()).selectChunksByDocuments(any(), any(), any());
     }
 
     @Test
@@ -219,12 +220,18 @@ class KnowledgeRagServiceImplTest {
 
     @Test
     void retrieveRankedBothSourcesOff_shouldReturnEmptyHits() {
+        ragConfig.getRewrite().setEnabled(true);
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
+        String longQuery = "this is a long enough query to trigger rewrite if search ran";
 
-        KnowledgeRetrievalResponse out = service.retrieveRanked(405L, "hello", List.of(), false);
+        KnowledgeRetrievalResponse out = service.retrieveRanked(405L, longQuery, List.of(), false);
 
         assertEquals(List.of(), out.getHits());
+        assertEquals(longQuery, out.getQuery());
+        assertEquals(longQuery, out.getRewrittenQuery());
+        assertFalse(out.isRewriteUsed());
+        verify(chatUtil, never()).chatOnce(any(), any(), any(), any());
         verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
         verify(knowledgeVectorMapper, never()).selectChunksByDocuments(any(), any(), any());
     }
@@ -304,5 +311,72 @@ class KnowledgeRagServiceImplTest {
         verify(knowledgeVectorMapper, Mockito.times(2)).searchBySimilarity(
                 eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(11L), eq("[0.3,0.4]"), anyInt());
         verify(knowledgeVectorMapper, never()).selectChunksByDocuments(any(), any(), any());
+    }
+
+    @Test
+    @SuppressWarnings("null")
+    void retrieveRankedShortQuery_shouldRewriteBecauseDualPathKeepsOriginal() {
+        UserHolder.set(UserContext.of(408L, "u"));
+        ragConfig.getRewrite().setEnabled(true);
+        when(knowledgeBasesService.findKnowledgeBaseIdByScope(KnowledgeScopeEnum.SYSTEM.getCode())).thenReturn(11L);
+        when(chatUtil.chatOnce(eq(408L), eq("Java"), eq(PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE), any()))
+                .thenReturn("Java 后端开发");
+        when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.3,0.4]");
+        when(embeddingModel.embed(anyString())).thenReturn(new float[] {0.3f, 0.4f});
+
+        KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO();
+        hit.setId(31L);
+        hit.setDocumentId(901L);
+        hit.setChunkIndex(0);
+        hit.setScore(0.85);
+        when(knowledgeVectorMapper.searchBySimilarity(
+                eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(11L), eq("[0.3,0.4]"), anyInt()))
+                .thenReturn(List.of(hit));
+
+        KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
+                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
+
+        KnowledgeRetrievalResponse out = service.retrieveRanked(408L, "Java", List.of(), true);
+
+        assertTrue(out.isRewriteUsed());
+        assertEquals("Java", out.getQuery());
+        assertEquals("Java 后端开发", out.getRewrittenQuery());
+        verify(chatUtil).chatOnce(eq(408L), eq("Java"), eq(PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE), any());
+        verify(knowledgeVectorMapper, Mockito.times(2)).searchBySimilarity(
+                eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(11L), eq("[0.3,0.4]"), anyInt());
+    }
+
+    @Test
+    @SuppressWarnings("null")
+    void retrieveRankedMergeOverTopK_shouldTruncateToTopK() {
+        UserHolder.set(UserContext.of(409L, "u"));
+        ragConfig.getRewrite().setEnabled(false);
+        when(knowledgeBasesService.findKnowledgeBaseIdByScope(KnowledgeScopeEnum.SYSTEM.getCode())).thenReturn(11L);
+        when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.1,0.2]");
+        when(embeddingModel.embed(anyString())).thenReturn(new float[] {0.1f, 0.2f});
+
+        int topK = ragConfig.getSearch().getTopkMedium();
+        List<KnowledgeRetrivalDTO> overflow = new ArrayList<>();
+        for (int i = 0; i < topK + 3; i++) {
+            KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO();
+            hit.setId((long) i);
+            hit.setDocumentId(900L);
+            hit.setChunkIndex(i);
+            hit.setScore(1.0 - i * 0.01);
+            overflow.add(hit);
+        }
+        when(knowledgeVectorMapper.searchBySimilarity(
+                KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.1,0.2]", topK))
+                .thenReturn(overflow);
+
+        KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
+                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
+
+        KnowledgeRetrievalResponse out = service.retrieveRanked(409L, "hello question", List.of(), true);
+
+        assertEquals(topK, out.getHits().size());
+        assertEquals(0L, out.getHits().get(0).getId());
+        assertEquals((long) (topK - 1), out.getHits().get(topK - 1).getId());
+        verify(embeddingModel).embed("hello question");
     }
 }

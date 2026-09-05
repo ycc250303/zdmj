@@ -13,7 +13,7 @@
 
 rank 为 1-based。gold 是抽样到的 `knowledge_vectors.id`。
 
-本评测**不经过**「命中即整篇展开」。展开会把 score 置空，不再是排序检索。Hit@K/MRR 对齐 `KnowledgeRagService.retrieveRanked`（与 `streamAnswer` 共用 `prepareSearch` + `retrieveForKnowledgeBase`）。
+本评测对齐 `KnowledgeRagService.retrieveRanked`。对话 `streamAnswer` 直接调用同一方法，再用排序切块拼 prompt（不再整篇展开）。Hit@K/MRR 看的就是这层合并截断后的 `hits`。
 
 ## 契约
 
@@ -75,4 +75,4 @@ python3 sql/eval_rag_retrieval.py --mode build             # 仅出题
 - 改策略只动 Java，脚本自动跟上
 - 线上仍要看点踩、追问；本套是离线回归基线
 
-本机 100 条（seed=42，`knowledge_id=11`）`retrieveRanked`：**Hit@5 = 0.91，MRR = 0.79**。此前 `--ann-only` 对照约 Hit@5=0.90 / MRR=0.80，主指标以 Java 排序层为准。
+本机 100 条（seed=42，`knowledge_id=11`）当前 `retrieveRanked`（改写双路、合并后截断 topK、无整篇展开）：**Hit@5 = 0.89，MRR = 0.80**。此前同数据集约 Hit@5=0.91 / MRR=0.79；`--ann-only` 对照约 Hit@5=0.90 / MRR=0.80。主指标以本次 Java 排序层为准。

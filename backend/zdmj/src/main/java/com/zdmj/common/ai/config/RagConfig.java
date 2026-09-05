@@ -20,7 +20,7 @@ public class RagConfig {
 
     @Data
     public static class Search {
-        /** 短句长度阈值（字符数），用于选择 topK / minScore */
+        /** 短句长度阈值（字符数），仅用于选择 topK / minScore；改写不按长度跳过 */
         private int shortQueryLength = 4;
         private int mediumQueryLength = 16;
         private int topkShort = 20;

@@ -17,8 +17,8 @@ public interface KnowledgeRagService {
             boolean useSystemKnowledge, Map<String, Object> promptVars);
 
     /**
-     * 排序层检索：空白归一、query 改写、双路 ANN、动态 topK、minScore；不做整篇展开。
-     * 供评测与其它只需要命中列表的调用方复用，避免在脚本里复制检索策略。
+     * 排序层检索：改写、每句一次 embed、双路 ANN、minScore、合并后截断 topK。
+     * streamAnswer 直接调用本方法；两库都关时不改写、空 hits。
      */
     KnowledgeRetrievalResponse retrieveRanked(Long userId, String userMessage, List<Long> ragDocumentIds,
             boolean useSystemKnowledge);

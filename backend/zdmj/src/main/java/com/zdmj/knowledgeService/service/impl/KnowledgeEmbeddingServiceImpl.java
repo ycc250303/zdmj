@@ -106,10 +106,10 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
 
         try {
             if (task.getTaskType() != null && task.getTaskType() == KnowledgeVectorTaskTypeEnum.EMBEDDING.getCode()) {
-                runEmbeddingTask(task);
+                runEmbeddingTaskByUser(task.getDocumentId(), task.getUserId());
             } else if (task.getTaskType() != null
                     && task.getTaskType() == KnowledgeVectorTaskTypeEnum.DELETE.getCode()) {
-                runDeleteTask(task);
+                runDeleteTaskByUser(task.getDocumentId(), task.getUserId());
             } else {
                 throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "未知任务类型");
             }
@@ -141,34 +141,43 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
         runDeleteTaskByUser(DocumentId, kd.getUserId());
     }
 
-    private void runEmbeddingTask(KnowledgeVectorTask task) {
-        runEmbeddingTaskByUser(task.getDocumentId(), task.getUserId());
-    }
-
+    /**
+     * 单文档向量化：抽文本 → 切块 → 批量 Embedding → 写入 knowledge_vectors。
+     * 事务由调用方（executeTaskAsync / vectorizeAndStore）的 {@code @Transactional} 覆盖；
+     * 本方法为 private，加注解不会生效。
+     */
     private void runEmbeddingTaskByUser(Long DocumentId, Long userId) {
         log.info("开始向量化并存储知识库: DocumentId={}, userId={}", DocumentId, userId);
+
+        // --- 1. 校验：文档存在且归属于任务上的 userId（异步线程无 UserHolder） ---
         KnowledgeDocument kd = knowledgeDocumentMapper.selectById(DocumentId);
         if (kd == null || !userId.equals(kd.getUserId())) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
         }
-        kd.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.RUNNING.getCode());
-        kd.setLastError(null);
-        knowledgeDocumentMapper.updateById(kd);
-
         Long knowledgeId = kd.getKnowledgeId();
         if (knowledgeId == null) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
         }
 
+        // --- 2. 状态：先标 RUNNING，前端可轮询 embeddingStatus ---
+        kd.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.RUNNING.getCode());
+        kd.setLastError(null);
+        knowledgeDocumentMapper.updateById(kd);
+
         try {
+            // --- 3. 清旧向量：重跑/更新文档时保证「一份文档一份当前切片」 ---
             knowledgeVectorMapper.deleteByDocumentIdAndUserId(DocumentId, userId);
+
+            // --- 4. 抽文本：content 存的是 COS URL，Tika 按类型取出纯文本 ---
             String rawText = extractText(kd);
 
+            // --- 5. 切块：TokenTextSplitter 默认 800 token/块 ---
             List<Document> chunks = textSplitter.apply(List.of(new Document(rawText)));
             if (chunks.isEmpty()) {
                 throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "分块结果为空");
             }
 
+            // --- 6. 批量 Embedding + 落库：每批 ≤10，控制厂商限流与失败粒度 ---
             int totalChunks = chunks.size();
             int batchCount = (totalChunks + MAX_BATCH_SIZE - 1) / MAX_BATCH_SIZE;
             int persistedCount = 0;
@@ -208,6 +217,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
                 persistedCount += rows.size();
             }
 
+            // --- 7. 回写文档：success + 块数 + 内容哈希（供以后判断是否需要重嵌） ---
             kd.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.SUCCESS.getCode());
             kd.setChunkCount(persistedCount);
             kd.setLastEmbeddedAt(LocalDateTime.now());
@@ -216,6 +226,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
             knowledgeDocumentMapper.updateById(kd);
             log.info("向量化完成: DocumentId={}, chunks={}, batches={}", DocumentId, persistedCount, batchCount);
         } catch (Exception e) {
+            // 文档标 FAILED 后上抛；外层 executeTaskAsync 吞异常并 markTaskFailed，事务仍提交。
             kd.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.FAILED.getCode());
             kd.setLastError(e.getMessage());
             knowledgeDocumentMapper.updateById(kd);
@@ -236,11 +247,6 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
         }
         sb.append("]");
         return sb.toString();
-    }
-
-
-    private void runDeleteTask(KnowledgeVectorTask task) {
-        runDeleteTaskByUser(task.getDocumentId(), task.getUserId());
     }
 
     private void runDeleteTaskByUser(Long DocumentId, Long userId) {
