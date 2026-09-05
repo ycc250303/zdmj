@@ -22,7 +22,7 @@ PromptUtil.resolve(PromptScenario, JobRole)
 | 岗位画像生成 | `detect(岗位上下文)` |
 | 岗位图谱 / 人岗匹配 / 生涯报告 | `JobRole.fromString(jobProfile.targetRoleType)`；画像缺失则先生成画像 |
 
-GET 查询接口不识别。图谱若画像不存在会先跑完整岗位要求 LLM（与匹配一致），这是「一岗一身份」的代价。
+GET 查询接口不识别。当前用户对该岗尚无画像时，匹配等下游会先生成（一用户一岗一身份）。
 
 ## 识别步骤（Detector 内部）
 

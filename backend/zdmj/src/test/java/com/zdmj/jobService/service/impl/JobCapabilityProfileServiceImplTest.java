@@ -96,7 +96,10 @@ class JobCapabilityProfileServiceImplTest {
         assertEquals("Java/Spring", result.getProfessionalSkills());
         assertEquals("summary", result.getSummary());
         assertEquals(List.of("基础扎实"), result.getStrengths());
-        verify(profileService).updateById(any(JobCapabilityProfile.class));
+        ArgumentCaptor<JobCapabilityProfile> updated = ArgumentCaptor.forClass(JobCapabilityProfile.class);
+        verify(profileService).updateById(updated.capture());
+        assertEquals(1L, updated.getValue().getUserId());
+        assertEquals(jobId, updated.getValue().getJobId());
         verify(profileService, never()).save(any(JobCapabilityProfile.class));
     }
 
@@ -119,8 +122,22 @@ class JobCapabilityProfileServiceImplTest {
         assertEquals("Python/FastAPI", result.getProfessionalSkills());
         assertEquals("new-profile", result.getSummary());
         assertEquals(List.of("工程化"), result.getStrengths());
-        verify(profileService).save(any(JobCapabilityProfile.class));
+        ArgumentCaptor<JobCapabilityProfile> saved = ArgumentCaptor.forClass(JobCapabilityProfile.class);
+        verify(profileService).save(saved.capture());
+        assertEquals(1L, saved.getValue().getUserId());
+        assertEquals(jobId, saved.getValue().getJobId());
         verify(profileService, never()).updateById(any(JobCapabilityProfile.class));
+    }
+
+    @Test
+    void profile_notFound_getJobCapabilityProfileOrNull_whenAnonymous_shouldReturnNullWithoutQuery() {
+        UserHolder.clear();
+
+        JobCapabilityProfileResponse result = profileService.getJobCapabilityProfileOrNull(20L);
+
+        assertNull(result);
+        verify(jobService, never()).getDetail(any());
+        verify(profileService, never()).getOne(any());
     }
 
     @Test

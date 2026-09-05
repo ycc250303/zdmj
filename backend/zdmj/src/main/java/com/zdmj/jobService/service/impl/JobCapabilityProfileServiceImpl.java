@@ -58,10 +58,10 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
             throw new BusinessException(ErrorCode.JOB_CAPABILITY_PROFILE_GENERATION_FAILED);
         }
 
-        JobCapabilityProfile existingProfile = getOne(
-                new LambdaQueryWrapper<JobCapabilityProfile>().eq(JobCapabilityProfile::getJobId, jobId));
+        JobCapabilityProfile existingProfile = findOwned(userId, jobId);
 
         JobCapabilityProfile newProfile = toEntity(aiResult);
+        newProfile.setUserId(userId);
         newProfile.setJobId(jobId);
         newProfile.setRoleConfidence(BigDecimal.valueOf(detected.confidence()));
         newProfile.setPromptName(promptName);
@@ -79,16 +79,25 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
 
     @Override
     public JobCapabilityProfileResponse getJobCapabilityProfileOrNull(Long jobId) {
+        Long userId = UserHolder.getUserId();
+        if (userId == null) {
+            return null;
+        }
         JobListItemResponse jobDetail = jobService.getDetail(jobId);
         if (jobDetail == null) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
-        JobCapabilityProfile profile = getOne(
-                new LambdaQueryWrapper<JobCapabilityProfile>().eq(JobCapabilityProfile::getJobId, jobId));
+        JobCapabilityProfile profile = findOwned(userId, jobId);
         if (profile == null) {
             return null;
         }
         return toDto(profile);
+    }
+
+    private JobCapabilityProfile findOwned(Long userId, Long jobId) {
+        return getOne(new LambdaQueryWrapper<JobCapabilityProfile>()
+                .eq(JobCapabilityProfile::getUserId, userId)
+                .eq(JobCapabilityProfile::getJobId, jobId));
     }
 
     private static JobCapabilityProfileResponse toDto(JobCapabilityProfile entity) {

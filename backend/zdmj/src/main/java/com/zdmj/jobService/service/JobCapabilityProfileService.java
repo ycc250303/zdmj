@@ -6,7 +6,7 @@ import com.zdmj.jobService.entity.JobCapabilityProfile;
 
 public interface JobCapabilityProfileService extends IService<JobCapabilityProfile> {
     /**
-     * 根据岗位ID获取岗位能力画像(如果没有则生成)
+     * 为当前用户生成岗位能力画像（已有则覆盖本人旧行）
      *
      * @param jobId 岗位ID
      * @return 岗位能力画像
@@ -14,7 +14,7 @@ public interface JobCapabilityProfileService extends IService<JobCapabilityProfi
     JobCapabilityProfileResponse getJobCapabilityProfile(Long jobId);
 
     /**
-     * 仅查询岗位能力画像；若不存在则返回 null
+     * 仅查询当前用户对该岗的能力画像；未登录或不存在则返回 null
      *
      * @param jobId 岗位ID
      * @return 岗位能力画像或 null

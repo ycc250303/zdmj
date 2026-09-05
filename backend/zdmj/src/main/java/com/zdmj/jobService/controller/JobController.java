@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.common.model.CreateGroup;
 
 import java.util.concurrent.TimeUnit;
@@ -126,7 +127,7 @@ public class JobController {
 
 
     /**
-     * 查询岗位能力画像（仅查询，不触发生成；不存在返回 null）
+     * 查询当前用户对该岗的能力画像（仅查询，不触发生成；未登录或不存在返回 null）
      *
      * @param id 岗位ID
      * @return 岗位能力画像或 null
@@ -137,15 +138,15 @@ public class JobController {
     }
 
     /**
-     * 生成岗位能力画像（若已有则覆盖重写）
+     * 为当前用户生成岗位能力画像（已有则覆盖本人旧行）
      * 
      * @param id 岗位ID
      * @return 岗位能力画像
      */
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/{id}/capability-profile")
-    public Result<JobCapabilityProfileResponse> getJobCapabilityProfile(@PathVariable Long id) {
-        return Result.success("获取岗位能力画像成功", jobCapabilityProfileService.getJobCapabilityProfile(id));
+    public Result<AsyncTaskDTO> getJobCapabilityProfile(@PathVariable Long id) {
+        return Result.success("已提交岗位能力画像任务", jobCapabilityProfileService.enqueueGenerate(id));
     }
 
         /**
@@ -173,7 +174,7 @@ public class JobController {
          */
         @RateLimit(dimension = RateLimit.Dimension.USER, count = 5, interval = 1, timeUnit = TimeUnit.MINUTES)
         @PostMapping("/{id}/career-graph")
-        public Result<JobCareerGraphResponse> generateJobCareerGraph(@PathVariable Long id) {
-            return Result.success("生成岗位关联图谱成功", jobCareerGraphService.generate(id));
+        public Result<AsyncTaskDTO> generateJobCareerGraph(@PathVariable Long id) {
+            return Result.success("已提交岗位关联图谱任务", jobCareerGraphService.enqueueGenerate(id));
         }
 }

@@ -14,6 +14,8 @@ import lombok.EqualsAndHashCode;
 /**
  * 岗位能力画像实体类
  * 对应数据库表：job_capability_profiles
+ *
+ * <p>每一行表示「某用户 × 某岗位」一份岗位要求画像。按 (user_id, job_id) 唯一，重新生成覆盖本人旧行。</p>
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -24,6 +26,11 @@ public class JobCapabilityProfile extends BaseEntity {
      */
     @TableId(type = IdType.AUTO)
     private Long id;
+
+    /**
+     * 归属用户ID（逻辑外键：users.id）
+     */
+    private Long userId;
 
     /**
      * 岗位ID

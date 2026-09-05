@@ -380,10 +380,12 @@ CREATE INDEX IF NOT EXISTS idx_companies_name_trgm ON companies USING GIN (name 
 CREATE INDEX IF NOT EXISTS idx_companies_size ON companies(size);
 CREATE INDEX IF NOT EXISTS idx_companies_type ON companies(type);
 CREATE INDEX IF NOT EXISTS idx_companies_industries ON companies(industries);
--- 3.3 岗位能力画像表
+-- 3.3 岗位能力画像表（每用户 × 每岗位至多一条）
 CREATE TABLE IF NOT EXISTS job_capability_profiles (
     id BIGSERIAL PRIMARY KEY,
     -- 岗位能力画像ID
+    user_id BIGINT NOT NULL,
+    -- 归属用户ID（逻辑外键：users.id）
     job_id BIGINT NOT NULL,
     -- 岗位ID（逻辑外键：jobs.id）
     professional_skills TEXT,
@@ -416,7 +418,7 @@ CREATE TABLE IF NOT EXISTS job_capability_profiles (
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
 );
-CREATE INDEX IF NOT EXISTS idx_job_capability_profiles_job_id ON job_capability_profiles(job_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_job_capability_profiles_user_job ON job_capability_profiles(user_id, job_id);
 CREATE INDEX IF NOT EXISTS idx_job_capability_profiles_role_type ON job_capability_profiles(target_role_type);
 -- 3.4 岗位关联图谱表
 CREATE TABLE IF NOT EXISTS job_career_graphs (
@@ -773,7 +775,7 @@ CREATE TABLE IF NOT EXISTS async_llm_tasks (
     --           9=KB_EMBED 知识库向量化
     --           10=KB_DELETE 知识库向量删除）
     biz_key VARCHAR(128) NOT NULL,
-    -- 去重键（如 user:{userId}、job:{jobId}、user:{userId}:job:{jobId}）
+    -- 去重键（如 user:{userId}、user:{userId}:job:{jobId}）
     status SMALLINT NOT NULL DEFAULT 1,
     -- 任务状态（枚举：1=pending/2=running/3=success/4=failed，与向量任务一致）
     payload JSONB,

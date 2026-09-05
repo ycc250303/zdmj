@@ -217,11 +217,12 @@
 
 ### 3.3 表 `job_capability_profiles`
 
-岗位能力画像：每个 `job_id` 至多一条；重新生成覆盖写。
+岗位能力画像：每个 `(user_id, job_id)` 至多一条；重新生成覆盖本人旧行。`jobs` 仍为全站共享目录。
 
 | 字段名称 | 字段类型 | 字段含义 | 约束 | 枚举/JSON字段含义 |
 | --- | --- | --- | --- | --- |
 | `id` | `BIGSERIAL` | 画像ID | `PK` | - |
+| `user_id` | `BIGINT` | 归属用户 | `NOT NULL`，逻辑外键 `users.id` | - |
 | `job_id` | `BIGINT` | 岗位ID | `NOT NULL`，逻辑外键 `jobs.id` | - |
 | `professional_skills` / `certificates` / `innovation_ability` / `learning_ability` / `pressure_resistance` / `communication_ability` / `practical_ability` | `TEXT` | 七维岗位要求 | 可空 | - |
 | `role_confidence` | `NUMERIC(5,4)` | 岗位分类置信度 | `NOT NULL DEFAULT 0.0` | 0~1 |
@@ -232,7 +233,7 @@
 | `summary` | `TEXT` | 一句话总结 | 可空 | - |
 | `created_at` / `updated_at` | `TIMESTAMP` | 创建/更新时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
 
-**索引**：`idx_job_capability_profiles_job_id`；`idx_job_capability_profiles_role_type`。
+**索引**：`uk_job_capability_profiles_user_job` UNIQUE `(user_id, job_id)`；`idx_job_capability_profiles_role_type`。
 
 ### 3.4 表 `job_student_matches`
 
@@ -403,7 +404,7 @@ Redis Stream 入队后的任务真相与抢占表；**不**把异步状态塞进
 | `id`            | `BIGSERIAL`    | 任务ID（对外 taskId） | `PK`                          | - |
 | `user_id`       | `BIGINT`       | 发起人       | `NOT NULL`，逻辑外键 `users.id` | 消费者无 `UserHolder`，权限与写库用此字段 |
 | `task_type`     | `SMALLINT`     | 任务类型     | `NOT NULL`，`CHECK (1..10)`     | `1=STUDENT_PROFILE 学生能力画像, 2=JOB_PROFILE 岗位能力画像, 3=JOB_GRAPH 岗位职业图谱, 4=JOB_MATCH 人岗匹配, 5=CAREER_REPORT 职业发展报告, 6=REPORT_POLISH 报告润色, 7=REPORT_CHECK 报告完整性检查, 8=RESUME_PARSE 简历识别, 9=KB_EMBED 知识库向量化, 10=KB_DELETE 知识库向量删除` |
-| `biz_key`       | `VARCHAR(128)` | 去重键       | `NOT NULL`                        | 如 `user:{userId}`、`job:{jobId}`、`user:{userId}:job:{jobId}`、`report:{reportId}`、`doc:{documentId}` |
+| `biz_key`       | `VARCHAR(128)` | 去重键       | `NOT NULL`                        | 如 `user:{userId}`、`user:{userId}:job:{jobId}`、`report:{reportId}`、`doc:{documentId}`（按用户隔离，不含全站 `job:{jobId}`） |
 | `status`        | `SMALLINT`     | 任务状态     | `NOT NULL DEFAULT 1`，`CHECK (1,2,3,4)` | `1=pending, 2=running, 3=success, 4=failed`（与向量任务一致） |
 | `payload`       | `JSONB`        | 入队参数     | 可空                                | 如 match 的 `weights`、简历 `pdfUrl`/`rawText` |
 | `result`        | `JSONB`        | 成功结果     | 可空                                | 无独立业务表时写入（如 `RESUME_PARSE`） |
