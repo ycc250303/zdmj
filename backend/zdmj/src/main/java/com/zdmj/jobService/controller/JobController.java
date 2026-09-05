@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.zdmj.common.annotation.RateLimit;
-import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.common.model.CreateGroup;
 
 import java.util.concurrent.TimeUnit;
@@ -145,8 +144,8 @@ public class JobController {
      */
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/{id}/capability-profile")
-    public Result<AsyncTaskDTO> getJobCapabilityProfile(@PathVariable Long id) {
-        return Result.success("已提交岗位能力画像任务", jobCapabilityProfileService.enqueueGenerate(id));
+    public Result<JobCapabilityProfileResponse> getJobCapabilityProfile(@PathVariable Long id) {
+        return Result.success("获取岗位能力画像成功", jobCapabilityProfileService.getJobCapabilityProfile(id));
     }
 
         /**
@@ -174,7 +173,7 @@ public class JobController {
          */
         @RateLimit(dimension = RateLimit.Dimension.USER, count = 5, interval = 1, timeUnit = TimeUnit.MINUTES)
         @PostMapping("/{id}/career-graph")
-        public Result<AsyncTaskDTO> generateJobCareerGraph(@PathVariable Long id) {
-            return Result.success("已提交岗位关联图谱任务", jobCareerGraphService.enqueueGenerate(id));
+        public Result<JobCareerGraphResponse> generateJobCareerGraph(@PathVariable Long id) {
+            return Result.success("生成岗位关联图谱成功", jobCareerGraphService.generate(id));
         }
 }
