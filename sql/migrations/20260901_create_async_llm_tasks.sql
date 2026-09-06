@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS async_llm_tasks (
     --           9=KB_EMBED 知识库向量化
     --           10=KB_DELETE 知识库向量删除
     biz_key VARCHAR(128) NOT NULL,
-    -- 去重键，如 user:{userId}、job:{jobId}、user:{userId}:job:{jobId}
+    -- 去重键，如 user:{userId}、user:{userId}:job:{jobId}
     status SMALLINT NOT NULL DEFAULT 1,
     -- 1=pending 2=running 3=success 4=failed（与 knowledge_vector_tasks 一致）
     payload JSONB,

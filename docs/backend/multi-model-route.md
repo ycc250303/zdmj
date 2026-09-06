@@ -181,7 +181,7 @@ spring.ai.openai.embedding.options:
 | SSE 多轮 | `chatStreamInConversation(userId, conversationId, …)`（`POST /messages/chat`） |
 | 提示词 | 与岗位无关的用 `PromptNames`；按方向拆分的经 `JobRole` + `PromptUtil.resolve`（见 [`job-role-prompt.md`](job-role-prompt.md)）。占位符只替换 `${key}` / `{key}`，避免 JSON 花括号被模板引擎吃掉 |
 
-长耗时接口加 `@RateLimit(USER)`，阈值写在各 Controller 方法上。异步入队见 [`llm-async-stream.md`](llm-async-stream.md)（未落地）。
+长耗时接口加 `@RateLimit(USER)`，阈值写在各 Controller 方法上。异步入队见 [`llm-async-stream.md`](llm-async-stream.md)（一期骨架已落地，生成 POST 仍同步）。
 
 ---
 
