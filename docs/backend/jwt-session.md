@@ -8,7 +8,7 @@
 |------|------|------------|
 | `JwtSessionStore` / `RedisJwtSessionStore` | 登录 allowlist | 上抛 |
 | `RedisUtil` 缓存 API | 岗位详情等 | 吞异常，返回 null/false |
-| `RedisUtil` Stream / 锁 | 异步任务 | 上抛（本模块不拆类） |
+| `RedisUtil` Stream | 异步任务 | 上抛（本模块不拆类） |
 | `RateLimitAspect` / 验证码 | 直连 `StringRedisTemplate` | 各自处理 |
 
 登录与带 token 的请求**不得**调用 `RedisUtil.setString` / `getString`：缓存 API 把 miss 与故障都变成 `null`，且 `setString` 会给 TTL 加 0–5% 抖动，可能比 JWT 7 天更早过期。

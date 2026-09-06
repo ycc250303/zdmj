@@ -7,11 +7,9 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-import org.springframework.data.domain.Range;
 import org.springframework.data.redis.connection.RedisStreamCommands.XAddOptions;
 import org.springframework.data.redis.connection.stream.Consumer;
 import org.springframework.data.redis.connection.stream.MapRecord;
-import org.springframework.data.redis.connection.stream.PendingMessages;
 import org.springframework.data.redis.connection.stream.ReadOffset;
 import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.connection.stream.StreamOffset;
@@ -27,14 +25,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Redis 辅助：岗位等业务缓存（软失败）与 Stream/任务锁（硬失败）。
+ * Redis 辅助：岗位等业务缓存（软失败）与 Stream（硬失败）。
  *
  * <p><b>禁止</b>用于登录 allowlist、验证码、限流。登录态见 {@code com.zdmj.common.security.JwtSessionStore}；
  * 验证码与限流已直连 {@link StringRedisTemplate}。</p>
  *
  * <ul>
  *   <li>缓存 API（{@code get}/{@code set}/{@code setString} 等）：故障记日志并返回 {@code null}/{@code false}，调用方可回源 DB。</li>
- *   <li>Stream / 任务锁（{@link #tryLock} 起）：失败上抛，由调用方回退。</li>
+ *   <li>Stream API（{@link #xadd} 起）：失败上抛，由调用方回退。</li>
  * </ul>
  */
 @Slf4j
@@ -48,10 +46,10 @@ public class RedisUtil {
     private static final Double RANDOM_OFFSET = 0.05;
 
     /**
-     * 计算带随机偏移的过期时间（偏移量为原时间的 0–5%）
+     * 给 TTL 加 0–5% 随机偏移，减轻缓存雪崩。
      *
-     * @param baseSeconds 基础过期时间（秒）
-     * @return 带随机偏移的过期时间（秒）
+     * @param baseSeconds 基础过期秒数
+     * @return 实际过期秒数（≥ {@code baseSeconds}）
      */
     private long calculateExpireTimeWithRandom(int baseSeconds) {
         int offset = (int) (baseSeconds * RANDOM_OFFSET);
@@ -60,11 +58,11 @@ public class RedisUtil {
     }
 
     /**
-     * 设置缓存（自动添加随机偏移）
-     * 
+     * 将对象序列化为 JSON 写入缓存（TTL 带随机偏移）；Redis 故障只记日志。
+     *
      * @param key           缓存键
-     * @param value         缓存值（对象会被序列化为JSON）
-     * @param expireSeconds 基础过期时间，单位为秒，会自动添加 0–5% 的随机偏移
+     * @param value         待序列化对象
+     * @param expireSeconds 基础过期秒数
      */
     public void set(String key, Object value, int expireSeconds) {
         try {
@@ -80,11 +78,11 @@ public class RedisUtil {
     }
 
     /**
-     * 设置缓存（字符串值，不进行JSON序列化）
-     * 
+     * 原样写入字符串缓存（TTL 带随机偏移）；Redis 故障只记日志。
+     *
      * @param key           缓存键
-     * @param value         缓存值（字符串）
-     * @param expireSeconds 基础过期时间，单位为秒，会自动添加 0–5% 的随机偏移
+     * @param value         字符串值，不经 JSON 序列化
+     * @param expireSeconds 基础过期秒数
      */
     public void setString(String key, String value, int expireSeconds) {
         try {
@@ -99,12 +97,12 @@ public class RedisUtil {
     }
 
     /**
-     * 获取缓存（自动反序列化为指定类型）
-     * 
+     * 读取 JSON 缓存并反序列化为指定类型；缺失或故障返回 {@code null}。
+     *
      * @param key   缓存键
      * @param clazz 目标类型
-     * @param <T>   泛型类型
-     * @return 缓存对象，如果不存在或反序列化失败返回null
+     * @param <T>   反序列化结果类型
+     * @return 缓存对象；键不存在、超时或反序列化失败时为 {@code null}
      */
     public <T> T get(String key, Class<T> clazz) {
         try {
@@ -124,10 +122,10 @@ public class RedisUtil {
     }
 
     /**
-     * 获取缓存字符串值
-     * 
+     * 读取字符串缓存；缺失或故障返回 {@code null}。
+     *
      * @param key 缓存键
-     * @return 缓存值，如果不存在返回null
+     * @return 缓存字符串；键不存在或 Redis 故障时为 {@code null}
      */
     public String getString(String key) {
         try {
@@ -142,8 +140,8 @@ public class RedisUtil {
     }
 
     /**
-     * 删除缓存
-     * 
+     * 删除指定缓存键；Redis 故障只记日志。
+     *
      * @param key 缓存键
      */
     public void delete(String key) {
@@ -158,10 +156,10 @@ public class RedisUtil {
     }
 
     /**
-     * 检查缓存是否存在
-     * 
+     * 判断缓存键是否存在；故障视为不存在。
+     *
      * @param key 缓存键
-     * @return true表示存在，false表示不存在
+     * @return {@code true} 键存在；不存在或 Redis 故障为 {@code false}
      */
     public boolean exists(String key) {
         try {
@@ -176,10 +174,10 @@ public class RedisUtil {
     }
 
     /**
-     * 设置空值标记（防止缓存穿透，仅在复杂查询中使用）
-     * 
-     * @param key           缓存键
-     * @param expireSeconds 过期时间（秒）
+     * 写入空值标记，防止缓存穿透（仅复杂查询使用）。
+     *
+     * @param key           业务缓存键（内部会加空值前缀）
+     * @param expireSeconds 标记过期秒数
      */
     public void setNullValue(String key, int expireSeconds) {
         String nullKey = RedisConstants.NULL_VALUE_KEY + key;
@@ -187,10 +185,10 @@ public class RedisUtil {
     }
 
     /**
-     * 检查是否存在空值标记
-     * 
-     * @param key 缓存键
-     * @return true表示存在空值标记，false表示不存在
+     * 判断是否已有空值标记。
+     *
+     * @param key 业务缓存键（内部会加空值前缀）
+     * @return {@code true} 存在空值标记，查询应直接当空结果
      */
     public boolean isNullValue(String key) {
         String nullKey = RedisConstants.NULL_VALUE_KEY + key;
@@ -198,39 +196,23 @@ public class RedisUtil {
     }
 
     /**
-     * 删除空值标记
-     * 
-     * @param key 缓存键
+     * 删除空值标记，通常在回源写入真实缓存后调用。
+     *
+     * @param key 业务缓存键（内部会加空值前缀）
      */
     public void deleteNullValue(String key) {
         String nullKey = RedisConstants.NULL_VALUE_KEY + key;
         delete(nullKey);
     }
 
-    // ========== Redis Stream 消息队列（失败上抛，与上方缓存吞异常不同）==========
+    // ========== Redis Stream 消息队列 ==========
 
     /**
-     * 抢占任务锁：{@code SET key value NX EX}。未抢到返回 {@code false}；Redis 异常上抛，由调用方回退到 DB 唯一索引。
-     */
-    public boolean tryLock(String key, String value, long expireSeconds) {
-        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(key, value, expireSeconds, TimeUnit.SECONDS);
-        boolean ok = Boolean.TRUE.equals(acquired);
-        log.debug("任务锁 SET NX: key={}, acquired={}", key, ok);
-        return ok;
-    }
-
-    /**
-     * 释放任务锁。消费者 SUCCESS/FAILED 时调用；进程宕机靠 TTL。
-     */
-    public void unlock(String key) {
-        redisTemplate.delete(key);
-        log.debug("释放任务锁: key={}", key);
-    }
-
-    /**
-     * {@code XADD MAXLEN ~} {@link RedisConstants#STREAM_MAXLEN}。
+     * {@code XADD} 写入 Stream，并按 {@link RedisConstants#STREAM_MAXLEN} 近似裁剪。
      *
-     * @return 消息 ID
+     * @param streamKey Stream 键，如 {@code zdmj:llm:stream}
+     * @param fields    消息字段（字符串 Map）
+     * @return 新消息 ID
      */
     public RecordId xadd(String streamKey, Map<String, String> fields) {
         XAddOptions options = XAddOptions.maxlen(RedisConstants.STREAM_MAXLEN).approximateTrimming(true);
@@ -243,20 +225,23 @@ public class RedisUtil {
     }
 
     /**
-     * 写入异步任务消息（仅标识字段，payload 在 DB）。
+     * 写入异步任务消息（仅 {@code taskId}，payload 在 DB）。
+     *
+     * @param streamKey Stream 键
+     * @param taskId    {@code async_llm_tasks.id}
+     * @return 新消息 ID
      */
-    public RecordId xaddTask(String streamKey, long taskId, int taskType, long userId, String bizKey, int retryCount) {
+    public RecordId xaddTask(String streamKey, long taskId) {
         Map<String, String> fields = new LinkedHashMap<>();
         fields.put(RedisConstants.STREAM_FIELD_TASK_ID, Long.toString(taskId));
-        fields.put(RedisConstants.STREAM_FIELD_TYPE, Integer.toString(taskType));
-        fields.put(RedisConstants.STREAM_FIELD_USER_ID, Long.toString(userId));
-        fields.put(RedisConstants.STREAM_FIELD_BIZ_KEY, bizKey);
-        fields.put(RedisConstants.STREAM_FIELD_RETRY_COUNT, Integer.toString(retryCount));
         return xadd(streamKey, fields);
     }
 
     /**
-     * 确保消费组存在（{@code XGROUP CREATE ... MKSTREAM}）。组已存在时忽略 BUSYGROUP。
+     * 创建消费组（{@code XGROUP CREATE ... MKSTREAM}）；组已存在则忽略 BUSYGROUP。
+     *
+     * @param streamKey Stream 键，不存在时会一并创建
+     * @param group     消费组名
      */
     public void ensureConsumerGroup(String streamKey, String group) {
         try {
@@ -273,23 +258,38 @@ public class RedisUtil {
     }
 
     /**
-     * {@code XREADGROUP}，读取本消费者尚未投递的新消息（{@code >}）。
+     * {@code XREADGROUP}。偏移 {@code >}（{@link ReadOffset#lastConsumed()}）读新消息；
+     * {@code 0-0} 读本消费者未 ACK 的 PEL。
+     *
+     * @param streamKey    Stream 键
+     * @param group        消费组名
+     * @param consumerName 本实例消费者名（单实例固定名）
+     * @param count        单次最多条数
+     * @param block        阻塞等待时长；{@code null}/零/负则立即返回
+     * @param offset       读偏移；{@code null} 视为 {@code >}
+     * @return 消息列表，无消息时为空列表（非 {@code null}）
      */
     public List<MapRecord<String, String, String>> xreadGroup(String streamKey, String group, String consumerName,
-            int count, Duration block) {
+            int count, Duration block, ReadOffset offset) {
         StreamReadOptions options = StreamReadOptions.empty().count(count);
         if (block != null && !block.isZero() && !block.isNegative()) {
             options = options.block(block);
         }
+        ReadOffset readOffset = offset == null ? ReadOffset.lastConsumed() : offset;
         List<MapRecord<String, String, String>> records = streamOps().read(
                 Consumer.from(group, consumerName),
                 options,
-                StreamOffset.create(streamKey, ReadOffset.lastConsumed()));
+                StreamOffset.create(streamKey, readOffset));
         return records == null ? List.of() : records;
     }
 
     /**
-     * {@code XACK}，从 PEL 移除已处理消息。
+     * {@code XACK} 确认已处理消息，并从 PEL 移除。
+     *
+     * @param streamKey Stream 键
+     * @param group     消费组名
+     * @param recordIds 待确认消息 ID，可空
+     * @return 实际 ACK 条数；{@code recordIds} 为空时为 0
      */
     public long xack(String streamKey, String group, RecordId... recordIds) {
         if (recordIds == null || recordIds.length == 0) {
@@ -301,31 +301,18 @@ public class RedisUtil {
         return n;
     }
 
-    /**
-     * {@code XPENDING}，查看组内 PEL。
-     */
-    public PendingMessages xpending(String streamKey, String group, long count) {
-        return streamOps().pending(streamKey, group, Range.unbounded(), count);
-    }
-
-    /**
-     * {@code XCLAIM}，接管空闲超过 {@code minIdle} 的 PEL 消息。
-     */
-    public List<MapRecord<String, String, String>> xclaim(String streamKey, String group, String consumerName,
-            Duration minIdle, RecordId... recordIds) {
-        if (recordIds == null || recordIds.length == 0) {
-            return List.of();
-        }
-        List<MapRecord<String, String, String>> claimed = streamOps().claim(streamKey, group, consumerName, minIdle,
-                recordIds);
-        return claimed == null ? List.of() : claimed;
-    }
-
+    /** 取得 Redis Stream 操作句柄。 */
     @SuppressWarnings("unchecked")
     private StreamOperations<String, String, String> streamOps() {
         return redisTemplate.opsForStream();
     }
 
+    /**
+     * 判断异常链是否为消费组已存在（BUSYGROUP）。
+     *
+     * @param error {@code XGROUP CREATE} 抛出的异常
+     * @return {@code true} 组已存在，调用方可忽略
+     */
     private static boolean isBusyGroup(Throwable error) {
         Throwable current = error;
         while (current != null) {
