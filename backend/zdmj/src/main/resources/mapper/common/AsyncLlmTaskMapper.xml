@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zdmj.common.async.mapper.AsyncLlmTaskMapper">
+
+    <!-- 抢占进行中任务：PENDING(1) 或 RUNNING(2) → RUNNING(2)；重启后可能已是 RUNNING -->
+    <update id="claimPendingTask">
+        UPDATE async_llm_tasks
+        SET status = 2,
+            started_at = COALESCE(started_at, NOW()),
+            updated_at = NOW()
+        WHERE id = #{taskId}
+          AND status IN (1, 2)
+    </update>
+
+    <!-- 原子结束：仅 RUNNING(2) 可更新为 SUCCESS(3) -->
+    <update id="markTaskSuccess">
+        UPDATE async_llm_tasks
+        SET status = 3,
+            completed_at = NOW(),
+            error_message = NULL,
+            result = #{result, jdbcType=OTHER, typeHandler=com.zdmj.common.typehandler.JsonbStringTypeHandler},
+            updated_at = NOW()
+        WHERE id = #{taskId}
+          AND status = 2
+    </update>
+
+    <!-- 原子结束：仅 RUNNING(2) 可更新为 FAILED(4) -->
+    <update id="markTaskFailed">
+        UPDATE async_llm_tasks
+        SET status = 4,
+            completed_at = NOW(),
+            error_message = #{errorMessage},
+            updated_at = NOW()
+        WHERE id = #{taskId}
+          AND status = 2
+    </update>
+
+    <!-- 入队写 Stream 失败：PENDING 或 RUNNING → FAILED -->
+    <update id="markEnqueueFailed">
+        UPDATE async_llm_tasks
+        SET status = 4,
+            completed_at = NOW(),
+            error_message = #{errorMessage},
+            updated_at = NOW()
+        WHERE id = #{taskId}
+          AND status IN (1, 2)
+    </update>
+</mapper>

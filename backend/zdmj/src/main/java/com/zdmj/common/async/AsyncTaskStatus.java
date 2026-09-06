@@ -11,10 +11,12 @@ public enum AsyncTaskStatus {
     RUNNING(2, "执行中"),
     /** 业务结果已落库（或写入任务 result） */
     SUCCESS(3, "成功"),
-    /** 超过重试或不可恢复失败 */
+    /** 执行失败或入队失败；终态不占唯一索引，用户可再点 */
     FAILED(4, "失败");
 
+    /** 库内整型码，写入 {@code async_llm_tasks.status} */
     private final int code;
+    /** 中文展示名 */
     private final String label;
 
     AsyncTaskStatus(int code, String label) {

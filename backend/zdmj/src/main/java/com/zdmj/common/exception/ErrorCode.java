@@ -122,7 +122,11 @@ public enum ErrorCode {
     CAREER_REPORT_NOT_FOUND(12001, "职业发展报告不存在", HttpStatus.NOT_FOUND),
     CAREER_REPORT_GENERATION_FAILED(12002, "生成职业发展报告失败，请稍后重试", HttpStatus.BAD_REQUEST),
     CAREER_REPORT_POLISH_FAILED(12003, "润色职业发展报告失败，请稍后重试", HttpStatus.BAD_REQUEST),
-    CAREER_REPORT_INVALID(12004, "职业发展报告结果不符合要求", HttpStatus.BAD_REQUEST);
+    CAREER_REPORT_INVALID(12004, "职业发展报告结果不符合要求", HttpStatus.BAD_REQUEST),
+
+    // ========== 异步任务 common.async 13xxx ==========
+    ASYNC_TASK_NOT_FOUND(13001, "异步任务不存在", HttpStatus.NOT_FOUND),
+    ASYNC_TASK_FAILED(13002, "异步任务执行失败", HttpStatus.BAD_REQUEST);
 
     private final Integer code;
     private final String message;
