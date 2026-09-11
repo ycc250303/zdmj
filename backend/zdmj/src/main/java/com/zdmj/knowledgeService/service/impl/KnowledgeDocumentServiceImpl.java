@@ -14,6 +14,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.PageRequests;
+import com.zdmj.knowledgeService.support.EmbedStreamProducer;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -50,6 +51,7 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
     private final KnowledgeBasesService knowledgeBasesService;
     private final KnowledgeEmbeddingService knowledgeEmbeddingService;
     private final FileUploadService fileUploadService;
+    private final EmbedStreamProducer embedStreamProducer;
 
     /**
      * 创建知识文档
@@ -334,19 +336,24 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
     }
 
     /**
-     * 提交异步向量化任务
-     * 
-     * @param taskId 任务ID
+     * 提交后投递到向量化 Stream；无事务时立即 XADD。
+     *
+     * @param taskId {@code knowledge_vector_tasks.id}
      */
     private void dispatchTaskAfterCommit(Long taskId) {
         if (taskId == null) {
             return;
         }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                knowledgeEmbeddingService.executeTaskAsync(taskId);
-            }
-        });
+        Runnable send = () -> embedStreamProducer.send(taskId);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    send.run();
+                }
+            });
+        } else {
+            send.run();
+        }
     }
 }

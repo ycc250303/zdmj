@@ -9,14 +9,14 @@
     <!-- 根据知识库ID删除向量化任务 -->
     <delete id="deleteByKnowledgeId"> DELETE FROM knowledge_vector_tasks WHERE knowledge_id = #{knowledgeId} </delete>
 
-    <!-- 原子抢占任务：仅 PENDING(1) 可更新为 RUNNING(2) -->
+    <!-- 原子抢占任务：PENDING(1) 或 RUNNING(2) → RUNNING(2) -->
     <update id="claimPendingTask">
         UPDATE knowledge_vector_tasks
         SET status = 2,
-            started_at = NOW(),
+            started_at = COALESCE(started_at, NOW()),
             updated_at = NOW()
         WHERE id = #{taskId}
-          AND status = 1
+          AND status IN (1, 2)
     </update>
 
     <!-- 原子结束任务：仅 RUNNING(2) 可更新为 SUCCESS(3) -->
@@ -39,5 +39,16 @@
             updated_at = NOW()
         WHERE id = #{taskId}
           AND status = 2
+    </update>
+
+    <!-- 入队写 Stream 失败：PENDING 或 RUNNING → FAILED -->
+    <update id="markEnqueueFailed">
+        UPDATE knowledge_vector_tasks
+        SET status = 4,
+            completed_at = NOW(),
+            error_message = #{errorMessage},
+            updated_at = NOW()
+        WHERE id = #{taskId}
+          AND status IN (1, 2)
     </update>
 </mapper>

@@ -83,7 +83,7 @@ class KnowledgeEmbeddingServiceImplTest {
     }
 
     @Test
-    void executeTaskAsyncUnknownType_shouldMarkTaskFailed() {
+    void executeClaimedUnknownType_shouldThrowEmbeddingFailed() {
         KnowledgeEmbeddingServiceImpl service = new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
                 knowledgeVectorTaskMapper, pdfParserUtil);
@@ -92,13 +92,11 @@ class KnowledgeEmbeddingServiceImplTest {
         task.setDocumentId(123L);
         task.setUserId(77L);
         task.setTaskType(999);
-        when(knowledgeVectorTaskMapper.claimPendingTask(88L)).thenReturn(1);
-        when(knowledgeVectorTaskMapper.selectById(88L)).thenReturn(task);
 
-        service.executeTaskAsync(88L);
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.executeClaimed(task));
 
-        verify(knowledgeVectorTaskMapper).claimPendingTask(88L);
-        verify(knowledgeVectorTaskMapper).markTaskFailed(Mockito.eq(88L), Mockito.anyString());
+        assertEquals(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED.getCode(), ex.getCode());
+        verify(knowledgeVectorTaskMapper, never()).markTaskFailed(Mockito.anyLong(), Mockito.anyString());
     }
 
     @Test
@@ -143,35 +141,35 @@ class KnowledgeEmbeddingServiceImplTest {
     }
 
     @Test
-    void executeTaskAsyncWhenClaimFailed_shouldReturnWithoutSelectOrMark() {
-        when(knowledgeVectorTaskMapper.claimPendingTask(7001L)).thenReturn(0);
+    void submitVectorizeTaskWhenInflight_shouldReturnExistingId() {
+        UserHolder.set(UserContext.of(301L, "u"));
+        KnowledgeVectorTask existing = new KnowledgeVectorTask();
+        existing.setId(777L);
+        when(knowledgeVectorTaskMapper.selectOne(Mockito.any())).thenReturn(existing);
         KnowledgeEmbeddingServiceImpl service = new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
                 knowledgeVectorTaskMapper, pdfParserUtil);
 
-        service.executeTaskAsync(7001L);
-
-        verify(knowledgeVectorTaskMapper, never()).selectById(Mockito.anyLong());
-        verify(knowledgeVectorTaskMapper, never()).markTaskSuccess(Mockito.anyLong());
-        verify(knowledgeVectorTaskMapper, never()).markTaskFailed(Mockito.anyLong(), Mockito.anyString());
+        assertEquals(777L, service.submitVectorizeTask(555L));
+        verify(knowledgeVectorTaskMapper, never()).insert(Mockito.any(KnowledgeVectorTask.class));
     }
 
     @Test
-    void executeTaskAsyncTaskMissingAfterClaim_shouldReturnWithoutMark() {
-        KnowledgeVectorTask task = new KnowledgeVectorTask();
-        task.setId(7002L);
-        when(knowledgeVectorTaskMapper.claimPendingTask(7002L)).thenReturn(1);
-        when(knowledgeVectorTaskMapper.selectById(7002L)).thenReturn(null);
+    void executeClaimedDeleteTask_shouldDeleteVectors() {
         KnowledgeEmbeddingServiceImpl service = new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
                 knowledgeVectorTaskMapper, pdfParserUtil);
+        KnowledgeVectorTask task = new KnowledgeVectorTask();
+        task.setId(8801L);
+        task.setDocumentId(120L);
+        task.setUserId(1L);
+        task.setTaskType(KnowledgeVectorTaskTypeEnum.DELETE.getCode());
+        when(knowledgeDocumentMapper.selectById(120L)).thenReturn(null);
 
-        service.executeTaskAsync(7002L);
+        service.executeClaimed(task);
 
-        verify(knowledgeVectorTaskMapper).claimPendingTask(7002L);
-        verify(knowledgeVectorTaskMapper).selectById(7002L);
+        verify(knowledgeVectorMapper).deleteByDocumentIdAndUserId(120L, 1L);
         verify(knowledgeVectorTaskMapper, never()).markTaskSuccess(Mockito.anyLong());
-        verify(knowledgeVectorTaskMapper, never()).markTaskFailed(Mockito.anyLong(), Mockito.anyString());
     }
 
     @Test
@@ -222,24 +220,6 @@ class KnowledgeEmbeddingServiceImplTest {
     }
 
     @Test
-    void resumePendingTasks_shouldDispatchAllPendingTaskIds() {
-        KnowledgeVectorTask t1 = new KnowledgeVectorTask();
-        t1.setId(9001L);
-        KnowledgeVectorTask t2 = new KnowledgeVectorTask();
-        t2.setId(9002L);
-        when(knowledgeVectorTaskMapper.selectList(Mockito.any())).thenReturn(List.of(t1, t2));
-        KnowledgeEmbeddingServiceImpl service = Mockito.spy(new KnowledgeEmbeddingServiceImpl(
-                textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
-                knowledgeVectorTaskMapper, pdfParserUtil));
-        Mockito.doNothing().when(service).executeTaskAsync(Mockito.anyLong());
-
-        service.resumePendingTasks();
-
-        verify(service).executeTaskAsync(9001L);
-        verify(service).executeTaskAsync(9002L);
-    }
-
-    @Test
     void toPgVectorNullOrEmpty_shouldReturnNull() {
         KnowledgeEmbeddingServiceImpl service = new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
@@ -262,27 +242,6 @@ class KnowledgeEmbeddingServiceImplTest {
         assertTrue(vector.contains("1.0"));
         assertTrue(vector.contains("-2.5"));
         assertTrue(vector.contains("3.25"));
-    }
-
-    @Test
-    void executeTaskAsyncDeleteTask_shouldMarkSuccess() {
-        KnowledgeEmbeddingServiceImpl service = new KnowledgeEmbeddingServiceImpl(
-                textSplitter, embeddingModel, knowledgeBasesService, knowledgeDocumentMapper, knowledgeVectorMapper,
-                knowledgeVectorTaskMapper, pdfParserUtil);
-        KnowledgeVectorTask task = new KnowledgeVectorTask();
-        task.setId(8801L);
-        task.setDocumentId(120L);
-        task.setUserId(1L);
-        task.setTaskType(KnowledgeVectorTaskTypeEnum.DELETE.getCode());
-        when(knowledgeVectorTaskMapper.claimPendingTask(8801L)).thenReturn(1);
-        when(knowledgeVectorTaskMapper.selectById(8801L)).thenReturn(task);
-        when(knowledgeDocumentMapper.selectById(120L)).thenReturn(null);
-
-        service.executeTaskAsync(8801L);
-
-        verify(knowledgeVectorTaskMapper).claimPendingTask(8801L);
-        verify(knowledgeVectorMapper).deleteByDocumentIdAndUserId(120L, 1L);
-        verify(knowledgeVectorTaskMapper).markTaskSuccess(8801L);
     }
 
     @Test

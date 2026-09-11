@@ -19,10 +19,10 @@ public interface KnowledgeVectorTaskMapper extends BaseMapper<KnowledgeVectorTas
     void deleteByKnowledgeId(Long knowledgeId);
 
     /**
-     * 原子抢占任务：仅允许 PENDING -> RUNNING 一次。
+     * 原子抢占任务：PENDING 或 RUNNING → RUNNING（重启后行可能已是 RUNNING）。
      *
      * @param taskId 任务ID
-     * @return 影响行数，1 表示抢占成功，0 表示已被其他执行者抢占或状态不匹配
+     * @return 影响行数，1 表示抢占成功，0 表示终态或行不存在
      */
     int claimPendingTask(@Param("taskId") Long taskId);
 
@@ -35,5 +35,10 @@ public interface KnowledgeVectorTaskMapper extends BaseMapper<KnowledgeVectorTas
      * 仅当任务处于 RUNNING 时标记失败。
      */
     int markTaskFailed(@Param("taskId") Long taskId, @Param("errorMessage") String errorMessage);
+
+    /**
+     * 入队写 Stream 失败：PENDING 或 RUNNING → FAILED。
+     */
+    int markEnqueueFailed(@Param("taskId") Long taskId, @Param("errorMessage") String errorMessage);
 }
 

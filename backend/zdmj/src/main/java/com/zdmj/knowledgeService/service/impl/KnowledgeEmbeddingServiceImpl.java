@@ -8,11 +8,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import jakarta.annotation.PostConstruct;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.transformer.splitter.TextSplitter;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,19 +49,13 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
     private final KnowledgeVectorTaskMapper knowledgeVectorTaskMapper;
     private final PdfParserUtil pdfParserUtil;
 
-    @PostConstruct
-    public void resumePendingTasks() {
-        List<KnowledgeVectorTask> pendingTasks = knowledgeVectorTaskMapper.selectList(
-                new LambdaQueryWrapper<KnowledgeVectorTask>()
-                        .eq(KnowledgeVectorTask::getStatus, KnowledgeVectorTaskStatusEnum.PENDING.getCode()));
-        for (KnowledgeVectorTask task : pendingTasks) {
-            executeTaskAsync(task.getId());
-        }
-    }
-
     @Override
     public Long submitVectorizeTask(Long DocumentId) {
         Long userId = UserHolder.requireUserId();
+        KnowledgeVectorTask inflight = findInflight(DocumentId, KnowledgeVectorTaskTypeEnum.EMBEDDING.getCode());
+        if (inflight != null) {
+            return inflight.getId();
+        }
         Long knowledgeId = knowledgeBasesService.getOrCreateKnowledgeBaseId();
         KnowledgeVectorTask task = new KnowledgeVectorTask();
         task.setDocumentId(DocumentId);
@@ -78,6 +70,10 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
     @Override
     public Long submitDeleteTask(Long DocumentId) {
         Long userId = UserHolder.requireUserId();
+        KnowledgeVectorTask inflight = findInflight(DocumentId, KnowledgeVectorTaskTypeEnum.DELETE.getCode());
+        if (inflight != null) {
+            return inflight.getId();
+        }
         Long knowledgeId = knowledgeBasesService.getOrCreateKnowledgeBaseId();
         KnowledgeVectorTask task = new KnowledgeVectorTask();
         task.setDocumentId(DocumentId);
@@ -89,35 +85,26 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
         return task.getId();
     }
 
+    private KnowledgeVectorTask findInflight(Long documentId, int taskType) {
+        return knowledgeVectorTaskMapper.selectOne(new LambdaQueryWrapper<KnowledgeVectorTask>()
+                .eq(KnowledgeVectorTask::getDocumentId, documentId)
+                .eq(KnowledgeVectorTask::getTaskType, taskType)
+                .in(KnowledgeVectorTask::getStatus,
+                        KnowledgeVectorTaskStatusEnum.PENDING.getCode(),
+                        KnowledgeVectorTaskStatusEnum.RUNNING.getCode())
+                .last("LIMIT 1"));
+    }
+
     @Override
-    @Async("embeddingExecutor")
     @Transactional(rollbackFor = Exception.class)
-    public void executeTaskAsync(Long taskId) {
-        int claimed = knowledgeVectorTaskMapper.claimPendingTask(taskId);
-        if (claimed != 1) {
-            return;
-        }
-
-        KnowledgeVectorTask task = knowledgeVectorTaskMapper.selectById(taskId);
-        if (task == null) {
-            log.warn("异步向量任务不存在，跳过执行: taskId={}", taskId);
-            return;
-        }
-
-        try {
-            if (task.getTaskType() != null && task.getTaskType() == KnowledgeVectorTaskTypeEnum.EMBEDDING.getCode()) {
-                runEmbeddingTaskByUser(task.getDocumentId(), task.getUserId());
-            } else if (task.getTaskType() != null
-                    && task.getTaskType() == KnowledgeVectorTaskTypeEnum.DELETE.getCode()) {
-                runDeleteTaskByUser(task.getDocumentId(), task.getUserId());
-            } else {
-                throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "未知任务类型");
-            }
-            knowledgeVectorTaskMapper.markTaskSuccess(taskId);
-        } catch (Exception e) {
-            knowledgeVectorTaskMapper.markTaskFailed(taskId, e.getMessage());
-            log.error("异步向量任务执行失败: taskId={}, DocumentId={}, error={}",
-                    taskId, task.getDocumentId(), e.getMessage(), e);
+    public void executeClaimed(KnowledgeVectorTask task) {
+        if (task.getTaskType() != null && task.getTaskType() == KnowledgeVectorTaskTypeEnum.EMBEDDING.getCode()) {
+            runEmbeddingTaskByUser(task.getDocumentId(), task.getUserId());
+        } else if (task.getTaskType() != null
+                && task.getTaskType() == KnowledgeVectorTaskTypeEnum.DELETE.getCode()) {
+            runDeleteTaskByUser(task.getDocumentId(), task.getUserId());
+        } else {
+            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "未知任务类型");
         }
     }
 
@@ -143,8 +130,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
 
     /**
      * 单文档向量化：抽文本 → 切块 → 批量 Embedding → 写入 knowledge_vectors。
-     * 事务由调用方（executeTaskAsync / vectorizeAndStore）的 {@code @Transactional} 覆盖；
-     * 本方法为 private，加注解不会生效。
+     * 事务由调用方（executeClaimed / vectorizeAndStore）的 {@code @Transactional} 覆盖。
      */
     private void runEmbeddingTaskByUser(Long DocumentId, Long userId) {
         log.info("开始向量化并存储知识库: DocumentId={}, userId={}", DocumentId, userId);
@@ -226,7 +212,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
             knowledgeDocumentMapper.updateById(kd);
             log.info("向量化完成: DocumentId={}, chunks={}, batches={}", DocumentId, persistedCount, batchCount);
         } catch (Exception e) {
-            // 文档标 FAILED 后上抛；外层 executeTaskAsync 吞异常并 markTaskFailed，事务仍提交。
+            // 文档标 FAILED 后上抛；外层消费者吞异常并 markTaskFailed。
             kd.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.FAILED.getCode());
             kd.setLastError(e.getMessage());
             knowledgeDocumentMapper.updateById(kd);

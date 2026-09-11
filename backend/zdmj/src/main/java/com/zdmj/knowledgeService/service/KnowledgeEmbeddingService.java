@@ -1,5 +1,7 @@
 package com.zdmj.knowledgeService.service;
 
+import com.zdmj.knowledgeService.entity.KnowledgeVectorTask;
+
 public interface KnowledgeEmbeddingService {
     /**
      * 创建向量化任务（PENDING）并返回任务ID
@@ -21,11 +23,11 @@ public interface KnowledgeEmbeddingService {
     Long submitDeleteTask(Long documentId);
 
     /**
-     * 异步执行任务
-     * 
-     * @param taskId 任务ID
+     * 已 claim 的向量任务：按类型执行 embedding 或删除。成功/失败由消费者标任务行。
+     *
+     * @param task 已抢占为 RUNNING 的行
      */
-    void executeTaskAsync(Long taskId);
+    void executeClaimed(KnowledgeVectorTask task);
 
     /**
      * 向量化并存储知识库(先删除旧向量后向量化)
