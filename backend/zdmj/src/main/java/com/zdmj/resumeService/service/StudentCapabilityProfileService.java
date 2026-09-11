@@ -1,6 +1,7 @@
 package com.zdmj.resumeService.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.resumeService.dto.CapabilityProfileGenerateRequest;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
 import com.zdmj.resumeService.entity.StudentCapabilityProfile;
@@ -31,4 +32,12 @@ public interface StudentCapabilityProfileService extends IService<StudentCapabil
      * @return 生成后的画像 DTO
      */
     StudentCapabilityProfileResponse generateProfile(CapabilityProfileGenerateRequest reqDTO);
+
+    /**
+     * 廉价校验后入队生成任务，立即返回 {@code taskId}。
+     *
+     * @param reqDTO 须提供 pdfUrl 或 rawText（PDF 抽取在消费者内完成）
+     * @return 新任务或已有进行中任务
+     */
+    AsyncTaskDTO enqueueGenerate(CapabilityProfileGenerateRequest reqDTO);
 }

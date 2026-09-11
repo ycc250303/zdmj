@@ -17,7 +17,7 @@ import com.zdmj.common.ai.config.RagConfig.Search;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
-import com.zdmj.common.ai.prompt.PromptNames;
+import com.zdmj.common.constants.PromptNames;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrievalResponse;
 import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;

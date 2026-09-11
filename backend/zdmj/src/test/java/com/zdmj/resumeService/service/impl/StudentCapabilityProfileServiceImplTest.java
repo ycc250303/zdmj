@@ -13,7 +13,7 @@ import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.common.ai.JobRole;
 import com.zdmj.common.ai.JobRoleDetector;
 import com.zdmj.common.ai.PromptUtil;
-import com.zdmj.common.ai.prompt.PromptNames;
+import com.zdmj.common.constants.PromptNames;
 import com.zdmj.resumeService.dto.CapabilityProfileGenerateRequest;
 import com.zdmj.resumeService.dto.ResumeRoleDetectDTO;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
@@ -59,6 +59,8 @@ class StudentCapabilityProfileServiceImplTest {
     private PdfParserUtil pdfParserUtil;
     @Mock
     private StudentCapabilityProfileMapper studentCapabilityProfileMapper;
+    @Mock
+    private com.zdmj.common.async.AsyncTaskService asyncTaskService;
 
     private StudentCapabilityProfileServiceImpl service;
     private static boolean tableInfoInitialized;
@@ -67,7 +69,7 @@ class StudentCapabilityProfileServiceImplTest {
     void setUp() {
         initMybatisPlusLambdaCache();
         service = spy(new StudentCapabilityProfileServiceImpl(chatUtil, new ObjectMapper(), fileUploadService,
-                pdfParserUtil, new PromptUtil(new DefaultResourceLoader())));
+                pdfParserUtil, new PromptUtil(new DefaultResourceLoader()), asyncTaskService));
         ReflectionTestUtils.setField(service, "baseMapper", studentCapabilityProfileMapper);
         UserHolder.set(UserContext.of(1L, "u1"));
     }

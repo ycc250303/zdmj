@@ -4,7 +4,12 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.common.ai.ModelEnum;
 import com.zdmj.common.ai.UserLlmRouter;
-import com.zdmj.common.ai.prompt.PromptNames;
+import com.zdmj.common.async.AsyncBizKeys;
+import com.zdmj.common.async.AsyncTaskDTO;
+import com.zdmj.common.async.AsyncTaskPayloads;
+import com.zdmj.common.async.AsyncTaskService;
+import com.zdmj.common.async.AsyncTaskType;
+import com.zdmj.common.constants.PromptNames;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -36,6 +41,8 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -74,6 +81,8 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     private final SkillService skillService;
     private final Validator validator;
     private final PdfParserUtil pdfParserUtil;
+    private final ObjectMapper objectMapper;
+    private final AsyncTaskService asyncTaskService;
 
     @Override
     public ResumeResponse create(ResumeRequest resumeRequest) {
@@ -476,6 +485,20 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
         normalizeImportResult(parsed, warnings);
         return parsed;
+    }
+
+    @Override
+    public AsyncTaskDTO enqueueParseImport(ResumeImportParseRequest request) {
+        Long userId = UserHolder.requireUserId();
+        if (request == null
+                || (!StringUtils.hasText(request.getPdfUrl()) && !StringUtils.hasText(request.getRawText()))) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "必须提供 pdfUrl 或 rawText");
+        }
+        return asyncTaskService.enqueue(
+                AsyncTaskType.RESUME_PARSE,
+                userId,
+                AsyncBizKeys.user(userId),
+                AsyncTaskPayloads.write(request, objectMapper));
     }
 
     /**

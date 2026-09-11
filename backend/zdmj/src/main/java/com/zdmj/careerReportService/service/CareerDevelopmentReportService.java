@@ -7,6 +7,7 @@ import com.zdmj.careerReportService.dto.CareerReportGenerateRequest;
 import com.zdmj.careerReportService.dto.CareerReportPolishRequest;
 import com.zdmj.careerReportService.dto.CareerReportUpdateRequest;
 import com.zdmj.careerReportService.entity.CareerDevelopmentReport;
+import com.zdmj.common.async.AsyncTaskDTO;
 
 /**
  * 职业发展报告服务接口
@@ -31,6 +32,11 @@ public interface CareerDevelopmentReportService extends IService<CareerDevelopme
     CareerReportResponse generate(Long jobId, CareerReportGenerateRequest req);
 
     /**
+     * 校验岗位与学生画像后入队生成；缺依赖由消费者内同步加载。
+     */
+    AsyncTaskDTO enqueueGenerate(Long jobId, CareerReportGenerateRequest req);
+
+    /**
      * 对已有报告进行智能润色，写入新版本。
      *
      * @param reportId 报告ID
@@ -39,6 +45,9 @@ public interface CareerDevelopmentReportService extends IService<CareerDevelopme
      */
     CareerReportResponse polish(Long reportId, CareerReportPolishRequest req);
 
+    /** 校验报告归属后入队润色。 */
+    AsyncTaskDTO enqueuePolish(Long reportId, CareerReportPolishRequest req);
+
     /**
      * 对报告做完整性检查（本地 + LLM），并更新当前记录的质量标记。
      *
@@ -46,6 +55,9 @@ public interface CareerDevelopmentReportService extends IService<CareerDevelopme
      * @return 检查结果
      */
     CareerReportCheckResponse checkIntegrity(Long reportId);
+
+    /** 校验报告归属后入队完整性检查。 */
+    AsyncTaskDTO enqueueCheckIntegrity(Long reportId);
 
     /**
      * 保存用户手动编辑后的报告正文，写入新版本。

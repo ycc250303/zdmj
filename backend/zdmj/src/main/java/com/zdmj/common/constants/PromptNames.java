@@ -1,4 +1,4 @@
-package com.zdmj.common.ai.prompt;
+package com.zdmj.common.constants;
 
 /**
  * 与岗位方向无关的 {@code classpath:prompts/{name}.md} 常量（不含 {@code .md} 后缀）。

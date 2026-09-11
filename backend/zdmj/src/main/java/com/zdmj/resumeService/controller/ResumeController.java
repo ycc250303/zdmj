@@ -1,13 +1,13 @@
 package com.zdmj.resumeService.controller;
 
 import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.common.model.CreateGroup;
 import com.zdmj.common.model.Result;
 import com.zdmj.common.model.UpdateGroup;
 import com.zdmj.resumeService.dto.ResumeContentResponse;
 import com.zdmj.resumeService.dto.ResumeContentSaveRequest;
 import com.zdmj.resumeService.dto.ResumeImportParseRequest;
-import com.zdmj.resumeService.dto.ResumeImportParseResponse;
 import com.zdmj.resumeService.dto.ResumeRequest;
 import com.zdmj.resumeService.dto.ResumeResponse;
 import com.zdmj.resumeService.service.ResumeService;
@@ -76,9 +76,8 @@ public class ResumeController {
 
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/import/parse")
-    public Result<ResumeImportParseResponse> parseResumeImport(
+    public Result<AsyncTaskDTO> parseResumeImport(
             @Validated @RequestBody ResumeImportParseRequest request) {
-        ResumeImportParseResponse result = resumeService.parseImport(request);
-        return Result.success("简历识别成功", result);
+        return Result.success("已提交简历识别任务", resumeService.enqueueParseImport(request));
     }
 }

@@ -4,6 +4,11 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zdmj.common.async.AsyncBizKeys;
+import com.zdmj.common.async.AsyncTaskDTO;
+import com.zdmj.common.async.AsyncTaskPayloads;
+import com.zdmj.common.async.AsyncTaskService;
+import com.zdmj.common.async.AsyncTaskType;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -51,6 +56,7 @@ public class StudentCapabilityProfileServiceImpl
     private final FileUploadService fileUploadService;
     private final PdfParserUtil pdfParserUtil;
     private final PromptUtil promptUtil;
+    private final AsyncTaskService asyncTaskService;
 
     @Override
     public StudentCapabilityProfileResponse getCurrentUserProfile() {
@@ -73,6 +79,20 @@ public class StudentCapabilityProfileServiceImpl
         StudentCapabilityProfileResponse dto = toDto(profile);
         hydrateDtoFromEntity(profile, dto);
         return dto;
+    }
+
+    @Override
+    public AsyncTaskDTO enqueueGenerate(CapabilityProfileGenerateRequest reqDTO) {
+        Long userId = UserHolder.requireUserId();
+        if (reqDTO == null
+                || (!StringUtils.hasText(reqDTO.getPdfUrl()) && !StringUtils.hasText(reqDTO.getRawText()))) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "必须提供 pdfUrl 或 rawText");
+        }
+        return asyncTaskService.enqueue(
+                AsyncTaskType.STUDENT_PROFILE,
+                userId,
+                AsyncBizKeys.user(userId),
+                AsyncTaskPayloads.write(reqDTO, objectMapper));
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.zdmj.matchService.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.matchService.dto.JobStudentMatchResponse;
 import com.zdmj.matchService.dto.JobStudentMatchGenerateRequest;
@@ -48,6 +49,15 @@ public interface JobStudentMatchService extends IService<JobStudentMatch> {
      * @return 匹配结果 DTO
      */
     JobStudentMatchResponse generate(Long jobId, JobStudentMatchGenerateRequest req);
+
+    /**
+     * 校验岗位存在且已有学生画像后入队；缺岗位画像仍由消费者内同步生成。
+     *
+     * @param jobId 岗位ID
+     * @param req   可选权重
+     * @return 新任务或已有进行中任务
+     */
+    AsyncTaskDTO enqueueGenerate(Long jobId, JobStudentMatchGenerateRequest req);
 
     /**
      * 仅根据岗位类型解析默认权重（不查 LLM、不落库）。

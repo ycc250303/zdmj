@@ -45,13 +45,15 @@ class JobCapabilityProfileServiceImplTest {
     private JobService jobService;
     @Mock
     private ChatUtil chatUtil;
+    @Mock
+    private com.zdmj.common.async.AsyncTaskService asyncTaskService;
 
     private JobCapabilityProfileServiceImpl profileService;
 
     @BeforeEach
     void setUp() {
         profileService = spy(new JobCapabilityProfileServiceImpl(
-                jobService, chatUtil, new PromptUtil(new DefaultResourceLoader())));
+                jobService, chatUtil, new PromptUtil(new DefaultResourceLoader()), asyncTaskService));
         UserHolder.set(UserContext.of(1L, "u1"));
     }
 

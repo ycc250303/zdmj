@@ -12,11 +12,16 @@ import com.zdmj.careerReportService.dto.CareerReportUpdateRequest;
 import com.zdmj.careerReportService.entity.CareerDevelopmentReport;
 import com.zdmj.careerReportService.mapper.CareerDevelopmentReportMapper;
 import com.zdmj.careerReportService.service.CareerDevelopmentReportService;
+import com.zdmj.common.async.AsyncBizKeys;
+import com.zdmj.common.async.AsyncTaskDTO;
+import com.zdmj.common.async.AsyncTaskPayloads;
+import com.zdmj.common.async.AsyncTaskService;
+import com.zdmj.common.async.AsyncTaskType;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
-import com.zdmj.common.ai.prompt.PromptNames;
+import com.zdmj.common.constants.PromptNames;
 import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobCareerGraphResponse;
@@ -106,6 +111,7 @@ public class CareerDevelopmentReportServiceImpl
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeEmbeddingService knowledgeEmbeddingService;
     private final EmbeddingModel embeddingModel;
+    private final AsyncTaskService asyncTaskService;
 
     @Override
     public CareerReportResponse getLatestOrNull(Long jobId) {
@@ -120,6 +126,61 @@ public class CareerDevelopmentReportServiceImpl
                 .orderByDesc(CareerDevelopmentReport::getVersion)
                 .last("LIMIT 1"));
         return entity == null ? null : toResponse(entity);
+    }
+
+    @Override
+    public AsyncTaskDTO enqueueGenerate(Long jobId, CareerReportGenerateRequest req) {
+        Long userId = UserHolder.requireUserId();
+        if (jobId == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "jobId不能为空");
+        }
+        JobListItemResponse jobDetail = jobService.getDetail(jobId);
+        if (jobDetail == null) {
+            throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
+        }
+        if (studentCapabilityProfileService.getCurrentUserProfileOrNull() == null) {
+            throw new BusinessException(ErrorCode.MATCH_PRECONDITION_MISSING);
+        }
+        com.fasterxml.jackson.databind.node.ObjectNode node = objectMapper.createObjectNode();
+        node.put("jobId", jobId);
+        if (req != null) {
+            if (StringUtils.hasText(req.getUserPreference())) {
+                node.put("userPreference", req.getUserPreference());
+            }
+            if (StringUtils.hasText(req.getFocus())) {
+                node.put("focus", req.getFocus());
+            }
+        }
+        return asyncTaskService.enqueue(
+                AsyncTaskType.CAREER_REPORT,
+                userId,
+                AsyncBizKeys.userJob(userId, jobId),
+                AsyncTaskPayloads.write(node, objectMapper));
+    }
+
+    @Override
+    public AsyncTaskDTO enqueuePolish(Long reportId, CareerReportPolishRequest req) {
+        CareerDevelopmentReport current = requireOwnedReport(reportId);
+        com.fasterxml.jackson.databind.node.ObjectNode node = objectMapper.createObjectNode();
+        node.put("reportId", current.getId());
+        if (req != null && StringUtils.hasText(req.getInstruction())) {
+            node.put("instruction", req.getInstruction());
+        }
+        return asyncTaskService.enqueue(
+                AsyncTaskType.REPORT_POLISH,
+                current.getUserId(),
+                AsyncBizKeys.report(current.getId()),
+                AsyncTaskPayloads.write(node, objectMapper));
+    }
+
+    @Override
+    public AsyncTaskDTO enqueueCheckIntegrity(Long reportId) {
+        CareerDevelopmentReport current = requireOwnedReport(reportId);
+        return asyncTaskService.enqueue(
+                AsyncTaskType.REPORT_CHECK,
+                current.getUserId(),
+                AsyncBizKeys.report(current.getId()),
+                "{\"reportId\":" + current.getId() + "}");
     }
 
     @Override

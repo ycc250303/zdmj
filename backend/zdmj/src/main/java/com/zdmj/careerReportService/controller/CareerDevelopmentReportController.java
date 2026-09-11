@@ -1,12 +1,12 @@
 package com.zdmj.careerReportService.controller;
 
-import com.zdmj.careerReportService.dto.CareerReportCheckResponse;
 import com.zdmj.careerReportService.dto.CareerReportResponse;
 import com.zdmj.careerReportService.dto.CareerReportGenerateRequest;
 import com.zdmj.careerReportService.dto.CareerReportPolishRequest;
 import com.zdmj.careerReportService.dto.CareerReportUpdateRequest;
 import com.zdmj.careerReportService.service.CareerDevelopmentReportService;
 import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.common.model.Result;
 
 import java.util.concurrent.TimeUnit;
@@ -46,49 +46,46 @@ public class CareerDevelopmentReportController {
     }
 
     /**
-     * 生成职业发展报告（同步）。
-     *
-     * <p>聚合学生画像、岗位画像、人岗匹配、岗位图谱与知识库 RAG 后调用大模型生成结构化报告，
-     * 并写入新版本记录。若学生画像缺失会抛 {@code MATCH_PRECONDITION_MISSING}。</p>
+     * 入队生成职业发展报告。学生画像缺失立即 {@code MATCH_PRECONDITION_MISSING}。
      *
      * @param jobId 岗位ID
      * @param req   生成请求（可选：用户偏好、生成侧重点）
-     * @return 新生成的报告
+     * @return 异步任务
      */
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 5, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/jobs/{jobId}")
-    public Result<CareerReportResponse> generate(@PathVariable Long jobId,
+    public Result<AsyncTaskDTO> generate(@PathVariable Long jobId,
                                             @RequestBody(required = false) CareerReportGenerateRequest req) {
-        log.info("生成职业发展报告: jobId={}", jobId);
-        return Result.success("生成职业发展报告成功", reportService.generate(jobId, req));
+        log.info("入队职业发展报告: jobId={}", jobId);
+        return Result.success("已提交职业发展报告生成任务", reportService.enqueueGenerate(jobId, req));
     }
 
     /**
-     * 对指定报告进行智能润色（生成新版本）。
+     * 入队智能润色（生成新版本）。完成后查最新报告。
      *
      * @param id  报告ID
      * @param req 润色请求（可选：润色说明）
-     * @return 润色后的新版本报告
+     * @return 异步任务
      */
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/{id}/polish")
-    public Result<CareerReportResponse> polish(@PathVariable Long id,
+    public Result<AsyncTaskDTO> polish(@PathVariable Long id,
                                           @RequestBody(required = false) CareerReportPolishRequest req) {
-        log.info("润色职业发展报告: reportId={}", id);
-        return Result.success("润色职业发展报告成功", reportService.polish(id, req));
+        log.info("入队润色职业发展报告: reportId={}", id);
+        return Result.success("已提交报告润色任务", reportService.enqueuePolish(id, req));
     }
 
     /**
-     * 完整性检查（本地规则 + 大模型复核，结果写回当前报告记录）。
+     * 入队完整性检查。完成后查最新报告的质量标记。
      *
      * @param id 报告ID
-     * @return 检查结果（完整度、缺失章节、风险等级等）
+     * @return 异步任务
      */
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/{id}/integrity-check")
-    public Result<CareerReportCheckResponse> integrityCheck(@PathVariable Long id) {
-        log.info("检查职业发展报告完整性: reportId={}", id);
-        return Result.success("检查职业发展报告完整性成功", reportService.checkIntegrity(id));
+    public Result<AsyncTaskDTO> integrityCheck(@PathVariable Long id) {
+        log.info("入队检查职业发展报告完整性: reportId={}", id);
+        return Result.success("已提交报告完整性检查任务", reportService.enqueueCheckIntegrity(id));
     }
 
     /**

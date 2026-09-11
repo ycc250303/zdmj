@@ -9,7 +9,7 @@ import com.zdmj.common.model.PageRequests;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
-import com.zdmj.common.ai.prompt.PromptNames;
+import com.zdmj.common.constants.PromptNames;
 import com.zdmj.conversationService.dto.ChatStreamRequest;
 import com.zdmj.conversationService.dto.MessageResponse;
 import com.zdmj.conversationService.entity.Conversation;

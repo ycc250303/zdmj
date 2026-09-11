@@ -1,6 +1,6 @@
 package com.zdmj.common.ai;
 
-import com.zdmj.common.ai.prompt.PromptNames;
+import com.zdmj.common.constants.PromptNames;
 import lombok.Data;
 import org.slf4j.Logger;
 import org.springframework.util.StringUtils;

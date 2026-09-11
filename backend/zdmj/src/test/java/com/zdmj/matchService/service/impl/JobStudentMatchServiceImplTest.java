@@ -80,6 +80,8 @@ class JobStudentMatchServiceImplTest {
     private ChatUtil chatUtil;
     @Mock
     private JobStudentMatchMapper matchMapper;
+    @Mock
+    private com.zdmj.common.async.AsyncTaskService asyncTaskService;
 
     private JobStudentMatchServiceImpl matchService;
 
@@ -91,7 +93,8 @@ class JobStudentMatchServiceImplTest {
                 studentCapabilityProfileService,
                 chatUtil,
                 new ObjectMapper(),
-                new PromptUtil(new DefaultResourceLoader())));
+                new PromptUtil(new DefaultResourceLoader()),
+                asyncTaskService));
         ReflectionTestUtils.setField(matchService, "baseMapper", matchMapper);
         UserHolder.set(new UserContext(USER_ID, "tester", "tester@example.com"));
     }

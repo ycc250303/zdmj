@@ -1,6 +1,7 @@
 package com.zdmj.matchService.controller;
 
 import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.Result;
 
@@ -59,21 +60,18 @@ public class JobStudentMatchController {
     }
 
     /**
-     * 生成人岗匹配分析（覆盖式）。
-     *
-     * <p>请求体可选携带 {@code weights} 临时覆盖默认权重；若学生画像缺失会抛
-     * {@code MATCH_PRECONDITION_MISSING}（前端应引导去能力画像页生成）。</p>
+     * 入队生成人岗匹配。学生画像缺失立即 {@code MATCH_PRECONDITION_MISSING}。
      *
      * @param jobId 岗位ID
      * @param req   生成请求体（可选，可携带自定义权重）
-     * @return 匹配结果
+     * @return 异步任务
      */
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/jobs/{jobId}")
-    public Result<JobStudentMatchResponse> generate(@PathVariable Long jobId,
+    public Result<AsyncTaskDTO> generate(@PathVariable Long jobId,
                                                @RequestBody(required = false) JobStudentMatchGenerateRequest req) {
-        log.info("生成人岗匹配分析: jobId={}", jobId);
-        return Result.success("生成人岗匹配成功", matchService.generate(jobId, req));
+        log.info("入队人岗匹配: jobId={}", jobId);
+        return Result.success("已提交人岗匹配任务", matchService.enqueueGenerate(jobId, req));
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.zdmj.resumeService.controller;
 
 import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.common.model.Result;
 
 import java.util.concurrent.TimeUnit;
@@ -46,16 +47,15 @@ public class StudentCapabilityProfileController {
     }
 
     /**
-     * 生成能力画像（支持从 PDF 解析或文本直接生成）
+     * 入队生成能力画像，立即返回任务；完成后查 {@code GET /capability-profile/current/query}。
      *
      * @param reqDTO 生成参数
-     * @return 生成的能力画像
+     * @return 异步任务
      */
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/generate")
-    public Result<StudentCapabilityProfileResponse> generateProfile(@Validated @RequestBody CapabilityProfileGenerateRequest reqDTO) {
-        log.info("开始生成学生能力画像");
-        StudentCapabilityProfileResponse profileDTO = profileService.generateProfile(reqDTO);
-        return Result.success("生成能力画像成功", profileDTO);
+    public Result<AsyncTaskDTO> generateProfile(@Validated @RequestBody CapabilityProfileGenerateRequest reqDTO) {
+        log.info("入队生成学生能力画像");
+        return Result.success("已提交能力画像生成任务", profileService.enqueueGenerate(reqDTO));
     }
 }

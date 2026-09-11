@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.common.model.CreateGroup;
 
 import java.util.concurrent.TimeUnit;
@@ -137,15 +138,15 @@ public class JobController {
     }
 
     /**
-     * 为当前用户生成岗位能力画像（已有则覆盖本人旧行）
+     * 入队生成岗位能力画像，立即返回任务；完成后查 {@code GET /jobs/capability-profile}。
      * 
      * @param id 岗位ID
-     * @return 岗位能力画像
+     * @return 异步任务
      */
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/{id}/capability-profile")
-    public Result<JobCapabilityProfileResponse> getJobCapabilityProfile(@PathVariable Long id) {
-        return Result.success("获取岗位能力画像成功", jobCapabilityProfileService.getJobCapabilityProfile(id));
+    public Result<AsyncTaskDTO> getJobCapabilityProfile(@PathVariable Long id) {
+        return Result.success("已提交岗位能力画像生成任务", jobCapabilityProfileService.enqueueGenerate(id));
     }
 
         /**

@@ -2,6 +2,10 @@ package com.zdmj.jobService.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.zdmj.common.async.AsyncBizKeys;
+import com.zdmj.common.async.AsyncTaskDTO;
+import com.zdmj.common.async.AsyncTaskService;
+import com.zdmj.common.async.AsyncTaskType;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -32,6 +36,24 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
     private final JobService jobService;
     private final ChatUtil chatUtil;
     private final PromptUtil promptUtil;
+    private final AsyncTaskService asyncTaskService;
+
+    @Override
+    public AsyncTaskDTO enqueueGenerate(Long jobId) {
+        Long userId = UserHolder.requireUserId();
+        if (jobId == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "jobId不能为空");
+        }
+        JobListItemResponse jobDetail = jobService.getDetail(jobId);
+        if (jobDetail == null) {
+            throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
+        }
+        return asyncTaskService.enqueue(
+                AsyncTaskType.JOB_PROFILE,
+                userId,
+                AsyncBizKeys.userJob(userId, jobId),
+                "{\"jobId\":" + jobId + "}");
+    }
 
     @Override
     public JobCapabilityProfileResponse getJobCapabilityProfile(Long jobId) {

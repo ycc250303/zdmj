@@ -1,6 +1,7 @@
 package com.zdmj.jobService.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.entity.JobCapabilityProfile;
 
@@ -20,4 +21,12 @@ public interface JobCapabilityProfileService extends IService<JobCapabilityProfi
      * @return 岗位能力画像或 null
      */
     JobCapabilityProfileResponse getJobCapabilityProfileOrNull(Long jobId);
+
+    /**
+     * 校验岗位存在后入队生成任务。
+     *
+     * @param jobId 岗位ID
+     * @return 新任务或已有进行中任务
+     */
+    AsyncTaskDTO enqueueGenerate(Long jobId);
 }
