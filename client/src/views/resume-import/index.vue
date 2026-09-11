@@ -17,6 +17,7 @@ import {
   cloneResumeForEdit,
   type ResumeContentDraft
 } from './utils/resumeDraft';
+import { waitForAsyncTask, isAsyncTaskFailedError } from '@/composables/useAsyncTaskPoll';
 
 defineOptions({ name: 'ResumeImport' });
 
@@ -171,12 +172,19 @@ async function handlePdfUpload({ file, onFinish, onError }: UploadCustomRequestO
       onError?.();
       return;
     }
-    const { data: parseData, error: parseError } = await fetchParseResumeImport({ pdfUrl: uploadData.url });
-    if (parseError || !parseData) {
+    const { data: parseTask, error: parseError } = await fetchParseResumeImport({ pdfUrl: uploadData.url });
+    if (parseError || !parseTask?.taskId) {
       window.$message?.error($t('page.resumeImport.parseFail'));
       onError?.();
       return;
     }
+    const done = await waitForAsyncTask(parseTask.taskId);
+    if (!done.result) {
+      window.$message?.error($t('page.resumeImport.parseFail'));
+      onError?.();
+      return;
+    }
+    const parseData = JSON.parse(done.result) as ResumeApi.ResumeImportParseResult;
 
     const applied = await applyImportFromParse(parseData);
     if (!applied) {

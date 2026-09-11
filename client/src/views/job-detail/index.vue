@@ -22,6 +22,7 @@ import {
   fetchCheckCareerReportIntegrity,
   type CareerReportApi
 } from '@/service/api/career-report';
+import { waitForAsyncTask, isAsyncTaskFailedError } from '@/composables/useAsyncTaskPoll';
 import CapabilityScoreCard, { type Dimension } from '@/components/common/CapabilityScoreCard.vue';
 
 import { parseApiErrorBody } from '@/service/request/api-error';
@@ -282,6 +283,13 @@ function getTransitionDifficultyType(difficulty?: string): 'success' | 'warning'
   }
 }
 
+function taskErrorMessage(err: unknown, fallback: string): string {
+  if (isAsyncTaskFailedError(err)) {
+    return err.message || fallback;
+  }
+  return extractApiError(err, fallback);
+}
+
 async function handleGenerateProfile() {
   if (!jobId.value) return;
 
@@ -289,21 +297,21 @@ async function handleGenerateProfile() {
   window.$message?.info($t('page.jobs.profileGenerating') as string, { duration: 5000 });
   try {
     const { data, error } = await fetchGenerateJobCapabilityProfile(jobId.value);
-    if (!error && data) {
-      capabilityProfile.value = data;
-      window.$message?.success($t('page.jobs.profileGenerated') as string);
-    } else {
+    if (error || !data?.taskId) {
       window.$message?.error(
         extractApiError(error, $t('page.jobs.createFailed') as string),
         { duration: 6000 }
       );
+      return;
     }
+    await waitForAsyncTask(data.taskId);
+    await loadCapabilityProfile();
+    window.$message?.success($t('page.jobs.profileGenerated') as string);
   } catch (err) {
     console.error($t('page.jobs.generateProfileError'), err);
-    window.$message?.error(
-      extractApiError(err, $t('page.jobs.createFailed') + $t('page.jobs.retryLater')),
-      { duration: 6000 }
-    );
+    window.$message?.error(taskErrorMessage(err, $t('page.jobs.createFailed') + $t('page.jobs.retryLater')), {
+      duration: 6000
+    });
   } finally {
     generatingProfile.value = false;
   }
@@ -315,20 +323,18 @@ async function handleGenerateMatch() {
   window.$message?.info($t('page.jobs.matchAnalyzing') as string, { duration: 5000 });
   try {
     const { data, error } = await fetchGenerateJobStudentMatch(jobId.value);
-    if (!error && data) {
-      matchResult.value = data;
-      window.$message?.success($t('page.jobs.matchSuccess') as string);
-    } else {
+    if (error || !data?.taskId) {
       window.$message?.error(
         extractApiError(error, $t('page.jobs.matchFailed') as string),
         { duration: 6000 }
       );
+      return;
     }
+    await waitForAsyncTask(data.taskId);
+    await loadMatchResult();
+    window.$message?.success($t('page.jobs.matchSuccess') as string);
   } catch (err) {
-    window.$message?.error(
-      extractApiError(err, $t('page.jobs.matchFailedRetry') as string),
-      { duration: 6000 }
-    );
+    window.$message?.error(taskErrorMessage(err, $t('page.jobs.matchFailedRetry') as string), { duration: 6000 });
   } finally {
     generatingMatch.value = false;
   }
@@ -445,8 +451,6 @@ async function pollLatestCareerReport(
 async function handleGenerateCareerReport() {
   if (!jobId.value) return;
   generatingCareerReport.value = true;
-  // 记录基线，便于 504 后判断是否产出了新报告
-  const baseline = careerReport.value;
   window.$message?.info($t('page.jobs.careerReport.generating') as string, { duration: 6000 });
   try {
     const payload: CareerReportApi.CareerReportGenerateReq = {
@@ -454,43 +458,26 @@ async function handleGenerateCareerReport() {
       focus: careerReportGenerateForm.value.focus?.trim() || undefined
     };
     const { data, error } = await fetchGenerateCareerReport(jobId.value, payload);
-    if (!error && data) {
-      await applyCareerReportSuccess(data);
-      window.$message?.success($t('page.jobs.careerReport.generateSuccess') as string);
-      return;
-    }
-    // 后端报错：504 网关超时走兜底轮询；其他直接展示
-    if (isGatewayTimeout(error)) {
-      window.$message?.warning($t('page.jobs.careerReport.gatewayTimeoutFallback') as string, { duration: 6000 });
-      const polled = await pollLatestCareerReport(120_000, 5_000, baseline);
-      if (polled) {
-        await applyCareerReportSuccess(polled);
-        window.$message?.success($t('page.jobs.careerReport.generateSuccess') as string);
-      } else {
-        window.$message?.error($t('page.jobs.careerReport.gatewayTimeoutHint') as string, { duration: 8000 });
-      }
-    } else {
+    if (error || !data?.taskId) {
       window.$message?.error(
         extractApiError(error, $t('page.jobs.careerReport.generateFailed') as string),
         { duration: 6000 }
       );
+      return;
+    }
+    await waitForAsyncTask(data.taskId);
+    const { data: report } = await fetchGetLatestCareerReport(jobId.value);
+    if (report) {
+      await applyCareerReportSuccess(report);
+      window.$message?.success($t('page.jobs.careerReport.generateSuccess') as string);
+    } else {
+      window.$message?.error($t('page.jobs.careerReport.generateFailed') as string, { duration: 6000 });
     }
   } catch (err) {
-    if (isGatewayTimeout(err)) {
-      window.$message?.warning($t('page.jobs.careerReport.gatewayTimeoutFallback') as string, { duration: 6000 });
-      const polled = await pollLatestCareerReport(120_000, 5_000, baseline);
-      if (polled) {
-        await applyCareerReportSuccess(polled);
-        window.$message?.success($t('page.jobs.careerReport.generateSuccess') as string);
-      } else {
-        window.$message?.error($t('page.jobs.careerReport.gatewayTimeoutHint') as string, { duration: 8000 });
-      }
-    } else {
-      window.$message?.error(
-        extractApiError(err, $t('page.jobs.careerReport.generateFailed') as string),
-        { duration: 6000 }
-      );
-    }
+    window.$message?.error(
+      taskErrorMessage(err, $t('page.jobs.careerReport.generateFailed') as string),
+      { duration: 6000 }
+    );
   } finally {
     generatingCareerReport.value = false;
   }
@@ -499,41 +486,47 @@ async function handleGenerateCareerReport() {
 async function handlePolishCareerReport() {
   if (!careerReport.value?.id) return;
   polishingCareerReport.value = true;
-  const baseline = careerReport.value;
   window.$message?.info($t('page.jobs.careerReport.polishing') as string, { duration: 5000 });
-
-  const handleFailure = async (errLike: any, fallback: string) => {
-    if (isGatewayTimeout(errLike)) {
-      window.$message?.warning($t('page.jobs.careerReport.gatewayTimeoutFallback') as string, { duration: 6000 });
-      const polled = await pollLatestCareerReport(120_000, 5_000, baseline);
-      if (polled) {
-        careerReport.value = polled;
-        careerReportPolishInstruction.value = '';
-        window.$message?.success($t('page.jobs.careerReport.polishSuccess') as string);
-      } else {
-        window.$message?.error($t('page.jobs.careerReport.gatewayTimeoutHint') as string, { duration: 8000 });
-      }
-    } else {
-      window.$message?.error(extractApiError(errLike, fallback), { duration: 6000 });
-    }
-  };
-
   try {
     const { data, error } = await fetchPolishCareerReport(careerReport.value.id, {
       instruction: careerReportPolishInstruction.value?.trim() || undefined
     });
-    if (!error && data) {
-      careerReport.value = data;
+    if (error || !data?.taskId) {
+      window.$message?.error(
+        extractApiError(error, $t('page.jobs.careerReport.polishFailed') as string),
+        { duration: 6000 }
+      );
+      return;
+    }
+    await waitForAsyncTask(data.taskId);
+    const { data: report } = await fetchGetLatestCareerReport(jobId.value!);
+    if (report) {
+      careerReport.value = report;
       careerReportPolishInstruction.value = '';
       window.$message?.success($t('page.jobs.careerReport.polishSuccess') as string);
     } else {
-      await handleFailure(error, $t('page.jobs.careerReport.polishFailed') as string);
+      window.$message?.error($t('page.jobs.careerReport.polishFailed') as string, { duration: 6000 });
     }
   } catch (err) {
-    await handleFailure(err, $t('page.jobs.careerReport.polishFailed') as string);
+    window.$message?.error(
+      taskErrorMessage(err, $t('page.jobs.careerReport.polishFailed') as string),
+      { duration: 6000 }
+    );
   } finally {
     polishingCareerReport.value = false;
   }
+}
+
+function checkFromReport(report: CareerReportApi.CareerReport): CareerReportApi.CareerReportCheck {
+  const flags = report.qualityFlags ?? {};
+  return {
+    passed: report.status === 2,
+    completenessScore: report.completenessScore,
+    riskLevel: flags.riskLevel as CareerReportApi.CareerReportCheck['riskLevel'],
+    missingSections: flags.missingSections,
+    nonActionableItems: flags.nonActionableItems,
+    weakEvidenceItems: flags.weakEvidenceItems
+  };
 }
 
 async function handleCheckCareerReportIntegrity() {
@@ -542,20 +535,22 @@ async function handleCheckCareerReportIntegrity() {
   window.$message?.info($t('page.jobs.careerReport.checking') as string, { duration: 4000 });
   try {
     const { data, error } = await fetchCheckCareerReportIntegrity(careerReport.value.id);
-    if (!error && data) {
-      careerReportCheckResult.value = data;
-      // 检查后报告记录的 status / completenessScore 会被后端写回，重新拉一次保持一致
-      await loadCareerReport();
-      window.$message?.success($t('page.jobs.careerReport.checkSuccess') as string);
-    } else {
+    if (error || !data?.taskId) {
       window.$message?.error(
         extractApiError(error, $t('page.jobs.careerReport.checkFailed') as string),
         { duration: 6000 }
       );
+      return;
     }
+    await waitForAsyncTask(data.taskId);
+    await loadCareerReport();
+    if (careerReport.value) {
+      careerReportCheckResult.value = checkFromReport(careerReport.value);
+    }
+    window.$message?.success($t('page.jobs.careerReport.checkSuccess') as string);
   } catch (err) {
     window.$message?.error(
-      extractApiError(err, $t('page.jobs.careerReport.checkFailed') as string),
+      taskErrorMessage(err, $t('page.jobs.careerReport.checkFailed') as string),
       { duration: 6000 }
     );
   } finally {

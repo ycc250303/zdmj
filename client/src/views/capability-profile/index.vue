@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { fetchQueryCapabilityProfile, fetchGenerateCapabilityProfile, fetchUploadFile } from '@/service/api/profile';
 import type { CapabilityProfileApi } from '@/service/api/profile';
+import { waitForAsyncTask, isAsyncTaskFailedError } from '@/composables/useAsyncTaskPoll';
 import { fetchGetResumeFullContentList } from '@/service/api/resume';
 import type { ResumeApi } from '@/service/api/resume';
 import { $t } from '@/locales';
@@ -267,9 +268,22 @@ async function handleGenerate() {
 
     const { data, error } = await fetchGenerateCapabilityProfile(requestData);
 
-    if (!error && data) {
-      profile.value = data;
-      window.$message?.success($t('page.profile.capability.generateSuccess'));
+    if (!error && data?.taskId) {
+      try {
+        await waitForAsyncTask(data.taskId);
+        const { data: generated, error: queryError } = await fetchQueryCapabilityProfile();
+        if (!queryError && generated) {
+          profile.value = generated;
+          window.$message?.success($t('page.profile.capability.generateSuccess'));
+        } else {
+          window.$message?.error($t('page.profile.capability.generateFailed'));
+        }
+      } catch (waitErr) {
+        const backendMsg = isAsyncTaskFailedError(waitErr) ? waitErr.message : undefined;
+        window.$message?.error(
+          `${$t('page.profile.capability.generateFailed')}: ${backendMsg || (waitErr as Error)?.message || $t('page.profile.capability.unknownError')}`
+        );
+      }
     } else {
       const backendMsg = (() => {
         const data = (error as { response?: { data?: { detail?: string; msg?: string } } })?.response?.data;

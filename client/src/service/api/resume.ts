@@ -1,4 +1,5 @@
 import { request } from '../request';
+import type { AsyncTaskApi } from './async-task';
 
 /** * =====================================================================
  * TypeScript 类型定义区域 (DTOs)
@@ -360,9 +361,9 @@ export function fetchSaveMyResumeContent(data: ResumeApi.ResumeContentSaveReques
   return request<ResumeApi.ResumeContentDTO>({ url: '/resumes/me/content', method: 'put', data });
 }
 
-/** 简历 PDF/文本结构化识别（不写库） */
+/** 入队简历 PDF/文本结构化识别；完成后从任务 result 取 JSON（不写库） */
 export function fetchParseResumeImport(data: ResumeApi.ResumeImportParseRequest) {
-  return request<ResumeApi.ResumeImportParseResult>({
+  return request<AsyncTaskApi.AsyncTask>({
     url: '/resumes/import/parse',
     method: 'post',
     data
