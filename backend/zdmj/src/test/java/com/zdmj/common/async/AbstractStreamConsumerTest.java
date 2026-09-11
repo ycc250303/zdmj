@@ -133,20 +133,44 @@ class AbstractStreamConsumerTest {
 
     private static final class RecordingConsumer extends AbstractStreamConsumer {
 
+        private final AsyncLlmTaskMapper mapper;
         int processed;
         RuntimeException failWith;
 
         RecordingConsumer(RedisUtil redisUtil, AsyncLlmTaskMapper mapper) {
-            super(redisUtil, mapper);
+            super(redisUtil);
+            this.mapper = mapper;
         }
 
         @Override
-        protected String processBusiness(AsyncLlmTask task) {
+        protected StreamClaim claimTask(Long taskId) {
+            AsyncLlmTask task = mapper.selectById(taskId);
+            if (task == null) {
+                return null;
+            }
+            if (mapper.claimPendingTask(taskId) != 1) {
+                return null;
+            }
+            return new StreamClaim(task.getId(), task.getUserId(), task);
+        }
+
+        @Override
+        protected String processClaimed(StreamClaim claimed) {
             if (failWith != null) {
                 throw failWith;
             }
             processed++;
             return null;
+        }
+
+        @Override
+        protected void markSuccess(long taskId, String result) {
+            mapper.markTaskSuccess(taskId, result);
+        }
+
+        @Override
+        protected void markFailed(long taskId, String error) {
+            mapper.markTaskFailed(taskId, error);
         }
 
         @Override

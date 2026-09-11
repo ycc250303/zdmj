@@ -11,7 +11,6 @@ import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.ReadOffset;
 import org.springframework.data.redis.connection.stream.RecordId;
 
-import com.zdmj.common.async.mapper.AsyncLlmTaskMapper;
 import com.zdmj.common.constants.RedisConstants;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
@@ -31,23 +30,22 @@ public abstract class AbstractStreamConsumer {
     private static final int ERROR_MAX_LEN = 500;
 
     protected final RedisUtil redisUtil;
-    protected final AsyncLlmTaskMapper asyncLlmTaskMapper;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
     private ExecutorService executorService;
     private String consumerName;
 
-    protected AbstractStreamConsumer(RedisUtil redisUtil, AsyncLlmTaskMapper asyncLlmTaskMapper) {
+    protected AbstractStreamConsumer(RedisUtil redisUtil) {
         this.redisUtil = redisUtil;
-        this.asyncLlmTaskMapper = asyncLlmTaskMapper;
     }
 
     /**
-     * 建消费组（已存在则忽略），单线程先排空本 PEL 再阻塞 {@code XREADGROUP >}。
+     * 建消费组（已存在则忽略），可补投递进行中任务，再单线程排空本 PEL 并阻塞 {@code XREADGROUP >}。
      */
     public void startConsumer() {
         this.consumerName = name().toLowerCase() + "-consumer";
         redisUtil.ensureConsumerGroup(streamKey(), groupName());
+        replayOnStart();
         this.executorService = Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r, "zdmj-" + name().toLowerCase() + "-stream-consumer");
             t.setDaemon(true);
@@ -120,9 +118,8 @@ public abstract class AbstractStreamConsumer {
      *
      * <ol>
      *   <li>解析 {@code taskId}；缺失或非法则 ACK 丢弃。</li>
-     *   <li>行不存在 → ACK。</li>
-     *   <li>{@code claimPendingTask}：非 PENDING/RUNNING 则 ACK 跳过（终态或重复投递）。</li>
-     *   <li>{@link #processBusiness} 成功 → SUCCESS + ACK；任何异常 → FAILED + ACK。</li>
+     *   <li>{@link #claimTask} 返回空 → ACK（行不存在或非进行中）。</li>
+     *   <li>{@link #processClaimed} 成功 → SUCCESS + ACK；任何异常 → FAILED + ACK。</li>
      * </ol>
      *
      * @param record Redis Stream 记录，value 为标识 Map
@@ -135,28 +132,21 @@ public abstract class AbstractStreamConsumer {
             return;
         }
 
-        AsyncLlmTask task = asyncLlmTaskMapper.selectById(taskId);
-        if (task == null) {
-            log.warn("检测到任务已被删除，跳过: taskId={}", taskId);
+        StreamClaim claimed = claimTask(taskId);
+        if (claimed == null) {
+            log.debug("claim 跳过（不存在或非进行中）: taskId={}", taskId);
             ack(recordId);
             return;
         }
 
-        int claimed = asyncLlmTaskMapper.claimPendingTask(taskId);
-        if (claimed != 1) {
-            log.debug("claim 跳过（非进行中）: taskId={}", taskId);
-            ack(recordId);
-            return;
-        }
-
-        UserHolder.set(UserContext.of(task.getUserId(), "async-task"));
+        UserHolder.set(UserContext.of(claimed.userId(), "async-task"));
         try {
-            String result = processBusiness(task);
-            asyncLlmTaskMapper.markTaskSuccess(taskId, result);
+            String result = processClaimed(claimed);
+            markSuccess(claimed.taskId(), result);
             ack(recordId);
         } catch (Exception e) {
-            log.error("处理{}失败: taskId={}", name(), taskId, e);
-            asyncLlmTaskMapper.markTaskFailed(taskId, truncateError(e.getMessage()));
+            log.error("处理{}失败: taskId={}", name(), claimed.taskId(), e);
+            markFailed(claimed.taskId(), truncateError(e.getMessage()));
             ack(recordId);
         } finally {
             UserHolder.clear();
@@ -197,12 +187,32 @@ public abstract class AbstractStreamConsumer {
     }
 
     /**
-     * 域内同步执行（画像/匹配/报告等）。嵌套 LLM 在此方法内直接调 Service，禁止再 enqueue。
-     *
-     * @param task 已 claim 为 RUNNING 的行，payload/userId 已就绪
-     * @return 写入 {@code async_llm_tasks.result} 的 JSON，无独立结果时返回 {@code null}
+     * 启动消费循环前补投递（如向量任务表仍为 PENDING 但 Stream 无消息）。默认空操作。
      */
-    protected abstract String processBusiness(AsyncLlmTask task);
+    protected void replayOnStart() {
+        // LLM 任务靠 PEL；向量化另覆盖
+    }
+
+    /**
+     * 加载任务并 claim。行不存在或非 PENDING/RUNNING 时返回 {@code null}（调用方 ACK）。
+     *
+     * @param taskId Stream 中的任务 id
+     */
+    protected abstract StreamClaim claimTask(Long taskId);
+
+    /**
+     * 域内同步执行。嵌套 LLM 在此方法内直接调 Service，禁止再 enqueue。
+     *
+     * @param claimed 已 claim 为 RUNNING 的上下文
+     * @return 写入任务 result 的 JSON；无独立结果时返回 {@code null}
+     */
+    protected abstract String processClaimed(StreamClaim claimed);
+
+    /** 业务成功后把任务行标 SUCCESS。 */
+    protected abstract void markSuccess(long taskId, String result);
+
+    /** 业务失败后把任务行标 FAILED。 */
+    protected abstract void markFailed(long taskId, String error);
 
     /** 本消费者读取的 Stream key。 */
     protected abstract String streamKey();
