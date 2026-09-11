@@ -1,3 +1,29 @@
 {
-    "java.compile.nullAnalysis.mode": "automatic"
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.import.maven.enabled": true,
+  "java.maven.downloadSources": true,
+  "java.jdt.ls.lombokSupport.enabled": true,
+  "java.server.launchMode": "Standard",
+  "java.jdt.ls.java.home": "/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home",
+  "java.configuration.runtimes": [
+    {
+      "name": "JavaSE-21",
+      "path": "/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home",
+      "default": true
+    }
+  ],
+  "java.import.exclusions": [
+    "**/node_modules/**",
+    "**/.metadata/**",
+    "**/archetype-resources/**",
+    "**/META-INF/maven/**",
+    "**/client/**",
+    "**/volumes/**"
+  ],
+  "java.project.resourceFilters": [
+    "node_modules",
+    "\\.git",
+    "client",
+    "volumes"
+  ]
 }

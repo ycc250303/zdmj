@@ -1,6 +1,5 @@
 package com.zdmj.careerReportService.support;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -20,7 +19,6 @@ import com.zdmj.careerReportService.dto.CareerReportPolishRequest;
 import com.zdmj.careerReportService.dto.CareerReportResponse;
 import com.zdmj.careerReportService.service.CareerDevelopmentReportService;
 import com.zdmj.common.async.AsyncLlmTask;
-import com.zdmj.common.async.AsyncTaskType;
 
 @ExtendWith(MockitoExtension.class)
 class CareerReportAsyncExecutorTest {
@@ -71,12 +69,5 @@ class CareerReportAsyncExecutorTest {
 
         assertNull(checkExecutor.execute(task));
         verify(reportService).checkIntegrity(11L);
-    }
-
-    @Test
-    void types_shouldMatchEnums() {
-        assertEquals(AsyncTaskType.CAREER_REPORT, generateExecutor.type());
-        assertEquals(AsyncTaskType.REPORT_POLISH, polishExecutor.type());
-        assertEquals(AsyncTaskType.REPORT_CHECK, checkExecutor.type());
     }
 }

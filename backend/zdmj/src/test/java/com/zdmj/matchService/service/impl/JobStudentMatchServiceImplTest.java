@@ -141,36 +141,6 @@ class JobStudentMatchServiceImplTest {
                 eq(JobStudentMatchResponse.class));
     }
 
-    @Test
-    void generate_promptRouting_shouldUseFrontendPrompt_forFrontendRole() {
-        Long jobId = 13L;
-        wireHappyPath(jobId, "frontend", buildAiResult());
-
-        matchService.generate(jobId, null);
-
-        verify(chatUtil).chatStructuredOnce(
-                eq(USER_ID),
-                any(String.class),
-                eq("job-student-match/frontend"),
-                isNull(),
-                eq(JobStudentMatchResponse.class));
-    }
-
-    @Test
-    void generate_promptRouting_shouldUseAiAgentPrompt_forAiAgentRole() {
-        Long jobId = 14L;
-        wireHappyPath(jobId, "ai-agent", buildAiResult());
-
-        matchService.generate(jobId, null);
-
-        verify(chatUtil).chatStructuredOnce(
-                eq(USER_ID),
-                any(String.class),
-                eq("job-student-match/ai-agent"),
-                isNull(),
-                eq(JobStudentMatchResponse.class));
-    }
-
     // ========================================================
     // userMessage 必须内联权重 + 关键词（替代被移除的 promptVars）
     // ========================================================

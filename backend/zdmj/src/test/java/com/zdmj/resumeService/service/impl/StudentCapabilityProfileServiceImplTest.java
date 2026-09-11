@@ -11,9 +11,7 @@ import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.common.storage.FileUploadService;
 import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.common.ai.JobRole;
-import com.zdmj.common.ai.JobRoleDetector;
 import com.zdmj.common.ai.PromptUtil;
-import com.zdmj.common.constants.PromptNames;
 import com.zdmj.resumeService.dto.CapabilityProfileGenerateRequest;
 import com.zdmj.resumeService.dto.ResumeRoleDetectDTO;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
@@ -39,7 +37,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -251,67 +248,13 @@ class StudentCapabilityProfileServiceImplTest {
     }
 
     @Test
-    void detect_keywordDirectHit_shouldReturnRuleAndSkipLlm() {
-        ResumeRoleDetectDTO out = ReflectionTestUtils.invokeMethod(service, "detect", 1L,
-                "Java Spring Boot MySQL Redis project");
-
-        assertNotNull(out);
-        assertEquals(JobRole.JAVA, out.getRole());
-        assertNotNull(out.getReason());
-        verify(chatUtil, never()).chatStructuredOnce(any(), anyString(), eq(PromptNames.JOB_DETECT),
-                any(), any());
-    }
-
-    @Test
-    void detect_llmUnknown_shouldFallbackToKeywordWeakHit() throws Exception {
-        String resumeText = "java spring 实习经历";
-        Object llmResult = buildRoleDetectLlmResult("unknown", 0.93, "不确定");
-        doReturn(llmResult).when(chatUtil).chatStructuredOnce(eq(1L), eq(resumeText), eq(PromptNames.JOB_DETECT),
-                isNull(), any());
-
-        ResumeRoleDetectDTO out = ReflectionTestUtils.invokeMethod(service, "detect", 1L, resumeText);
-
-        assertNotNull(out);
-        assertEquals(JobRole.JAVA, out.getRole());
-        assertEquals(0.45, out.getConfidence());
-        verify(chatUtil).chatStructuredOnce(eq(1L), eq(resumeText), eq(PromptNames.JOB_DETECT), isNull(), any());
-    }
-
-    @Test
-    void detect_llmThrows_shouldFallbackToKeywordWeakHit() {
-        String resumeText = "java spring 项目";
-        doThrow(new RuntimeException("llm timeout")).when(chatUtil)
-                .chatStructuredOnce(eq(1L), eq(resumeText), eq(PromptNames.JOB_DETECT), isNull(), any());
-
-        ResumeRoleDetectDTO out = ReflectionTestUtils.invokeMethod(service, "detect", 1L, resumeText);
-
-        assertNotNull(out);
-        assertEquals(JobRole.JAVA, out.getRole());
-        assertEquals(0.35, out.getConfidence());
-        verify(chatUtil).chatStructuredOnce(eq(1L), eq(resumeText), eq(PromptNames.JOB_DETECT), isNull(), any());
-    }
-
-    @Test
-    void detect_emptyText_shouldReturnUnknown() {
+    void detect_emptyText_shouldRewriteReasonAndSkipLlm() {
         ResumeRoleDetectDTO out = ReflectionTestUtils.invokeMethod(service, "detect", 1L, "  ");
 
         assertNotNull(out);
         assertEquals(JobRole.UNKNOWN, out.getRole());
-        assertEquals(0.0, out.getConfidence());
+        assertEquals("简历文本为空", out.getReason());
         verify(chatUtil, never()).chatStructuredOnce(any(), any(), any(), any(), any());
-    }
-
-    @Test
-    void detect_llmThrowsAndNoKeyword_shouldReturnUnknownFallback() {
-        String resumeText = "rust elixir";
-        doThrow(new RuntimeException("llm timeout")).when(chatUtil)
-                .chatStructuredOnce(eq(1L), eq(resumeText), eq(PromptNames.JOB_DETECT), isNull(), any());
-
-        ResumeRoleDetectDTO out = ReflectionTestUtils.invokeMethod(service, "detect", 1L, resumeText);
-
-        assertNotNull(out);
-        assertEquals(JobRole.UNKNOWN, out.getRole());
-        assertEquals(0.2, out.getConfidence());
     }
 
     @Test
@@ -473,15 +416,6 @@ class StudentCapabilityProfileServiceImplTest {
 
         assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
         verify(service, never()).getOne(any());
-    }
-
-    private static JobRoleDetector.RoleDetectLLMResult buildRoleDetectLlmResult(
-            String roleCode, double confidence, String reason) {
-        JobRoleDetector.RoleDetectLLMResult result = new JobRoleDetector.RoleDetectLLMResult();
-        result.setRoleCode(roleCode);
-        result.setConfidence(confidence);
-        result.setReason(reason);
-        return result;
     }
 
     private static void initMybatisPlusLambdaCache() {

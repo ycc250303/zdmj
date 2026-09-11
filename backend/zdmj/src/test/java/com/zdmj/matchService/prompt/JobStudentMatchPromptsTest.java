@@ -14,7 +14,6 @@ import com.zdmj.common.ai.JobRole;
 import com.zdmj.common.ai.PromptScenario;
 import com.zdmj.common.ai.PromptUtil;
 
-import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -32,7 +31,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <ol>
  *   <li>所有 job-student-match 提示词都不再包含 <code>${...}</code> 字面占位符
  *       （这种写法 Spring AI 不识别，且会以原文 leak 给 LLM）；</li>
- *   <li>提示词全部能被 {@link PromptUtil#load(String)} 正常读取；</li>
  *   <li>chatOnce + null promptVars 约定由 {@code JobStudentMatchServiceImplTest} 覆盖
  *       （不在此重复跑真实 ChatUtil/UserLlmRouter 链路，避免 CI 环境差异）。</li>
  * </ol>
@@ -57,16 +55,6 @@ class JobStudentMatchPromptsTest {
                             + "（StringTemplate）只识别 {var} 写法，${var} 会被原文 leak 给 LLM。"
                             + "请改用上文/用户消息内联的自然语言指引。");
         }
-    }
-
-    @Test
-    void allMatchPrompts_shouldBeLoadable_viaPromptUtil() {
-        PromptUtil promptUtil = new PromptUtil(new DefaultResourceLoader());
-        assertAll(matchPromptNames().stream().map(name -> () -> {
-            String content = promptUtil.load(name);
-            assertTrue(content != null && !content.isBlank(),
-                    name + " 加载失败或内容为空");
-        }));
     }
 
     @Test

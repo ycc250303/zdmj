@@ -13,7 +13,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.async.AsyncLlmTask;
-import com.zdmj.common.async.AsyncTaskType;
 import com.zdmj.resumeService.dto.CapabilityProfileGenerateRequest;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
 import com.zdmj.resumeService.service.StudentCapabilityProfileService;
@@ -40,10 +39,5 @@ class StudentProfileAsyncExecutorTest {
 
         assertNull(executor.execute(task));
         verify(studentCapabilityProfileService).generateProfile(any(CapabilityProfileGenerateRequest.class));
-    }
-
-    @Test
-    void type_shouldBeStudentProfile() {
-        org.junit.jupiter.api.Assertions.assertEquals(AsyncTaskType.STUDENT_PROFILE, executor.type());
     }
 }

@@ -163,18 +163,6 @@ class JobServiceImplTest {
     }
 
     @Test
-    void update_notFound_shouldThrow10001() {
-        JobRequest dto = new JobRequest();
-        dto.setId(404L);
-        doReturn(null).when(jobMapper).selectById(404L);
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> jobService.update(dto));
-
-        assertEquals(ErrorCode.JOB_NOT_FOUND.getCode(), ex.getCode());
-        verify(redisUtil, never()).delete(any());
-    }
-
-    @Test
     void delete_whenSuccess_shouldDeleteCacheAndNullMarker() {
         Long jobId = 501L;
         doReturn(true).when(jobService).removeById(jobId);

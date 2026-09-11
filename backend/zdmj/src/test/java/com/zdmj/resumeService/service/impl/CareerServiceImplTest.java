@@ -99,6 +99,16 @@ class CareerServiceImplTest {
     }
 
     @Test
+    void getByUserId_userNotLogin_shouldThrowAndSkipMapperCall() {
+        UserHolder.clear();
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.getByUserId());
+
+        assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
+        verify(careerMapper, never()).selectByUserId(any());
+    }
+
+    @Test
     void update_noPermission_shouldThrow() {
         CareerRequest dto = new CareerRequest();
         dto.setId(10L);

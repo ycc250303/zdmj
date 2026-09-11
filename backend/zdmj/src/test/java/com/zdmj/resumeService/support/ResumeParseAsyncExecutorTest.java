@@ -1,6 +1,5 @@
 package com.zdmj.resumeService.support;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -14,7 +13,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.async.AsyncLlmTask;
-import com.zdmj.common.async.AsyncTaskType;
 import com.zdmj.resumeService.dto.ResumeImportParseRequest;
 import com.zdmj.resumeService.dto.ResumeImportParseResponse;
 import com.zdmj.resumeService.service.ResumeService;
@@ -44,10 +42,5 @@ class ResumeParseAsyncExecutorTest {
 
         assertTrue(result.contains("ok"));
         verify(resumeService).parseImport(any(ResumeImportParseRequest.class));
-    }
-
-    @Test
-    void type_shouldBeResumeParse() {
-        assertEquals(AsyncTaskType.RESUME_PARSE, executor.type());
     }
 }

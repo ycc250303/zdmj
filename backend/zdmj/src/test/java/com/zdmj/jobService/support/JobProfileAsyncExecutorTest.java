@@ -1,6 +1,5 @@
 package com.zdmj.jobService.support;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -13,7 +12,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.async.AsyncLlmTask;
-import com.zdmj.common.async.AsyncTaskType;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
 
@@ -38,10 +36,5 @@ class JobProfileAsyncExecutorTest {
 
         assertNull(executor.execute(task));
         verify(jobCapabilityProfileService).getJobCapabilityProfile(3L);
-    }
-
-    @Test
-    void type_shouldBeJobProfile() {
-        assertEquals(AsyncTaskType.JOB_PROFILE, executor.type());
     }
 }

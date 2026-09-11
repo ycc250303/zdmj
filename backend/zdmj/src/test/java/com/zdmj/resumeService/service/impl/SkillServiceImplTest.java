@@ -70,6 +70,18 @@ class SkillServiceImplTest {
     }
 
     @Test
+    void create_userNotLogin_shouldThrowAndSkipSave() {
+        UserHolder.clear();
+        SkillRequest dto = new SkillRequest();
+        dto.setContent(validContent());
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
+
+        assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
+        verify(service, never()).save(any(Skill.class));
+    }
+
+    @Test
     void create_invalidContent_shouldThrowAndSkipSave() {
         SkillRequest dto = new SkillRequest();
         SkillItemDTO invalid = new SkillItemDTO();

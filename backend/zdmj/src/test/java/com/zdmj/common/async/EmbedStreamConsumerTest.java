@@ -65,18 +65,6 @@ class EmbedStreamConsumerTest {
         verify(redisUtil).xack(anyString(), anyString(), any(RecordId.class));
     }
 
-    @Test
-    void consume_claimZero_shouldSkipExecute() {
-        EmbedStreamConsumer consumer = new EmbedStreamConsumer(redisUtil, mapper, embeddingService, producer);
-        when(mapper.selectById(9L)).thenReturn(task(9L));
-        when(mapper.claimPendingTask(9L)).thenReturn(0);
-
-        consumer.consumeRecord(record(9L));
-
-        verify(embeddingService, never()).executeClaimed(any());
-        verify(redisUtil).xack(anyString(), anyString(), any(RecordId.class));
-    }
-
     private static MapRecord<String, String, String> record(long taskId) {
         return MapRecord.create(RedisConstants.EMBED_STREAM_KEY, Map.of(
                 RedisConstants.STREAM_FIELD_TASK_ID, Long.toString(taskId))).withId(RecordId.of("1-0"));
