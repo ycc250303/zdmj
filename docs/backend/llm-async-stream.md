@@ -2,17 +2,17 @@
 
 对齐 [interview-guide](https://github.com/Snailclimb/interview-guide) 的 **Producer/Consumer 模板方法**（先落库 PENDING 再 `XADD`、失败也 ACK、`MAXLEN`、前端轮询）。不引入 Redisson；对话保持 SSE。单实例；**不做**自动重入队与 `XCLAIM`（失败标 FAILED，用户再点；重启靠固定 `consumerName` 排空本 PEL）。
 
-**落地进度**：一期骨架已简化（`AsyncTaskService.enqueue`、`GET /async-tasks/{id}`、`LlmStreamProducer`、`AbstractStreamConsumer`）。LLM 消费者尚未分发域 execute（收到消息标 FAILED）。业务 POST 仍同步；二期再接 execute，三期改契约。
+**落地进度**：一期骨架 + 二期域执行器 + 三期生成 POST 改 `Result<AsyncTaskDTO>` 与前端 2s 轮询 + 四期向量化走 `zdmj:embed:stream`（仍写 `knowledge_vector_tasks`，不双写 `async_llm_tasks`）。失败即 FAILED，无自动重试 / XCLAIM。
 
 任务状态落在 `async_llm_tasks`（相当于参考文的 `vectorStatus`），**不**写入匹配/报告等业务表。
 
-## 1 现状与问题
+## 1 现状与做法
 
-| 现状 | 问题 |
+| 项 | 做法 |
 | --- | --- |
-| 画像 / 匹配 / 报告 / 简历解析：Controller 同步 `chatStructuredOnce` | HTTP 被占数十秒～数分钟，易 504 |
-| 知识库向量化：`knowledge_vector_tasks` + `@Async` | 进程内线程池，多实例不共享，重启靠扫 PENDING |
-| 前端 `generatingXxx` | 只挡本页；多标签每次都打 LLM |
+| 画像 / 匹配 / 报告 / 简历解析 | POST 入队，消费者调现有 generate*，HTTP 立即返回 taskId |
+| 知识库向量化 | `knowledge_vector_tasks` + Embed Stream，与 LLM 流隔离限流 |
+| 前端 | PENDING/RUNNING 时 2s 轮询任务，终态再拉业务 GET |
 
 ## 2 范围
 
@@ -27,7 +27,7 @@ HTTP 立即返回 `taskId`；消费者调现有 `executeXxx`（无 HTTP）。
 | `CAREER_REPORT` | `user:{userId}:job:{jobId}` | 报告生成 |
 | `REPORT_POLISH` / `REPORT_CHECK` | `report:{reportId}` | 润色 / 完整性 |
 | `RESUME_PARSE` | `user:{userId}` | 简历识别 |
-| `KB_EMBED` / `KB_DELETE` | `doc:{documentId}` | 四期替换 `@Async` |
+| `KB_EMBED` / `KB_DELETE` | 仍用 `knowledge_vector_tasks`（不写 async_llm_tasks） | Embed Stream |
 
 **不入队**：SSE 对话；RAG 查询 Embedding；纯 GET / 权重查询 / 报告手动保存。
 
@@ -78,14 +78,15 @@ AsyncTaskType / AsyncTaskStatus
 AsyncLlmTask + Mapper
 AsyncTaskService          # enqueue（INSERT+XADD）与 GET
 AsyncTaskDTO / AsyncTaskController
-LlmStreamProducer         # send → xaddTask；失败标 FAILED
-AbstractStreamConsumer    # 启动排空 PEL / 循环 / claim / ACK；失败即 FAILED
-LlmStreamConsumer
+LlmStreamProducer / knowledgeService.support.EmbedStreamProducer
+AbstractStreamConsumer
+LlmStreamConsumer / knowledgeService.support.EmbedStreamConsumer
+AsyncTaskExecutor         # 域 support 适配器
 ```
 
-Consumer 子类只填 `processBusiness`（二期按 `taskType` 调现有 generate）以及流/组名。不要为九类任务各写一套生命周期。四期再加 Embed 子类。
+Consumer 只填 claim / processClaimed / 流名。不要为每类任务各写一套生命周期。
 
-域 Service 三期再拆 `enqueueXxx`。Consumer 禁止再 enqueue。登录态：`UserContext.of(userId, "async-task")`，`finally` 清理。
+域 Service 提供 `enqueueXxx`（廉价校验 + 入队）；消费者禁止再 enqueue。登录态：`UserContext.of(userId, "async-task")`，`finally` 清理。
 
 ## 6 数据与权限
 
@@ -97,13 +98,13 @@ Consumer 子类只填 `processBusiness`（二期按 `taskType` 调现有 generat
 
 匹配 `bizKey` 不含 weights：进行中改权重仍返回第一次任务（产品选择）。
 
-`KB_*` 一期仍用 `knowledge_vector_tasks`，不双写；四期再迁。
+`KB_*` 不写入 `async_llm_tasks`。向量化走 `knowledge_vector_tasks` + `zdmj:embed:stream`；启动时补 XADD 仍为 PENDING/RUNNING 的行。
 
 ## 7 可靠性
 
 - `XACK` 不删 Stream 条目；靠 `MAXLEN ~ 1000` 近似裁剪。
 - 成功 / 失败 **都 ACK**；不自动重入队。LLM 失败标 FAILED，用户再点（终态不占 `uk_inflight`）。
-- **单实例**：`consumerName=llm-consumer`。多实例共用该名会抢同一 PEL，不要水平扩消费者。
+- **单实例**：`consumerName=llm-consumer` / `embed-consumer`。多实例共用该名会抢同一 PEL，不要水平扩消费者。
 - 启动时 `XREADGROUP` 偏移 `0-0` 排空本 PEL；`claim` 允许 PENDING 与 RUNNING（崩溃重启时行可能已是 RUNNING）。
 - 不做 `XCLAIM`、不做滞留扫描。Stream 被 `MAXLEN` 裁掉未读消息时，DB 可能残留 PENDING，需人工处理或用户换 bizKey。
 
@@ -111,17 +112,17 @@ Consumer 子类只填 `processBusiness`（二期按 `taskType` 调现有 generat
 
 ## 8 契约与前端
 
-`POST` 生成：`Result<AsyncTaskDTO>`，HTTP **200**。业务 DTO 仍走原 GET；未完成 `data=null`。
+生成 POST：`Result<AsyncTaskDTO>`，HTTP **200**。业务 DTO 仍走原 GET；未完成 `data=null`。`RESUME_PARSE` 成功结果在任务 `result`。
 
-前端：仅当任务 PENDING/RUNNING 时 2s 静默轮询任务接口；终态再拉业务 GET。对齐参考文「条件轮询、不闪 loading」。
+前端：仅当任务 PENDING/RUNNING 时 2s 静默轮询 `GET /async-tasks/{id}`；终态再拉业务 GET。FAILED 展示 `errorMessage`（HTTP 仍成功）。知识库页仍用文档 `embeddingStatus`。
 
 ## 9 实施切分
 
 | 部分 | 改动 |
 | --- | --- |
 | 数据库 | 任务表已有。岗位画像已按用户隔离 |
-| 后端 | 入队 + GET 任务 + 消费模板；二期接域 generate；四期下线 embedding `@Async` |
-| 前端 | POST 后轮询任务，完成拉业务结果 |
-| 不改 | SSE 对话；不引入 Redisson |
+| 后端 | 入队 + GET 任务 + LLM/Embed 消费者 + 域 enqueueXxx |
+| 前端 | POST 后 2s 轮询任务，完成拉业务结果 |
+| 不改 | SSE 对话；不引入 Redisson；岗位图谱生成仍同步 |
 
-顺序：模板 + 去重/claim 单测 → 匹配与两类画像（画像表先隔离）→ 报告/解析 → 迁向量化。
+顺序：模板 → 执行器 → 改 POST/前端轮询 → 迁向量化（已完成）。
