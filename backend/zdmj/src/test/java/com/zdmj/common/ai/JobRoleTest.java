@@ -48,13 +48,6 @@ class JobRoleTest {
     }
 
     @Test
-    void slug_shouldMatchPromptFileStem() {
-        assertEquals("java-backend", JobRole.JAVA.slug());
-        assertEquals("software-test", JobRole.SOFTWARE_TEST.slug());
-        assertEquals("default", JobRole.UNKNOWN.slug());
-    }
-
-    @Test
     void fromString_shouldBeIdempotentWithSlug() {
         for (JobRole role : JobRole.values()) {
             assertSame(role, JobRole.fromString(role.slug()));

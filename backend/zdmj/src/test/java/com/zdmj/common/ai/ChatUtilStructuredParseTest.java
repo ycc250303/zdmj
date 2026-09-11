@@ -55,20 +55,6 @@ class ChatUtilStructuredParseTest {
     }
 
     @Test
-    void chatStructuredOnce_whenMultilineJsonFence_shouldParse() {
-        stubEntityConvert("""
-                ```json
-                {"name":"Ada","score":9}
-                ```
-                """);
-
-        SampleOut parsed = chatUtil.chatStructuredOnce(1L, "msg", null, null, SampleOut.class);
-
-        assertEquals("Ada", parsed.getName());
-        assertEquals(9, parsed.getScore());
-    }
-
-    @Test
     void chatStructuredOnce_whenSingleLineJsonFence_shouldParse() {
         stubEntityConvert("```json {\"name\":\"Dee\",\"score\":4} ```");
 

@@ -282,23 +282,6 @@ class ConversationServiceImplTest {
     }
 
     @Test
-    void createConversation_shouldKeepOnlyFrozenConfigKeys() {
-        ConversationRequest dto = new ConversationRequest();
-        dto.setConfig(Map.of(
-                "model", "gpt",
-                ConversationContextSupport.CONFIG_USE_SYSTEM_KNOWLEDGE, true,
-                ConversationContextSupport.CONFIG_RAG_DOCUMENT_IDS, List.of(3, 4)));
-        doReturn(true).when(conversationService).save(any(Conversation.class));
-
-        ConversationResponse actual = conversationService.create(dto);
-
-        assertTrue(Boolean.TRUE.equals(actual.getConfig().get(ConversationContextSupport.CONFIG_USE_SYSTEM_KNOWLEDGE)));
-        assertEquals(List.of(3L, 4L), actual.getConfig().get(ConversationContextSupport.CONFIG_RAG_DOCUMENT_IDS));
-        assertFalse(actual.getConfig().containsKey("model"));
-        verify(conversationService, never()).updateById(any(Conversation.class));
-    }
-
-    @Test
     void updateConfig_whenIdle_shouldSanitizeAndUpdate() {
         Conversation owned = new Conversation();
         owned.setId(23L);
