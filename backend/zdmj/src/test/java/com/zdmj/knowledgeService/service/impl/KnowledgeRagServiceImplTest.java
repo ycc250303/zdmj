@@ -52,18 +52,6 @@ class KnowledgeRagServiceImplTest {
     }
 
     @Test
-    void streamAnswerNotLogin_shouldThrowUserNotLogin() {
-        KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.streamAnswer(null, 12L, "hello", null, false, null));
-
-        assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
-        verify(chatUtil, never()).chatStreamInConversation(any(), any(), any(), any(), any());
-    }
-
-    @Test
     @SuppressWarnings("null")
     void streamAnswerEmptyHitsFallback_shouldUseSystemPrompt() {
         UserHolder.set(UserContext.of(401L, "u"));

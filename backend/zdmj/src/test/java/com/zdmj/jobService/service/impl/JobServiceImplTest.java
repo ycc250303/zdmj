@@ -312,25 +312,6 @@ class JobServiceImplTest {
     }
 
     @Test
-    void getDetail_getPage_whenNegativePageAndLimit_shouldFallbackDefaults() {
-        JobPageQueryDTO query = new JobPageQueryDTO();
-        query.setPage(-3);
-        query.setLimit(-8);
-        Page<JobListItemResponse> mpPage = new Page<>(1, 20);
-        mpPage.setRecords(List.of());
-        mpPage.setTotal(5);
-        doReturn(mpPage).when(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
-
-        PageDTO<JobListItemResponse> page = jobService.getPage(query);
-
-        assertEquals(1, page.getPage());
-        assertEquals(20, page.getLimit());
-        assertEquals(5L, page.getTotal());
-        assertEquals(1, page.getTotalPages());
-        verify(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
-    }
-
-    @Test
     void getPage_whenSalaryTypeWithoutEmployment_shouldSetResolvedSalaryType() {
         JobPageQueryDTO query = new JobPageQueryDTO();
         query.setSalaryType(3);

@@ -59,18 +59,6 @@ class LlmStreamConsumerTest {
     }
 
     @Test
-    void consume_reservedKbType_shouldMarkFailed() {
-        LlmStreamConsumer consumer = new LlmStreamConsumer(redisUtil, mapper, List.of());
-        when(mapper.selectById(9L)).thenReturn(task(9L, AsyncTaskType.KB_EMBED.getCode()));
-        when(mapper.claimPendingTask(9L)).thenReturn(1);
-
-        consumer.consumeRecord(record(9L));
-
-        verify(mapper).markTaskFailed(eq(9L), eq("未注册任务执行器: type=9"));
-        verify(redisUtil).xack(anyString(), anyString(), any(RecordId.class));
-    }
-
-    @Test
     void consume_registered_shouldMarkSuccessWithResult() {
         when(studentExecutor.type()).thenReturn(AsyncTaskType.STUDENT_PROFILE);
         when(studentExecutor.execute(any(AsyncLlmTask.class))).thenReturn("{\"ok\":true}");

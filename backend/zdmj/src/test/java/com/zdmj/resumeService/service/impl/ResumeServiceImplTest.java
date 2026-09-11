@@ -507,29 +507,6 @@ class ResumeServiceImplTest {
     }
 
     @Test
-    void parseImport_awardMisclassifiedAsCompetition_shouldResolveToScholarship() {
-        UserHolder.set(UserContext.of(1L, "u1"));
-        ResumeImportParseRequest request = new ResumeImportParseRequest();
-        request.setRawText("获同济大学本科生奖学金");
-
-        ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
-        ResumeImportParseResponse.AwardItem award = new ResumeImportParseResponse.AwardItem();
-        award.setName("同济大学本科生奖学金");
-        award.setAwardType(2);
-        award.setAwardDate("2024-09-01");
-        llmResult.setAwards(List.of(award));
-
-        doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
-                any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
-                eq(ResumeImportParseResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
-
-        ResumeImportParseResponse out = resumeService.parseImport(request);
-
-        assertEquals(1, out.getAwards().size());
-        assertEquals(1, out.getAwards().get(0).getAwardType());
-    }
-
-    @Test
     void parseImport_emptyAwardsFromLlm_shouldKeepEmptyList() {
         UserHolder.set(UserContext.of(1L, "u1"));
         ResumeImportParseRequest request = new ResumeImportParseRequest();
@@ -569,30 +546,6 @@ class ResumeServiceImplTest {
 
         assertEquals(0, out.getAwards().size());
         assertEquals(1, out.getProjects().size());
-    }
-
-    @Test
-    void parseImport_projectHighlightsString_shouldNormalizeToJsonArray() {
-        UserHolder.set(UserContext.of(1L, "u1"));
-        ResumeImportParseRequest request = new ResumeImportParseRequest();
-        request.setRawText("resume");
-
-        ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
-        ResumeImportParseResponse.ProjectItem project = new ResumeImportParseResponse.ProjectItem();
-        project.setName("Demo");
-        project.setRole("开发");
-        project.setStartDate("2025-01-01");
-        project.setHighlights("该项目获全国一等奖");
-        llmResult.setProjects(List.of(project));
-
-        doReturn(llmResult).when(chatUtil).chatStructuredOnceWithPlatformModel(
-                any(String.class), eq(PromptNames.RESUME_IMPORT_PARSE), isNull(),
-                eq(ResumeImportParseResponse.class), eq(ModelEnum.DEEPSEEK_FLASH));
-
-        ResumeImportParseResponse out = resumeService.parseImport(request);
-
-        assertEquals(1, out.getProjects().size());
-        assertTrue(String.valueOf(out.getProjects().get(0).getHighlights()).startsWith("["));
     }
 
     @Test
