@@ -1,20 +1,52 @@
-# zdmj（职点迷津）
+# 职点迷津（zdmj）
 
-`zdmj` 是一个面向求职场景的 AI 辅助平台，围绕简历分析、岗位匹配、知识问答和会话管理，提供从「准备简历」到「求职决策」的完整支持流程。
+面向计算机类校招场景的求职学习规划平台：简历画像、岗位要求画像、可解释人岗匹配、知识库 RAG 与职业生涯发展报告。
+
+[![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk)](https://openjdk.org/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5-green?logo=springboot)](https://spring.io/projects/spring-boot)
+[![Vue](https://img.shields.io/badge/Vue-3.5-42b883?logo=vuedotjs)](https://vuejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue?logo=typescript)](https://www.typescriptlang.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-336791?logo=postgresql)](https://www.postgresql.org/)
 
 ---
 
 ## 项目介绍
 
-项目以 Spring Boot 后端为核心，结合前端管理端与容器化部署能力，目标是构建一个可扩展、可复现、可二次开发的求职服务平台。
+职点迷津面向计算机类专业学生的校招准备阶段，把「了解岗位 → 看清自己 → 量化匹配 → 落地规划」串成一条主线。系统用大语言模型生成岗位能力画像与学生就业能力画像，按基础要求、职业技能、职业素养、发展潜力四个维度做可解释的人岗匹配，再聚合画像与匹配结果生成可编辑的职业生涯发展报告。知识库与智能对话用于学习答疑和材料梳理，与面试模拟等后续环节区分。
 
-核心业务域包括：
+学生可以：
 
-- 用户与鉴权：账号体系、登录鉴权、权限控制
-- 简历服务：简历上传、文本解析、结构化分析
-- 岗位服务：职位信息处理、匹配分析
-- 知识服务：知识库问答与内容检索
-- 会话服务：对话上下文与历史管理
+- 浏览校招岗位，把冗长 JD 归纳为结构化能力要求
+- 上传或编辑简历，得到七维能力画像、评分与改进建议
+- 对目标岗位发起匹配，看到分项得分、证据、亮点与技能缺口
+- 获得含行动计划的生涯报告，并按需润色、检查与手工修改
+- 上传课程笔记、项目材料等到个人知识库，基于材料提问
+- 在独立对话中按需引用系统知识库与个人文档，流式获得回答
+
+---
+
+## 系统架构
+
+前后端分离：浏览器使用 Vue 管理端，业务由 Spring Boot 统一编排；关系数据与向量检索落在 PostgreSQL（pgvector），登录态、限流与长耗时 LLM 任务走 Redis，简历与知识文档存放腾讯云 COS，对话与结构化分析经 Spring AI 接入通义 / DeepSeek。
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│  Vue 3 前端（Soybean Admin / Naive UI）                  │
+│  岗位 · 简历 · 画像 · 匹配 · 报告 · 知识库 · 对话         │
+└──────────────────────────┬──────────────────────────────┘
+                           │ HTTP / SSE
+┌──────────────────────────▼──────────────────────────────┐
+│  Spring Boot 3.5（按业务域分包）                          │
+│  userAuth / resume / job / match / careerReport          │
+│  knowledge / conversation + common（鉴权、LLM、RAG、异步） │
+└───────┬────────────┬────────────┬────────────┬──────────┘
+        │            │            │            │
+   PostgreSQL    Redis 7     腾讯云 COS     LLM API
+   + pgvector    会话/限流    简历/文档      DashScope
+                 Stream                    / DeepSeek
+```
+
+长耗时分析（画像、匹配、报告、简历识别、知识库向量化）入队 Redis Stream，前端轮询任务状态；多轮对话保持 SSE 直出。
 
 ---
 
@@ -22,108 +54,73 @@
 
 ### 后端
 
-- Java 21
-- Spring Boot 3.5
-- Spring AI（`spring-ai-starter-model-openai`，DashScope 兼容模式接入通义）
-- MyBatis-Plus
-- Spring Security + JWT
-- Maven
+| 技术 | 版本 | 说明 |
+| --- | --- | --- |
+| Spring Boot | 3.5 | 应用框架 |
+| Java | 21 | 开发语言 |
+| Spring AI | 1.1 | OpenAI 兼容接入（DashScope / DeepSeek） |
+| MyBatis-Plus | 3.5 | ORM |
+| Spring Security + JWT | — | 认证授权，登录态缓存在 Redis |
+| PostgreSQL + pgvector | 15 | 业务库 + 向量检索 |
+| Redis | 7 | 会话缓存、接口限流、Stream 异步任务 |
+| Apache Tika | 3.3 | 简历 / 知识文档解析 |
+| MapStruct | 1.5 | 对象映射 |
+| 腾讯云 COS | — | 对象存储 |
+| Maven | 3.9+ | 构建工具 |
+
+数据层用 PostgreSQL + pgvector，关系数据与向量检索共用一套库，避免再引入独立向量组件。Redis 承担登录态、限流计数，以及画像 / 匹配 / 报告等长耗时 LLM 任务的 Stream 队列；对话仍走 SSE，不入队。
 
 ### 前端
 
-- Vue 3
-- TypeScript
-- Vite
-- Pinia / Vue Router
-
-### 数据与中间件
-
-- PostgreSQL 15（`pgvector` 镜像）
-- Redis 7
-- 腾讯云 COS（对象存储）
-
-### 工程化与部署
-
-- Docker / Docker Compose
-- GitHub Actions（CI）
+| 技术 | 版本 | 说明 |
+| --- | --- | --- |
+| Vue | 3.5 | UI 框架（Soybean Admin） |
+| TypeScript | 5.9 | 开发语言 |
+| Vite | 7 | 构建工具 |
+| Naive UI | 2.43 | 组件库 |
+| UnoCSS | 66 | 原子化样式 |
+| Pinia | 3 | 状态管理 |
+| Vue Router | 4 | 路由 |
+| ECharts | 6 | 画像 / 匹配可视化 |
+| pnpm | 10+ | 包管理器（Node ≥ 20.19） |
 
 ---
 
 ## 功能特性
 
-### 用户与鉴权
+### 简历与学生能力画像
 
-- 基于 Spring Security + JWT 的认证授权机制，支持登录态校验与接口级权限控制
-- 支持用户基础信息管理，便于后续按用户维度隔离简历、会话、知识数据
-- 提供统一异常返回与鉴权失败处理，降低前后端联调复杂度
+- **一份简历**：每名用户维护一份结构化档案（教育、实习/工作、项目、技能、奖项），整页编辑后一次全量保存。
+- **PDF / 文本导入**：上传 PDF 或粘贴文本，经文档解析与模型结构化识别后写入档案。
+- **七维画像**：从专业技能、荣誉与证书、创新 / 学习 / 抗压 / 沟通 / 实习实践等维度生成就业能力画像，附能力评分与改进建议。
+- **方向识别**：按岗位关键词与模型推断求职方向（Java 后端、前端、C++、测试、AI Agent、算法、数据分析、大数据、DevOps/SRE、网络安全等），后续分析走对应提示词。
+- **简历导出**：在线预览后导出可投递的 PDF。
 
-### 简历服务
+### 岗位与人岗匹配
 
-- 支持简历文件上传与内容提取，可对接多种文本解析策略
-- 将非结构化简历信息转为结构化数据，便于画像分析与岗位匹配
-- 支持简历分析结果持久化，方便后续复用与多轮优化
+- **岗位库**：浏览、筛选校招岗位（行业、公司、薪资、关键词等），查看完整招聘信息。
+- **岗位能力画像**：将 JD 归纳为与学生画像对齐的能力要求，支持按岗位方向选用专用提示词。
+- **四维匹配**：在已有双方画像的前提下，从基础要求、职业技能、职业素养、发展潜力对比打分，给出综合匹配度、证据、亮点、差距与关键词覆盖情况。
+- **历史结果**：同一岗位保留最近一次匹配；画像更新后可重新分析。
 
-### 岗位与匹配服务
+### 职业生涯发展报告
 
-- 支持岗位信息录入与标准化处理（职责、技能、经验要求等）
-- 结合岗位需求与简历画像进行匹配分析，输出可解释的匹配建议
-- 支持为求职场景提供差距提示（能力缺口、关键词覆盖不足、方向建议）
+- **结构化生成**：针对目标岗位聚合画像与匹配结果，输出职业探索、目标、发展路径、短中期行动计划与评估建议。
+- **学习路径 RAG**：生成时检索个人知识库与学习路线专库，把可执行的学习建议写入相关章节。
+- **润色 / 检查 / 编辑**：智能润色生成新版本，完整性检查给出缺项与建议，支持手工修改并保留最新版。
 
-### 知识库与智能问答
+### 知识库与智能对话
 
-- 支持知识内容管理与检索，构建可扩展的求职知识库
-- 结合大模型能力进行问答生成，提升回答的可读性与场景适配度
-- 支持检索增强式问答流程，减少泛化回答，增强内容相关性
+- **个人知识库**：每用户一份准备阶段资料库，支持 PDF / Markdown 上传、异步分块与向量化；学习答疑只检索本人材料。
+- **系统知识库**：平台维护通用资料库与学习路线专库（只读），供生涯报告与对话按需检索。
+- **RAG**：pgvector 相似度检索，配合查询改写与阈值截断；无有效命中时说明并退回一般作答，不编造材料中不存在的经历。
+- **流式对话**：多会话管理、SSE 打字机输出；创建会话时注入当前简历摘要；可按会话开关系统知识库与个人文档。
 
-### 会话与上下文管理
+### 账号与模型
 
-- 支持多轮对话会话管理，保留上下文信息，提升连续问答体验
-- 支持会话历史查询与持久化，便于回溯用户行为与分析过程
-- 支持按业务场景管理会话数据（如简历分析、岗位咨询、知识问答）
-
-### 工程化与可复现能力
-
-- 提供 Docker Compose 一键启动 PostgreSQL、Redis、后端服务
-- 支持本地开发模式（后端 + 前端分离启动），便于调试与模块化迭代
-- 提供 CI 流水线与测试支持，提升交付稳定性与团队协作效率
-
----
-
-## 开发记录（TODO）
-
-### 功能开发
-
-- [x] 完成用户注册/登录与鉴权能力（含 CORS、JWT、登录态缓存）
-- [x] 完成岗位数据导入脚本与岗位 CRUD 接口
-- [x] 完成知识库基础管理（上传、删除、向量化、检索问答）
-- [x] 完成基础 LLM 对话能力（含流式返回、消息编辑重发、会话缓存）
-- [x] 完成学生就业能力画像生成（支持上传文件与文本输入）
-- [x] 完成岗位要求画像分析能力，并持续优化画像字段与返回结构
-- [x] 完成岗位关联图谱能力（垂直晋升路径 + 换岗路径）
-- [x] 完成人岗匹配相关能力建设（岗位画像与学生画像查询/关联支撑）
-- [x] 完成简历分析结果导出 PDF 能力
-- [x] 完成前端核心页面打通（登录、岗位、用户画像、知识库、聊天）
-- [x] 完成单用户单简历模型、全量保存，以及「我的简历」导入编辑（PDF/文本结构化识别、奖项模块）
-- [x] 完成按知识文档选择 RAG 检索范围、系统知识库开关，以及创建会话时注入简历上下文
-- [x] 完成学习路线知识库、职业发展报告 RAG，以及岗位链接 / 行业筛选 / 匹配记录分页
-- [x] 完成用户多模型配置
-- [ ] 完善职业生涯发展报告全流程（目标设定、路径规划、阶段性行动计划一体化输出）
-- [ ] 增强报告编辑优化能力（智能润色、完整性检查、可视化对比）
-- [ ] 优化岗位图谱的前端可视化与交互解释能力（路径可解释性、切换视图）
-- [ ] 将对话能力从 LLM 直出升级为 Agent（工具调用与多步编排）
-
-### 工程优化
-
-- [x] 完成项目基础架构搭建（后端骨架、数据库、CI/CD 基础流程）
-- [x] 完成异常处理、业务码体系与接口稳定性重构
-- [x] 完成单元测试补充与覆盖率门禁
-- [x] 完成从 Python 侧向 Java 侧向量化框架迁移（下线 Python 运行链路）
-- [x] 完成前端 Docker 多阶段构建与 Nginx 容器部署，并下线预览分支独立部署路径
-- [x] 完成各域请求/返回体的统一
-- [x] 完成会话 SSE 直出，取消断点续传
-- [ ] 优化岗位/简历方向提示词的重复部分
-- [ ] 落地 Redis Stream 异步处理长耗时 LLM 任务（画像 / 匹配 / 图谱 / 报告 / 简历解析；对话仍保持 SSE）
-- [ ] 补齐 RAG 效果量化评估并持续优化（检索准确率、回答质量）
+- **注册登录**：邮箱验证码、JWT 鉴权，用户数据按账号隔离。
+- **多模型配置**：用户可自选通义千问 3.8 Flash / Max、DeepSeek V4 Flash / Pro，并加密保存 API Key；未配置时回退平台默认模型。简历结构化识别固定走平台 DeepSeek Flash（无 Key 时回退千问 Flash）。
+- **限流**：长耗时生成接口按用户维度限流，超限返回 429。
 
 ---
 
@@ -131,103 +128,61 @@
 
 ```text
 zdmj/
-├── backend/
-│   └── zdmj/                           # Spring Boot 后端工程（Maven）
-│       ├── src/main/java/com/zdmj/
-│       │   ├── userAuthService/        # 用户鉴权
-│       │   ├── resumeService/          # 简历服务
-│       │   ├── jobService/             # 岗位服务
-│       │   ├── knowledgeService/       # 知识服务
-│       │   ├── conversationService/    # 会话服务
-│       │   ├── matchService/           # 匹配能力
-│       │   └── common/                 # 通用组件
-│       └── src/main/resources/
-│           └── application-example.yml # 配置示例
-├── client/                             # 前端工程（Vue + Vite）
-├── deploy/
-│   ├── docker-compose.yml              # 容器编排（PostgreSQL/Redis/backend）
-│   ├── nginx.conf                      # Nginx 配置
-│   └── deploy.sh                       # 部署脚本
-├── sql/                                # 数据库脚本
-├── docs/                               # 项目文档
-├── .cursor/skills/                     # Cursor Agent Skills
+├── backend/zdmj/                         # Spring Boot 后端（Maven）
+│   └── src/main/java/com/zdmj/
+│       ├── userAuthService/              # 用户鉴权、LLM 配置
+│       ├── resumeService/                # 简历、学生能力画像
+│       ├── jobService/                   # 岗位、岗位能力画像
+│       ├── matchService/                 # 人岗匹配
+│       ├── careerReportService/          # 职业发展报告
+│       ├── knowledgeService/             # 知识库与向量化
+│       ├── conversationService/          # 会话与 SSE 对话
+│       └── common/                       # LLM 路由、RAG、鉴权、异步任务、存储
+├── client/                               # Vue 3 前端
+├── deploy/                               # Docker Compose、Nginx、部署脚本
+├── sql/                                  # 建表脚本与字段字典
+├── docs/backend/                         # 后端设计文档
+├── .env.example                          # 环境变量模板
 └── README.md
 ```
 
 ---
 
-## 快速开始（复现）
+## 快速开始
 
-提供两种方式：`Docker 一键复现（推荐）` 与 `本地开发复现`。
+环境要求：JDK 21、Maven 3.9+、Node.js 20+、pnpm 10+、Docker（推荐，用于 PostgreSQL / Redis）。大模型至少配置 DashScope 或 DeepSeek 之一。
 
-### 方式一：Docker 一键复现（推荐）
-
-#### 1. 环境准备
-
-- Docker
-- Docker Compose
-- DashScope API Key
-
-#### 2. 配置环境变量
-
-在项目根目录从模板创建 `.env` 并填入真实值（`.env` 已加入 `.gitignore`）：
+### 1. 克隆并配置
 
 ```bash
+git clone https://github.com/ycc250303/zdmj.git
+cd zdmj
 cp .env.example .env
-# 编辑 .env 填入数据库、Redis、DashScope、COS、邮件、JWT 等密钥
+# 编辑 .env：数据库、Redis、DashScope / DeepSeek、COS、邮件、JWT 等
 ```
 
-#### 3. 启动服务
+根目录 `.env` 由 `application.yml` 的 `spring.config.import` 自动加载，勿提交真实密钥。
 
-```bash
-cd deploy
-docker compose --env-file ../.env up -d --build
-```
-
-#### 4. 访问服务
-
-- 后端接口：`http://localhost:8080`
-- Swagger：`http://localhost:8080/swagger-ui/index.html`
-- PostgreSQL：`localhost:5432`
-- Redis：`localhost:6379`
-
----
-
-### 方式二：本地开发复现
-
-#### 1. 环境准备
-
-- JDK 21
-- Maven 3.9+
-- Node.js 20+（前端）
-- pnpm 10+（前端）
-- PostgreSQL 15+
-- Redis 7
-
-#### 2. 启动依赖服务（可选）
-
-可只用 Docker 启动数据库与缓存：
+### 2. 启动依赖
 
 ```bash
 cd deploy
 docker compose --env-file ../.env up -d postgres redis
 ```
 
-#### 3. 配置环境变量并启动后端
+本地直连容器中的数据库时，`.env` 里 `APP_REMOTE_HOST` 一般为 `127.0.0.1`。
+
+### 3. 启动后端
 
 ```bash
-cp .env.example .env   # 若尚未创建（在项目根目录）
-# 编辑 .env：本地直连 Docker 中的 postgres/redis 时，APP_REMOTE_HOST 一般为 127.0.0.1
-
 cd backend/zdmj
 mvn -B -ntp clean spring-boot:run
 ```
 
-`application.yml` 会通过 `spring.config.import` 自动加载项目根目录 `.env`；也可在 IDE 中指定同一文件。
+- 接口：`http://localhost:8080`
+- Swagger：`http://localhost:8080/swagger-ui/index.html`
 
-按本地环境修改 `application.yml` 或环境变量（数据库、Redis、DashScope、COS）。
-
-#### 4. 启动前端
+### 4. 启动前端
 
 ```bash
 cd client
@@ -235,15 +190,30 @@ pnpm install
 pnpm dev
 ```
 
-前端默认访问地址：`http://localhost:5173`
-
-#### 5. 运行测试（可选）
-
-```bash
-cd backend/zdmj
-mvn -B -ntp test
-```
+前端默认：`http://localhost:5173`。
 
 ---
 
-如果你计划二次开发，建议优先使用「方式二」，便于本地调试和分模块迭代。
+## Docker 一键部署
+
+Compose 会启动 PostgreSQL（pgvector）、Redis、Spring Boot 后端和 Nginx 前端。
+
+```bash
+cp .env.example .env   # 填入 DASHSCOPE_API_KEY / DEEPSEEK_API_KEY、COS、JWT 等
+cd deploy
+docker compose --env-file ../.env up -d --build
+```
+
+| 服务 | 地址 |
+| --- | --- |
+| 前端 | http://localhost |
+| 后端 API | http://localhost:8080 |
+| Swagger | http://localhost:8080/swagger-ui/index.html |
+| PostgreSQL | localhost:5432 |
+| Redis | localhost:6379 |
+
+---
+
+## 许可证
+
+[AGPL-3.0](LICENSE)
