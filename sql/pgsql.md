@@ -217,12 +217,11 @@
 
 ### 3.3 表 `job_capability_profiles`
 
-岗位能力画像：每个 `(user_id, job_id)` 至多一条；重新生成覆盖本人旧行。`jobs` 仍为全站共享目录。
+岗位能力画像：每个 `job_id` 至多一条；重新生成覆盖写。
 
 | 字段名称 | 字段类型 | 字段含义 | 约束 | 枚举/JSON字段含义 |
 | --- | --- | --- | --- | --- |
 | `id` | `BIGSERIAL` | 画像ID | `PK` | - |
-| `user_id` | `BIGINT` | 归属用户 | `NOT NULL`，逻辑外键 `users.id` | - |
 | `job_id` | `BIGINT` | 岗位ID | `NOT NULL`，逻辑外键 `jobs.id` | - |
 | `professional_skills` / `certificates` / `innovation_ability` / `learning_ability` / `pressure_resistance` / `communication_ability` / `practical_ability` | `TEXT` | 七维岗位要求 | 可空 | - |
 | `role_confidence` | `NUMERIC(5,4)` | 岗位分类置信度 | `NOT NULL DEFAULT 0.0` | 0~1 |
@@ -233,7 +232,7 @@
 | `summary` | `TEXT` | 一句话总结 | 可空 | - |
 | `created_at` / `updated_at` | `TIMESTAMP` | 创建/更新时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
 
-**索引**：`uk_job_capability_profiles_user_job` UNIQUE `(user_id, job_id)`；`idx_job_capability_profiles_role_type`。
+**索引**：`idx_job_capability_profiles_job_id`；`idx_job_capability_profiles_role_type`。
 
 ### 3.4 表 `job_student_matches`
 

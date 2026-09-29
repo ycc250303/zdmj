@@ -60,6 +60,13 @@ public class RateLimitAspect {
         return joinPoint.proceed();
     }
 
+    /**
+     * 尝试获取限流许可。
+     * @param className 类名
+     * @param methodName 方法名
+     * @param rule 限流规则
+     * @return 是否获取到限流许可
+     */
     private boolean tryAcquire(String className, String methodName, RateLimit rule) {
         long windowMs = rule.timeUnit().toMillis(rule.interval());
         String key = generateKey(className, methodName, rule.dimension());

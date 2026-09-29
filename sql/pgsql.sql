@@ -380,12 +380,10 @@ CREATE INDEX IF NOT EXISTS idx_companies_name_trgm ON companies USING GIN (name 
 CREATE INDEX IF NOT EXISTS idx_companies_size ON companies(size);
 CREATE INDEX IF NOT EXISTS idx_companies_type ON companies(type);
 CREATE INDEX IF NOT EXISTS idx_companies_industries ON companies(industries);
--- 3.3 岗位能力画像表（每用户 × 每岗位至多一条）
+-- 3.3 岗位能力画像表
 CREATE TABLE IF NOT EXISTS job_capability_profiles (
     id BIGSERIAL PRIMARY KEY,
     -- 岗位能力画像ID
-    user_id BIGINT NOT NULL,
-    -- 归属用户ID（逻辑外键：users.id）
     job_id BIGINT NOT NULL,
     -- 岗位ID（逻辑外键：jobs.id）
     professional_skills TEXT,
@@ -418,7 +416,7 @@ CREATE TABLE IF NOT EXISTS job_capability_profiles (
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uk_job_capability_profiles_user_job ON job_capability_profiles(user_id, job_id);
+CREATE INDEX IF NOT EXISTS idx_job_capability_profiles_job_id ON job_capability_profiles(job_id);
 CREATE INDEX IF NOT EXISTS idx_job_capability_profiles_role_type ON job_capability_profiles(target_role_type);
 -- 3.4 岗位关联图谱表
 CREATE TABLE IF NOT EXISTS job_career_graphs (

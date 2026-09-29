@@ -35,7 +35,7 @@ Filter 三态：
 
 登录时 `replace` 失败同样映射为 1012（经 `BusinessException` + `GlobalExceptionHandler`），**不返回 token**。
 
-`UserHolder` / `SecurityContext` 的清理在 `RequestContextCleanupFilter` 的 `finally`，不在 JWT Filter。见 [userholder-usage.md](userholder-usage.md)。
+`UserHolder` / `SecurityContext` 的清理在 `RequestContextCleanupFilter` 的 `finally`，不在 JWT Filter。
 
 ## 错误码与前端
 

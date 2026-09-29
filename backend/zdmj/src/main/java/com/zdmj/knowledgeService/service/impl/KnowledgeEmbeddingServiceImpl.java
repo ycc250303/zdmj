@@ -51,12 +51,17 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
 
     @Override
     public Long submitVectorizeTask(Long DocumentId) {
+        // 1. 获取用户ID
         Long userId = UserHolder.requireUserId();
+        // 2. 查询正在进行的任务
         KnowledgeVectorTask inflight = findInflight(DocumentId, KnowledgeVectorTaskTypeEnum.EMBEDDING.getCode());
+        // 3. 如果正在进行的任务存在，则返回任务ID
         if (inflight != null) {
             return inflight.getId();
         }
+        // 4. 创建知识库ID
         Long knowledgeId = knowledgeBasesService.getOrCreateKnowledgeBaseId();
+        // 5. 创建向量化任务
         KnowledgeVectorTask task = new KnowledgeVectorTask();
         task.setDocumentId(DocumentId);
         task.setUserId(userId);
@@ -67,14 +72,19 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
         return task.getId();
     }
 
-    @Override
+    @Override   
     public Long submitDeleteTask(Long DocumentId) {
+        // 1. 获取用户ID
         Long userId = UserHolder.requireUserId();
+        // 2. 查询正在进行的任务
         KnowledgeVectorTask inflight = findInflight(DocumentId, KnowledgeVectorTaskTypeEnum.DELETE.getCode());
+        // 3. 如果正在进行的任务存在，则返回任务ID
         if (inflight != null) {
             return inflight.getId();
         }
+        // 4. 创建知识库ID
         Long knowledgeId = knowledgeBasesService.getOrCreateKnowledgeBaseId();
+        // 5. 创建删除任务
         KnowledgeVectorTask task = new KnowledgeVectorTask();
         task.setDocumentId(DocumentId);
         task.setUserId(userId);
@@ -85,6 +95,13 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
         return task.getId();
     }
 
+    /**
+     * 查询正在进行的任务
+     * 
+     * @param documentId 知识文档ID
+     * @param taskType 任务类型
+     * @return 正在进行的任务
+     */
     private KnowledgeVectorTask findInflight(Long documentId, int taskType) {
         return knowledgeVectorTaskMapper.selectOne(new LambdaQueryWrapper<KnowledgeVectorTask>()
                 .eq(KnowledgeVectorTask::getDocumentId, documentId)
