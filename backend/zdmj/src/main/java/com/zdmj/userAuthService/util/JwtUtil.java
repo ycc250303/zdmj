@@ -12,6 +12,8 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.zdmj.common.util.DateTimeUtil;
+
 /**
  * JWT工具类（密钥来自 {@code app.jwt.secret}，对应项目根目录 .env 的 JWT_SECRET）。
  */
@@ -70,7 +72,7 @@ public class JwtUtil {
         claims.put("userId", userId);
         claims.put("username", username);
 
-        Date now = new Date();
+        Date now = Date.from(DateTimeUtil.clock().instant());
         Date expiration = new Date(now.getTime() + EXPIRATION_TIME);
 
         return Jwts.builder()
@@ -155,7 +157,7 @@ public class JwtUtil {
      */
     private static boolean isTokenExpired(Claims claims) {
         Date expiration = claims.getExpiration();
-        return expiration.before(new Date());
+        return expiration.before(Date.from(DateTimeUtil.clock().instant()));
     }
 
     /**

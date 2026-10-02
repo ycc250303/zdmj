@@ -29,7 +29,7 @@ import reactor.core.publisher.Sinks;
 import org.springframework.beans.BeanUtils;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
 import java.util.Map;
@@ -46,24 +46,51 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     private final ConversationService conversationService;
     private final ConversationMapper conversationMapper;
     private final KnowledgeRagService knowledgeRagService;
+    private final TransactionTemplate transactionTemplate;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
+    /**
+     * 先在短事务中写入用户消息和助手占位并提交，再生成标题、订阅模型流。
+     * 远程模型调用与 SSE 推送不持有该写入事务。
+     *
+     * @param request 会话编号与用户消息
+     * @return SSE 增量事件
+     * @throws BusinessException 会话不存在、无权访问或消息写入失败
+     */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public Flux<ServerSentEvent<String>> createStream(ChatStreamRequest request) {
         Conversation conversation = requireConversationAccess(request.getConversationId());
         Long userId = UserHolder.requireUserId();
+        PreparedMessages prepared = transactionTemplate.execute(status -> insertMessages(request, userId));
+        if (prepared == null) {
+            throw new IllegalStateException("消息写入未返回结果");
+        }
+        if (prepared.newCount() == 2) {
+            String title = chatUtil.chatOnce(
+                    userId,
+                    request.getMessage(),
+                    PromptNames.GENERATE_CONVERSATION_TITLE,
+                    null);
+            conversationMapper.updateTitleByIdAndUserId(request.getConversationId(), userId, title);
+        }
+        subscribeAnswer(conversation, userId, request, prepared);
+        return prepared.sink().asFlux()
+                .index()
+                .map(tp -> ServerSentEvent.<String>builder()
+                        .event("delta")
+                        .id(String.valueOf(tp.getT1() + 1))
+                        .data(toOpenAiDeltaJson(tp.getT2()))
+                        .build());
+    }
 
-        // 1.原子递增消息计数
+    private PreparedMessages insertMessages(ChatStreamRequest request, Long userId) {
         Integer newCount = conversationMapper.incrementMessageCountAndGet(request.getConversationId(), userId, 2);
         if (newCount == null || newCount < 2) {
             throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
         }
-
         int userSeq = newCount - 1;
         int assistantSeq = newCount;
 
-        // 2.写入 user 消息
         Message userMsg = new Message();
         userMsg.setConversationId(request.getConversationId());
         userMsg.setUserId(userId);
@@ -74,32 +101,21 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
             throw new BusinessException(ErrorCode.MESSAGE_CREATE_FAILED);
         }
 
-        // 3.预写 assistant 消息
         Message assistantMsg = new Message();
         assistantMsg.setConversationId(request.getConversationId());
         assistantMsg.setUserId(userId);
-        assistantMsg.setRole(2);
+        assistantMsg.setRole(MessageRoleEnum.ASSISTANT.getCode());
         assistantMsg.setContent("");
         assistantMsg.setSequence(assistantSeq);
         if (messageMapper.insert(assistantMsg) != 1) {
             throw new BusinessException(ErrorCode.MESSAGE_CREATE_FAILED);
         }
+        return new PreparedMessages(newCount, assistantMsg, Sinks.many().unicast().onBackpressureBuffer(),
+                new StringBuilder(256));
+    }
 
-        // 4.更新会话标题
-        if (newCount == 2) {
-            String title = chatUtil.chatOnce(
-                    userId,
-                    request.getMessage(),
-                    PromptNames.GENERATE_CONVERSATION_TITLE,
-                    null
-            );
-            conversationMapper.updateTitleByIdAndUserId(request.getConversationId(), userId, title);
-        }
-
-        // 5.方法内 sink：HTTP 断开后 LLM 仍跑完并落库
-        Sinks.Many<String> sink = Sinks.many().unicast().onBackpressureBuffer();
-        StringBuilder full = new StringBuilder(256);
-
+    private void subscribeAnswer(Conversation conversation, Long userId, ChatStreamRequest request,
+            PreparedMessages prepared) {
         List<Long> ragDocumentIds = ConversationContextSupport.resolveRagDocumentIds(conversation);
         boolean useSystemKnowledge = ConversationContextSupport.resolveUseSystemKnowledge(conversation);
         Map<String, Object> promptVars = ConversationContextSupport.buildChatPromptVars(conversation);
@@ -114,31 +130,26 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
             if (chunk == null || chunk.isEmpty()) {
                 return;
             }
-            full.append(chunk);
-            sink.tryEmitNext(chunk);
+            prepared.full().append(chunk);
+            prepared.sink().tryEmitNext(chunk);
         })
                 .doOnError(e -> {
-                    persistAssistantContent(assistantMsg, full.toString());
-                    sink.tryEmitError(e);
+                    persistAssistantContent(prepared.assistantMsg(), prepared.full().toString());
+                    prepared.sink().tryEmitError(e);
                 })
                 .doOnComplete(() -> {
-                    String finalText = full.toString();
-                    assistantMsg.setContent(finalText);
-                    if (messageMapper.updateById(assistantMsg) != 1) {
-                        sink.tryEmitError(new RuntimeException("assistant message persist failed"));
+                    String finalText = prepared.full().toString();
+                    prepared.assistantMsg().setContent(finalText);
+                    if (messageMapper.updateById(prepared.assistantMsg()) != 1) {
+                        prepared.sink().tryEmitError(new RuntimeException("assistant message persist failed"));
                         return;
                     }
-                    sink.tryEmitComplete();
+                    prepared.sink().tryEmitComplete();
                 })
                 .subscribe();
+    }
 
-        return sink.asFlux()
-                .index()
-                .map(tp -> ServerSentEvent.<String>builder()
-                        .event("delta")
-                        .id(String.valueOf(tp.getT1() + 1))
-                        .data(toOpenAiDeltaJson(tp.getT2()))
-                        .build());
+    private record PreparedMessages(int newCount, Message assistantMsg, Sinks.Many<String> sink, StringBuilder full) {
     }
 
     /**

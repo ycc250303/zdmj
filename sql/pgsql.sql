@@ -11,8 +11,6 @@
 --
 -- 安装 pgvector 扩展
 CREATE EXTENSION IF NOT EXISTS vector;
--- 安装 hnsw 扩展
-CREATE EXTENSION IF NOT EXISTS hnsw;
 -- 安装 pg_trgm 扩展
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 -- 删除表

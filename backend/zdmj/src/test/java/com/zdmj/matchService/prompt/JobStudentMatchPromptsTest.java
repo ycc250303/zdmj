@@ -14,8 +14,8 @@ import com.zdmj.common.ai.JobRole;
 import com.zdmj.common.ai.PromptScenario;
 import com.zdmj.common.ai.PromptUtil;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 人岗匹配提示词回归测试。
@@ -61,20 +61,13 @@ class JobStudentMatchPromptsTest {
     void allMatchPrompts_shouldHavePerDimensionEvaluationStandards() throws IOException {
         for (String promptName : matchPromptNames()) {
             String content = loadRaw(promptName);
-            assertTrue(content.contains("## basic（基础要求）"),
-                    promptName + " 缺少 basic 评分档");
-            assertTrue(content.contains("## professionalSkill（职业技能）"),
-                    promptName + " 缺少 professionalSkill 评分档");
-            assertTrue(content.contains("## professionalQuality（职业素养）"),
-                    promptName + " 缺少 professionalQuality 评分档");
-            assertTrue(content.contains("## developmentPotential（发展潜力）"),
-                    promptName + " 缺少 developmentPotential 评分档");
-            assertTrue(content.contains("维度间打分相互独立"),
-                    promptName + " 缺少四维独立打分约束");
-            assertTrue(content.contains("`basic.gap`"),
-                    promptName + " 缺少 basic.gap 输出约束");
-            assertTrue(content.contains("`professionalQuality.gap`"),
-                    promptName + " 缺少 professionalQuality.gap 输出约束");
+            assertThat(content).as(promptName + " 缺少 basic 评分档").contains("## basic（基础要求）");
+            assertThat(content).as(promptName + " 缺少 professionalSkill 评分档").contains("## professionalSkill（职业技能）");
+            assertThat(content).as(promptName + " 缺少 professionalQuality 评分档").contains("## professionalQuality（职业素养）");
+            assertThat(content).as(promptName + " 缺少 developmentPotential 评分档").contains("## developmentPotential（发展潜力）");
+            assertThat(content).as(promptName + " 缺少四维独立打分约束").contains("维度间打分相互独立");
+            assertThat(content).as(promptName + " 缺少 basic.gap 输出约束").contains("`basic.gap`");
+            assertThat(content).as(promptName + " 缺少 professionalQuality.gap 输出约束").contains("`professionalQuality.gap`");
         }
     }
 

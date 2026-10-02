@@ -22,6 +22,8 @@ public class MybatisObjectHandlerConfig implements MetaObjectHandler {
 
     @Override
     public void updateFill(MetaObject metaObject) {
-        this.strictUpdateFill(metaObject, "updatedAt", LocalDateTime.class, DateTimeUtil.now());
+        if (metaObject.hasSetter("updatedAt")) {
+            this.setFieldValByName("updatedAt", DateTimeUtil.now(), metaObject);
+        }
     }
 }

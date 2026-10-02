@@ -24,6 +24,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
@@ -69,17 +72,24 @@ class MessageServiceImplTest {
     private ConversationMapper conversationMapper;
     @Mock
     private KnowledgeRagService knowledgeRagService;
+    @Mock
+    private TransactionTemplate transactionTemplate;
 
     private MessageServiceImpl messageService;
 
     @BeforeEach
     void setUp() {
+        lenient().when(transactionTemplate.execute(any())).thenAnswer(invocation -> {
+            TransactionCallback<?> callback = invocation.getArgument(0);
+            return callback.doInTransaction(new SimpleTransactionStatus());
+        });
         messageService = spy(new MessageServiceImpl(
                 chatUtil,
                 messageMapper,
                 conversationService,
                 conversationMapper,
-                knowledgeRagService));
+                knowledgeRagService,
+                transactionTemplate));
         lenient().doReturn(2).when(conversationMapper).incrementMessageCountAndGet(anyLong(), anyLong(), anyInt());
         UserHolder.set(UserContext.of(1L, "u1"));
     }

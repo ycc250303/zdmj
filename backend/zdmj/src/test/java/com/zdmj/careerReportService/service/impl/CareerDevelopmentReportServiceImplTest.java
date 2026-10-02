@@ -9,6 +9,8 @@ import com.zdmj.careerReportService.dto.CareerReportUpdateRequest;
 import com.zdmj.careerReportService.entity.CareerDevelopmentReport;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
+import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.ai.ChatUtil;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobCareerGraphResponse;
@@ -41,10 +43,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.embedding.EmbeddingModel;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -156,10 +158,9 @@ class CareerDevelopmentReportServiceImplTest {
 
         CareerReportResponse dto = service.generate(jobId, new CareerReportGenerateRequest());
 
-        assertNotNull(dto);
         assertEquals(999L, dto.getId());
         assertEquals(1, dto.getVersion());
-        assertTrue(dto.getCompletenessScore() >= 60);
+        assertThat(dto.getCompletenessScore()).isGreaterThanOrEqualTo(60);
     }
 
     @Test
@@ -221,9 +222,8 @@ class CareerDevelopmentReportServiceImplTest {
             return payload;
         }).when(chatUtil).chatStructuredOnce(any(), any(), any(), any(), any());
 
-        CareerReportResponse dto = service.generate(jobId, new CareerReportGenerateRequest());
+        service.generate(jobId, new CareerReportGenerateRequest());
 
-        assertNotNull(dto);
         verify(knowledgeVectorMapper).searchBySimilarity(eq(1L), eq(100L), eq("[0.1,0.2]"), eq(8));
         verify(knowledgeVectorMapper).searchBySimilarity(
                 eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(9L), eq("[0.1,0.2]"), eq(8));
@@ -250,7 +250,7 @@ class CareerDevelopmentReportServiceImplTest {
 
         CareerReportResponse dto = service.getLatestOrNull(10L);
 
-        assertNotNull(dto);
+        assertThat(dto.getKnowledgeSources()).isNotEmpty();
         assertEquals("测试开发学习路线", dto.getKnowledgeSources().get(0).get("title"));
     }
 
@@ -270,7 +270,7 @@ class CareerDevelopmentReportServiceImplTest {
         CareerReportCheckResponse check = service.checkIntegrity(20L);
 
         assertFalse(check.getPassed());
-        assertTrue(check.getMissingSections().contains("职业探索"));
+        assertThat(check.getMissingSections()).contains("职业探索");
         verify(service).updateById(any(CareerDevelopmentReport.class));
     }
 
@@ -307,6 +307,21 @@ class CareerDevelopmentReportServiceImplTest {
 
         assertEquals(3, result.getVersion());
         assertEquals(32L, result.getId());
+    }
+
+    @Test
+    void saveManualEdit_emptyContent_shouldThrowValidationError() {
+        CareerDevelopmentReport existing = new CareerDevelopmentReport();
+        existing.setId(31L);
+        existing.setUserId(1L);
+        doReturn(existing).when(service)
+                .getOne(org.mockito.ArgumentMatchers.<Wrapper<CareerDevelopmentReport>>any());
+        CareerReportUpdateRequest req = new CareerReportUpdateRequest();
+        req.setReportContent(Map.of());
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.saveManualEdit(31L, req));
+
+        assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
     }
 
     private static JobListItemResponse buildJob() {

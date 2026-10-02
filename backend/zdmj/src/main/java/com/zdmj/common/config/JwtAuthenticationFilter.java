@@ -59,7 +59,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                         SecurityContextHolder.getContext().setAuthentication(authentication);
                     } else {
-                        log.warn("JWT Token在Redis中不存在或已失效: userId={}, username={}", userId, username);
+                        log.warn("JWT Token 在 Redis 中不存在或已失效: userId={}, username={}", userId, username);
                     }
                 } catch (DataAccessException e) {
                     log.error("登录状态服务不可用: userId={}", userId, e);

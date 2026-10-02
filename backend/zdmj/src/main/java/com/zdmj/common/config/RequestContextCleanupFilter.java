@@ -21,7 +21,7 @@ public class RequestContextCleanupFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        // 清理用户上下文和Security上下文
+        // 清理用户上下文和 Security 上下文
         UserHolder.clear();
         SecurityContextHolder.clearContext();
 

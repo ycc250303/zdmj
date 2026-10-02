@@ -24,6 +24,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -41,6 +42,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Service
+@Profile("!test")
 public class FileUploadService {
 
     @Value("${cos.secret-id}")
@@ -54,6 +56,12 @@ public class FileUploadService {
 
     @Value("${cos.bucket-name}")
     private String bucketName;
+
+    /**
+     * 对象存储模式。{@code cos} 连接腾讯云；其他值跳过客户端初始化，供测试替身使用。
+     */
+    @Value("${zdmj.storage.mode:cos}")
+    private String storageMode;
 
     private COSClient cosClient;
 
@@ -69,6 +77,10 @@ public class FileUploadService {
 
     @PostConstruct
     public void init() {
+        if (!"cos".equals(storageMode)) {
+            log.info("对象存储模式为 {}，不初始化 COS 客户端", storageMode);
+            return;
+        }
         try {
             if (isBlank(secretId)) {
                 log.warn("COS SecretId未配置或使用默认值，请设置环境变量 COS_SECRET_ID");

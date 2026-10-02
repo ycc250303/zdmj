@@ -1,0 +1,39 @@
+# 不写数据源、Redis、JWT 与加密密钥。这些值只由测试容器注入；缺失时启动失败。
+spring:
+  ai:
+    model:
+      chat: none
+      embedding: none
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
+    openai:
+      base-url: http://127.0.0.1:9
+      api-key: ""
+      chat:
+        options:
+          model: test-fixed
+  mail:
+    host: 127.0.0.1
+    port: 1
+    username: test@example.com
+    password: ""
+
+zdmj:
+  async:
+    stream:
+      enabled: false
+  storage:
+    mode: stub
+
+cos:
+  secret-id: ""
+  secret-key: ""
+  region: ""
+  bucket-name: ""
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl

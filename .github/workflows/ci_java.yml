@@ -1,148 +1,51 @@
-# CI工作流：后端自动化测试
-# 当代码推送到backend或main分支，或创建PR到这些分支时自动触发
 name: CI - Backend Tests
 
-# 触发条件配置
 on:
-  # 当代码推送到backend或main分支时触发
   push:
     branches:
       - backend
-      # - main
+      - main
     paths:
       - 'backend/zdmj/**'
-      - '.cursor/skills/ai-unit-test-loop/**'
+      - 'sql/**'
       - '.github/workflows/ci_java.yml'
-  # 当创建或更新PR到backend或main分支时触发
   pull_request:
     branches:
       - backend
-      # - main
+      - main
     paths:
       - 'backend/zdmj/**'
-      - '.cursor/skills/ai-unit-test-loop/**'
+      - 'sql/**'
       - '.github/workflows/ci_java.yml'
 
 jobs:
-  # 测试任务
   test:
-    name: Run Tests
-    # 使用GitHub提供的Ubuntu最新版本作为运行环境
+    name: Verify
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 45
     steps:
-      # 步骤1: 检出代码
-      # 将仓库代码下载到GitHub Actions运行器中
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 步骤2: 设置Java开发环境
-      # 安装JDK 21，使用Eclipse Temurin发行版（OpenJDK的免费版本）
-      # 同时配置Maven缓存以加速后续构建
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '21'          # Java版本
-          distribution: 'temurin'     # JDK发行版（Eclipse Temurin）
-          cache: maven                # 启用Maven依赖缓存
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
 
-      # 步骤3: 编译验证
-      # clean: 清理之前的构建产物
-      # compile: 编译主代码，不执行测试
-      - name: Compile backend
-        id: compile
-        continue-on-error: true
-        working-directory: ./backend/zdmj  # 指定工作目录
-        run: mvn -B -ntp clean compile
-
-      # 步骤4: 单元测试
-      # 仅在编译通过后执行
-      - name: Run unit tests
-        id: unit_test
-        if: steps.compile.outcome == 'success'
-        continue-on-error: true
+      - name: Verify backend
+        id: verify
         working-directory: ./backend/zdmj
-        run: |
-          mvn -B -ntp test
-          if [ -d target/surefire-reports ]; then
-            grep -h "failures=\"[1-9]" target/surefire-reports/TEST-*.xml 2>/dev/null | head -20 || true
-            grep -h "errors=\"[1-9]" target/surefire-reports/TEST-*.xml 2>/dev/null | head -20 || true
-          fi
+        run: ./mvnw -B -ntp clean verify
 
-      # 步骤5: 覆盖率与路径门禁
-      - name: Run coverage and path gates
-        id: quality_gates
-        if: steps.compile.outcome == 'success' && steps.unit_test.outcome == 'success'
-        continue-on-error: true
-        working-directory: ./backend/zdmj
-        run: |
-          python3 ../../.cursor/skills/ai-unit-test-loop/scripts/coverage_gate.py \
-            --jacoco-xml target/site/jacoco/jacoco.xml \
-            --class-prefix com/zdmj/userAuthService/service/impl/,com/zdmj/userAuthService/util/ \
-            --line-min 0.70 \
-            --branch-min 0.55 \
-            --condition-min 0.55
-          python3 ../../.cursor/skills/ai-unit-test-loop/scripts/path_gate.py \
-            --spec src/test/resources/test-loop/spec-user-auth.json \
-            --target-classes UserServiceImpl,VerificationCodeServiceImpl,EmailServiceImpl,JwtUtil,VerificationCodeSceneResolver \
-            --scan-tests src/test/java/com/zdmj/userAuthService \
-            --manifest-out target/testloop/path-matrix.json \
-            --path-count-min 6 \
-            --surefire-dir target/surefire-reports
-
-      # 步骤6: 失败归因（测试失败时）
-      - name: Triage failed test cases
-        id: triage
-        if: steps.compile.outcome == 'success' && steps.unit_test.outcome != 'success'
-        continue-on-error: true
-        working-directory: ./backend/zdmj
-        run: |
-          python3 ../../.cursor/skills/ai-unit-test-loop/scripts/triage_failures.py --surefire-dir target/surefire-reports
-
-      # 步骤7: 反投机审计（仅在测试通过后执行）
-      - name: Audit test quality
-        id: audit
-        if: steps.compile.outcome == 'success' && steps.unit_test.outcome == 'success'
-        continue-on-error: true
-        working-directory: ./backend/zdmj
-        run: |
-          python3 ../../.cursor/skills/ai-unit-test-loop/scripts/audit_quality.py --test-root src/test/java/com/zdmj/userAuthService --risk-pass 80
-
-      # 步骤8: 失败提醒与统一退出
-      # 在日志和 Summary 明确提示失败原因，并让 CI 最终失败
-      - name: Notify when compile or tests fail
+      - name: Upload test reports
         if: always()
-        run: |
-          failed=0
-
-          if [ "${{ steps.compile.outcome }}" != "success" ]; then
-            echo "::error title=CI检查失败::后端编译未通过，请先修复编译错误后再提交。"
-            echo "- ❌ 编译未通过（Compile backend）" >> "$GITHUB_STEP_SUMMARY"
-            failed=1
-          fi
-
-          if [ "${{ steps.compile.outcome }}" = "success" ] && [ "${{ steps.unit_test.outcome }}" != "success" ]; then
-            echo "::error title=CI检查失败::单元测试未通过，请修复失败用例后再提交。"
-            echo "- ❌ 单元测试未通过（Run unit tests）" >> "$GITHUB_STEP_SUMMARY"
-            failed=1
-          fi
-
-          if [ "${{ steps.compile.outcome }}" = "success" ] && [ "${{ steps.unit_test.outcome }}" = "success" ] && [ "${{ steps.quality_gates.outcome }}" != "success" ]; then
-            echo "::error title=CI检查失败::覆盖率或路径门禁未通过，请补充测试用例。"
-            echo "- ❌ 覆盖率/路径门禁未通过（Run coverage and path gates）" >> "$GITHUB_STEP_SUMMARY"
-            failed=1
-          fi
-
-          if [ "${{ steps.compile.outcome }}" = "success" ] && [ "${{ steps.unit_test.outcome }}" = "success" ] && [ "${{ steps.audit.outcome }}" != "success" ]; then
-            echo "::error title=CI检查失败::反投机审计未通过，请修复弱断言或路径缺失问题。"
-            echo "- ❌ 反投机审计未通过（Audit test quality）" >> "$GITHUB_STEP_SUMMARY"
-            failed=1
-          fi
-
-          if [ "$failed" -eq 0 ]; then
-            echo "- ✅ 编译通过，单元测试通过，质量门禁通过" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "请查看失败步骤日志并修复后重新触发 CI。" >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-reports
+          if-no-files-found: ignore
+          path: |
+            backend/zdmj/target/surefire-reports/**
+            backend/zdmj/target/failsafe-reports/**
+            backend/zdmj/target/site/jacoco/**

@@ -1,6 +1,8 @@
 package com.zdmj.common.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -29,6 +31,7 @@ import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.connection.stream.StreamReadOptions;
 import org.springframework.data.redis.core.StreamOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.constants.RedisConstants;
@@ -41,12 +44,48 @@ class RedisUtilTest {
     @Mock
     @SuppressWarnings("rawtypes")
     private StreamOperations streamOps;
+    @Mock
+    private ValueOperations<String, String> values;
 
     private RedisUtil redisUtil;
 
     @BeforeEach
     void setUp() {
         redisUtil = new RedisUtil(redisTemplate, new ObjectMapper());
+    }
+
+    @Test
+    void setAndGet_jsonRoundTrip_shouldReturnObject() {
+        when(redisTemplate.opsForValue()).thenReturn(values);
+        when(values.get("job:1")).thenReturn("{\"name\":\"后端\"}");
+
+        redisUtil.set("job:1", java.util.Map.of("name", "后端"), 30);
+        assertEquals("后端", redisUtil.get("job:1", java.util.Map.class).get("name"));
+    }
+
+    @Test
+    void get_missingOrBroken_shouldReturnNull() {
+        when(redisTemplate.opsForValue()).thenReturn(values);
+        when(values.get("missing")).thenReturn(null);
+        when(values.get("broken")).thenReturn("{");
+
+        assertNull(redisUtil.get("missing", String.class));
+        assertNull(redisUtil.get("broken", String.class));
+    }
+
+    @Test
+    void stringCache_failure_shouldNotEscape() {
+        when(redisTemplate.opsForValue()).thenThrow(new IllegalStateException("down"));
+        when(redisTemplate.hasKey("null:value:job:1")).thenThrow(new IllegalStateException("down"));
+        when(redisTemplate.delete("null:value:job:1")).thenThrow(new IllegalStateException("down"));
+
+        redisUtil.setString("job:1", "1", 10);
+        assertNull(redisUtil.getString("job:1"));
+        assertFalse(redisUtil.exists("job:1"));
+        redisUtil.setNullValue("job:1", 10);
+        assertFalse(redisUtil.isNullValue("job:1"));
+        redisUtil.delete("job:1");
+        redisUtil.deleteNullValue("job:1");
     }
 
     @Test
@@ -129,7 +168,36 @@ class RedisUtilTest {
     @Test
     void xack_emptyIds_shouldSkipRedis() {
         assertEquals(0L, redisUtil.xack("s", "g"));
+        assertEquals(0L, redisUtil.xack("s", "g", (RecordId[]) null));
         verify(redisTemplate, never()).opsForStream();
+    }
+
+    @Test
+    void xreadGroup_absentBlockAndOffset_shouldReadWithoutBlocking() {
+        stubStreamOps();
+        when(streamOps.read(any(Consumer.class), any(StreamReadOptions.class), any(StreamOffset.class)))
+                .thenReturn(List.of());
+
+        assertTrue(redisUtil.xreadGroup("s", "g", "c", 1, null, null).isEmpty());
+        assertTrue(redisUtil.xreadGroup("s", "g", "c", 1, Duration.ofMillis(-1), ReadOffset.from("0-0")).isEmpty());
+    }
+
+    @Test
+    void xack_nullAckCount_shouldReturnZero() {
+        stubStreamOps();
+        when(streamOps.acknowledge(eq("s"), eq("g"), any(RecordId[].class))).thenReturn(null);
+
+        assertEquals(0L, redisUtil.xack("s", "g", RecordId.of("1-0")));
+    }
+
+    @Test
+    void ensureConsumerGroup_busyGroupInCause_shouldIgnore() {
+        stubStreamOps();
+        RuntimeException busy = new RuntimeException((String) null,
+                new RedisSystemException("BUSYGROUP Consumer Group name already exists", null));
+        when(streamOps.createGroup(eq("s"), any(ReadOffset.class), eq("g"))).thenThrow(busy);
+
+        redisUtil.ensureConsumerGroup("s", "g");
     }
 
     @SuppressWarnings("unchecked")
