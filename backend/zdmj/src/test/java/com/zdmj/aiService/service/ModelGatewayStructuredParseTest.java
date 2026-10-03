@@ -73,22 +73,14 @@ class ModelGatewayStructuredParseTest {
     }
 
     @Test
-    void generateStructured_whenRawJson_shouldParse() {
-        stubEntityConvert("{\"name\":\"Cara\",\"score\":1}");
-
-        SampleOut parsed = gateway.generateStructured(
-                CurrentActor.of(1L), StructuredModelRequest.of("msg", null, null, SampleOut.class));
-
-        assertEquals("Cara", parsed.getName());
-        assertEquals(1, parsed.getScore());
-    }
-
-    @Test
     void generateStructured_shouldEnableJsonObjectModeAndKeepJsonWordInUserMessage() {
         stubEntityConvert("{\"name\":\"Cara\",\"score\":1}");
 
-        gateway.generateStructured(
+        SampleOut parsed = gateway.generateStructured(
                 CurrentActor.of(1L), StructuredModelRequest.of("简历原文", null, null, SampleOut.class));
+
+        assertEquals("Cara", parsed.getName());
+        assertEquals(1, parsed.getScore());
 
         ArgumentCaptor<ChatOptions> optionsCaptor = ArgumentCaptor.forClass(ChatOptions.class);
         verify(spec).options(optionsCaptor.capture());

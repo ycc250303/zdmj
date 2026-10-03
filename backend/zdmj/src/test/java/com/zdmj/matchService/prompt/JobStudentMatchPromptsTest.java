@@ -31,8 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  * <ol>
  *   <li>所有 job-student-match 提示词都不再包含 <code>${...}</code> 字面占位符
  *       （这种写法 Spring AI 不识别，且会以原文 leak 给 LLM）；</li>
- *   <li>chatOnce + null promptVars 约定由 {@code JobStudentMatchServiceImplTest} 覆盖
- *       （不在此重复跑真实 ModelGateway 链路，避免 CI 环境差异）。</li>
+ *   <li>空 promptVars 约定由 {@code JobStudentMatchServiceImplTest} 覆盖。</li>
  * </ol>
  */
 class JobStudentMatchPromptsTest {

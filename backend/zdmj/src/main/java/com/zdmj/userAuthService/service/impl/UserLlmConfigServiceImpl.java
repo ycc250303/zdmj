@@ -1,5 +1,6 @@
 package com.zdmj.userAuthService.service.impl;
 
+import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -51,7 +52,7 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
 
     @Override
     public List<LlmModelOptionResponse> listModels(){
-        return modelGateway.listModels().stream()
+        return Arrays.stream(ModelCode.values())
         .map(v -> {
             LlmModelOptionResponse dto = new LlmModelOptionResponse();
             dto.setCode(v.code());

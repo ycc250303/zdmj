@@ -31,13 +31,6 @@ class ModelClientConfigurationTest {
         assertEquals(ErrorCode.USER_LLM_NOT_CONFIGURED.getCode(), ex.getCode());
     }
 
-    @Test
-    void listModels_shouldExposeFlashAndMax() {
-        ModelCode[] models = ModelCode.values();
-        assertEquals("qwen3.8-flash", models[0].code());
-        assertEquals("qwen3.8-max", models[1].code());
-    }
-
     private static ModelClientConfiguration clients(String deepseekApiKey, String platformApiKey) {
         return new ModelClientConfiguration(
                 true,

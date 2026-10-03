@@ -42,15 +42,12 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
@@ -107,27 +104,6 @@ class JobStudentMatchServiceImplTest {
         UserHolder.clear();
     }
 
-    // ========================================================
-    // 核心回归：必须以 null promptVars 调 generateStructured
-    // ========================================================
-
-    @Test
-    void generate_shouldPassNullPromptVarsToModelGateway_toAvoidSTTemplateRender() {
-        Long jobId = 11L;
-        wireHappyPath(jobId, "java-backend", buildAiResult());
-
-        JobStudentMatchResponse result = matchService.generate(jobId, null);
-
-        assertNotNull(result);
-        // 关键断言：promptVars 必须是 null —— 一旦改回 Map，PromptTemplate 渲染会因
-        // 提示词正文里的 JSON 大括号炸成 STException，被 catch 吞成 11001。
-        verify(modelGateway).generateStructured(
-                eq(CurrentActor.of(USER_ID)),
-                argThat((StructuredModelRequest<?> req) -> req.promptVars() == null
-                        && "job-student-match/java-backend".equals(req.promptName())
-                        && req.outputType() == JobStudentMatchResponse.class));
-    }
-
     @Test
     void generate_promptRouting_shouldUseDefaultPrompt_forUnknownRole() {
         Long jobId = 12L;
@@ -142,12 +118,8 @@ class JobStudentMatchServiceImplTest {
                         && req.outputType() == JobStudentMatchResponse.class));
     }
 
-    // ========================================================
-    // userMessage 必须内联权重 + 关键词（替代被移除的 promptVars）
-    // ========================================================
-
     @Test
-    void generate_userMessage_shouldInlineWeightsAndKeywords_sinceWeNoLongerUsePromptVars() {
+    void generate_userMessage_shouldInlineWeightsAndKeywords() {
         Long jobId = 15L;
         wireHappyPath(jobId, "java-backend", buildAiResult());
 
@@ -159,27 +131,18 @@ class JobStudentMatchServiceImplTest {
         verify(modelGateway).generateStructured(eq(CurrentActor.of(USER_ID)), userMessageCaptor.capture());
         assertNull(userMessageCaptor.getValue().promptVars());
         assertEquals("job-student-match/java-backend", userMessageCaptor.getValue().promptName());
+        assertEquals(JobStudentMatchResponse.class, userMessageCaptor.getValue().outputType());
 
         String userMessage = userMessageCaptor.getValue().message();
-        // 这俩内容原本是通过 promptVars 注入到 system prompt 的；
-        // 现在改为直接拼接进 user message，确保 LLM 仍能看到。
-        org.junit.jupiter.api.Assertions.assertTrue(
-                userMessage.contains("权重配置"),
+        assertTrue(userMessage.contains("权重配置"),
                 "userMessage 必须内联权重配置；否则 LLM 拿不到打分依据：" + userMessage);
-        org.junit.jupiter.api.Assertions.assertTrue(
-                userMessage.contains("岗位关键词"),
+        assertTrue(userMessage.contains("岗位关键词"),
                 "userMessage 必须内联岗位关键词；否则 LLM 没法做命中判断：" + userMessage);
-        org.junit.jupiter.api.Assertions.assertTrue(
-                userMessage.contains("补充要求") && userMessage.contains("SQL/MySQL"),
+        assertTrue(userMessage.contains("补充要求") && userMessage.contains("SQL/MySQL"),
                 "userMessage 必须内联岗位补充要求：" + userMessage);
-        org.junit.jupiter.api.Assertions.assertTrue(
-                userMessage.contains("Spring") && userMessage.contains("MySQL"),
+        assertTrue(userMessage.contains("Spring") && userMessage.contains("MySQL"),
                 "userMessage 必须包含具体的岗位关键词列表内容：" + userMessage);
     }
-
-    // ========================================================
-    // 异常分支：LLM 故障 → 11001（保留既有行为）
-    // ========================================================
 
     @Test
     void generate_modelGatewayThrows_shouldThrow11001_matchGenerationFailed() {

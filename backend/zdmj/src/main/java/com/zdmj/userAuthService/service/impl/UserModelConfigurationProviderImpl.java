@@ -4,7 +4,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import com.zdmj.aiService.model.ModelCode;
-import com.zdmj.aiService.provider.ModelPurpose;
 import com.zdmj.aiService.provider.ResolvedModelConfiguration;
 import com.zdmj.aiService.provider.UserModelConfigurationProvider;
 import com.zdmj.common.context.CurrentActor;
@@ -34,16 +33,15 @@ public class UserModelConfigurationProviderImpl implements UserModelConfiguratio
     }
 
     /**
-     * 用户对话读取配置表并解密密钥。平台任务直接返回空配置。
+     * 读取当前用户配置并解密密钥。
      *
-     * @param actor   当前操作者
-     * @param purpose 解析用途
-     * @return 用户配置；没有记录或用途为平台任务时返回空配置
-     * @throws BusinessException 密文无法解密出密钥时抛出 {@link ErrorCode#USER_LLM_CONFIG_INVALID}
+     * @param actor 当前操作者
+     * @return 用户配置；操作者或配置记录不存在时返回空配置
+     * @throws BusinessException 密文无法解密出有效密钥时抛出 {@link ErrorCode#USER_LLM_CONFIG_INVALID}
      */
     @Override
-    public ResolvedModelConfiguration resolve(CurrentActor actor, ModelPurpose purpose) {
-        if (purpose != ModelPurpose.USER_CHAT || actor == null || actor.userId() == null) {
+    public ResolvedModelConfiguration resolve(CurrentActor actor) {
+        if (actor == null || actor.userId() == null) {
             return ResolvedModelConfiguration.absent();
         }
         UserLlmConfig config = userLlmConfigMapper.selectById(actor.userId());

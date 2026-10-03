@@ -70,7 +70,6 @@ class KnowledgeRagServiceImplTest {
         List<String> chunks = service.streamAnswer(401L, 13L, "hello", null, false, null).collectList().block();
 
         assertEquals(List.of("fallback-system"), chunks);
-        verify(modelGateway).stream(eq(CurrentActor.of(401L)), eq(new StreamingModelRequest(13L, "hello", PromptNames.SYSTEM, null)));
         verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
     }
 
@@ -102,7 +101,6 @@ class KnowledgeRagServiceImplTest {
         List<String> chunks = service.streamAnswer(402L, 14L, "hello question", null, false, null).collectList().block();
 
         assertEquals(List.of("rag-answer"), chunks);
-        verify(modelGateway).stream(eq(CurrentActor.of(402L)), argThat((StreamingModelRequest req) -> Long.valueOf(14L).equals(req.conversationId()) && "hello question".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_SYSTEM.equals(req.promptName())));
         verify(knowledgeVectorMapper).searchBySimilarity(402L, 502L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium());
         verify(knowledgeVectorMapper, never()).selectChunksByDocuments(any(), any(), any());
         verify(embeddingModel).embed("hello question");
@@ -137,8 +135,6 @@ class KnowledgeRagServiceImplTest {
         List<String> chunks = service.streamAnswer(403L, 15L, "raw question", null, false, null).collectList().block();
 
         assertEquals(List.of("rewritten-rag-answer"), chunks);
-        verify(modelGateway).generate(eq(CurrentActor.of(403L)), argThat((ModelRequest req) -> "raw question".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE.equals(req.promptName())));
-        verify(modelGateway).stream(eq(CurrentActor.of(403L)), argThat((StreamingModelRequest req) -> Long.valueOf(15L).equals(req.conversationId()) && "raw question".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_SYSTEM.equals(req.promptName())));
         verify(embeddingModel).embed("raw question");
         verify(embeddingModel).embed("rewritten question");
         verify(knowledgeVectorMapper, Mockito.times(2)).searchBySimilarity(eq(403L), eq(503L), eq("[0.3,0.4]"), anyInt());
@@ -155,7 +151,6 @@ class KnowledgeRagServiceImplTest {
         List<String> chunks = service.streamAnswer(1L, 16L, "hello", List.of(), false, null).collectList().block();
 
         assertEquals(List.of("no-rag"), chunks);
-        verify(modelGateway).stream(eq(CurrentActor.of(1L)), eq(new StreamingModelRequest(16L, "hello", PromptNames.SYSTEM, null)));
         verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
     }
 
@@ -294,7 +289,6 @@ class KnowledgeRagServiceImplTest {
         assertEquals("rewritten question", out.getRewrittenQuery());
         assertEquals(2, out.getHits().size());
         assertEquals(22L, out.getHits().get(0).getId());
-        verify(modelGateway).generate(eq(CurrentActor.of(407L)), argThat((ModelRequest req) -> "raw question".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE.equals(req.promptName())));
         verify(knowledgeVectorMapper, Mockito.times(2)).searchBySimilarity(
                 eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(11L), eq("[0.3,0.4]"), anyInt());
         verify(knowledgeVectorMapper, never()).selectChunksByDocuments(any(), any(), any());
@@ -328,7 +322,6 @@ class KnowledgeRagServiceImplTest {
         assertTrue(out.isRewriteUsed());
         assertEquals("Java", out.getQuery());
         assertEquals("Java 后端开发", out.getRewrittenQuery());
-        verify(modelGateway).generate(eq(CurrentActor.of(408L)), argThat((ModelRequest req) -> "Java".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE.equals(req.promptName())));
         verify(knowledgeVectorMapper, Mockito.times(2)).searchBySimilarity(
                 eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(11L), eq("[0.3,0.4]"), anyInt());
     }

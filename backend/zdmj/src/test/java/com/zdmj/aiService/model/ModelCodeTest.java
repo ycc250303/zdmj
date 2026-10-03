@@ -16,6 +16,8 @@ class ModelCodeTest {
         assertEquals(ModelCode.QWEN_MAX, ModelCode.fromCode("qwen3.8-max"));
         assertEquals("qwen3.8-flash", ModelCode.QWEN_PLUS.apiModelName());
         assertEquals("qwen3.8-max", ModelCode.QWEN_MAX.apiModelName());
+        assertEquals("qwen3.8-flash", ModelCode.values()[0].code());
+        assertEquals("qwen3.8-max", ModelCode.values()[1].code());
     }
 
     @Test

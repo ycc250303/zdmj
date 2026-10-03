@@ -7,7 +7,6 @@ import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.aiService.api.ModelGateway;
-import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.conversationService.dto.ChatStreamRequest;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.dto.MessageResponse;

@@ -1,7 +1,5 @@
 package com.zdmj.aiService.api;
 
-import java.util.List;
-
 import com.zdmj.aiService.model.ModelCode;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
@@ -54,13 +52,6 @@ public interface ModelGateway {
      * @throws BusinessException 平台密钥都未配置时抛出 {@link ErrorCode#USER_LLM_NOT_CONFIGURED}
      */
     ModelCode resumeImportModel();
-
-    /**
-     * 列出可选模型目录。
-     *
-     * @return 目录项，顺序与 {@link ModelCode} 声明一致
-     */
-    List<ModelCode> listModels();
 
     /**
      * 当前环境是否允许未配置用户使用平台默认模型。

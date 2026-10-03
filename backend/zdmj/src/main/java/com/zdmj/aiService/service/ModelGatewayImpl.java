@@ -1,8 +1,6 @@
 package com.zdmj.aiService.service;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -24,7 +22,6 @@ import com.zdmj.aiService.api.StreamingModelRequest;
 import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.aiService.config.ModelClientConfiguration;
 import com.zdmj.aiService.model.ModelCode;
-import com.zdmj.aiService.provider.ModelPurpose;
 import com.zdmj.aiService.provider.ResolvedModelConfiguration;
 import com.zdmj.aiService.provider.UserModelConfigurationProvider;
 import com.zdmj.common.ai.PromptUtil;
@@ -120,11 +117,6 @@ public class ModelGatewayImpl implements ModelGateway {
     }
 
     @Override
-    public List<ModelCode> listModels() {
-        return Arrays.asList(ModelCode.values());
-    }
-
-    @Override
     public boolean platformFallbackEnabled() {
         return clients.platformFallbackEnabled();
     }
@@ -187,8 +179,7 @@ public class ModelGatewayImpl implements ModelGateway {
     }
 
     private ChatClient createUserClient(Long userId, boolean withMemory) {
-        ResolvedModelConfiguration resolved = configurationProvider.resolve(
-                CurrentActor.of(userId), ModelPurpose.USER_CHAT);
+        ResolvedModelConfiguration resolved = configurationProvider.resolve(CurrentActor.of(userId));
         ChatModel chatModel;
         boolean platformDefault;
         String modelName;
@@ -230,6 +221,14 @@ public class ModelGatewayImpl implements ModelGateway {
         return actor.userId();
     }
 
+    /**
+     * 应用系统提示词。
+     *
+     * @param spec        客户端请求规范
+     * @param promptName  提示词名称
+     * @param promptVars  提示词变量
+     * @return 应用系统提示词后的客户端请求规范
+     */
     private ChatClientRequestSpec applySystemPrompt(ChatClientRequestSpec spec, String promptName,
             Map<String, Object> promptVars) {
         if (!StringUtils.hasText(promptName)) {

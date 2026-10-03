@@ -8,11 +8,10 @@ import com.zdmj.common.context.CurrentActor;
 public interface UserModelConfigurationProvider {
 
     /**
-     * 按操作者与用途解析用户模型配置。
+     * 按操作者解析用户模型配置。
      *
-     * @param actor   当前操作者
-     * @param purpose 解析用途；平台任务不读取用户配置
+     * @param actor 当前操作者
      * @return 用户配置；没有可用配置时返回 {@link ResolvedModelConfiguration#absent()}
      */
-    ResolvedModelConfiguration resolve(CurrentActor actor, ModelPurpose purpose);
+    ResolvedModelConfiguration resolve(CurrentActor actor);
 }

@@ -22,7 +22,6 @@ import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
 import com.zdmj.resumeService.mapper.ResumeMapper;
 import com.zdmj.resumeService.mapper.SkillMapper;
 import com.zdmj.resumeService.service.AwardService;
-import com.zdmj.userAuthService.entity.User;
 import com.zdmj.userAuthService.mapper.UserMapper;
 import com.zdmj.resumeService.service.CareerService;
 import com.zdmj.resumeService.service.EducationService;
@@ -42,13 +41,10 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
@@ -325,7 +321,7 @@ class ResumeServiceImplTest {
         UserHolder.set(UserContext.of(1L, "u1"));
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("张三 某某大学 软件工程");
-        doThrow(new RuntimeException("llm down")).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> PromptNames.RESUME_IMPORT_PARSE.equals(req.promptName()) && req.promptVars() == null && req.outputType() == ResumeImportParseResponse.class && req.platformModel() == ModelCode.DEEPSEEK_FLASH));
+        doThrow(new RuntimeException("llm down")).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.parseImport(request));
 
@@ -350,7 +346,7 @@ class ResumeServiceImplTest {
         ResumeImportParseResponse.CareerItem blankCareer = new ResumeImportParseResponse.CareerItem();
         llmResult.setCareers(List.of(blankCareer));
 
-        doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> PromptNames.RESUME_IMPORT_PARSE.equals(req.promptName()) && req.promptVars() == null && req.outputType() == ResumeImportParseResponse.class && req.platformModel() == ModelCode.DEEPSEEK_FLASH));
+        doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest));
 
         ResumeImportParseResponse out = resumeService.parseImport(request);
 
@@ -375,7 +371,7 @@ class ResumeServiceImplTest {
         edu.setEndDate("2022年");
         llmResult.setEducations(List.of(edu));
 
-        doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> PromptNames.RESUME_IMPORT_PARSE.equals(req.promptName()) && req.promptVars() == null && req.outputType() == ResumeImportParseResponse.class && req.platformModel() == ModelCode.DEEPSEEK_FLASH));
+        doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest));
 
         ResumeImportParseResponse out = resumeService.parseImport(request);
 
@@ -395,7 +391,7 @@ class ResumeServiceImplTest {
         career.setStartDate("2021年3月");
         llmResult.setCareers(List.of(career));
 
-        doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> PromptNames.RESUME_IMPORT_PARSE.equals(req.promptName()) && req.promptVars() == null && req.outputType() == ResumeImportParseResponse.class && req.platformModel() == ModelCode.DEEPSEEK_FLASH));
+        doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest));
 
         ResumeImportParseResponse out = resumeService.parseImport(request);
 
@@ -413,14 +409,14 @@ class ResumeServiceImplTest {
         award.setName("2024年同济大学本科生奖学金");
         llmResult.setAwards(List.of(award));
 
-        doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> PromptNames.RESUME_IMPORT_PARSE.equals(req.promptName()) && req.promptVars() == null && req.outputType() == ResumeImportParseResponse.class && req.platformModel() == ModelCode.DEEPSEEK_FLASH));
+        doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest));
 
         ResumeImportParseResponse out = resumeService.parseImport(request);
 
         assertEquals(1, out.getAwards().size());
         assertEquals("2024-01-01", out.getAwards().get(0).getAwardDate());
         assertEquals(1, out.getAwards().get(0).getAwardType());
-        verify(modelGateway, times(1)).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> PromptNames.RESUME_IMPORT_PARSE.equals(req.promptName()) && req.promptVars() == null && req.outputType() == ResumeImportParseResponse.class && req.platformModel() == ModelCode.DEEPSEEK_FLASH));
+        verify(modelGateway, times(1)).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest));
     }
 
     @Test
@@ -447,7 +443,7 @@ class ResumeServiceImplTest {
         second.setAwardDate("2025-01-01");
         llmResult.setAwards(List.of(scholarship, first, second));
 
-        doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> PromptNames.RESUME_IMPORT_PARSE.equals(req.promptName()) && req.promptVars() == null && req.outputType() == ResumeImportParseResponse.class && req.platformModel() == ModelCode.DEEPSEEK_FLASH));
+        doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest));
 
         ResumeImportParseResponse out = resumeService.parseImport(request);
 
@@ -478,13 +474,13 @@ class ResumeServiceImplTest {
         competition.setAwardDate("2023-11-01");
         llmResult.setAwards(List.of(competition));
 
-        doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> PromptNames.RESUME_IMPORT_PARSE.equals(req.promptName()) && req.promptVars() == null && req.outputType() == ResumeImportParseResponse.class && req.platformModel() == ModelCode.DEEPSEEK_FLASH));
+        doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest));
 
         ResumeImportParseResponse out = resumeService.parseImport(request);
 
         assertEquals(1, out.getAwards().size());
         assertTrue(out.getAwards().get(0).getName().contains("数学建模"));
-        verify(modelGateway, times(1)).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> PromptNames.RESUME_IMPORT_PARSE.equals(req.promptName()) && req.promptVars() == null && req.outputType() == ResumeImportParseResponse.class && req.platformModel() == ModelCode.DEEPSEEK_FLASH));
+        verify(modelGateway, times(1)).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest));
     }
 
     @Test
@@ -493,12 +489,12 @@ class ResumeServiceImplTest {
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("resume body");
 
-        doReturn(new ResumeImportParseResponse()).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> PromptNames.RESUME_IMPORT_PARSE.equals(req.promptName()) && req.promptVars() == null && req.outputType() == ResumeImportParseResponse.class && req.platformModel() == ModelCode.DEEPSEEK_FLASH));
+        doReturn(new ResumeImportParseResponse()).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest));
 
         ResumeImportParseResponse out = resumeService.parseImport(request);
 
         assertEquals(0, out.getAwards().size());
-        verify(modelGateway, times(1)).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> PromptNames.RESUME_IMPORT_PARSE.equals(req.promptName()) && req.promptVars() == null && req.outputType() == ResumeImportParseResponse.class && req.platformModel() == ModelCode.DEEPSEEK_FLASH));
+        verify(modelGateway, times(1)).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest));
     }
 
     @Test
@@ -515,7 +511,7 @@ class ResumeServiceImplTest {
         project.setHighlights(List.of("该项目获 2025 年中国高校计算机大赛智能交互创新赛全国一等奖"));
         llmResult.setProjects(List.of(project));
 
-        doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> PromptNames.RESUME_IMPORT_PARSE.equals(req.promptName()) && req.promptVars() == null && req.outputType() == ResumeImportParseResponse.class && req.platformModel() == ModelCode.DEEPSEEK_FLASH));
+        doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest));
 
         ResumeImportParseResponse out = resumeService.parseImport(request);
 
@@ -531,7 +527,7 @@ class ResumeServiceImplTest {
         request.setRawText(raw);
 
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
-        doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> PromptNames.RESUME_IMPORT_PARSE.equals(req.promptName()) && req.promptVars() == null && req.outputType() == ResumeImportParseResponse.class && req.platformModel() == ModelCode.DEEPSEEK_FLASH));
+        doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest));
 
         ResumeImportParseResponse out = resumeService.parseImport(request);
 
@@ -573,5 +569,12 @@ class ResumeServiceImplTest {
         assertEquals(1L, out.getId());
         verify(skillService).update(any());
         verify(resumeService).updateById(resume);
+    }
+
+    private static boolean resumeImportRequest(StructuredModelRequest<?> request) {
+        return PromptNames.RESUME_IMPORT_PARSE.equals(request.promptName())
+                && request.promptVars() == null
+                && request.outputType() == ResumeImportParseResponse.class
+                && request.platformModel() == ModelCode.DEEPSEEK_FLASH;
     }
 }

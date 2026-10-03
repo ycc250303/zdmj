@@ -19,7 +19,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.aiService.api.ModelGateway;
-import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.common.async.AsyncTaskService;
