@@ -2,7 +2,9 @@ package com.zdmj.jobService;
 
 import com.zdmj.common.ai.JobRole;
 import com.zdmj.common.constants.PromptNames;
-import com.zdmj.userAuthService.service.UserModelChat;
+import com.zdmj.aiService.api.ModelGateway;
+import com.zdmj.aiService.api.StructuredModelRequest;
+import com.zdmj.common.context.CurrentActor;
 import lombok.Data;
 import org.slf4j.Logger;
 import org.springframework.util.StringUtils;
@@ -21,7 +23,7 @@ public final class JobRoleDetector {
     private JobRoleDetector() {
     }
 
-    public static DetectResult detect(Long userId, String text, UserModelChat userModelChat, Logger log) {
+    public static DetectResult detect(Long userId, String text, ModelGateway modelGateway, Logger log) {
         if (!StringUtils.hasText(text)) {
             return new DetectResult(JobRole.UNKNOWN, 0.0, "文本为空");
         }
@@ -33,8 +35,9 @@ public final class JobRoleDetector {
         }
 
         try {
-            RoleDetectLLMResult llmResult = userModelChat.chatStructuredOnce(
-                    userId, text, PromptNames.JOB_DETECT, null, RoleDetectLLMResult.class);
+            RoleDetectLLMResult llmResult = modelGateway.generateStructured(
+                    CurrentActor.of(userId),
+                    StructuredModelRequest.of(text, PromptNames.JOB_DETECT, null, RoleDetectLLMResult.class));
             JobRole role = JobRole.fromString(llmResult.getRoleCode());
             if (role == JobRole.UNKNOWN && scored.role() != JobRole.UNKNOWN) {
                 return new DetectResult(scored.role(), 0.45,

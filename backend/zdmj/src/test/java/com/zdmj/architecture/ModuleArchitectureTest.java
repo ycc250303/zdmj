@@ -24,7 +24,8 @@ class ModuleArchitectureTest {
             "matchService",
             "knowledgeService",
             "conversationService",
-            "careerReportService"
+            "careerReportService",
+            "aiService"
     };
 
     private static final String[] INTERNAL_LAYERS = {
@@ -68,6 +69,9 @@ class ModuleArchitectureTest {
 
     @ArchTest
     static final ArchRule career_report_does_not_access_foreign_internals = freezeForeignInternals("careerReportService");
+
+    @ArchTest
+    static final ArchRule ai_does_not_access_foreign_internals = freezeForeignInternals("aiService");
 
     @ArchTest
     static final ArchRule common_mappers_stay_inside_common = freezeMapperAccess("common");

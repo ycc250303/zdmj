@@ -7,7 +7,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.userAuthService.service.UserModelChat;
+import com.zdmj.aiService.api.ModelGateway;
+import com.zdmj.aiService.api.StructuredModelRequest;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.ai.JobRole;
 import com.zdmj.common.ai.PromptScenario;
 import com.zdmj.common.ai.PromptUtil;
@@ -51,7 +53,7 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
     private static final int MIN_NODES_PER_TRANSITION_PATH = 2;
 
     private final JobService jobService;
-    private final UserModelChat chatUtil;
+    private final ModelGateway modelGateway;
     private final ObjectMapper objectMapper;
     private final PromptUtil promptUtil;
     private final JobCapabilityProfileService jobCapabilityProfileService;
@@ -83,7 +85,8 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
 
         JobCareerGraphResponse aiResult;
         try {
-            aiResult = chatUtil.chatStructuredOnce(userId, jobContext, promptName, null, JobCareerGraphResponse.class);
+            aiResult = modelGateway.generateStructured(CurrentActor.of(userId),
+                    StructuredModelRequest.of(jobContext, promptName, null, JobCareerGraphResponse.class));
         } catch (Exception e) {
             log.error("岗位关联图谱生成失败: jobId={}, role={}, prompt={}", jobId, role, promptName, e);
             throw new BusinessException(ErrorCode.JOB_CAREER_GRAPH_GENERATION_FAILED);

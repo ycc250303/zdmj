@@ -5,7 +5,8 @@ import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.userAuthService.service.UserModelChat;
+import com.zdmj.aiService.api.ModelGateway;
+import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
@@ -30,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -44,7 +46,7 @@ class JobCapabilityProfileServiceImplTest {
     @Mock
     private JobService jobService;
     @Mock
-    private UserModelChat chatUtil;
+    private ModelGateway modelGateway;
     @Mock
     private com.zdmj.common.async.AsyncTaskService asyncTaskService;
 
@@ -53,7 +55,7 @@ class JobCapabilityProfileServiceImplTest {
     @BeforeEach
     void setUp() {
         profileService = spy(new JobCapabilityProfileServiceImpl(
-                jobService, chatUtil, new PromptUtil(new DefaultResourceLoader()), asyncTaskService));
+                jobService, modelGateway, new PromptUtil(new DefaultResourceLoader()), asyncTaskService));
         UserHolder.set(UserContext.of(1L, "u1"));
     }
 
@@ -66,14 +68,14 @@ class JobCapabilityProfileServiceImplTest {
     void profile_generate_fail_shouldThrow10002() {
         Long jobId = 11L;
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doThrow(new RuntimeException("llm down")).when(chatUtil)
-                .chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
+        doThrow(new RuntimeException("llm down")).when(modelGateway)
+                .generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobCapabilityProfileResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> profileService.getJobCapabilityProfile(jobId));
 
         assertEquals(ErrorCode.JOB_CAPABILITY_PROFILE_GENERATION_FAILED.getCode(), ex.getCode());
         verify(jobService).getDetail(jobId);
-        verify(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
+        verify(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobCapabilityProfileResponse.class));
         verify(profileService, never()).save(any(JobCapabilityProfile.class));
     }
 
@@ -89,7 +91,7 @@ class JobCapabilityProfileServiceImplTest {
         existing.setId(900L);
 
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(aiResult).when(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
+        doReturn(aiResult).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobCapabilityProfileResponse.class));
         doReturn(existing).when(profileService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(profileService).updateById(any(JobCapabilityProfile.class));
 
@@ -115,7 +117,7 @@ class JobCapabilityProfileServiceImplTest {
         aiResult.setMissingSkills(List.of("分布式"));
 
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(aiResult).when(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
+        doReturn(aiResult).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobCapabilityProfileResponse.class));
         doReturn(null).when(profileService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(profileService).save(any(JobCapabilityProfile.class));
 
@@ -219,20 +221,21 @@ class JobCapabilityProfileServiceImplTest {
         JobCapabilityProfileResponse aiResult = new JobCapabilityProfileResponse();
         aiResult.setSummary("ok");
         doReturn(dto).when(jobService).getDetail(jobId);
-        doReturn(aiResult).when(chatUtil).chatStructuredOnce(
-                anyLong(), any(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
+        doReturn(aiResult).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobCapabilityProfileResponse.class));
         doReturn(null).when(profileService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(profileService).save(any(JobCapabilityProfile.class));
 
         profileService.getJobCapabilityProfile(jobId);
 
-        ArgumentCaptor<String> context = ArgumentCaptor.forClass(String.class);
-        verify(chatUtil).chatStructuredOnce(
-                anyLong(), context.capture(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
-        assertTrue(context.getValue().contains("岗位名称：Java开发"));
-        assertTrue(context.getValue().contains("公司名称：未提供"));
-        assertTrue(context.getValue().contains("岗位职责：未提供"));
-        assertTrue(context.getValue().contains("岗位要求：熟悉Spring"));
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<StructuredModelRequest<JobCapabilityProfileResponse>> context =
+                ArgumentCaptor.forClass(StructuredModelRequest.class);
+        verify(modelGateway).generateStructured(any(), context.capture());
+        assertNull(context.getValue().promptVars());
+        assertTrue(context.getValue().message().contains("岗位名称：Java开发"));
+        assertTrue(context.getValue().message().contains("公司名称：未提供"));
+        assertTrue(context.getValue().message().contains("岗位职责：未提供"));
+        assertTrue(context.getValue().message().contains("岗位要求：熟悉Spring"));
     }
 
     @Test
@@ -248,21 +251,22 @@ class JobCapabilityProfileServiceImplTest {
         JobCapabilityProfileResponse aiResult = new JobCapabilityProfileResponse();
         aiResult.setSummary("ok");
         doReturn(dto).when(jobService).getDetail(jobId);
-        doReturn(aiResult).when(chatUtil).chatStructuredOnce(
-                anyLong(), any(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
+        doReturn(aiResult).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobCapabilityProfileResponse.class));
         doReturn(null).when(profileService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(profileService).save(any(JobCapabilityProfile.class));
 
         profileService.getJobCapabilityProfile(jobId);
 
-        ArgumentCaptor<String> context = ArgumentCaptor.forClass(String.class);
-        verify(chatUtil).chatStructuredOnce(
-                anyLong(), context.capture(), any(), eq(null), eq(JobCapabilityProfileResponse.class));
-        assertTrue(context.getValue().contains("岗位职责：未提供"));
-        assertTrue(context.getValue().contains("岗位要求：未提供"));
-        assertTrue(context.getValue().contains("关键词：未提供"));
-        assertTrue(context.getValue().contains("公司行业：未提供"));
-        assertFalse(context.getValue().contains("；"));
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<StructuredModelRequest<JobCapabilityProfileResponse>> context =
+                ArgumentCaptor.forClass(StructuredModelRequest.class);
+        verify(modelGateway).generateStructured(any(), context.capture());
+        assertNull(context.getValue().promptVars());
+        assertTrue(context.getValue().message().contains("岗位职责：未提供"));
+        assertTrue(context.getValue().message().contains("岗位要求：未提供"));
+        assertTrue(context.getValue().message().contains("关键词：未提供"));
+        assertTrue(context.getValue().message().contains("公司行业：未提供"));
+        assertFalse(context.getValue().message().contains("；"));
     }
 
     private JobListItemResponse buildJobDetail() {

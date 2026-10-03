@@ -11,7 +11,8 @@ import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.userAuthService.service.UserModelChat;
+import com.zdmj.aiService.api.ModelGateway;
+import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobCareerGraphResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
@@ -49,6 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
@@ -62,7 +64,7 @@ import static org.mockito.Mockito.when;
 class CareerDevelopmentReportServiceImplTest {
 
     @Mock
-    private UserModelChat chatUtil;
+    private ModelGateway modelGateway;
     @Mock
     private JobService jobService;
     @Mock
@@ -93,7 +95,7 @@ class CareerDevelopmentReportServiceImplTest {
         UserHolder.set(UserContext.of(1L, "u1"));
         service = spy(new CareerDevelopmentReportServiceImpl(
                 new ObjectMapper(),
-                chatUtil,
+                modelGateway,
                 jobService,
                 jobCapabilityProfileService,
                 jobCareerGraphService,
@@ -138,7 +140,8 @@ class CareerDevelopmentReportServiceImplTest {
         }).when(service).save(any(CareerDevelopmentReport.class));
 
         doAnswer(invocation -> {
-            Class<?> outputClass = invocation.getArgument(4);
+            StructuredModelRequest<?> request = invocation.getArgument(1, StructuredModelRequest.class);
+            Class<?> outputClass = request.outputType();
             Object payload = outputClass.getDeclaredConstructor().newInstance();
             Field f = outputClass.getDeclaredField("reportContent");
             f.setAccessible(true);
@@ -154,7 +157,7 @@ class CareerDevelopmentReportServiceImplTest {
             content.put("evidence", List.of("匹配短板A"));
             f.set(payload, content);
             return payload;
-        }).when(chatUtil).chatStructuredOnce(any(), any(), any(), any(), any());
+        }).when(modelGateway).generateStructured(any(), any());
 
         CareerReportResponse dto = service.generate(jobId, new CareerReportGenerateRequest());
 
@@ -204,7 +207,8 @@ class CareerDevelopmentReportServiceImplTest {
         }).when(service).save(any(CareerDevelopmentReport.class));
 
         doAnswer(invocation -> {
-            Class<?> outputClass = invocation.getArgument(4);
+            StructuredModelRequest<?> request = invocation.getArgument(1, StructuredModelRequest.class);
+            Class<?> outputClass = request.outputType();
             Object payload = outputClass.getDeclaredConstructor().newInstance();
             Field f = outputClass.getDeclaredField("reportContent");
             f.setAccessible(true);
@@ -220,7 +224,7 @@ class CareerDevelopmentReportServiceImplTest {
             content.put("evidence", List.of("证据A"));
             f.set(payload, content);
             return payload;
-        }).when(chatUtil).chatStructuredOnce(any(), any(), any(), any(), any());
+        }).when(modelGateway).generateStructured(any(), any());
 
         service.generate(jobId, new CareerReportGenerateRequest());
 
@@ -265,7 +269,7 @@ class CareerDevelopmentReportServiceImplTest {
                 .getOne(org.mockito.ArgumentMatchers.<Wrapper<CareerDevelopmentReport>>any());
         doReturn(true).when(service).updateById(any(CareerDevelopmentReport.class));
         doThrow(new RuntimeException("llm failed"))
-                .when(chatUtil).chatStructuredOnce(any(), any(), any(), eq(null), eq(CareerReportCheckResponse.class));
+                .when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == CareerReportCheckResponse.class));
 
         CareerReportCheckResponse check = service.checkIntegrity(20L);
 

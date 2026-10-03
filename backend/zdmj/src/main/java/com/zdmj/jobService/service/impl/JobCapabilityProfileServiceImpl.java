@@ -9,7 +9,9 @@ import com.zdmj.common.async.AsyncTaskType;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.userAuthService.service.UserModelChat;
+import com.zdmj.aiService.api.ModelGateway;
+import com.zdmj.aiService.api.StructuredModelRequest;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.ai.JobRole;
 import com.zdmj.jobService.JobRoleDetector;
 import com.zdmj.common.ai.PromptScenario;
@@ -34,7 +36,7 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         implements JobCapabilityProfileService {
 
     private final JobService jobService;
-    private final UserModelChat chatUtil;
+    private final ModelGateway modelGateway;
     private final PromptUtil promptUtil;
     private final AsyncTaskService asyncTaskService;
 
@@ -66,7 +68,7 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         String jobContext = buildJobContext(
                 jobDetail,
                 "这是待分析的岗位信息（面向求职者输出岗位要求画像）：");
-        JobRoleDetector.DetectResult detected = JobRoleDetector.detect(userId, jobContext, chatUtil, log);
+        JobRoleDetector.DetectResult detected = JobRoleDetector.detect(userId, jobContext, modelGateway, log);
         JobRole role = detected.role();
         log.info("岗位类型识别: role={}", role);
         String promptName = promptUtil.resolve(PromptScenario.JOB_REQUIREMENT, role);
@@ -74,7 +76,8 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
 
         JobCapabilityProfileResponse aiResult;
         try {
-            aiResult = chatUtil.chatStructuredOnce(userId, jobContext, promptName, null, JobCapabilityProfileResponse.class);
+            aiResult = modelGateway.generateStructured(CurrentActor.of(userId),
+                    StructuredModelRequest.of(jobContext, promptName, null, JobCapabilityProfileResponse.class));
         } catch (Exception e) {
             log.error("岗位要求画像生成失败，role={}, prompt={}", role, promptName, e);
             throw new BusinessException(ErrorCode.JOB_CAPABILITY_PROFILE_GENERATION_FAILED);

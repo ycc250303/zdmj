@@ -13,7 +13,9 @@ import com.zdmj.common.async.AsyncTaskType;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.userAuthService.service.UserModelChat;
+import com.zdmj.aiService.api.ModelGateway;
+import com.zdmj.aiService.api.StructuredModelRequest;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.ai.JobRole;
 import com.zdmj.common.ai.PromptScenario;
 import com.zdmj.common.ai.PromptUtil;
@@ -67,7 +69,7 @@ public class JobStudentMatchServiceImpl
     private final JobService jobService;
     private final JobCapabilityProfileService jobCapabilityProfileService;
     private final StudentCapabilityProfileService studentCapabilityProfileService;
-    private final UserModelChat chatUtil;
+    private final ModelGateway modelGateway;
     private final ObjectMapper objectMapper;
     private final PromptUtil promptUtil;
     private final AsyncTaskService asyncTaskService;
@@ -162,11 +164,11 @@ public class JobStudentMatchServiceImpl
                 : jobDetail.getKeywords().stream().filter(StringUtils::hasText).map(String::trim).toList();
         String userMessage = buildUserMessage(jobDetail, jobProfile, studentProfile, weights, jobKeywords);
 
-        // 5. 调用 LLM 结构化输出（promptVars 传 null，UserModelChat 会跳过模板渲染，与项目其它
-        //    结构化调用保持一致：resume-analysis / job-requirement / job-career-graph 均传 null）
+        // 5. 调用 LLM 结构化输出（promptVars 传 null，跳过模板渲染）
         JobStudentMatchResponse aiResult;
         try {
-            aiResult = chatUtil.chatStructuredOnce(userId, userMessage, promptName, null, JobStudentMatchResponse.class);
+            aiResult = modelGateway.generateStructured(CurrentActor.of(userId),
+                    StructuredModelRequest.of(userMessage, promptName, null, JobStudentMatchResponse.class));
         } catch (IllegalStateException e) {
             log.error("人岗匹配结构化输出解析失败 jobId={} userId={}", jobId, userId, e);
             throw new BusinessException(ErrorCode.MATCH_GENERATION_FAILED);

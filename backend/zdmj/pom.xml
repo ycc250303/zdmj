@@ -357,6 +357,7 @@
                                 <include>com/zdmj/knowledgeService/**</include>
                                 <include>com/zdmj/conversationService/**</include>
                                 <include>com/zdmj/careerReportService/**</include>
+                                <include>com/zdmj/aiService/**</include>
                             </includes>
                             <rules>
                                 <rule>

@@ -20,7 +20,9 @@ import com.zdmj.common.async.AsyncTaskType;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.userAuthService.service.UserModelChat;
+import com.zdmj.aiService.api.ModelGateway;
+import com.zdmj.aiService.api.StructuredModelRequest;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.constants.PromptNames;
 import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
@@ -100,7 +102,7 @@ public class CareerDevelopmentReportServiceImpl
     private static final Pattern PLACEHOLDER_DOC_TITLE = Pattern.compile("^文档 #\\d+$");
 
     private final ObjectMapper objectMapper;
-    private final UserModelChat chatUtil;
+    private final ModelGateway modelGateway;
     private final JobService jobService;
     private final JobCapabilityProfileService jobCapabilityProfileService;
     private final JobCareerGraphService jobCareerGraphService;
@@ -245,9 +247,8 @@ public class CareerDevelopmentReportServiceImpl
                 + toJson(currentContent);
         LlmReportPayload payload;
         try {
-            payload = chatUtil.chatStructuredOnce(
-                    current.getUserId(),
-                    userMessage, PromptNames.CAREER_REPORT_POLISH, vars, LlmReportPayload.class);
+            payload = modelGateway.generateStructured(CurrentActor.of(current.getUserId()),
+                    StructuredModelRequest.of(userMessage, PromptNames.CAREER_REPORT_POLISH, vars, LlmReportPayload.class));
         } catch (Exception e) {
             log.error("报告润色失败: reportId={}", reportId, e);
             throw new BusinessException(ErrorCode.CAREER_REPORT_POLISH_FAILED);
@@ -280,12 +281,12 @@ public class CareerDevelopmentReportServiceImpl
         CareerReportCheckResponse local = localIntegrityCheck(reportContent);
 
         try {
-            CareerReportCheckResponse llm = chatUtil.chatStructuredOnce(
-                    report.getUserId(),
-                    "请检查这份职业发展报告是否完整且可执行：\n" + toJson(reportContent),
-                    PromptNames.CAREER_REPORT_INTEGRITY_CHECK,
-                    null,
-                    CareerReportCheckResponse.class);
+            CareerReportCheckResponse llm = modelGateway.generateStructured(CurrentActor.of(report.getUserId()),
+                    StructuredModelRequest.of(
+                            "请检查这份职业发展报告是否完整且可执行：\n" + toJson(reportContent),
+                            PromptNames.CAREER_REPORT_INTEGRITY_CHECK,
+                            null,
+                            CareerReportCheckResponse.class));
             if (llm != null) {
                 local = mergeChecks(local, llm);
             }
@@ -432,8 +433,8 @@ public class CareerDevelopmentReportServiceImpl
 
         LlmReportPayload payload;
         try {
-            payload = chatUtil.chatStructuredOnce(
-                    userId, sb.toString(), PromptNames.CAREER_REPORT_GENERATE, vars, LlmReportPayload.class);
+            payload = modelGateway.generateStructured(CurrentActor.of(userId),
+                    StructuredModelRequest.of(sb.toString(), PromptNames.CAREER_REPORT_GENERATE, vars, LlmReportPayload.class));
         } catch (Exception e) {
             log.error("职业报告生成失败 jobId={}", jobDetail.getId(), e);
             throw new BusinessException(ErrorCode.CAREER_REPORT_GENERATION_FAILED);

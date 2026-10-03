@@ -19,7 +19,8 @@ import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zdmj.userAuthService.service.UserModelChat;
+import com.zdmj.aiService.api.ModelGateway;
+import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.common.async.AsyncTaskService;
@@ -45,7 +46,7 @@ class JobStudentMatchEnqueueTest {
     @Mock
     private StudentCapabilityProfileService studentCapabilityProfileService;
     @Mock
-    private UserModelChat chatUtil;
+    private ModelGateway modelGateway;
     @Mock
     private JobStudentMatchMapper matchMapper;
     @Mock
@@ -59,7 +60,7 @@ class JobStudentMatchEnqueueTest {
                 jobService,
                 jobCapabilityProfileService,
                 studentCapabilityProfileService,
-                chatUtil,
+                modelGateway,
                 new ObjectMapper(),
                 new PromptUtil(new DefaultResourceLoader()),
                 asyncTaskService);

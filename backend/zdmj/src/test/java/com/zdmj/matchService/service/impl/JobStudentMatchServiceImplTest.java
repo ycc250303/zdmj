@@ -3,11 +3,13 @@ package com.zdmj.matchService.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.userAuthService.service.UserModelChat;
+import com.zdmj.aiService.api.ModelGateway;
+import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
@@ -45,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -62,7 +65,7 @@ import static org.mockito.Mockito.verify;
  * 异常被 {@code catch (Exception e)} 吞成 11001 错误码，并且对任何岗位都会一致触发。</p>
  *
  * <p>本类测试 {@code generate(...)} 的全部正反路径，并显式断言「
- * {@link UserModelChat#chatStructuredOnce} 必须以 {@code null} promptVars 调用」，
+ * {@link ModelGateway#generateStructured} 必须以 {@code null} promptVars 调用」，
  * 以保证未来不会再走 PromptTemplate 渲染分支。</p>
  */
 @ExtendWith(MockitoExtension.class)
@@ -77,7 +80,7 @@ class JobStudentMatchServiceImplTest {
     @Mock
     private StudentCapabilityProfileService studentCapabilityProfileService;
     @Mock
-    private UserModelChat chatUtil;
+    private ModelGateway modelGateway;
     @Mock
     private JobStudentMatchMapper matchMapper;
     @Mock
@@ -91,7 +94,7 @@ class JobStudentMatchServiceImplTest {
                 jobService,
                 jobCapabilityProfileService,
                 studentCapabilityProfileService,
-                chatUtil,
+                modelGateway,
                 new ObjectMapper(),
                 new PromptUtil(new DefaultResourceLoader()),
                 asyncTaskService));
@@ -105,11 +108,11 @@ class JobStudentMatchServiceImplTest {
     }
 
     // ========================================================
-    // 核心回归：必须以 null promptVars 调 chatStructuredOnce
+    // 核心回归：必须以 null promptVars 调 generateStructured
     // ========================================================
 
     @Test
-    void generate_shouldPassNullPromptVarsToUserModelChat_toAvoidSTTemplateRender() {
+    void generate_shouldPassNullPromptVarsToModelGateway_toAvoidSTTemplateRender() {
         Long jobId = 11L;
         wireHappyPath(jobId, "java-backend", buildAiResult());
 
@@ -118,12 +121,11 @@ class JobStudentMatchServiceImplTest {
         assertNotNull(result);
         // 关键断言：promptVars 必须是 null —— 一旦改回 Map，PromptTemplate 渲染会因
         // 提示词正文里的 JSON 大括号炸成 STException，被 catch 吞成 11001。
-        verify(chatUtil).chatStructuredOnce(
-                eq(USER_ID),
-                any(String.class),
-                eq("job-student-match/java-backend"),
-                isNull(),
-                eq(JobStudentMatchResponse.class));
+        verify(modelGateway).generateStructured(
+                eq(CurrentActor.of(USER_ID)),
+                argThat((StructuredModelRequest<?> req) -> req.promptVars() == null
+                        && "job-student-match/java-backend".equals(req.promptName())
+                        && req.outputType() == JobStudentMatchResponse.class));
     }
 
     @Test
@@ -133,12 +135,11 @@ class JobStudentMatchServiceImplTest {
 
         matchService.generate(jobId, null);
 
-        verify(chatUtil).chatStructuredOnce(
-                eq(USER_ID),
-                any(String.class),
-                eq("job-student-match/default"),
-                isNull(),
-                eq(JobStudentMatchResponse.class));
+        verify(modelGateway).generateStructured(
+                eq(CurrentActor.of(USER_ID)),
+                argThat((StructuredModelRequest<?> req) -> req.promptVars() == null
+                        && "job-student-match/default".equals(req.promptName())
+                        && req.outputType() == JobStudentMatchResponse.class));
     }
 
     // ========================================================
@@ -152,15 +153,14 @@ class JobStudentMatchServiceImplTest {
 
         matchService.generate(jobId, null);
 
-        ArgumentCaptor<String> userMessageCaptor = ArgumentCaptor.forClass(String.class);
-        verify(chatUtil).chatStructuredOnce(
-                eq(USER_ID),
-                userMessageCaptor.capture(),
-                eq("job-student-match/java-backend"),
-                isNull(),
-                eq(JobStudentMatchResponse.class));
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<StructuredModelRequest<JobStudentMatchResponse>> userMessageCaptor =
+                ArgumentCaptor.forClass(StructuredModelRequest.class);
+        verify(modelGateway).generateStructured(eq(CurrentActor.of(USER_ID)), userMessageCaptor.capture());
+        assertNull(userMessageCaptor.getValue().promptVars());
+        assertEquals("job-student-match/java-backend", userMessageCaptor.getValue().promptName());
 
-        String userMessage = userMessageCaptor.getValue();
+        String userMessage = userMessageCaptor.getValue().message();
         // 这俩内容原本是通过 promptVars 注入到 system prompt 的；
         // 现在改为直接拼接进 user message，确保 LLM 仍能看到。
         org.junit.jupiter.api.Assertions.assertTrue(
@@ -182,12 +182,11 @@ class JobStudentMatchServiceImplTest {
     // ========================================================
 
     @Test
-    void generate_chatUtilThrows_shouldThrow11001_matchGenerationFailed() {
+    void generate_modelGatewayThrows_shouldThrow11001_matchGenerationFailed() {
         Long jobId = 21L;
         prepareJobAndProfiles(jobId, "java-backend");
-        doThrow(new RuntimeException("llm down")).when(chatUtil)
-                .chatStructuredOnce(anyLong(), any(String.class), any(String.class), isNull(),
-                        eq(JobStudentMatchResponse.class));
+        doThrow(new RuntimeException("llm down")).when(modelGateway)
+                .generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobStudentMatchResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> matchService.generate(jobId, null));
@@ -195,12 +194,10 @@ class JobStudentMatchServiceImplTest {
     }
 
     @Test
-    void generate_chatUtilReturnsNull_shouldThrow11001_matchGenerationFailed() {
+    void generate_modelGatewayReturnsNull_shouldThrow11001_matchGenerationFailed() {
         Long jobId = 22L;
         prepareJobAndProfiles(jobId, "java-backend");
-        doReturn(null).when(chatUtil).chatStructuredOnce(
-                anyLong(), any(String.class), any(String.class), isNull(),
-                eq(JobStudentMatchResponse.class));
+        doReturn(null).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobStudentMatchResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> matchService.generate(jobId, null));
@@ -305,8 +302,7 @@ class JobStudentMatchServiceImplTest {
      */
     private void wireHappyPath(Long jobId, String roleType, JobStudentMatchResponse aiResult) {
         prepareJobAndProfiles(jobId, roleType);
-        doReturn(aiResult).when(chatUtil).chatStructuredOnce(
-                anyLong(), any(String.class), any(String.class), isNull(), eq(JobStudentMatchResponse.class));
+        doReturn(aiResult).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobStudentMatchResponse.class));
         doReturn(null).when(matchService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(matchService).save(any(JobStudentMatch.class));
     }

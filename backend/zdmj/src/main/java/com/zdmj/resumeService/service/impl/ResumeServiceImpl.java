@@ -1,8 +1,10 @@
 package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.zdmj.userAuthService.llm.ModelEnum;
-import com.zdmj.userAuthService.service.UserModelChat;
+import com.zdmj.aiService.api.ModelGateway;
+import com.zdmj.aiService.api.StructuredModelRequest;
+import com.zdmj.aiService.model.ModelCode;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.async.AsyncBizKeys;
 import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.common.async.AsyncTaskPayloads;
@@ -71,7 +73,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     private final AwardMapper awardMapper;
     private final SkillMapper skillMapper;
     private final UserMapper userMapper;
-    private final UserModelChat chatUtil;
+    private final ModelGateway modelGateway;
     private final EducationService educationService;
     private final CareerService careerService;
     private final AwardService awardService;
@@ -457,20 +459,22 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     @Override
     public ResumeImportParseResponse parseImport(ResumeImportParseRequest request) {
         log.info("开始识别简历结构化字段");
-        UserHolder.requireUserId();
+        Long userId = UserHolder.requireUserId();
         List<String> warnings = new ArrayList<>();
         String sourceText = PdfParserUtil.normalizeExtractedText(resolveImportSourceText(request));
 
-        ModelEnum importModel = chatUtil.resolveResumeImportModel();
+        ModelCode importModel = modelGateway.resumeImportModel();
         log.info("简历识别：使用平台模型 {}", importModel.code());
         ResumeImportParseResponse parsed;
         try {
-            parsed = chatUtil.chatStructuredOnceWithPlatformModel(
-                    sourceText,
-                    PromptNames.RESUME_IMPORT_PARSE,
-                    null,
-                    ResumeImportParseResponse.class,
-                    importModel);
+            parsed = modelGateway.generateStructured(
+                    CurrentActor.of(userId),
+                    StructuredModelRequest.platform(
+                            sourceText,
+                            PromptNames.RESUME_IMPORT_PARSE,
+                            null,
+                            ResumeImportParseResponse.class,
+                            importModel));
         } catch (BusinessException e) {
             throw e;
         } catch (IllegalStateException e) {

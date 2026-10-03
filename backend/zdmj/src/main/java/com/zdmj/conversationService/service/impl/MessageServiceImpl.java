@@ -8,7 +8,9 @@ import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.PageRequests;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.userAuthService.service.UserModelChat;
+import com.zdmj.aiService.api.ModelGateway;
+import com.zdmj.aiService.api.ModelRequest;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.constants.PromptNames;
 import com.zdmj.conversationService.dto.ChatStreamRequest;
 import com.zdmj.conversationService.dto.MessageResponse;
@@ -41,7 +43,7 @@ import java.util.Map;
 @Service
 public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> implements MessageService {
 
-    private final UserModelChat chatUtil;
+    private final ModelGateway modelGateway;
     private final MessageMapper messageMapper;
     private final ConversationService conversationService;
     private final ConversationMapper conversationMapper;
@@ -66,11 +68,9 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
             throw new IllegalStateException("消息写入未返回结果");
         }
         if (prepared.newCount() == 2) {
-            String title = chatUtil.chatOnce(
-                    userId,
-                    request.getMessage(),
-                    PromptNames.GENERATE_CONVERSATION_TITLE,
-                    null);
+            String title = modelGateway.generate(
+                    CurrentActor.of(userId),
+                    new ModelRequest(request.getMessage(), PromptNames.GENERATE_CONVERSATION_TITLE, null));
             conversationMapper.updateTitleByIdAndUserId(request.getConversationId(), userId, title);
         }
         subscribeAnswer(conversation, userId, request, prepared);

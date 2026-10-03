@@ -6,7 +6,8 @@ import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.userAuthService.service.UserModelChat;
+import com.zdmj.aiService.api.ModelGateway;
+import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobCareerGraphResponse;
@@ -33,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -47,7 +49,7 @@ class JobCareerGraphServiceImplTest {
     @Mock
     private JobService jobService;
     @Mock
-    private UserModelChat chatUtil;
+    private ModelGateway modelGateway;
     @Mock
     private JobCapabilityProfileService jobCapabilityProfileService;
 
@@ -56,7 +58,7 @@ class JobCareerGraphServiceImplTest {
     @BeforeEach
     void setUp() {
         graphService = spy(new JobCareerGraphServiceImpl(
-                jobService, chatUtil, new ObjectMapper(), new PromptUtil(new DefaultResourceLoader()),
+                jobService, modelGateway, new ObjectMapper(), new PromptUtil(new DefaultResourceLoader()),
                 jobCapabilityProfileService));
         UserHolder.set(UserContext.of(1L, "u1"));
     }
@@ -71,8 +73,8 @@ class JobCareerGraphServiceImplTest {
         Long jobId = 31L;
         stubExistingJavaProfile(jobId);
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doThrow(new RuntimeException("llm timeout")).when(chatUtil)
-                .chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCareerGraphResponse.class));
+        doThrow(new RuntimeException("llm timeout")).when(modelGateway)
+                .generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobCareerGraphResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> graphService.generate(jobId));
 
@@ -88,7 +90,7 @@ class JobCareerGraphServiceImplTest {
         invalidGraph.setVerticalPath(List.of(vNode(1, "初级"), vNode(2, "中级")));
         invalidGraph.setTransitionPaths(List.of());
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(invalidGraph).when(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCareerGraphResponse.class));
+        doReturn(invalidGraph).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobCareerGraphResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> graphService.generate(jobId));
 
@@ -101,7 +103,7 @@ class JobCareerGraphServiceImplTest {
         stubExistingJavaProfile(jobId);
         JobCareerGraphResponse valid = buildValidGraphWithoutCurrent();
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(valid).when(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCareerGraphResponse.class));
+        doReturn(valid).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobCareerGraphResponse.class));
         doReturn(null).when(graphService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(graphService).save(any(JobCareerGraph.class));
 
@@ -184,7 +186,7 @@ class JobCareerGraphServiceImplTest {
         JobCareerGraph existing = new JobCareerGraph();
         existing.setId(999L);
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(valid).when(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCareerGraphResponse.class));
+        doReturn(valid).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobCareerGraphResponse.class));
         doReturn(existing).when(graphService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(graphService).updateById(any(JobCareerGraph.class));
 
@@ -206,7 +208,7 @@ class JobCareerGraphServiceImplTest {
         current.setTitle("高级Java工程师");
         valid.setCurrentNode(current);
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(valid).when(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCareerGraphResponse.class));
+        doReturn(valid).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobCareerGraphResponse.class));
         doReturn(null).when(graphService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(graphService).save(any(JobCareerGraph.class));
 
@@ -234,7 +236,7 @@ class JobCareerGraphServiceImplTest {
         }
         invalidGraph.setTransitionPaths(transitions);
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(invalidGraph).when(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCareerGraphResponse.class));
+        doReturn(invalidGraph).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobCareerGraphResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> graphService.generate(jobId));
 
@@ -259,7 +261,7 @@ class JobCareerGraphServiceImplTest {
         }
         invalidGraph.setTransitionPaths(transitions);
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(invalidGraph).when(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCareerGraphResponse.class));
+        doReturn(invalidGraph).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobCareerGraphResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> graphService.generate(jobId));
 
@@ -275,7 +277,7 @@ class JobCareerGraphServiceImplTest {
         doReturn(javaProfile()).when(jobCapabilityProfileService).getJobCapabilityProfile(jobId);
         JobCareerGraphResponse valid = buildValidGraphWithoutCurrent();
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(valid).when(chatUtil).chatStructuredOnce(anyLong(), any(), any(), eq(null), eq(JobCareerGraphResponse.class));
+        doReturn(valid).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobCareerGraphResponse.class));
         doReturn(null).when(graphService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(graphService).save(any(JobCareerGraph.class));
 
@@ -300,7 +302,7 @@ class JobCareerGraphServiceImplTest {
             }
         };
         JobCareerGraphServiceImpl service = spy(new JobCareerGraphServiceImpl(
-                jobService, chatUtil, throwing, new PromptUtil(new DefaultResourceLoader()),
+                jobService, modelGateway, throwing, new PromptUtil(new DefaultResourceLoader()),
                 jobCapabilityProfileService));
 
         assertNull(ReflectionTestUtils.invokeMethod(service, "toJson", List.of("a"), "serialize fail"));

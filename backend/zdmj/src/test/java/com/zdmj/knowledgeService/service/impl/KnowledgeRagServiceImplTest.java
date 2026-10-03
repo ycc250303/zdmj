@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -21,12 +22,15 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.ai.embedding.EmbeddingModel;
 
-import com.zdmj.userAuthService.config.RagConfig;
+import com.zdmj.knowledgeService.config.RagConfig;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.userAuthService.service.UserModelChat;
+import com.zdmj.aiService.api.ModelGateway;
+import com.zdmj.aiService.api.ModelRequest;
+import com.zdmj.aiService.api.StreamingModelRequest;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.constants.PromptNames;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrievalResponse;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
@@ -44,7 +48,7 @@ class KnowledgeRagServiceImplTest {
     private final KnowledgeBasesService knowledgeBasesService = Mockito.mock(KnowledgeBasesService.class);
     private final KnowledgeEmbeddingService knowledgeEmbeddingService = Mockito.mock(KnowledgeEmbeddingService.class);
     private final KnowledgeVectorMapper knowledgeVectorMapper = Mockito.mock(KnowledgeVectorMapper.class);
-    private final UserModelChat chatUtil = Mockito.mock(UserModelChat.class);
+    private final ModelGateway modelGateway = Mockito.mock(ModelGateway.class);
 
     @AfterEach
     void tearDown() {
@@ -58,15 +62,15 @@ class KnowledgeRagServiceImplTest {
         ragConfig.getRewrite().setEnabled(false);
         when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(501L);
         when(embeddingModel.embed(anyString())).thenThrow(new RuntimeException("embed fail"));
-        when(chatUtil.chatStreamInConversation(401L, 13L, "hello", PromptNames.SYSTEM, null))
+        when(modelGateway.stream(eq(CurrentActor.of(401L)), eq(new StreamingModelRequest(13L, "hello", PromptNames.SYSTEM, null))))
                 .thenReturn(Flux.just("fallback-system"));
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
+                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
         List<String> chunks = service.streamAnswer(401L, 13L, "hello", null, false, null).collectList().block();
 
         assertEquals(List.of("fallback-system"), chunks);
-        verify(chatUtil).chatStreamInConversation(401L, 13L, "hello", PromptNames.SYSTEM, null);
+        verify(modelGateway).stream(eq(CurrentActor.of(401L)), eq(new StreamingModelRequest(13L, "hello", PromptNames.SYSTEM, null)));
         verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
     }
 
@@ -89,18 +93,16 @@ class KnowledgeRagServiceImplTest {
         hit.setMetadata(Map.of("source", "test"));
         when(knowledgeVectorMapper.searchBySimilarity(402L, 502L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of(hit));
-        when(chatUtil.chatStreamInConversation(eq(402L), eq(14L), eq("hello question"),
-                eq(PromptNames.KNOWLEDGEBASE_RAG_SYSTEM), any()))
+        when(modelGateway.stream(eq(CurrentActor.of(402L)), argThat((StreamingModelRequest req) -> Long.valueOf(14L).equals(req.conversationId()) && "hello question".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_SYSTEM.equals(req.promptName()))))
                 .thenReturn(Flux.just("rag-answer"));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
+                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
         List<String> chunks = service.streamAnswer(402L, 14L, "hello question", null, false, null).collectList().block();
 
         assertEquals(List.of("rag-answer"), chunks);
-        verify(chatUtil).chatStreamInConversation(eq(402L), eq(14L), eq("hello question"),
-                eq(PromptNames.KNOWLEDGEBASE_RAG_SYSTEM), any());
+        verify(modelGateway).stream(eq(CurrentActor.of(402L)), argThat((StreamingModelRequest req) -> Long.valueOf(14L).equals(req.conversationId()) && "hello question".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_SYSTEM.equals(req.promptName())));
         verify(knowledgeVectorMapper).searchBySimilarity(402L, 502L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium());
         verify(knowledgeVectorMapper, never()).selectChunksByDocuments(any(), any(), any());
         verify(embeddingModel).embed("hello question");
@@ -112,7 +114,7 @@ class KnowledgeRagServiceImplTest {
         UserHolder.set(UserContext.of(403L, "u"));
         ragConfig.getRewrite().setEnabled(true);
         when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(503L);
-        when(chatUtil.chatOnce(eq(403L), eq("raw question"), eq(PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE), any()))
+        when(modelGateway.generate(eq(CurrentActor.of(403L)), argThat((ModelRequest req) -> "raw question".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE.equals(req.promptName()))))
                 .thenReturn("rewritten question");
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.3,0.4]");
 
@@ -126,19 +128,17 @@ class KnowledgeRagServiceImplTest {
         hit.setContent("命中内容");
         when(knowledgeVectorMapper.searchBySimilarity(eq(403L), eq(503L), eq("[0.3,0.4]"), anyInt()))
                 .thenReturn(List.of(hit));
-        when(chatUtil.chatStreamInConversation(eq(403L), eq(15L), eq("raw question"),
-                eq(PromptNames.KNOWLEDGEBASE_RAG_SYSTEM), any()))
+        when(modelGateway.stream(eq(CurrentActor.of(403L)), argThat((StreamingModelRequest req) -> Long.valueOf(15L).equals(req.conversationId()) && "raw question".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_SYSTEM.equals(req.promptName()))))
                 .thenReturn(Flux.just("rewritten-rag-answer"));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
+                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
         List<String> chunks = service.streamAnswer(403L, 15L, "raw question", null, false, null).collectList().block();
 
         assertEquals(List.of("rewritten-rag-answer"), chunks);
-        verify(chatUtil).chatOnce(eq(403L), eq("raw question"), eq(PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE), any());
-        verify(chatUtil).chatStreamInConversation(eq(403L), eq(15L), eq("raw question"),
-                eq(PromptNames.KNOWLEDGEBASE_RAG_SYSTEM), any());
+        verify(modelGateway).generate(eq(CurrentActor.of(403L)), argThat((ModelRequest req) -> "raw question".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE.equals(req.promptName())));
+        verify(modelGateway).stream(eq(CurrentActor.of(403L)), argThat((StreamingModelRequest req) -> Long.valueOf(15L).equals(req.conversationId()) && "raw question".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_SYSTEM.equals(req.promptName())));
         verify(embeddingModel).embed("raw question");
         verify(embeddingModel).embed("rewritten question");
         verify(knowledgeVectorMapper, Mockito.times(2)).searchBySimilarity(eq(403L), eq(503L), eq("[0.3,0.4]"), anyInt());
@@ -148,14 +148,14 @@ class KnowledgeRagServiceImplTest {
     @Test
     void streamAnswerEmptyDocumentSelection_shouldFallbackSystemPrompt() {
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
-        when(chatUtil.chatStreamInConversation(1L, 16L, "hello", PromptNames.SYSTEM, null))
+                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+        when(modelGateway.stream(eq(CurrentActor.of(1L)), eq(new StreamingModelRequest(16L, "hello", PromptNames.SYSTEM, null))))
                 .thenReturn(Flux.just("no-rag"));
 
         List<String> chunks = service.streamAnswer(1L, 16L, "hello", List.of(), false, null).collectList().block();
 
         assertEquals(List.of("no-rag"), chunks);
-        verify(chatUtil).chatStreamInConversation(1L, 16L, "hello", PromptNames.SYSTEM, null);
+        verify(modelGateway).stream(eq(CurrentActor.of(1L)), eq(new StreamingModelRequest(16L, "hello", PromptNames.SYSTEM, null)));
         verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
     }
 
@@ -177,12 +177,11 @@ class KnowledgeRagServiceImplTest {
         when(knowledgeVectorMapper.searchBySimilarity(
                 KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.5,0.6]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of(hit));
-        when(chatUtil.chatStreamInConversation(eq(404L), eq(17L), eq("system only"),
-                eq(PromptNames.KNOWLEDGEBASE_RAG_SYSTEM), any()))
+        when(modelGateway.stream(eq(CurrentActor.of(404L)), argThat((StreamingModelRequest req) -> Long.valueOf(17L).equals(req.conversationId()) && "system only".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_SYSTEM.equals(req.promptName()))))
                 .thenReturn(Flux.just("system-rag"));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
+                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
         List<String> chunks = service.streamAnswer(404L, 17L, "system only", List.of(), true, null).collectList().block();
 
@@ -197,7 +196,7 @@ class KnowledgeRagServiceImplTest {
     @Test
     void retrieveRankedNotLogin_shouldThrowUserNotLogin() {
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
+                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.retrieveRanked(null, "hello", List.of(), true));
@@ -210,7 +209,7 @@ class KnowledgeRagServiceImplTest {
     void retrieveRankedBothSourcesOff_shouldReturnEmptyHits() {
         ragConfig.getRewrite().setEnabled(true);
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
+                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
         String longQuery = "this is a long enough query to trigger rewrite if search ran";
 
         KnowledgeRetrievalResponse out = service.retrieveRanked(405L, longQuery, List.of(), false);
@@ -219,7 +218,7 @@ class KnowledgeRagServiceImplTest {
         assertEquals(longQuery, out.getQuery());
         assertEquals(longQuery, out.getRewrittenQuery());
         assertFalse(out.isRewriteUsed());
-        verify(chatUtil, never()).chatOnce(any(), any(), any(), any());
+        verify(modelGateway, never()).generate(any(), any());
         verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
         verify(knowledgeVectorMapper, never()).selectChunksByDocuments(any(), any(), any());
     }
@@ -244,7 +243,7 @@ class KnowledgeRagServiceImplTest {
                 .thenReturn(List.of(hit));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
+                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
         KnowledgeRetrievalResponse out = service.retrieveRanked(406L, "system only", List.of(), true);
 
@@ -265,7 +264,7 @@ class KnowledgeRagServiceImplTest {
         UserHolder.set(UserContext.of(407L, "u"));
         ragConfig.getRewrite().setEnabled(true);
         when(knowledgeBasesService.findKnowledgeBaseIdByScope(KnowledgeScopeEnum.SYSTEM.getCode())).thenReturn(11L);
-        when(chatUtil.chatOnce(eq(407L), eq("raw question"), eq(PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE), any()))
+        when(modelGateway.generate(eq(CurrentActor.of(407L)), argThat((ModelRequest req) -> "raw question".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE.equals(req.promptName()))))
                 .thenReturn("rewritten question");
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.3,0.4]");
         when(embeddingModel.embed(anyString())).thenReturn(new float[] {0.3f, 0.4f});
@@ -286,7 +285,7 @@ class KnowledgeRagServiceImplTest {
                 .thenReturn(List.of(rewrittenHit));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
+                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
         KnowledgeRetrievalResponse out = service.retrieveRanked(407L, "raw question", List.of(), true);
 
@@ -295,7 +294,7 @@ class KnowledgeRagServiceImplTest {
         assertEquals("rewritten question", out.getRewrittenQuery());
         assertEquals(2, out.getHits().size());
         assertEquals(22L, out.getHits().get(0).getId());
-        verify(chatUtil).chatOnce(eq(407L), eq("raw question"), eq(PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE), any());
+        verify(modelGateway).generate(eq(CurrentActor.of(407L)), argThat((ModelRequest req) -> "raw question".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE.equals(req.promptName())));
         verify(knowledgeVectorMapper, Mockito.times(2)).searchBySimilarity(
                 eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(11L), eq("[0.3,0.4]"), anyInt());
         verify(knowledgeVectorMapper, never()).selectChunksByDocuments(any(), any(), any());
@@ -307,7 +306,7 @@ class KnowledgeRagServiceImplTest {
         UserHolder.set(UserContext.of(408L, "u"));
         ragConfig.getRewrite().setEnabled(true);
         when(knowledgeBasesService.findKnowledgeBaseIdByScope(KnowledgeScopeEnum.SYSTEM.getCode())).thenReturn(11L);
-        when(chatUtil.chatOnce(eq(408L), eq("Java"), eq(PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE), any()))
+        when(modelGateway.generate(eq(CurrentActor.of(408L)), argThat((ModelRequest req) -> "Java".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE.equals(req.promptName()))))
                 .thenReturn("Java 后端开发");
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.3,0.4]");
         when(embeddingModel.embed(anyString())).thenReturn(new float[] {0.3f, 0.4f});
@@ -322,14 +321,14 @@ class KnowledgeRagServiceImplTest {
                 .thenReturn(List.of(hit));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
+                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
         KnowledgeRetrievalResponse out = service.retrieveRanked(408L, "Java", List.of(), true);
 
         assertTrue(out.isRewriteUsed());
         assertEquals("Java", out.getQuery());
         assertEquals("Java 后端开发", out.getRewrittenQuery());
-        verify(chatUtil).chatOnce(eq(408L), eq("Java"), eq(PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE), any());
+        verify(modelGateway).generate(eq(CurrentActor.of(408L)), argThat((ModelRequest req) -> "Java".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE.equals(req.promptName())));
         verify(knowledgeVectorMapper, Mockito.times(2)).searchBySimilarity(
                 eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(11L), eq("[0.3,0.4]"), anyInt());
     }
@@ -358,7 +357,7 @@ class KnowledgeRagServiceImplTest {
                 .thenReturn(overflow);
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, chatUtil);
+                embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
         KnowledgeRetrievalResponse out = service.retrieveRanked(409L, "hello question", List.of(), true);
 

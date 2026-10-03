@@ -1,13 +1,14 @@
-package com.zdmj.userAuthService.llm;
+package com.zdmj.aiService.model;
 
 import org.springframework.util.StringUtils;
+
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 
 /**
- * 用户可选的对话模型。{@code code} 为配置与接口中的模型码，{@code apiModelName} 为供应商模型名。
+ * 可选对话模型。{@code code} 为配置与接口中的模型码，{@code apiModelName} 为供应商模型名。
  */
-public enum ModelEnum {
+public enum ModelCode {
 
     QWEN_PLUS("qwen3.8-flash", "通义千问 3.8 Flash",
             "https://dashscope.aliyuncs.com/compatible-mode", "qwen3.8-flash"),
@@ -27,7 +28,7 @@ public enum ModelEnum {
     /** 发给供应商的模型名 */
     private final String apiModelName;
 
-    ModelEnum(String code, String displayName, String baseUrl, String apiModelName) {
+    ModelCode(String code, String displayName, String baseUrl, String apiModelName) {
         this.code = code;
         this.displayName = displayName;
         this.baseUrl = baseUrl;
@@ -50,7 +51,14 @@ public enum ModelEnum {
         return apiModelName;
     }
 
-    public static ModelEnum fromCode(String modelCode) {
+    /**
+     * 按模型码解析目录项。旧码 {@code qwen3.6-plus}、{@code qwen3.7-max} 分别对应 Flash 与 Max。
+     *
+     * @param modelCode 模型码
+     * @return 目录项
+     * @throws BusinessException 模型码为空或不在目录内时抛出 {@link ErrorCode#USER_LLM_CONFIG_INVALID}
+     */
+    public static ModelCode fromCode(String modelCode) {
         if (!StringUtils.hasText(modelCode)) {
             throw new BusinessException(ErrorCode.USER_LLM_CONFIG_INVALID);
         }
@@ -61,7 +69,7 @@ public enum ModelEnum {
         if ("qwen3.7-max".equalsIgnoreCase(normalized)) {
             return QWEN_MAX;
         }
-        for (ModelEnum value : values()) {
+        for (ModelCode value : values()) {
             if (value.code.equalsIgnoreCase(normalized)) {
                 return value;
             }

@@ -1,4 +1,4 @@
-package com.zdmj.userAuthService.config;
+package com.zdmj.knowledgeService.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;

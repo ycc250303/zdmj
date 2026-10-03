@@ -5,8 +5,10 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.zdmj.aiService.api.ModelGateway;
+import com.zdmj.aiService.model.ModelCode;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.userAuthService.llm.ModelEnum;
 import com.zdmj.userAuthService.llm.UserApiKeyCipher;
 import com.zdmj.userAuthService.dto.LlmModelOptionResponse;
 import com.zdmj.userAuthService.dto.UserLlmConfigResponse;
@@ -22,7 +24,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class UserLlmConfigServiceImpl implements UserLlmConfigService {
     private final UserLlmConfigMapper userLlmConfigMapper;
-    private final UserLlmRouter userLlmRouter;
+    private final ModelGateway modelGateway;
     private final UserApiKeyCipher userApiKeyCipher;
 
     @Override
@@ -32,13 +34,13 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
         if (config == null) {
             UserLlmConfigResponse dto = new UserLlmConfigResponse();
             dto.setConfigured(false);
-            dto.setUsingPlatformDefault(userLlmRouter.isPlatformFallbackEnabled());
+            dto.setUsingPlatformDefault(modelGateway.platformFallbackEnabled());
             return dto;
         }
 
         String plain = userApiKeyCipher.decrypt(config.getApiKeyCiphertext());
         UserLlmConfigResponse dto = new UserLlmConfigResponse();
-        ModelEnum meta = ModelEnum.fromCode(config.getModelCode());
+        ModelCode meta = ModelCode.fromCode(config.getModelCode());
         dto.setConfigured(true);
         dto.setUsingPlatformDefault(false);
         dto.setModelCode(meta.code());
@@ -49,7 +51,7 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
 
     @Override
     public List<LlmModelOptionResponse> listModels(){
-        return userLlmRouter.listModelOptions().stream()
+        return modelGateway.listModels().stream()
         .map(v -> {
             LlmModelOptionResponse dto = new LlmModelOptionResponse();
             dto.setCode(v.code());
@@ -63,7 +65,7 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
     @Transactional(rollbackFor = Exception.class)
     public void saveMyConfig(UserLlmConfigRequest request){
         Long userId = UserHolder.requireUserId();
-        userLlmRouter.validateModelCode(request.getModelCode());
+        ModelCode.fromCode(request.getModelCode());
         String ciphertext = userApiKeyCipher.encrypt(request.getApiKey().trim());
         
         UserLlmConfig existingConfig = userLlmConfigMapper.selectById(userId);
@@ -78,7 +80,7 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
             existingConfig.setApiKeyCiphertext(ciphertext);
             userLlmConfigMapper.updateById(existingConfig);
         }
-        userLlmRouter.evict(userId);
+        modelGateway.evict(CurrentActor.of(userId));
     }
 
     @Override
@@ -86,12 +88,11 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
     public void deleteMyConfig(){
         Long userId = UserHolder.requireUserId();
         userLlmConfigMapper.deleteById(userId);
-        userLlmRouter.evict(userId);
+        modelGateway.evict(CurrentActor.of(userId));
     }
 
     @Override
     public void testConnection(UserLlmConnectionTestRequest request) {
-        userLlmRouter.validateModelCode(request.getModelCode());
-        userLlmRouter.testConnection(request.getModelCode(), request.getApiKey().trim());
+        modelGateway.testConnection(request.getModelCode(), request.getApiKey().trim());
     }
 }

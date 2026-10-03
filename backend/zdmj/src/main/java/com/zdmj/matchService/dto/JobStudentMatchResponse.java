@@ -11,7 +11,7 @@ import lombok.Data;
  *
  * <p>该 DTO 同时承担两个角色：</p>
  * <ol>
- *   <li>作为 LLM 结构化输出（{@code chatStructuredOnce}）的目标 POJO；</li>
+ *   <li>作为 LLM 结构化输出的目标 POJO；</li>
  *   <li>作为前端展示的接口响应。</li>
  * </ol>
  *

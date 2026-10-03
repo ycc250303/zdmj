@@ -1,4 +1,4 @@
-package com.zdmj.userAuthService.config;
+package com.zdmj.conversationService.config;
 
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;

@@ -1,8 +1,16 @@
-package com.zdmj.userAuthService.service.impl;
+package com.zdmj.aiService.service;
 
-import com.zdmj.common.ai.PromptUtil;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-import lombok.Data;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,31 +20,29 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClient.CallResponseSpec;
 import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.converter.StructuredOutputConverter;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.ResponseFormat;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import com.zdmj.aiService.api.ModelRequest;
+import com.zdmj.aiService.api.StructuredModelRequest;
+import com.zdmj.aiService.config.ModelClientConfiguration;
+import com.zdmj.aiService.provider.UserModelConfigurationProvider;
+import com.zdmj.common.ai.PromptUtil;
+import com.zdmj.common.context.CurrentActor;
+
+import lombok.Data;
 
 /**
- * 验证结构化路径走 JSON Mode + {@code entity(converter)}，且对话路径不带 JSON Mode。
+ * 验证结构化路径走 JSON Mode + {@code entity(converter)}，且文本路径不带 JSON Mode。
  */
 @ExtendWith(MockitoExtension.class)
-class UserModelChatStructuredParseTest {
+class ModelGatewayStructuredParseTest {
 
     @Mock
     private PromptUtil promptUtil;
-    @Mock
-    private UserLlmRouter userLlmRouter;
     @Mock
     private ChatClient chatClient;
     @Mock
@@ -44,12 +50,11 @@ class UserModelChatStructuredParseTest {
     @Mock
     private CallResponseSpec callSpec;
 
-    private UserModelChatService chatUtil;
+    private ModelGatewayImpl gateway;
 
     @BeforeEach
     void setUp() {
-        chatUtil = new UserModelChatService(promptUtil, userLlmRouter);
-        lenient().when(userLlmRouter.getChatClient(1L)).thenReturn(chatClient);
+        gateway = new FixedClientGateway(promptUtil, chatClient);
         lenient().when(chatClient.prompt()).thenReturn(spec);
         lenient().when(spec.options(any(ChatOptions.class))).thenReturn(spec);
         lenient().when(spec.user(anyString())).thenReturn(spec);
@@ -57,30 +62,33 @@ class UserModelChatStructuredParseTest {
     }
 
     @Test
-    void chatStructuredOnce_whenSingleLineJsonFence_shouldParse() {
+    void generateStructured_whenSingleLineJsonFence_shouldParse() {
         stubEntityConvert("```json {\"name\":\"Dee\",\"score\":4} ```");
 
-        SampleOut parsed = chatUtil.chatStructuredOnce(1L, "msg", null, null, SampleOut.class);
+        SampleOut parsed = gateway.generateStructured(
+                CurrentActor.of(1L), StructuredModelRequest.of("msg", null, null, SampleOut.class));
 
         assertEquals("Dee", parsed.getName());
         assertEquals(4, parsed.getScore());
     }
 
     @Test
-    void chatStructuredOnce_whenRawJson_shouldParse() {
+    void generateStructured_whenRawJson_shouldParse() {
         stubEntityConvert("{\"name\":\"Cara\",\"score\":1}");
 
-        SampleOut parsed = chatUtil.chatStructuredOnce(1L, "msg", null, null, SampleOut.class);
+        SampleOut parsed = gateway.generateStructured(
+                CurrentActor.of(1L), StructuredModelRequest.of("msg", null, null, SampleOut.class));
 
         assertEquals("Cara", parsed.getName());
         assertEquals(1, parsed.getScore());
     }
 
     @Test
-    void chatStructuredOnce_shouldEnableJsonObjectModeAndKeepJsonWordInUserMessage() {
+    void generateStructured_shouldEnableJsonObjectModeAndKeepJsonWordInUserMessage() {
         stubEntityConvert("{\"name\":\"Cara\",\"score\":1}");
 
-        chatUtil.chatStructuredOnce(1L, "简历原文", null, null, SampleOut.class);
+        gateway.generateStructured(
+                CurrentActor.of(1L), StructuredModelRequest.of("简历原文", null, null, SampleOut.class));
 
         ArgumentCaptor<ChatOptions> optionsCaptor = ArgumentCaptor.forClass(ChatOptions.class);
         verify(spec).options(optionsCaptor.capture());
@@ -94,18 +102,19 @@ class UserModelChatStructuredParseTest {
     }
 
     @Test
-    void chatStructuredOnce_whenEntityNull_shouldThrow() {
+    void generateStructured_whenEntityNull_shouldThrow() {
         when(callSpec.entity(any(StructuredOutputConverter.class))).thenReturn(null);
 
         assertThrows(IllegalStateException.class,
-                () -> chatUtil.chatStructuredOnce(1L, "msg", null, null, SampleOut.class));
+                () -> gateway.generateStructured(
+                        CurrentActor.of(1L), StructuredModelRequest.of("msg", null, null, SampleOut.class)));
     }
 
     @Test
-    void chatOnce_shouldNotSetJsonObjectOptions() {
+    void generate_shouldNotSetJsonObjectOptions() {
         when(callSpec.content()).thenReturn("ok");
 
-        String text = chatUtil.chatOnce(1L, "hi", null, null);
+        String text = gateway.generate(CurrentActor.of(1L), new ModelRequest("hi", null, null));
 
         assertEquals("ok", text);
         verify(spec, never()).options(any());
@@ -117,6 +126,22 @@ class UserModelChatStructuredParseTest {
             StructuredOutputConverter<SampleOut> converter = invocation.getArgument(0);
             return converter.convert(llmText);
         });
+    }
+
+    private static final class FixedClientGateway extends ModelGatewayImpl {
+
+        private final ChatClient fixedClient;
+
+        private FixedClientGateway(PromptUtil promptUtil, ChatClient fixedClient) {
+            super(promptUtil, mock(UserModelConfigurationProvider.class), mock(ModelClientConfiguration.class),
+                    mock(ChatMemory.class));
+            this.fixedClient = fixedClient;
+        }
+
+        @Override
+        protected ChatClient userChatClient(CurrentActor actor, boolean withMemory) {
+            return fixedClient;
+        }
     }
 
     @Data

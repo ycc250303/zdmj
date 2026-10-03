@@ -12,11 +12,14 @@ import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import com.zdmj.userAuthService.config.RagConfig;
-import com.zdmj.userAuthService.config.RagConfig.Search;
+import com.zdmj.aiService.api.ModelGateway;
+import com.zdmj.aiService.api.ModelRequest;
+import com.zdmj.aiService.api.StreamingModelRequest;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.userAuthService.service.UserModelChat;
+import com.zdmj.knowledgeService.config.RagConfig;
+import com.zdmj.knowledgeService.config.RagConfig.Search;
 import com.zdmj.common.constants.PromptNames;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrievalResponse;
@@ -43,7 +46,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
     private final KnowledgeBasesService knowledgeBasesService;
     private final KnowledgeEmbeddingService knowledgeEmbeddingService;
     private final KnowledgeVectorMapper knowledgeVectorMapper;
-    private final UserModelChat chatUtil;
+    private final ModelGateway modelGateway;
 
     /**
      * 对话 RAG：retrieveRanked 出排序切块 → 无命中退回求职助手 → 有命中注入 {context} 后流式生成。
@@ -57,7 +60,8 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
 
         // --- 1. 两库都关：不检索、不改写，直接走求职助手 ---
         if (ragDocumentIds != null && ragDocumentIds.isEmpty() && !useSystemKnowledge) {
-            return chatUtil.chatStreamInConversation(userId, conversationId, userMessage, PromptNames.SYSTEM, chatPromptVars);
+            return modelGateway.stream(CurrentActor.of(userId),
+                    new StreamingModelRequest(conversationId, userMessage, PromptNames.SYSTEM, chatPromptVars));
         }
 
         // --- 2. 排序检索（改写 / embed / ANN / 合并截断） ---
@@ -68,8 +72,8 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         if (hits.isEmpty()) {
             log.info("RAG 无有效命中，退回求职导师对话: userId={}, useSystemKnowledge={}, queryLen={}",
                     userId, useSystemKnowledge, ranked.getQuery() == null ? 0 : ranked.getQuery().length());
-            return chatUtil.chatStreamInConversation(
-                    userId, conversationId, ranked.getQuery(), PromptNames.SYSTEM, chatPromptVars);
+            return modelGateway.stream(CurrentActor.of(userId),
+                    new StreamingModelRequest(conversationId, ranked.getQuery(), PromptNames.SYSTEM, chatPromptVars));
         }
 
         // --- 4. 用排序切块拼 {context}，user 消息仍用原文 ---
@@ -77,8 +81,9 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         Map<String, Object> ragPromptVars = chatPromptVars == null ? new HashMap<>() : new HashMap<>(chatPromptVars);
         ragPromptVars.put("context", buildContext(hits, ragConfig.getSearch().getContextBudget()));
         log.info("RAG 检索命中 {} 条片段，进入生成阶段 conversationId={}", hits.size(), conversationId);
-        return chatUtil.chatStreamInConversation(
-                userId, conversationId, ranked.getQuery(), PromptNames.KNOWLEDGEBASE_RAG_SYSTEM, ragPromptVars);
+        return modelGateway.stream(CurrentActor.of(userId),
+                new StreamingModelRequest(conversationId, ranked.getQuery(), PromptNames.KNOWLEDGEBASE_RAG_SYSTEM,
+                        ragPromptVars));
     }
 
     /**
@@ -166,11 +171,9 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
     /** 把用户问题改写成更可检索的单句；空结果或异常一律回退原文。 */
     private String rewriteQuery(Long userId, String rawText) {
         try {
-            String queryText = chatUtil.chatOnce(
-                    userId,
-                    rawText,
-                    PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE,
-                    Map.of("question", rawText));
+            String queryText = modelGateway.generate(
+                    CurrentActor.of(userId),
+                    new ModelRequest(rawText, PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE, Map.of("question", rawText)));
             if (!StringUtils.hasText(queryText)) {
                 log.info("RAG 查询改写: 模型返回空，沿用原文 | originalQuestion={}", rawText);
                 return rawText;

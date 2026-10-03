@@ -12,7 +12,9 @@ import com.zdmj.common.async.AsyncTaskType;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.userAuthService.service.UserModelChat;
+import com.zdmj.aiService.api.ModelGateway;
+import com.zdmj.aiService.api.StructuredModelRequest;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.storage.FileUploadService;
 import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.common.ai.JobRole;
@@ -51,7 +53,7 @@ public class StudentCapabilityProfileServiceImpl
     private static final int MAX_COMPETITIVENESS_SCORE = MAX_PROJECT_EXPERIENCE_SCORE + MAX_SKILL_MATCH_SCORE
             + MAX_CONTENT_COMPLETENESS_SCORE + MAX_STRUCTURE_CLARITY_SCORE + MAX_EXPRESSION_PROFESSIONALISM_SCORE;
 
-    private final UserModelChat chatUtil;
+    private final ModelGateway modelGateway;
     private final ObjectMapper objectMapper;
     private final FileUploadService fileUploadService;
     private final PdfParserUtil pdfParserUtil;
@@ -115,8 +117,8 @@ public class StudentCapabilityProfileServiceImpl
         try {
             String promptName = promptUtil.resolve(PromptScenario.RESUME_ANALYSIS, jobRole);
             log.info("使用提示词: {}", promptName);
-            aiResult = chatUtil.chatStructuredOnce(userId, sourceText, promptName, null,
-                    StudentCapabilityProfileResponse.class);
+            aiResult = modelGateway.generateStructured(CurrentActor.of(userId),
+                    StructuredModelRequest.of(sourceText, promptName, null, StudentCapabilityProfileResponse.class));
             normalizeProfileScores(aiResult);
         } catch (BusinessException e) {
             throw e;
@@ -363,7 +365,7 @@ public class StudentCapabilityProfileServiceImpl
      * @return 岗位画像
      */
     private ResumeRoleDetectDTO detect(Long userId, String resumeText) {
-        JobRoleDetector.DetectResult detected = JobRoleDetector.detect(userId, resumeText, chatUtil, log);
+        JobRoleDetector.DetectResult detected = JobRoleDetector.detect(userId, resumeText, modelGateway, log);
         String reason = !StringUtils.hasText(resumeText)
                 ? "简历文本为空"
                 : detected.reason();

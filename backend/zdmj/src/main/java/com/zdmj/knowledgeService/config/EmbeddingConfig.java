@@ -1,4 +1,4 @@
-package com.zdmj.userAuthService.config;
+package com.zdmj.knowledgeService.config;
 
 import org.springframework.ai.transformer.splitter.TextSplitter;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;

@@ -25,12 +25,16 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
+import com.zdmj.aiService.api.ModelGateway;
+import com.zdmj.aiService.config.ModelClientConfiguration;
+import com.zdmj.aiService.model.ModelCode;
+import com.zdmj.aiService.provider.UserModelConfigurationProvider;
+import com.zdmj.aiService.service.ModelGatewayImpl;
+import com.zdmj.common.ai.PromptUtil;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.security.JwtTokenService;
 import com.zdmj.common.security.RedisJwtSessionStore;
 import com.zdmj.common.util.DateTimeUtil;
-import com.zdmj.userAuthService.service.impl.UserLlmRouter;
-import com.zdmj.userAuthService.llm.UserApiKeyCipher;
-import com.zdmj.userAuthService.mapper.UserLlmConfigMapper;
 import com.zdmj.userAuthService.mapper.UserMapper;
 
 import reactor.core.publisher.Flux;
@@ -84,14 +88,14 @@ public class ExternalAiStubConfig {
     }
 
     /**
-     * 业务对话经 {@link UserLlmRouter} 取客户端，不使用全局 ChatModel。
+     * 业务对话经 {@link ModelGateway} 取客户端，不使用全局 ChatModel。
      * 测试替身只替换取客户端的方法，模型目录与配置校验仍走生产实现。
      */
     @Bean
     @Primary
-    UserLlmRouter testUserLlmRouter(UserLlmConfigMapper userLlmConfigMapper, UserApiKeyCipher userApiKeyCipher,
-            ChatMemory chatMemory, ChatModel chatModel) {
-        return new StubUserLlmRouter(userLlmConfigMapper, userApiKeyCipher, chatMemory, chatModel);
+    ModelGateway testModelGateway(PromptUtil promptUtil, UserModelConfigurationProvider configurationProvider,
+            ModelClientConfiguration clients, ChatMemory chatMemory, ChatModel chatModel) {
+        return new StubModelGateway(promptUtil, configurationProvider, clients, chatMemory, chatModel);
     }
 
     @Bean
@@ -197,14 +201,14 @@ public class ExternalAiStubConfig {
         }
     }
 
-    static final class StubUserLlmRouter extends UserLlmRouter {
+    static final class StubModelGateway extends ModelGatewayImpl {
 
         private final ChatClient plain;
         private final ChatClient withMemory;
 
-        StubUserLlmRouter(UserLlmConfigMapper userLlmConfigMapper, UserApiKeyCipher userApiKeyCipher,
-                ChatMemory chatMemory, ChatModel chatModel) {
-            super(userLlmConfigMapper, userApiKeyCipher, chatMemory);
+        StubModelGateway(PromptUtil promptUtil, UserModelConfigurationProvider configurationProvider,
+                ModelClientConfiguration clients, ChatMemory chatMemory, ChatModel chatModel) {
+            super(promptUtil, configurationProvider, clients, chatMemory);
             this.plain = ChatClient.builder(chatModel).build();
             this.withMemory = ChatClient.builder(chatModel)
                     .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
@@ -212,13 +216,13 @@ public class ExternalAiStubConfig {
         }
 
         @Override
-        public ChatClient getChatClient(Long userId) {
-            return plain;
+        protected ChatClient userChatClient(CurrentActor actor, boolean withMemory) {
+            return withMemory ? this.withMemory : plain;
         }
 
         @Override
-        public ChatClient getChatClientWithMemory(Long userId) {
-            return withMemory;
+        protected ChatClient platformChatClient(ModelCode model) {
+            return plain;
         }
     }
 }

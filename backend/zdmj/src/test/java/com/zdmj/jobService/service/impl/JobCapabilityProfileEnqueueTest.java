@@ -15,7 +15,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.io.DefaultResourceLoader;
 
-import com.zdmj.userAuthService.service.UserModelChat;
+import com.zdmj.aiService.api.ModelGateway;
+import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.common.async.AsyncTaskService;
@@ -33,7 +34,7 @@ class JobCapabilityProfileEnqueueTest {
     @Mock
     private JobService jobService;
     @Mock
-    private UserModelChat chatUtil;
+    private ModelGateway modelGateway;
     @Mock
     private AsyncTaskService asyncTaskService;
 
@@ -42,7 +43,7 @@ class JobCapabilityProfileEnqueueTest {
     @BeforeEach
     void setUp() {
         service = new JobCapabilityProfileServiceImpl(
-                jobService, chatUtil, new PromptUtil(new DefaultResourceLoader()), asyncTaskService);
+                jobService, modelGateway, new PromptUtil(new DefaultResourceLoader()), asyncTaskService);
         UserHolder.set(UserContext.of(8L, "u"));
     }
 

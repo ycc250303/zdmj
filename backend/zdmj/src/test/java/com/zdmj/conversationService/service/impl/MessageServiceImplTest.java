@@ -6,7 +6,8 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.model.PageDTO;
-import com.zdmj.userAuthService.service.UserModelChat;
+import com.zdmj.aiService.api.ModelGateway;
+import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.conversationService.dto.ChatStreamRequest;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.dto.MessageResponse;
@@ -63,7 +64,7 @@ import static org.mockito.Mockito.atLeastOnce;
 class MessageServiceImplTest {
 
     @Mock
-    private UserModelChat chatUtil;
+    private ModelGateway modelGateway;
     @Mock
     private MessageMapper messageMapper;
     @Mock
@@ -84,7 +85,7 @@ class MessageServiceImplTest {
             return callback.doInTransaction(new SimpleTransactionStatus());
         });
         messageService = spy(new MessageServiceImpl(
-                chatUtil,
+                modelGateway,
                 messageMapper,
                 conversationService,
                 conversationMapper,
@@ -159,7 +160,7 @@ class MessageServiceImplTest {
         conversation.setId(302L);
         conversation.setMessageCount(0);
         doReturn(conversation).when(conversationService).requireOwned(302L);
-        doReturn("title").when(chatUtil).chatOnce(anyLong(), anyString(), anyString(), any());
+        doReturn("title").when(modelGateway).generate(any(), any());
         doReturn(Flux.just("he", "llo")).when(knowledgeRagService)
                 .streamAnswer(eq(1L), eq(302L), eq("hello"), isNull(), eq(false), any());
         AtomicInteger insertTimes = new AtomicInteger(0);
@@ -264,7 +265,7 @@ class MessageServiceImplTest {
         conversation.setMessageCount(0);
         doReturn(conversation).when(conversationService).requireOwned(conversationId);
 
-        doReturn("title-once").when(chatUtil).chatOnce(anyLong(), anyString(), anyString(), any());
+        doReturn("title-once").when(modelGateway).generate(any(), any());
         doReturn(Flux.just("ok")).when(knowledgeRagService)
                 .streamAnswer(eq(1L), eq(conversationId), anyString(), isNull(), eq(false), any());
 
@@ -358,6 +359,6 @@ class MessageServiceImplTest {
         messageService.createStream(dto).collectList().block();
 
         verify(knowledgeRagService).streamAnswer(eq(1L), eq(306L), eq("ask"), eq(List.of(9L)), eq(true), any());
-        verify(chatUtil, never()).chatStreamInConversation(anyLong(), anyLong(), anyString(), anyString(), any());
+        verify(modelGateway, never()).stream(any(), any());
     }
 }
