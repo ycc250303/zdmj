@@ -9,6 +9,7 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.security.JwtSessionStore;
+import com.zdmj.common.security.JwtTokenService;
 import com.zdmj.userAuthService.dto.UserResponse;
 import com.zdmj.userAuthService.dto.UserLoginRequest;
 import com.zdmj.userAuthService.dto.UserLoginResponse;
@@ -18,10 +19,8 @@ import com.zdmj.userAuthService.dto.UserUpdateRequest;
 import com.zdmj.userAuthService.entity.User;
 import com.zdmj.userAuthService.enums.VerificationCodeScene;
 import com.zdmj.userAuthService.service.VerificationCodeService;
-import com.zdmj.userAuthService.util.JwtUtil;
 import com.zdmj.userAuthService.util.PasswordUtil;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -57,18 +56,17 @@ class UserServiceImplTest {
     @Mock
     private JwtSessionStore jwtSessionStore;
 
+    private static final String TEST_JWT_SECRET =
+            "test-jwt-secret-key-for-jwt-token-generation-2024-very-long-secret-key";
+
     private UserServiceImpl userService;
     private static boolean tableInfoInitialized = false;
-
-    @BeforeAll
-    static void initJwtSecret() {
-        JwtUtil.initSecret("test-jwt-secret-key-for-jwt-token-generation-2024-very-long-secret-key");
-    }
 
     @BeforeEach
     void setUp() {
         initMybatisPlusLambdaCache();
-        userService = spy(new UserServiceImpl(verificationCodeService, jwtSessionStore));
+        userService = spy(new UserServiceImpl(
+                verificationCodeService, jwtSessionStore, new JwtTokenService(TEST_JWT_SECRET)));
     }
 
     @AfterEach

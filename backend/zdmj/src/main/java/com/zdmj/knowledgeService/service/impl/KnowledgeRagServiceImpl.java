@@ -12,11 +12,11 @@ import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import com.zdmj.common.ai.config.RagConfig;
-import com.zdmj.common.ai.config.RagConfig.Search;
+import com.zdmj.userAuthService.config.RagConfig;
+import com.zdmj.userAuthService.config.RagConfig.Search;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.userAuthService.service.UserModelChat;
 import com.zdmj.common.constants.PromptNames;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrievalResponse;
@@ -43,7 +43,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
     private final KnowledgeBasesService knowledgeBasesService;
     private final KnowledgeEmbeddingService knowledgeEmbeddingService;
     private final KnowledgeVectorMapper knowledgeVectorMapper;
-    private final ChatUtil chatUtil;
+    private final UserModelChat chatUtil;
 
     /**
      * 对话 RAG：retrieveRanked 出排序切块 → 无命中退回求职助手 → 有命中注入 {context} 后流式生成。

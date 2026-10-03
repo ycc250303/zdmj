@@ -7,7 +7,7 @@ import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.userAuthService.service.UserModelChat;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
@@ -62,7 +62,7 @@ import static org.mockito.Mockito.verify;
  * 异常被 {@code catch (Exception e)} 吞成 11001 错误码，并且对任何岗位都会一致触发。</p>
  *
  * <p>本类测试 {@code generate(...)} 的全部正反路径，并显式断言「
- * {@link ChatUtil#chatStructuredOnce} 必须以 {@code null} promptVars 调用」，
+ * {@link UserModelChat#chatStructuredOnce} 必须以 {@code null} promptVars 调用」，
  * 以保证未来不会再走 PromptTemplate 渲染分支。</p>
  */
 @ExtendWith(MockitoExtension.class)
@@ -77,7 +77,7 @@ class JobStudentMatchServiceImplTest {
     @Mock
     private StudentCapabilityProfileService studentCapabilityProfileService;
     @Mock
-    private ChatUtil chatUtil;
+    private UserModelChat chatUtil;
     @Mock
     private JobStudentMatchMapper matchMapper;
     @Mock
@@ -109,7 +109,7 @@ class JobStudentMatchServiceImplTest {
     // ========================================================
 
     @Test
-    void generate_shouldPassNullPromptVarsToChatUtil_toAvoidSTTemplateRender() {
+    void generate_shouldPassNullPromptVarsToUserModelChat_toAvoidSTTemplateRender() {
         Long jobId = 11L;
         wireHappyPath(jobId, "java-backend", buildAiResult());
 

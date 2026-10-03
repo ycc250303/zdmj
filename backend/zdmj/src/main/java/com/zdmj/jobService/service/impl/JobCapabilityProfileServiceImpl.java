@@ -9,9 +9,9 @@ import com.zdmj.common.async.AsyncTaskType;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.userAuthService.service.UserModelChat;
 import com.zdmj.common.ai.JobRole;
-import com.zdmj.common.ai.JobRoleDetector;
+import com.zdmj.jobService.JobRoleDetector;
 import com.zdmj.common.ai.PromptScenario;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
@@ -34,7 +34,7 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         implements JobCapabilityProfileService {
 
     private final JobService jobService;
-    private final ChatUtil chatUtil;
+    private final UserModelChat chatUtil;
     private final PromptUtil promptUtil;
     private final AsyncTaskService asyncTaskService;
 

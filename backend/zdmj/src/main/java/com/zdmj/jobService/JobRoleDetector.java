@@ -1,6 +1,8 @@
-package com.zdmj.common.ai;
+package com.zdmj.jobService;
 
+import com.zdmj.common.ai.JobRole;
 import com.zdmj.common.constants.PromptNames;
+import com.zdmj.userAuthService.service.UserModelChat;
 import lombok.Data;
 import org.slf4j.Logger;
 import org.springframework.util.StringUtils;
@@ -10,8 +12,7 @@ import java.util.Locale;
 /**
  * 岗位方向识别：关键词直出，不足则 LLM {@code job-detect} 兜底。
  *
- * <p>仅简历画像与岗位画像生成时调用；图谱 / 匹配 / 生涯报告读已落库的
- * {@code targetRoleType}，不再二次识别。</p>
+ * <p>仅简历画像与岗位画像生成时调用。其他流程读取已落库的 {@code targetRoleType}。</p>
  */
 public final class JobRoleDetector {
 
@@ -20,7 +21,7 @@ public final class JobRoleDetector {
     private JobRoleDetector() {
     }
 
-    public static DetectResult detect(Long userId, String text, ChatUtil chatUtil, Logger log) {
+    public static DetectResult detect(Long userId, String text, UserModelChat userModelChat, Logger log) {
         if (!StringUtils.hasText(text)) {
             return new DetectResult(JobRole.UNKNOWN, 0.0, "文本为空");
         }
@@ -32,7 +33,7 @@ public final class JobRoleDetector {
         }
 
         try {
-            RoleDetectLLMResult llmResult = chatUtil.chatStructuredOnce(
+            RoleDetectLLMResult llmResult = userModelChat.chatStructuredOnce(
                     userId, text, PromptNames.JOB_DETECT, null, RoleDetectLLMResult.class);
             JobRole role = JobRole.fromString(llmResult.getRoleCode());
             if (role == JobRole.UNKNOWN && scored.role() != JobRole.UNKNOWN) {

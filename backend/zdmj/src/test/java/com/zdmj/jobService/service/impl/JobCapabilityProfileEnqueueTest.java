@@ -15,7 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.io.DefaultResourceLoader;
 
-import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.userAuthService.service.UserModelChat;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.common.async.AsyncTaskService;
@@ -33,7 +33,7 @@ class JobCapabilityProfileEnqueueTest {
     @Mock
     private JobService jobService;
     @Mock
-    private ChatUtil chatUtil;
+    private UserModelChat chatUtil;
     @Mock
     private AsyncTaskService asyncTaskService;
 

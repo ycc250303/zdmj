@@ -1,4 +1,4 @@
-package com.zdmj.common.ai;
+package com.zdmj.userAuthService.service.impl;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -22,8 +22,9 @@ import org.springframework.web.client.RestClient;
 
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.util.UserApiKeyCipher;
 import com.zdmj.userAuthService.entity.UserLlmConfig;
+import com.zdmj.userAuthService.llm.ModelEnum;
+import com.zdmj.userAuthService.llm.UserApiKeyCipher;
 import com.zdmj.userAuthService.mapper.UserLlmConfigMapper;
 
 import lombok.RequiredArgsConstructor;
@@ -32,8 +33,8 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * 按 userId 路由 Chat 模型：解析用户/平台配置，构建并缓存 {@link ChatClient}。
  * <p>
- * 业务层通过 {@link ChatUtil} 调用 {@link #getChatClient(Long)} 或
- * {@link #getChatClientWithMemory(Long)}，不直接依赖全局 ChatModel Bean。
+ * 业务模块通过 {@link com.zdmj.userAuthService.service.UserModelChat} 调用，
+ * 不直接依赖本类或全局 ChatModel Bean。
  */
 @Slf4j
 @Component

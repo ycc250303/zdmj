@@ -12,11 +12,11 @@ import com.zdmj.common.async.AsyncTaskType;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.userAuthService.service.UserModelChat;
 import com.zdmj.common.storage.FileUploadService;
 import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.common.ai.JobRole;
-import com.zdmj.common.ai.JobRoleDetector;
+import com.zdmj.jobService.JobRoleDetector;
 import com.zdmj.common.ai.PromptScenario;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.resumeService.dto.CapabilityProfileGenerateRequest;
@@ -51,7 +51,7 @@ public class StudentCapabilityProfileServiceImpl
     private static final int MAX_COMPETITIVENESS_SCORE = MAX_PROJECT_EXPERIENCE_SCORE + MAX_SKILL_MATCH_SCORE
             + MAX_CONTENT_COMPLETENESS_SCORE + MAX_STRUCTURE_CLARITY_SCORE + MAX_EXPRESSION_PROFESSIONALISM_SCORE;
 
-    private final ChatUtil chatUtil;
+    private final UserModelChat chatUtil;
     private final ObjectMapper objectMapper;
     private final FileUploadService fileUploadService;
     private final PdfParserUtil pdfParserUtil;

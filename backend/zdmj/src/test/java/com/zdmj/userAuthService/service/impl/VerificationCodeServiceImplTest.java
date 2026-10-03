@@ -1,6 +1,6 @@
 package com.zdmj.userAuthService.service.impl;
 
-import com.zdmj.common.constants.RedisConstants;
+import com.zdmj.userAuthService.enums.VerificationCodeKeys;
 import com.zdmj.userAuthService.enums.VerificationCodeScene;
 import com.zdmj.userAuthService.service.EmailService;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,7 +51,7 @@ class VerificationCodeServiceImplTest {
     @Test
     void sendVerificationCode_whenRedisThrows_shouldReturnFalse() {
         String email = "test@demo.com";
-        String key = RedisConstants.verificationCodeKey(VerificationCodeScene.REGISTER, email);
+        String key = VerificationCodeKeys.key(VerificationCodeScene.REGISTER, email);
         doThrow(new RuntimeException("redis down")).when(valueOperations)
                 .set(eq(key), anyString(), anyLong(), eq(TimeUnit.SECONDS));
 
@@ -65,7 +65,7 @@ class VerificationCodeServiceImplTest {
     @Test
     void sendVerificationCode_whenCodeStillValid_shouldReturnFalseWithoutResend() {
         String email = "test@demo.com";
-        String key = RedisConstants.verificationCodeKey(VerificationCodeScene.REGISTER, email);
+        String key = VerificationCodeKeys.key(VerificationCodeScene.REGISTER, email);
         when(redisTemplate.hasKey(key)).thenReturn(true);
 
         boolean result = verificationCodeService.sendVerificationCode(email, VerificationCodeScene.REGISTER);
@@ -79,7 +79,7 @@ class VerificationCodeServiceImplTest {
     @Test
     void sendVerificationCode_whenRegister_shouldSaveCodeAndSendRegisterEmail() {
         String email = "test@demo.com";
-        String key = RedisConstants.verificationCodeKey(VerificationCodeScene.REGISTER, email);
+        String key = VerificationCodeKeys.key(VerificationCodeScene.REGISTER, email);
 
         boolean result = verificationCodeService.sendVerificationCode(email, VerificationCodeScene.REGISTER);
 
@@ -91,7 +91,7 @@ class VerificationCodeServiceImplTest {
     @Test
     void sendVerificationCode_whenResetPassword_shouldSaveCodeAndSendResetEmail() {
         String email = "test@demo.com";
-        String key = RedisConstants.verificationCodeKey(VerificationCodeScene.RESET_PASSWORD, email);
+        String key = VerificationCodeKeys.key(VerificationCodeScene.RESET_PASSWORD, email);
 
         boolean result = verificationCodeService.sendVerificationCode(email, VerificationCodeScene.RESET_PASSWORD);
 
@@ -104,7 +104,7 @@ class VerificationCodeServiceImplTest {
     void verifyCode_whenCodeMissing_shouldReturnFalseAndNotDelete() {
         String email = "test@demo.com";
         String code = "987654";
-        String key = RedisConstants.verificationCodeKey(VerificationCodeScene.REGISTER, email);
+        String key = VerificationCodeKeys.key(VerificationCodeScene.REGISTER, email);
         when(redisTemplate.execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq(code)))
                 .thenReturn(0L);
 
@@ -119,7 +119,7 @@ class VerificationCodeServiceImplTest {
     void verifyCode_whenCodeMismatch_shouldReturnFalseAndNotDelete() {
         String email = "test@demo.com";
         String code = "987654";
-        String key = RedisConstants.verificationCodeKey(VerificationCodeScene.REGISTER, email);
+        String key = VerificationCodeKeys.key(VerificationCodeScene.REGISTER, email);
         when(redisTemplate.execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq(code)))
                 .thenReturn(-1L);
 
@@ -134,7 +134,7 @@ class VerificationCodeServiceImplTest {
     void verifyCode_whenRedisThrows_shouldReturnFalse() {
         String email = "test@demo.com";
         String code = "987654";
-        String key = RedisConstants.verificationCodeKey(VerificationCodeScene.REGISTER, email);
+        String key = VerificationCodeKeys.key(VerificationCodeScene.REGISTER, email);
         when(redisTemplate.execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq(code)))
                 .thenThrow(new RuntimeException("redis timeout"));
 
@@ -149,7 +149,7 @@ class VerificationCodeServiceImplTest {
     void verifyCode_whenCodeMatches_shouldReturnTrueAndDeleteKey() {
         String email = "test@demo.com";
         String code = "987654";
-        String key = RedisConstants.verificationCodeKey(VerificationCodeScene.REGISTER, email);
+        String key = VerificationCodeKeys.key(VerificationCodeScene.REGISTER, email);
         when(redisTemplate.execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq(code)))
                 .thenReturn(1L);
 

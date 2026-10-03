@@ -13,7 +13,7 @@ import com.zdmj.common.async.AsyncTaskType;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.userAuthService.service.UserModelChat;
 import com.zdmj.common.ai.JobRole;
 import com.zdmj.common.ai.PromptScenario;
 import com.zdmj.common.ai.PromptUtil;
@@ -67,7 +67,7 @@ public class JobStudentMatchServiceImpl
     private final JobService jobService;
     private final JobCapabilityProfileService jobCapabilityProfileService;
     private final StudentCapabilityProfileService studentCapabilityProfileService;
-    private final ChatUtil chatUtil;
+    private final UserModelChat chatUtil;
     private final ObjectMapper objectMapper;
     private final PromptUtil promptUtil;
     private final AsyncTaskService asyncTaskService;
@@ -162,7 +162,7 @@ public class JobStudentMatchServiceImpl
                 : jobDetail.getKeywords().stream().filter(StringUtils::hasText).map(String::trim).toList();
         String userMessage = buildUserMessage(jobDetail, jobProfile, studentProfile, weights, jobKeywords);
 
-        // 5. 调用 LLM 结构化输出（promptVars 传 null，ChatUtil 会跳过模板渲染，与项目其它
+        // 5. 调用 LLM 结构化输出（promptVars 传 null，UserModelChat 会跳过模板渲染，与项目其它
         //    结构化调用保持一致：resume-analysis / job-requirement / job-career-graph 均传 null）
         JobStudentMatchResponse aiResult;
         try {

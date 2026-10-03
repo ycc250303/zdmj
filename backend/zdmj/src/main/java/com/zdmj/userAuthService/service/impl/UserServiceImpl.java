@@ -8,7 +8,7 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.security.JwtSessionStore;
-import com.zdmj.userAuthService.util.JwtUtil;
+import com.zdmj.common.security.JwtTokenService;
 import com.zdmj.userAuthService.util.PasswordUtil;
 import com.zdmj.userAuthService.dto.UserResponse;
 import com.zdmj.userAuthService.dto.UserLoginRequest;
@@ -38,6 +38,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     private final VerificationCodeService verificationCodeService;
     private final JwtSessionStore jwtSessionStore;
+    private final JwtTokenService jwtTokenService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -99,7 +100,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new BusinessException(ErrorCode.USER_PASSWORD_WRONG);
         }
 
-        String token = JwtUtil.generateToken(user.getId(), user.getUsername());
+        String token = jwtTokenService.generateToken(user.getId(), user.getUsername());
         try {
             jwtSessionStore.replace(user.getId(), token);
         } catch (DataAccessException e) {

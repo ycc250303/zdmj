@@ -5,10 +5,9 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.zdmj.common.ai.ModelEnum;
-import com.zdmj.common.ai.UserLlmRouter;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.util.UserApiKeyCipher;
+import com.zdmj.userAuthService.llm.ModelEnum;
+import com.zdmj.userAuthService.llm.UserApiKeyCipher;
 import com.zdmj.userAuthService.dto.LlmModelOptionResponse;
 import com.zdmj.userAuthService.dto.UserLlmConfigResponse;
 import com.zdmj.userAuthService.dto.UserLlmConfigRequest;

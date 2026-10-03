@@ -18,7 +18,7 @@ import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.userAuthService.service.UserModelChat;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.common.async.AsyncTaskService;
@@ -36,7 +36,7 @@ import com.zdmj.resumeService.mapper.StudentCapabilityProfileMapper;
 class StudentCapabilityProfileEnqueueTest {
 
     @Mock
-    private ChatUtil chatUtil;
+    private UserModelChat chatUtil;
     @Mock
     private FileUploadService fileUploadService;
     @Mock
@@ -72,7 +72,7 @@ class StudentCapabilityProfileEnqueueTest {
     }
 
     @Test
-    void enqueue_ok_shouldNotCallChatUtil() {
+    void enqueue_ok_shouldNotCallUserModelChat() {
         CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setRawText("简历正文足够长");
         AsyncTaskDTO dto = new AsyncTaskDTO();

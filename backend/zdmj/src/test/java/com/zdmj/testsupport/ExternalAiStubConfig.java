@@ -25,10 +25,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
-import com.zdmj.common.ai.UserLlmRouter;
-import com.zdmj.common.util.DateTimeUtil;
+import com.zdmj.common.security.JwtTokenService;
 import com.zdmj.common.security.RedisJwtSessionStore;
-import com.zdmj.common.util.UserApiKeyCipher;
+import com.zdmj.common.util.DateTimeUtil;
+import com.zdmj.userAuthService.service.impl.UserLlmRouter;
+import com.zdmj.userAuthService.llm.UserApiKeyCipher;
 import com.zdmj.userAuthService.mapper.UserLlmConfigMapper;
 import com.zdmj.userAuthService.mapper.UserMapper;
 
@@ -127,8 +128,8 @@ public class ExternalAiStubConfig {
     }
 
     @Bean
-    TestJwt testJwt(ToggleJwtSessionStore jwtSessionStore) {
-        return new TestJwt(jwtSessionStore);
+    TestJwt testJwt(ToggleJwtSessionStore jwtSessionStore, JwtTokenService jwtTokenService) {
+        return new TestJwt(jwtSessionStore, jwtTokenService);
     }
 
     static final class FixedChatModel implements ChatModel {

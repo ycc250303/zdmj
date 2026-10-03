@@ -5,7 +5,7 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.ProblemDetailHttpWriter;
 import com.zdmj.common.security.JwtSessionStore;
-import com.zdmj.userAuthService.util.JwtUtil;
+import com.zdmj.common.security.JwtTokenService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,6 +34,7 @@ import java.util.Optional;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtSessionStore jwtSessionStore;
+    private final JwtTokenService jwtTokenService;
     private final ProblemDetailHttpWriter problemDetailHttpWriter;
 
     @Override
@@ -41,9 +42,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String token = getTokenFromRequest(request);
 
-        if (StringUtils.hasText(token) && JwtUtil.validateToken(token)) {
-            Long userId = JwtUtil.getUserIdFromToken(token);
-            String username = JwtUtil.getUsernameFromToken(token);
+        if (StringUtils.hasText(token) && jwtTokenService.validateToken(token)) {
+            Long userId = jwtTokenService.getUserIdFromToken(token);
+            String username = jwtTokenService.getUsernameFromToken(token);
 
             if (userId != null && username != null) {
                 try {

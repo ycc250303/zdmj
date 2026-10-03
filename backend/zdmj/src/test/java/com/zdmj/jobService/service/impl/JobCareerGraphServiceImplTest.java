@@ -6,7 +6,7 @@ import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.userAuthService.service.UserModelChat;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobCareerGraphResponse;
@@ -47,7 +47,7 @@ class JobCareerGraphServiceImplTest {
     @Mock
     private JobService jobService;
     @Mock
-    private ChatUtil chatUtil;
+    private UserModelChat chatUtil;
     @Mock
     private JobCapabilityProfileService jobCapabilityProfileService;
 

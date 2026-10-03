@@ -1,4 +1,4 @@
-package com.zdmj.common.ai;
+package com.zdmj.userAuthService.service.impl;
 
 import java.util.Collections;
 import java.util.Map;
@@ -9,18 +9,24 @@ import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.converter.StructuredOutputConverter;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.ResponseFormat;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.userAuthService.llm.ModelEnum;
+import com.zdmj.userAuthService.service.UserModelChat;
 
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
 
+/**
+ * {@link UserModelChat} 的实现：加载提示词、按用户路由模型，并解析结构化输出。
+ */
 @RequiredArgsConstructor
-@Component
-public class ChatUtil {
+@Service
+public class UserModelChatService implements UserModelChat {
 
     /**
      * 仅结构化调用附带 JSON Mode。请求 options 会与 ChatModel 默认项（model / extraBody）合并，
@@ -37,6 +43,7 @@ public class ChatUtil {
     /**
      * 单次对话（按用户路由模型）。
      */
+    @Override
     public String chatOnce(Long userId, String userMessage, String promptName, Map<String, Object> promptVars) {
         requireUserId(userId);
         return applySystemPrompt(userLlmRouter.getChatClient(userId).prompt(), promptName, promptVars)
@@ -48,6 +55,7 @@ public class ChatUtil {
     /**
      * 单次结构化对话：JSON Mode + {@code ChatClient.entity()}，解析失败直接抛出异常。
      */
+    @Override
     public <T> T chatStructuredOnce(Long userId, String userMessage, String promptName, Map<String, Object> promptVars,
             Class<T> outputType) {
         requireUserId(userId);
@@ -59,6 +67,7 @@ public class ChatUtil {
     /**
      * 使用平台指定模型进行单次结构化对话（忽略用户 LLM 配置）。
      */
+    @Override
     public <T> T chatStructuredOnceWithPlatformModel(String userMessage, String promptName,
             Map<String, Object> promptVars, Class<T> outputType, ModelEnum model) {
         return invokeStructured(
@@ -69,6 +78,7 @@ public class ChatUtil {
     /**
      * 在会话中流式对话（按用户路由模型）。
      */
+    @Override
     public Flux<String> chatStreamInConversation(Long userId, Long conversationId, String userMessage,
             String promptName, Map<String, Object> promptVars) {
         if (conversationId == null) {
@@ -104,6 +114,11 @@ public class ChatUtil {
             throw new IllegalStateException("结构化输出解析结果为空");
         }
         return parsed;
+    }
+
+    @Override
+    public ModelEnum resolveResumeImportModel() {
+        return userLlmRouter.resolveResumeImportModel();
     }
 
     private static void requireUserId(Long userId) {

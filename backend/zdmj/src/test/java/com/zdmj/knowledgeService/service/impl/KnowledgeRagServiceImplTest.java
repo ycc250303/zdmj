@@ -21,12 +21,12 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.ai.embedding.EmbeddingModel;
 
-import com.zdmj.common.ai.config.RagConfig;
+import com.zdmj.userAuthService.config.RagConfig;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.userAuthService.service.UserModelChat;
 import com.zdmj.common.constants.PromptNames;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrievalResponse;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
@@ -44,7 +44,7 @@ class KnowledgeRagServiceImplTest {
     private final KnowledgeBasesService knowledgeBasesService = Mockito.mock(KnowledgeBasesService.class);
     private final KnowledgeEmbeddingService knowledgeEmbeddingService = Mockito.mock(KnowledgeEmbeddingService.class);
     private final KnowledgeVectorMapper knowledgeVectorMapper = Mockito.mock(KnowledgeVectorMapper.class);
-    private final ChatUtil chatUtil = Mockito.mock(ChatUtil.class);
+    private final UserModelChat chatUtil = Mockito.mock(UserModelChat.class);
 
     @AfterEach
     void tearDown() {

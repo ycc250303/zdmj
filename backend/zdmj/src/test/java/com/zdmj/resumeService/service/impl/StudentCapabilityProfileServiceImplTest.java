@@ -7,7 +7,7 @@ import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
-import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.userAuthService.service.UserModelChat;
 import com.zdmj.common.storage.FileUploadService;
 import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.common.ai.JobRole;
@@ -49,7 +49,7 @@ import static org.mockito.Mockito.when;
 class StudentCapabilityProfileServiceImplTest {
 
     @Mock
-    private ChatUtil chatUtil;
+    private UserModelChat chatUtil;
     @Mock
     private FileUploadService fileUploadService;
     @Mock

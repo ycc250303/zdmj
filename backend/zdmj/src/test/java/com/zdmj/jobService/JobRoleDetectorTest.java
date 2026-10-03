@@ -1,6 +1,8 @@
-package com.zdmj.common.ai;
+package com.zdmj.jobService;
 
+import com.zdmj.common.ai.JobRole;
 import com.zdmj.common.constants.PromptNames;
+import com.zdmj.userAuthService.service.UserModelChat;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -25,7 +27,7 @@ import static org.mockito.Mockito.verify;
 class JobRoleDetectorTest {
 
     @Mock
-    private ChatUtil chatUtil;
+    private UserModelChat chatUtil;
 
     @Mock
     private Logger logger;

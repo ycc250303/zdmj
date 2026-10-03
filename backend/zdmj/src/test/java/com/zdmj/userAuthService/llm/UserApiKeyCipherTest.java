@@ -1,4 +1,4 @@
-package com.zdmj.common.util;
+package com.zdmj.userAuthService.llm;
 
 import org.junit.jupiter.api.Test;
 

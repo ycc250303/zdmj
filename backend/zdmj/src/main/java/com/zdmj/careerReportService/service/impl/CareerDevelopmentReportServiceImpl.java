@@ -20,7 +20,7 @@ import com.zdmj.common.async.AsyncTaskType;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.userAuthService.service.UserModelChat;
 import com.zdmj.common.constants.PromptNames;
 import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
@@ -100,7 +100,7 @@ public class CareerDevelopmentReportServiceImpl
     private static final Pattern PLACEHOLDER_DOC_TITLE = Pattern.compile("^文档 #\\d+$");
 
     private final ObjectMapper objectMapper;
-    private final ChatUtil chatUtil;
+    private final UserModelChat chatUtil;
     private final JobService jobService;
     private final JobCapabilityProfileService jobCapabilityProfileService;
     private final JobCareerGraphService jobCareerGraphService;

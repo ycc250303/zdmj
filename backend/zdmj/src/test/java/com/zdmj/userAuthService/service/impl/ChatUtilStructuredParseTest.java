@@ -1,4 +1,6 @@
-package com.zdmj.common.ai;
+package com.zdmj.userAuthService.service.impl;
+
+import com.zdmj.common.ai.PromptUtil;
 
 import lombok.Data;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,7 +31,7 @@ import static org.mockito.Mockito.when;
  * 验证结构化路径走 JSON Mode + {@code entity(converter)}，且对话路径不带 JSON Mode。
  */
 @ExtendWith(MockitoExtension.class)
-class ChatUtilStructuredParseTest {
+class UserModelChatStructuredParseTest {
 
     @Mock
     private PromptUtil promptUtil;
@@ -42,11 +44,11 @@ class ChatUtilStructuredParseTest {
     @Mock
     private CallResponseSpec callSpec;
 
-    private ChatUtil chatUtil;
+    private UserModelChatService chatUtil;
 
     @BeforeEach
     void setUp() {
-        chatUtil = new ChatUtil(promptUtil, userLlmRouter);
+        chatUtil = new UserModelChatService(promptUtil, userLlmRouter);
         lenient().when(userLlmRouter.getChatClient(1L)).thenReturn(chatClient);
         lenient().when(chatClient.prompt()).thenReturn(spec);
         lenient().when(spec.options(any(ChatOptions.class))).thenReturn(spec);

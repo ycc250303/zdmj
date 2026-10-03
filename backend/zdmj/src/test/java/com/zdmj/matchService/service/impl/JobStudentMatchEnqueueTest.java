@@ -19,7 +19,7 @@ import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.userAuthService.service.UserModelChat;
 import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.common.async.AsyncTaskService;
@@ -45,7 +45,7 @@ class JobStudentMatchEnqueueTest {
     @Mock
     private StudentCapabilityProfileService studentCapabilityProfileService;
     @Mock
-    private ChatUtil chatUtil;
+    private UserModelChat chatUtil;
     @Mock
     private JobStudentMatchMapper matchMapper;
     @Mock

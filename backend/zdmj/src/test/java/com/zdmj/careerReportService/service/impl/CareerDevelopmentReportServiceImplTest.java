@@ -11,7 +11,7 @@ import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.userAuthService.service.UserModelChat;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobCareerGraphResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
@@ -62,7 +62,7 @@ import static org.mockito.Mockito.when;
 class CareerDevelopmentReportServiceImplTest {
 
     @Mock
-    private ChatUtil chatUtil;
+    private UserModelChat chatUtil;
     @Mock
     private JobService jobService;
     @Mock

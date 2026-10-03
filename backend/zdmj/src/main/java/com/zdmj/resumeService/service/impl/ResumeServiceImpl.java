@@ -1,9 +1,8 @@
 package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.zdmj.common.ai.ChatUtil;
-import com.zdmj.common.ai.ModelEnum;
-import com.zdmj.common.ai.UserLlmRouter;
+import com.zdmj.userAuthService.llm.ModelEnum;
+import com.zdmj.userAuthService.service.UserModelChat;
 import com.zdmj.common.async.AsyncBizKeys;
 import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.common.async.AsyncTaskPayloads;
@@ -72,8 +71,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     private final AwardMapper awardMapper;
     private final SkillMapper skillMapper;
     private final UserMapper userMapper;
-    private final ChatUtil chatUtil;
-    private final UserLlmRouter userLlmRouter;
+    private final UserModelChat chatUtil;
     private final EducationService educationService;
     private final CareerService careerService;
     private final AwardService awardService;
@@ -463,7 +461,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         List<String> warnings = new ArrayList<>();
         String sourceText = PdfParserUtil.normalizeExtractedText(resolveImportSourceText(request));
 
-        ModelEnum importModel = userLlmRouter.resolveResumeImportModel();
+        ModelEnum importModel = chatUtil.resolveResumeImportModel();
         log.info("简历识别：使用平台模型 {}", importModel.code());
         ResumeImportParseResponse parsed;
         try {

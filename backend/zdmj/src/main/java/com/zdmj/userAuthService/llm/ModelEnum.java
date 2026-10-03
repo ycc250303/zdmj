@@ -1,9 +1,12 @@
-package com.zdmj.common.ai;
+package com.zdmj.userAuthService.llm;
 
 import org.springframework.util.StringUtils;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 
+/**
+ * 用户可选的对话模型。{@code code} 为配置与接口中的模型码，{@code apiModelName} 为供应商模型名。
+ */
 public enum ModelEnum {
 
     QWEN_PLUS("qwen3.8-flash", "通义千问 3.8 Flash",
@@ -15,9 +18,13 @@ public enum ModelEnum {
     DEEPSEEK_PRO("deepseek-v4-pro", "DeepSeek V4 Pro (2026-04-24)",
             "https://api.deepseek.com", "deepseek-v4-pro");
 
+    /** 配置与接口使用的模型码 */
     private final String code;
+    /** 展示名称 */
     private final String displayName;
+    /** OpenAI 兼容接口的 base URL */
     private final String baseUrl;
+    /** 发给供应商的模型名 */
     private final String apiModelName;
 
     ModelEnum(String code, String displayName, String baseUrl, String apiModelName) {

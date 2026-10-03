@@ -8,7 +8,7 @@ import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.PageRequests;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.ai.ChatUtil;
+import com.zdmj.userAuthService.service.UserModelChat;
 import com.zdmj.common.constants.PromptNames;
 import com.zdmj.conversationService.dto.ChatStreamRequest;
 import com.zdmj.conversationService.dto.MessageResponse;
@@ -41,7 +41,7 @@ import java.util.Map;
 @Service
 public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> implements MessageService {
 
-    private final ChatUtil chatUtil;
+    private final UserModelChat chatUtil;
     private final MessageMapper messageMapper;
     private final ConversationService conversationService;
     private final ConversationMapper conversationMapper;

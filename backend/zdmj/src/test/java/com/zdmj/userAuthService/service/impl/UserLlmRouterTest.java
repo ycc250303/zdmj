@@ -1,4 +1,6 @@
-package com.zdmj.common.ai;
+package com.zdmj.userAuthService.service.impl;
+
+import com.zdmj.userAuthService.llm.ModelEnum;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -10,7 +12,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.util.UserApiKeyCipher;
+import com.zdmj.userAuthService.llm.UserApiKeyCipher;
 import com.zdmj.userAuthService.mapper.UserLlmConfigMapper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

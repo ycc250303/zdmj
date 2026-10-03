@@ -1,6 +1,6 @@
 package com.zdmj.userAuthService.service.impl;
 
-import com.zdmj.common.constants.RedisConstants;
+import com.zdmj.userAuthService.enums.VerificationCodeKeys;
 import com.zdmj.userAuthService.enums.VerificationCodeScene;
 import com.zdmj.userAuthService.service.EmailService;
 import com.zdmj.userAuthService.service.VerificationCodeService;
@@ -38,13 +38,13 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
     @Override
     public boolean sendVerificationCode(String email, VerificationCodeScene scene) {
         try {
-            String key = RedisConstants.verificationCodeKey(scene, email);
+            String key = VerificationCodeKeys.key(scene, email);
             if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) {
                 log.warn("验证码未过期，拒绝重复发送: {}, scene={}", email, scene);
                 return false;
             }
             String code = generateCode();
-            redisTemplate.opsForValue().set(key, code, RedisConstants.CODE_EXPIRE_TTL, TimeUnit.SECONDS);
+            redisTemplate.opsForValue().set(key, code, VerificationCodeKeys.TTL_SECONDS, TimeUnit.SECONDS);
 
             String subject;
             String content;
@@ -52,12 +52,12 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
                 subject = "重置密码验证码";
                 content = String.format(
                         "您的重置密码验证码是：%s，有效期%d分钟，请勿泄露给他人。",
-                        code, RedisConstants.CODE_EXPIRE_TTL / 60);
+                        code, VerificationCodeKeys.TTL_SECONDS / 60);
             } else {
                 subject = "注册验证码";
                 content = String.format(
                         "您的注册验证码是：%s，有效期%d分钟，请勿泄露给他人。",
-                        code, RedisConstants.CODE_EXPIRE_TTL / 60);
+                        code, VerificationCodeKeys.TTL_SECONDS / 60);
             }
 
             emailService.sendEmail(email, subject, content);
@@ -73,7 +73,7 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
     @Override
     public boolean verifyCode(String email, String code, VerificationCodeScene scene) {
         try {
-            String key = RedisConstants.verificationCodeKey(scene, email);
+            String key = VerificationCodeKeys.key(scene, email);
             Long result = redisTemplate.execute(VERIFY_AND_DELETE_SCRIPT, Collections.singletonList(key), code);
             if (Long.valueOf(1L).equals(result)) {
                 log.info("验证码验证成功: {}, scene={}", email, scene);

@@ -22,9 +22,9 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.zdmj.common.config.WebMvcConfig;
 import com.zdmj.common.exception.GlobalExceptionHandler;
+import com.zdmj.common.security.JwtTokenService;
 import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.contract.support.ContractProbeController;
-import com.zdmj.userAuthService.util.JwtUtil;
 
 @WebMvcTest(controllers = ContractProbeController.class, useDefaultFilters = false)
 @Import({ContractProbeController.class, GlobalExceptionHandler.class, WebMvcConfig.class})
@@ -62,18 +62,18 @@ class TimeSerializationContractTest {
 
     @Test
     void 令牌过期_到期瞬间仍有效_超过一毫秒后失效() {
-        JwtUtil.initSecret(SECRET);
+        JwtTokenService jwtTokenService = new JwtTokenService(SECRET);
         Instant issued = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         DateTimeUtil.bind(Clock.fixed(issued, SHANGHAI));
-        String token = JwtUtil.generateToken(7L, "user");
-        Date expiration = JwtUtil.getExpirationDateFromToken(token);
+        String token = jwtTokenService.generateToken(7L, "user");
+        Date expiration = jwtTokenService.getExpirationDateFromToken(token);
         org.assertj.core.api.Assertions.assertThat(expiration).isNotNull();
 
         DateTimeUtil.bind(Clock.fixed(expiration.toInstant(), SHANGHAI));
-        org.assertj.core.api.Assertions.assertThat(JwtUtil.validateToken(token)).isTrue();
+        org.assertj.core.api.Assertions.assertThat(jwtTokenService.validateToken(token)).isTrue();
 
         DateTimeUtil.bind(Clock.fixed(expiration.toInstant().plusMillis(1), SHANGHAI));
-        org.assertj.core.api.Assertions.assertThat(JwtUtil.validateToken(token)).isFalse();
+        org.assertj.core.api.Assertions.assertThat(jwtTokenService.validateToken(token)).isFalse();
     }
 
 }

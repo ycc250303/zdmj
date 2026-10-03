@@ -2,7 +2,7 @@ package com.zdmj.testsupport;
 
 import com.zdmj.common.security.JwtSessionStore;
 import com.zdmj.userAuthService.entity.User;
-import com.zdmj.userAuthService.util.JwtUtil;
+import com.zdmj.common.security.JwtTokenService;
 
 /**
  * 生成 JWT 并写入测试容器中的登录 allowlist。
@@ -10,9 +10,11 @@ import com.zdmj.userAuthService.util.JwtUtil;
 public class TestJwt {
 
     private final JwtSessionStore jwtSessionStore;
+    private final JwtTokenService jwtTokenService;
 
-    public TestJwt(JwtSessionStore jwtSessionStore) {
+    public TestJwt(JwtSessionStore jwtSessionStore, JwtTokenService jwtTokenService) {
         this.jwtSessionStore = jwtSessionStore;
+        this.jwtTokenService = jwtTokenService;
     }
 
     /**
@@ -25,7 +27,7 @@ public class TestJwt {
         if (user.getId() == null) {
             throw new IllegalStateException("用户主键为空，不能签发令牌");
         }
-        String token = JwtUtil.generateToken(user.getId(), user.getUsername());
+        String token = jwtTokenService.generateToken(user.getId(), user.getUsername());
         jwtSessionStore.replace(user.getId(), token);
         return token;
     }
