@@ -1,0 +1,1 @@
+Method <com.zdmj.careerReportService.service.impl.CareerDevelopmentReportServiceImpl.searchKnowledgeVectors(java.lang.Long, java.lang.Long, java.lang.String)> calls method <com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper.searchBySimilarity(java.lang.Long, java.lang.Long, java.lang.String, int)> in (CareerDevelopmentReportServiceImpl.java:387)
