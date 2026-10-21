@@ -15,4 +15,9 @@ public record StreamingModelRequest(
         String message,
         String promptName,
         Map<String, Object> promptVars) {
+    /** 复制变量映射，保留空值并禁止修改映射结构；变量对象由调用方保证稳定。 */
+    public StreamingModelRequest {
+        promptVars = promptVars == null ? null
+                : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(promptVars));
+    }
 }

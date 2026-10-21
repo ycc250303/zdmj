@@ -10,4 +10,9 @@ import java.util.Map;
  * @param promptVars 提示词占位符，空则不替换
  */
 public record ModelRequest(String message, String promptName, Map<String, Object> promptVars) {
+    /** 复制变量映射，保留空值并禁止修改映射结构；变量对象由调用方保证稳定。 */
+    public ModelRequest {
+        promptVars = promptVars == null ? null
+                : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(promptVars));
+    }
 }
