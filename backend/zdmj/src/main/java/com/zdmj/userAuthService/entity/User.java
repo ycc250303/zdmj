@@ -31,6 +31,7 @@ public class User extends BaseEntity {
     /**
      * 密码（加密后）
      */
+    @lombok.ToString.Exclude
     private String password;
 
     /**

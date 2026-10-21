@@ -19,5 +19,6 @@ public class UserLoginRequest {
      * 密码（不能为空）
      */
     @NotBlank(message = "密码不能为空")
+    @lombok.ToString.Exclude
     private String password;
 }

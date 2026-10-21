@@ -10,5 +10,6 @@ public class UserLlmConnectionTestRequest {
     private String modelCode;
 
     @NotBlank(message = "API Key 不能为空")
+    @lombok.ToString.Exclude
     private String apiKey;
 }

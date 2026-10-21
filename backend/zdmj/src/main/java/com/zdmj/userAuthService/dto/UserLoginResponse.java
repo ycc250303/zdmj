@@ -11,6 +11,7 @@ public class UserLoginResponse {
     /**
      * JWT Token
      */
+    @lombok.ToString.Exclude
     private String token;
 
     /**

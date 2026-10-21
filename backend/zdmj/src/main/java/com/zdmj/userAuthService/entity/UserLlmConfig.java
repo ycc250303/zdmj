@@ -17,5 +17,6 @@ public class UserLlmConfig extends BaseEntity {
 
     private String modelCode;
 
+    @lombok.ToString.Exclude
     private String apiKeyCiphertext;
 }

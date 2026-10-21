@@ -23,6 +23,7 @@ public class UserRegisterRequest {
      */
     @NotBlank(message = "密码不能为空")
     @Size(min = 6, max = 20, message = "密码长度必须在6-20个字符之间")
+    @lombok.ToString.Exclude
     private String password;
 
     /**
@@ -38,5 +39,6 @@ public class UserRegisterRequest {
      */
     @NotBlank(message = "验证码不能为空")
     @Size(min = 6, max = 6, message = "验证码必须为6位数字")
+    @lombok.ToString.Exclude
     private String verificationCode;
 }
