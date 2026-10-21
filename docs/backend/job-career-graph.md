@@ -132,7 +132,7 @@ JobRole.fromString(profile.targetRoleType)
     ↓
 PromptUtil.resolve(JOB_CAREER_GRAPH, role) — `{slug}.md`，缺文件回退 default
     ↓
-ChatUtil.chatStructuredOnce() — 通义 qwen-plus 按 JSON Schema 结构化输出
+ModelGateway.generateStructured() — 通义 qwen-plus 按 JSON Schema 结构化输出
     ↓
 validateGraph() — 强校验：垂直≥3、换岗≥5、每条≥2；不合规抛 10005
 markCurrentNode() — 自动打 current=true 高亮

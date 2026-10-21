@@ -31,7 +31,7 @@ rank 为 1-based。gold 是抽样到的 `knowledge_vectors.id`。
 }
 ```
 
-响应用 `data.hits[].id` 对 gold `chunk_id` 算 rank；`rewrittenQuery` / `topK` / `minScore` / `rewriteUsed` 写入 details。改写走 `ChatUtil.chatOnce(评测登录用户)`，与线上一致。
+响应用 `data.hits[].id` 对 gold `chunk_id` 算 rank；`rewrittenQuery` / `topK` / `minScore` / `rewriteUsed` 写入 details。改写走 `ModelGateway.generate(评测登录用户)`，与线上一致。
 
 接口限流：USER **120 次/分钟**。脚本遇 HTTP 429 休眠重试。
 
