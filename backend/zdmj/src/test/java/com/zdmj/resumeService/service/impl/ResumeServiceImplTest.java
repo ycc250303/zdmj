@@ -7,7 +7,6 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.model.ModelCode;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.StructuredModelRequest;
-import com.zdmj.common.constants.PromptNames;
 import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.resumeService.dto.ResumeContentResponse;
 import com.zdmj.resumeService.dto.ResumeRequest;
@@ -572,7 +571,7 @@ class ResumeServiceImplTest {
     }
 
     private static boolean resumeImportRequest(StructuredModelRequest<?> request) {
-        return PromptNames.RESUME_IMPORT_PARSE.equals(request.promptName())
+        return "resume-import-parse".equals(request.promptName())
                 && request.promptVars() == null
                 && request.outputType() == ResumeImportParseResponse.class
                 && request.platformModel() == ModelCode.DEEPSEEK_FLASH;

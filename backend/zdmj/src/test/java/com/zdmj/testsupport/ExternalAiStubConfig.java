@@ -30,7 +30,7 @@ import com.zdmj.aiService.config.ModelClientConfiguration;
 import com.zdmj.aiService.model.ModelCode;
 import com.zdmj.aiService.provider.UserModelConfigurationProvider;
 import com.zdmj.aiService.service.ModelGatewayImpl;
-import com.zdmj.common.ai.PromptUtil;
+import com.zdmj.common.prompt.PromptLoader;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.security.JwtTokenService;
 import com.zdmj.common.security.RedisJwtSessionStore;
@@ -93,9 +93,9 @@ public class ExternalAiStubConfig {
      */
     @Bean
     @Primary
-    ModelGateway testModelGateway(PromptUtil promptUtil, UserModelConfigurationProvider configurationProvider,
+    ModelGateway testModelGateway(PromptLoader promptLoader, UserModelConfigurationProvider configurationProvider,
             ModelClientConfiguration clients, ChatMemory chatMemory, ChatModel chatModel) {
-        return new StubModelGateway(promptUtil, configurationProvider, clients, chatMemory, chatModel);
+        return new StubModelGateway(promptLoader, configurationProvider, clients, chatMemory, chatModel);
     }
 
     @Bean
@@ -150,6 +150,15 @@ public class ExternalAiStubConfig {
                         text.append(message.getText()).append('\n');
                     }
                 }
+            }
+            if (text.indexOf("你是岗位分类器") >= 0) {
+                return response("{\"roleCode\":\"java-backend\",\"confidence\":0.88,\"reason\":\"岗位方向识别\"}");
+            }
+            if (text.indexOf("本任务仅做**岗位要求分析**") >= 0) {
+                return response("{\"professionalSkills\":\"Java 岗位要求\",\"strengths\":[],\"missingSkills\":[]}");
+            }
+            if (text.indexOf("专项评估") >= 0) {
+                return response("{\"professionalSkills\":\"Java 简历能力\",\"competitivenessScore\":80}");
             }
             if (text.indexOf("请输出 JSON") >= 0) {
                 return response(FIXED_MATCH_JSON);
@@ -206,9 +215,9 @@ public class ExternalAiStubConfig {
         private final ChatClient plain;
         private final ChatClient withMemory;
 
-        StubModelGateway(PromptUtil promptUtil, UserModelConfigurationProvider configurationProvider,
+        StubModelGateway(PromptLoader promptLoader, UserModelConfigurationProvider configurationProvider,
                 ModelClientConfiguration clients, ChatMemory chatMemory, ChatModel chatModel) {
-            super(promptUtil, configurationProvider, clients, chatMemory);
+            super(promptLoader, configurationProvider, clients, chatMemory);
             this.plain = ChatClient.builder(chatModel).build();
             this.withMemory = ChatClient.builder(chatModel)
                     .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())

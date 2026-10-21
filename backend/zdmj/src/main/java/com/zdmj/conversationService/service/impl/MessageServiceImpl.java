@@ -11,7 +11,6 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.context.CurrentActor;
-import com.zdmj.common.constants.PromptNames;
 import com.zdmj.conversationService.dto.ChatStreamRequest;
 import com.zdmj.conversationService.dto.MessageResponse;
 import com.zdmj.conversationService.entity.Conversation;
@@ -43,6 +42,8 @@ import java.util.Map;
 @Service
 public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> implements MessageService {
 
+    private static final String TITLE_PROMPT = "generate-conversation-title";
+
     private final ModelGateway modelGateway;
     private final MessageMapper messageMapper;
     private final ConversationService conversationService;
@@ -70,7 +71,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         if (prepared.newCount() == 2) {
             String title = modelGateway.generate(
                     CurrentActor.of(userId),
-                    new ModelRequest(request.getMessage(), PromptNames.GENERATE_CONVERSATION_TITLE, null));
+                    new ModelRequest(request.getMessage(), TITLE_PROMPT, null));
             conversationMapper.updateTitleByIdAndUserId(request.getConversationId(), userId, title);
         }
         subscribeAnswer(conversation, userId, request, prepared);

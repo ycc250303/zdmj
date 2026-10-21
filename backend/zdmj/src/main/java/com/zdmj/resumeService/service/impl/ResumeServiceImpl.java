@@ -10,7 +10,6 @@ import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.common.async.AsyncTaskPayloads;
 import com.zdmj.common.async.AsyncTaskService;
 import com.zdmj.common.async.AsyncTaskType;
-import com.zdmj.common.constants.PromptNames;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -63,6 +62,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Service
 public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> implements ResumeService {
+
+    private static final String IMPORT_PROMPT = "resume-import-parse";
 
     private static final Pattern PRESENT_END = Pattern.compile("^(至今|现在|present|current|now)$",
             Pattern.CASE_INSENSITIVE);
@@ -471,7 +472,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
                     CurrentActor.of(userId),
                     StructuredModelRequest.platform(
                             sourceText,
-                            PromptNames.RESUME_IMPORT_PARSE,
+                            IMPORT_PROMPT,
                             null,
                             ResumeImportParseResponse.class,
                             importModel));

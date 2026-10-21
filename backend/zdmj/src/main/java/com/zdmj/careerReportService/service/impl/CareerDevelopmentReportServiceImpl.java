@@ -23,7 +23,6 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.common.context.CurrentActor;
-import com.zdmj.common.constants.PromptNames;
 import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobCareerGraphResponse;
@@ -77,6 +76,10 @@ import org.springframework.util.StringUtils;
 public class CareerDevelopmentReportServiceImpl
         extends ServiceImpl<CareerDevelopmentReportMapper, CareerDevelopmentReport>
         implements CareerDevelopmentReportService {
+
+    private static final String GENERATE_PROMPT = "career-report/generate";
+    private static final String POLISH_PROMPT = "career-report/polish";
+    private static final String INTEGRITY_CHECK_PROMPT = "career-report/integrity-check";
 
     /** 状态：草稿 */
     private static final int STATUS_DRAFT = 1;
@@ -227,7 +230,7 @@ public class CareerDevelopmentReportServiceImpl
                 toJson(toQualityFlags(check)),
                 Boolean.TRUE.equals(check.getPassed()) ? STATUS_CHECKED : STATUS_CHECK_FAILED,
                 check.getCompletenessScore(),
-                PromptNames.CAREER_REPORT_GENERATE);
+                GENERATE_PROMPT);
         return toResponse(created);
     }
 
@@ -248,7 +251,7 @@ public class CareerDevelopmentReportServiceImpl
         LlmReportPayload payload;
         try {
             payload = modelGateway.generateStructured(CurrentActor.of(current.getUserId()),
-                    StructuredModelRequest.of(userMessage, PromptNames.CAREER_REPORT_POLISH, vars, LlmReportPayload.class));
+                    StructuredModelRequest.of(userMessage, POLISH_PROMPT, vars, LlmReportPayload.class));
         } catch (Exception e) {
             log.error("报告润色失败: reportId={}", reportId, e);
             throw new BusinessException(ErrorCode.CAREER_REPORT_POLISH_FAILED);
@@ -270,7 +273,7 @@ public class CareerDevelopmentReportServiceImpl
                 toJson(toQualityFlags(check)),
                 Boolean.TRUE.equals(check.getPassed()) ? STATUS_CHECKED : STATUS_CHECK_FAILED,
                 check.getCompletenessScore(),
-                PromptNames.CAREER_REPORT_POLISH);
+                POLISH_PROMPT);
         return toResponse(created);
     }
 
@@ -284,7 +287,7 @@ public class CareerDevelopmentReportServiceImpl
             CareerReportCheckResponse llm = modelGateway.generateStructured(CurrentActor.of(report.getUserId()),
                     StructuredModelRequest.of(
                             "请检查这份职业发展报告是否完整且可执行：\n" + toJson(reportContent),
-                            PromptNames.CAREER_REPORT_INTEGRITY_CHECK,
+                            INTEGRITY_CHECK_PROMPT,
                             null,
                             CareerReportCheckResponse.class));
             if (llm != null) {
@@ -434,7 +437,7 @@ public class CareerDevelopmentReportServiceImpl
         LlmReportPayload payload;
         try {
             payload = modelGateway.generateStructured(CurrentActor.of(userId),
-                    StructuredModelRequest.of(sb.toString(), PromptNames.CAREER_REPORT_GENERATE, vars, LlmReportPayload.class));
+                    StructuredModelRequest.of(sb.toString(), GENERATE_PROMPT, vars, LlmReportPayload.class));
         } catch (Exception e) {
             log.error("职业报告生成失败 jobId={}", jobDetail.getId(), e);
             throw new BusinessException(ErrorCode.CAREER_REPORT_GENERATION_FAILED);

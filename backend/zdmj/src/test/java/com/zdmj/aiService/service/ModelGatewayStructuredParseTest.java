@@ -30,7 +30,7 @@ import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.aiService.config.ModelClientConfiguration;
 import com.zdmj.aiService.provider.UserModelConfigurationProvider;
-import com.zdmj.common.ai.PromptUtil;
+import com.zdmj.common.prompt.PromptLoader;
 import com.zdmj.common.context.CurrentActor;
 
 import lombok.Data;
@@ -42,7 +42,7 @@ import lombok.Data;
 class ModelGatewayStructuredParseTest {
 
     @Mock
-    private PromptUtil promptUtil;
+    private PromptLoader promptLoader;
     @Mock
     private ChatClient chatClient;
     @Mock
@@ -54,7 +54,7 @@ class ModelGatewayStructuredParseTest {
 
     @BeforeEach
     void setUp() {
-        gateway = new FixedClientGateway(promptUtil, chatClient);
+        gateway = new FixedClientGateway(promptLoader, chatClient);
         lenient().when(chatClient.prompt()).thenReturn(spec);
         lenient().when(spec.options(any(ChatOptions.class))).thenReturn(spec);
         lenient().when(spec.user(anyString())).thenReturn(spec);
@@ -124,8 +124,8 @@ class ModelGatewayStructuredParseTest {
 
         private final ChatClient fixedClient;
 
-        private FixedClientGateway(PromptUtil promptUtil, ChatClient fixedClient) {
-            super(promptUtil, mock(UserModelConfigurationProvider.class), mock(ModelClientConfiguration.class),
+        private FixedClientGateway(PromptLoader promptLoader, ChatClient fixedClient) {
+            super(promptLoader, mock(UserModelConfigurationProvider.class), mock(ModelClientConfiguration.class),
                     mock(ChatMemory.class));
             this.fixedClient = fixedClient;
         }

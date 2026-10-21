@@ -31,7 +31,6 @@ import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.aiService.api.StreamingModelRequest;
 import com.zdmj.common.context.CurrentActor;
-import com.zdmj.common.constants.PromptNames;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrievalResponse;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
 import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
@@ -62,7 +61,7 @@ class KnowledgeRagServiceImplTest {
         ragConfig.getRewrite().setEnabled(false);
         when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(501L);
         when(embeddingModel.embed(anyString())).thenThrow(new RuntimeException("embed fail"));
-        when(modelGateway.stream(eq(CurrentActor.of(401L)), eq(new StreamingModelRequest(13L, "hello", PromptNames.SYSTEM, null))))
+        when(modelGateway.stream(eq(CurrentActor.of(401L)), eq(new StreamingModelRequest(13L, "hello", "system", null))))
                 .thenReturn(Flux.just("fallback-system"));
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
@@ -92,7 +91,7 @@ class KnowledgeRagServiceImplTest {
         hit.setMetadata(Map.of("source", "test"));
         when(knowledgeVectorMapper.searchBySimilarity(402L, 502L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of(hit));
-        when(modelGateway.stream(eq(CurrentActor.of(402L)), argThat((StreamingModelRequest req) -> Long.valueOf(14L).equals(req.conversationId()) && "hello question".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_SYSTEM.equals(req.promptName()))))
+        when(modelGateway.stream(eq(CurrentActor.of(402L)), argThat((StreamingModelRequest req) -> Long.valueOf(14L).equals(req.conversationId()) && "hello question".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName()))))
                 .thenReturn(Flux.just("rag-answer"));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
@@ -112,7 +111,7 @@ class KnowledgeRagServiceImplTest {
         UserHolder.set(UserContext.of(403L, "u"));
         ragConfig.getRewrite().setEnabled(true);
         when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(503L);
-        when(modelGateway.generate(eq(CurrentActor.of(403L)), argThat((ModelRequest req) -> "raw question".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE.equals(req.promptName()))))
+        when(modelGateway.generate(eq(CurrentActor.of(403L)), argThat((ModelRequest req) -> "raw question".equals(req.message()) && "knowledgebase-query-rewrite".equals(req.promptName()))))
                 .thenReturn("rewritten question");
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.3,0.4]");
 
@@ -126,7 +125,7 @@ class KnowledgeRagServiceImplTest {
         hit.setContent("命中内容");
         when(knowledgeVectorMapper.searchBySimilarity(eq(403L), eq(503L), eq("[0.3,0.4]"), anyInt()))
                 .thenReturn(List.of(hit));
-        when(modelGateway.stream(eq(CurrentActor.of(403L)), argThat((StreamingModelRequest req) -> Long.valueOf(15L).equals(req.conversationId()) && "raw question".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_SYSTEM.equals(req.promptName()))))
+        when(modelGateway.stream(eq(CurrentActor.of(403L)), argThat((StreamingModelRequest req) -> Long.valueOf(15L).equals(req.conversationId()) && "raw question".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName()))))
                 .thenReturn(Flux.just("rewritten-rag-answer"));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
@@ -145,7 +144,7 @@ class KnowledgeRagServiceImplTest {
     void streamAnswerEmptyDocumentSelection_shouldFallbackSystemPrompt() {
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingModel, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
-        when(modelGateway.stream(eq(CurrentActor.of(1L)), eq(new StreamingModelRequest(16L, "hello", PromptNames.SYSTEM, null))))
+        when(modelGateway.stream(eq(CurrentActor.of(1L)), eq(new StreamingModelRequest(16L, "hello", "system", null))))
                 .thenReturn(Flux.just("no-rag"));
 
         List<String> chunks = service.streamAnswer(1L, 16L, "hello", List.of(), false, null).collectList().block();
@@ -172,7 +171,7 @@ class KnowledgeRagServiceImplTest {
         when(knowledgeVectorMapper.searchBySimilarity(
                 KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.5,0.6]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of(hit));
-        when(modelGateway.stream(eq(CurrentActor.of(404L)), argThat((StreamingModelRequest req) -> Long.valueOf(17L).equals(req.conversationId()) && "system only".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_SYSTEM.equals(req.promptName()))))
+        when(modelGateway.stream(eq(CurrentActor.of(404L)), argThat((StreamingModelRequest req) -> Long.valueOf(17L).equals(req.conversationId()) && "system only".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName()))))
                 .thenReturn(Flux.just("system-rag"));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
@@ -259,7 +258,7 @@ class KnowledgeRagServiceImplTest {
         UserHolder.set(UserContext.of(407L, "u"));
         ragConfig.getRewrite().setEnabled(true);
         when(knowledgeBasesService.findKnowledgeBaseIdByScope(KnowledgeScopeEnum.SYSTEM.getCode())).thenReturn(11L);
-        when(modelGateway.generate(eq(CurrentActor.of(407L)), argThat((ModelRequest req) -> "raw question".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE.equals(req.promptName()))))
+        when(modelGateway.generate(eq(CurrentActor.of(407L)), argThat((ModelRequest req) -> "raw question".equals(req.message()) && "knowledgebase-query-rewrite".equals(req.promptName()))))
                 .thenReturn("rewritten question");
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.3,0.4]");
         when(embeddingModel.embed(anyString())).thenReturn(new float[] {0.3f, 0.4f});
@@ -300,7 +299,7 @@ class KnowledgeRagServiceImplTest {
         UserHolder.set(UserContext.of(408L, "u"));
         ragConfig.getRewrite().setEnabled(true);
         when(knowledgeBasesService.findKnowledgeBaseIdByScope(KnowledgeScopeEnum.SYSTEM.getCode())).thenReturn(11L);
-        when(modelGateway.generate(eq(CurrentActor.of(408L)), argThat((ModelRequest req) -> "Java".equals(req.message()) && PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE.equals(req.promptName()))))
+        when(modelGateway.generate(eq(CurrentActor.of(408L)), argThat((ModelRequest req) -> "Java".equals(req.message()) && "knowledgebase-query-rewrite".equals(req.promptName()))))
                 .thenReturn("Java 后端开发");
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.3,0.4]");
         when(embeddingModel.embed(anyString())).thenReturn(new float[] {0.3f, 0.4f});

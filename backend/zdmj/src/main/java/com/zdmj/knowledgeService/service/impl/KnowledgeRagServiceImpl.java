@@ -20,7 +20,6 @@ import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.knowledgeService.config.RagConfig;
 import com.zdmj.knowledgeService.config.RagConfig.Search;
-import com.zdmj.common.constants.PromptNames;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrievalResponse;
 import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
@@ -37,6 +36,10 @@ import reactor.core.publisher.Flux;
 @Service
 @RequiredArgsConstructor
 public class KnowledgeRagServiceImpl implements KnowledgeRagService {
+
+    private static final String SYSTEM_PROMPT = "system";
+    private static final String RAG_PROMPT = "knowledgebase-rag-system";
+    private static final String QUERY_REWRITE_PROMPT = "knowledgebase-query-rewrite";
 
     /** 单条命中写入日志时，文本预览最大字符数（避免超长 content 撑爆日志） */
     private static final int RAG_LOG_CONTENT_PREVIEW_MAX = 500;
@@ -61,7 +64,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         // --- 1. 两库都关：不检索、不改写，直接走求职助手 ---
         if (ragDocumentIds != null && ragDocumentIds.isEmpty() && !useSystemKnowledge) {
             return modelGateway.stream(CurrentActor.of(userId),
-                    new StreamingModelRequest(conversationId, userMessage, PromptNames.SYSTEM, chatPromptVars));
+                    new StreamingModelRequest(conversationId, userMessage, SYSTEM_PROMPT, chatPromptVars));
         }
 
         // --- 2. 排序检索（改写 / embed / ANN / 合并截断） ---
@@ -73,7 +76,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
             log.info("RAG 无有效命中，退回求职导师对话: userId={}, useSystemKnowledge={}, queryLen={}",
                     userId, useSystemKnowledge, ranked.getQuery() == null ? 0 : ranked.getQuery().length());
             return modelGateway.stream(CurrentActor.of(userId),
-                    new StreamingModelRequest(conversationId, ranked.getQuery(), PromptNames.SYSTEM, chatPromptVars));
+                    new StreamingModelRequest(conversationId, ranked.getQuery(), SYSTEM_PROMPT, chatPromptVars));
         }
 
         // --- 4. 用排序切块拼 {context}，user 消息仍用原文 ---
@@ -82,7 +85,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         ragPromptVars.put("context", buildContext(hits, ragConfig.getSearch().getContextBudget()));
         log.info("RAG 检索命中 {} 条片段，进入生成阶段 conversationId={}", hits.size(), conversationId);
         return modelGateway.stream(CurrentActor.of(userId),
-                new StreamingModelRequest(conversationId, ranked.getQuery(), PromptNames.KNOWLEDGEBASE_RAG_SYSTEM,
+                new StreamingModelRequest(conversationId, ranked.getQuery(), RAG_PROMPT,
                         ragPromptVars));
     }
 
@@ -173,7 +176,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         try {
             String queryText = modelGateway.generate(
                     CurrentActor.of(userId),
-                    new ModelRequest(rawText, PromptNames.KNOWLEDGEBASE_RAG_QUERY_REWRITE, Map.of("question", rawText)));
+                    new ModelRequest(rawText, QUERY_REWRITE_PROMPT, Map.of("question", rawText)));
             if (!StringUtils.hasText(queryText)) {
                 log.info("RAG 查询改写: 模型返回空，沿用原文 | originalQuestion={}", rawText);
                 return rawText;

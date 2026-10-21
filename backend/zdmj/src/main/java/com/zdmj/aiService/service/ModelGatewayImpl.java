@@ -24,7 +24,7 @@ import com.zdmj.aiService.config.ModelClientConfiguration;
 import com.zdmj.aiService.model.ModelCode;
 import com.zdmj.aiService.provider.ResolvedModelConfiguration;
 import com.zdmj.aiService.provider.UserModelConfigurationProvider;
-import com.zdmj.common.ai.PromptUtil;
+import com.zdmj.common.prompt.PromptLoader;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -47,7 +47,7 @@ public class ModelGatewayImpl implements ModelGateway {
             .responseFormat(ResponseFormat.builder().type(ResponseFormat.Type.JSON_OBJECT).build())
             .build();
 
-    private final PromptUtil promptUtil;
+    private final PromptLoader promptLoader;
     private final UserModelConfigurationProvider configurationProvider;
     private final ModelClientConfiguration clients;
     private final ChatMemory chatMemory;
@@ -57,14 +57,14 @@ public class ModelGatewayImpl implements ModelGateway {
     /**
      * 装配提示词、用户配置查询、供应商客户端和会话记忆。
      *
-     * @param promptUtil              提示词加载
+     * @param promptLoader            提示词加载
      * @param configurationProvider   用户模型配置查询
      * @param clients                 供应商客户端参数
      * @param chatMemory              会话记忆，由会话模块提供存储与窗口
      */
-    public ModelGatewayImpl(PromptUtil promptUtil, UserModelConfigurationProvider configurationProvider,
+    public ModelGatewayImpl(PromptLoader promptLoader, UserModelConfigurationProvider configurationProvider,
             ModelClientConfiguration clients, ChatMemory chatMemory) {
-        this.promptUtil = promptUtil;
+        this.promptLoader = promptLoader;
         this.configurationProvider = configurationProvider;
         this.clients = clients;
         this.chatMemory = chatMemory;
@@ -234,7 +234,7 @@ public class ModelGatewayImpl implements ModelGateway {
         if (!StringUtils.hasText(promptName)) {
             return spec;
         }
-        String template = promptUtil.load(promptName);
+        String template = promptLoader.load(promptName);
         Map<String, Object> variables = promptVars == null ? Collections.emptyMap() : promptVars;
         return spec.system(renderPlaceholders(template, variables));
     }
