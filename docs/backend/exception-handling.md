@@ -37,6 +37,10 @@ Filter / Security（尚未进 MVC）
 
 Writer 在 `response.isCommitted()` 时跳过。JWT Redis 故障写 `AUTH_STORE_UNAVAILABLE`（1012，503），见 [jwt-session.md](jwt-session.md)。限流抛 `RATE_LIMIT_EXCEEDED`（1011，429），见 [rate-limit.md](rate-limit.md)。
 
+## 测试
+
+`GlobalExceptionHandlerTest` 用独立 MockMvc 固定处理器输出。`ProblemDetailsContractTest` 与 `ApiSerializationContractTest` 经 `@WebMvcTest` 断言状态码、`Content-Type`、业务码、时间、枚举码、分页、空值和敏感字段缺失。过滤器写出的 401 / 503 见 [jwt-session.md](jwt-session.md)。
+
 ## 类
 
 `ErrorCode`、`BusinessException`、`GlobalExceptionHandler`、`ProblemDetailSupport`、`ProblemDetailHttpWriter`。

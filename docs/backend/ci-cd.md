@@ -1,18 +1,18 @@
 # CI/CD
 
-GitHub Actions 上 **CI 与 CD 分离**：测试不部署，部署不等待测试。另有一条服务器例行清理，与 CD 共用并发组，不发版。
+GitHub Actions 上 **CI 与 CD 分离**：测试不部署。后端部署必须等同一提交的 CI 通过。另有一条服务器例行清理，与 CD 共用并发组，不发版。
 
 | 流水线 | 文件 | 作用 |
 |--------|------|------|
-| CI | [`.github/workflows/ci_java.yml`](../../.github/workflows/ci_java.yml) | 后端编译 + 全量单测 + 鉴权模块质量门禁 |
+| CI | [`.github/workflows/ci_java.yml`](../../.github/workflows/ci_java.yml) | `./mvnw -B -ntp clean verify`：单元测试、契约测试、集成测试、JaCoCo 和 ArchUnit |
 | CD | [`.github/workflows/cd.yml`](../../.github/workflows/cd.yml) | SSH 到服务器，按变更部署后端和/或前端 |
 | Ops | [`.github/workflows/ops_server_housekeeping.yml`](../../.github/workflows/ops_server_housekeeping.yml) | 每周清理 Docker/pnpm/Git 占用 |
 
-**没有前端 CI**（无 `pnpm typecheck` / `lint`）。合入 `main` **不会**自动跑 CI（`main` 触发已注释）。密钥配置见 [`deploy/GitHub密钥配置.md`](../../deploy/GitHub密钥配置.md)。
+**没有前端 CI**（无 `pnpm typecheck` / `lint`）。发往 `backend` 或 `main` 的推送和 Pull Request，只要命中后端、SQL 或本工作流，就会跑 CI。密钥配置见 [`deploy/GitHub密钥配置.md`](../../deploy/GitHub密钥配置.md)。
 
 ```
-push/PR → backend 分支（改了后端）  →  CI（ubuntu-latest，不碰服务器）
-push    → main（改了前后端/部署）  →  CD（SSH → /opt/zdmj/zdmj）
+push/PR → backend 或 main（改了后端、SQL 或 CI 工作流） → CI（ubuntu-latest，不碰服务器）
+push    → main（改了前后端/部署）  →  CD（后端部署先确认同一提交 CI 成功）
 cron    → 每周一 11:30 CST         →  Ops housekeeping
 ```
 
@@ -24,10 +24,9 @@ cron    → 每周一 11:30 CST         →  Ops housekeeping
 
 | 事件 | 分支 | 路径（任一命中） |
 |------|------|------------------|
-| `push` | `backend` | `backend/zdmj/**`、`.cursor/skills/ai-unit-test-loop/**`、本 yml |
-| `pull_request`（目标） | `backend` | 同上 |
+| `push`、`pull_request`（目标） | `backend`、`main` | `backend/zdmj/**`、`sql/**`、本 yml |
 
-`main` 的 push/PR 已注释，改前端或只合主干都 **不跑 CI**。
+只改前端不会跑后端 CI。
 
 ### CD（`CD - Deploy`）
 
@@ -51,19 +50,17 @@ workflow 触发后还有二次过滤（`dorny/paths-filter@v3`）：只改 yml/�
 
 ## 通过条件
 
-### CI 通过 = 下列硬门禁全部 `success`
+### CI 通过 = `./mvnw -B -ntp clean verify` 退出码 0
 
-各业务 step 写了 `continue-on-error: true`，中间失败不立刻红；**最后一步**读 `outcome`，任一硬门禁非 success 则 `exit 1`。
+Runner 使用 Temurin JDK 21，只调用仓库内的 `./mvnw`。`verify` 依次执行 Surefire、Failsafe 和 JaCoCo `check`；ArchUnit 由 Surefire 执行。
 
 | 门禁 | 判定 |
 |------|------|
-| 编译 | `mvn clean compile` 退出码 0 |
-| 单测 | `mvn test` 退出码 0（Surefire 有 failures/errors 即失败） |
-| 覆盖率 | 仅 `userAuthService` 的 `service/impl` + `util`：行 ≥ 70%、分支/条件 ≥ 55%；匹配到 0 个类也失败 |
-| 路径 | `spec-user-auth.json` 生成矩阵后，必测 path 全部命中，且覆盖条数 ≥ 6 |
-| 反投机 | 仅扫 `src/test/java/com/zdmj/userAuthService`：`riskScore ≥ 80` 且无 `mustFix` |
+| 测试 | Surefire 与 Failsafe 均无 failures/errors |
+| JaCoCo | `common` 行 ≥ 80%、分支 ≥ 70%；七个业务模块合计行 ≥ 70%、分支 ≥ 55% |
+| 架构 | `ModuleArchitectureTest` 通过；冻结记录不允许在 CI 中更新 |
 
-**不决定红绿**：步骤 6「失败归因」（只在单测失败时跑）。门禁脚本在 `.cursor/skills/ai-unit-test-loop/scripts/`（该目录 gitignore），runner checkout **默认没有这些文件**；脚本缺失时覆盖率/路径/审计 step 失败，CI 红。
+失败时直接查看工作流日志以及 Surefire、Failsafe 和 JaCoCo 报告。
 
 ### CD 通过
 
@@ -71,7 +68,7 @@ workflow 触发后还有二次过滤（`dorny/paths-filter@v3`）：只改 yml/�
 - 后端：`.env` 存在且必填键非空 → `compose build/up backend` 成功。**无 HTTP 探活**，只 `sleep 10` + `docker logs`。
 - 前端：`compose build/up frontend-main` 成功。宿主机 nginx 若在跑会先 `systemctl stop nginx`（不卸载）。
 
-CD **不检查 CI 是否绿**。镜像能构建、容器能起来即过。Docker prune 失败被 `|| true` 忽略，不导致 CD 失败。
+后端部署前轮询同一 `GITHUB_SHA` 的 `ci_java.yml`，最多约 20 分钟。结论不是 `success` 则不部署后端。只部署前端时不要求这次 CI。Docker prune 失败被 `|| true` 忽略，不导致 CD 失败。
 
 ### Ops 通过
 
@@ -87,47 +84,16 @@ Runner：`ubuntu-latest`。工作目录除注明外为 `backend/zdmj`。shell �
 |---|------|-------------|------|
 | 1 | Checkout | `actions/checkout@v4` | 拉代码 |
 | 2 | JDK 21 | `actions/setup-java@v4`（Temurin 21，`cache: maven`） | 环境 |
-| 3 | 编译 | `mvn -B -ntp clean compile` | 硬门禁 |
-| 4 | 单测 | 见下 | 硬门禁；编译失败则跳过 |
-| 5 | 覆盖率/路径 | 见下 | 硬门禁；编译或单测失败则跳过 |
-| 6 | 归因 | `python3 ../../.cursor/skills/ai-unit-test-loop/scripts/triage_failures.py --surefire-dir target/surefire-reports` | 仅单测失败时；不影响红绿 |
-| 7 | 审计 | 见下 | 硬门禁；须编译+单测已过 |
-| 8 | 汇总 | 写 `$GITHUB_STEP_SUMMARY`；`failed=1` 则 `exit 1` | 最终拦截 |
-
-步骤 4：
+| 3 | 验收 | `./mvnw -B -ntp clean verify` | 硬门禁 |
+| 4 | 上传 | Surefire、Failsafe、JaCoCo | 始终上传 |
 
 ```bash
-mvn -B -ntp test
-# 随后从 target/surefire-reports/TEST-*.xml 打印 failures/errors≠0 的摘要（仅日志）
+./mvnw -B -ntp clean verify
 ```
 
-`pom.xml` 在 `test` 阶段同时跑 JaCoCo `report`，产出 `target/site/jacoco/jacoco.xml`。
+`verify` 在测试结束后生成 JaCoCo 报告并执行覆盖率检查。测试质量由明确的业务断言、代码审查、契约测试、容器集成测试和 ArchUnit 共同保证。
 
-步骤 5（两段必须都成功）：
-
-```bash
-python3 ../../.cursor/skills/ai-unit-test-loop/scripts/coverage_gate.py \
-  --jacoco-xml target/site/jacoco/jacoco.xml \
-  --class-prefix com/zdmj/userAuthService/service/impl/,com/zdmj/userAuthService/util/ \
-  --line-min 0.70 --branch-min 0.55 --condition-min 0.55
-
-python3 ../../.cursor/skills/ai-unit-test-loop/scripts/path_gate.py \
-  --spec src/test/resources/test-loop/spec-user-auth.json \
-  --target-classes UserServiceImpl,VerificationCodeServiceImpl,EmailServiceImpl,JwtUtil,VerificationCodeSceneResolver \
-  --scan-tests src/test/java/com/zdmj/userAuthService \
-  --manifest-out target/testloop/path-matrix.json \
-  --path-count-min 6 \
-  --surefire-dir target/surefire-reports
-```
-
-步骤 7：
-
-```bash
-python3 ../../.cursor/skills/ai-unit-test-loop/scripts/audit_quality.py \
-  --test-root src/test/java/com/zdmj/userAuthService --risk-pass 80
-```
-
-审计扣分规则（本地脚本）：弱断言占比 >20% −15；happy-path 主导 >70% −15；无 `@Test` −30；断言数 < 测试方法数 −5。存在 `mustFix` 或分数 < 80 即失败。
+集成测试在同一 JVM 内共享 `pgvector/pgvector:pg15` 与 `redis:7`，Failsafe `forkCount=1`。Schema 只执行仓库根目录 `sql/pgsql.sql`。测试进程把 `ZDMJ_ENV_FILE` 指到空文件。`*ContractTest` 在 `test` 阶段执行，`*IT` 在 `verify` 阶段执行。ArchUnit 冻结文件在 `src/test/resources/archunit_store`，随仓库提交。`allowStoreCreation=false`，`allowStoreUpdate=false`。
 
 ---
 
@@ -139,7 +105,8 @@ python3 ../../.cursor/skills/ai-unit-test-loop/scripts/audit_quality.py \
 |---|------------|------|
 | 1 | `detect-changes` | checkout + 路径过滤，输出 `java` / `frontend` |
 | 2 | `Resolve deploy targets` | push 用过滤结果；`workflow_dispatch` 用勾选 |
-| 3 | `Deploy on server` | 见下；两目标都 false 则跳过本 step |
+| 3 | `Require CI success` | 部署后端时等待同一提交的 CI `success` |
+| 4 | `Deploy on server` | 见下；两目标都 false 则跳过本 step |
 
 Runner 侧 SSH 封装（密钥来自 `secrets.SSH_PRIVATE_KEY`）：
 
@@ -226,9 +193,7 @@ df -h; free -h; docker system df
 
 | 项 | 现状 |
 |----|------|
-| CI 覆盖范围 | 只拦后端；质量门禁只卡鉴权模块，不是全仓覆盖率 |
-| CI ↔ CD | 独立；`main` 部署不要求 CI 绿 |
 | 前端质量 | 无 CI；构建错误只在 CD 的 Docker 阶段暴露 |
 | 探活 | 无 `curl` / Spring Actuator HTTP 检查，进程挂了可能仍报 CD 成功 |
-| 门禁脚本 | `.cursor/skills` gitignore，远程 runner 默认缺失 |
+| 架构冻结 | 已有跨模块内部依赖记在 `archunit_store`；新增违规会失败，修复后要删掉对应冻结行 |
 | 并发 | CD 与 Ops 排队同一组；高峰时部署会等清理结束 |

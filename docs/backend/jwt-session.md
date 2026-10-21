@@ -16,7 +16,7 @@
 ## Key 与 TTL
 
 - Key：`RedisConstants.JWT_TOKEN_KEY + userId` → `jwt:token:{userId}`
-- TTL：`JWT_TOKEN_TTL`（7 天），与 `JwtUtil` 过期一致
+- TTL：`JWT_TOKEN_TTL`（7 天），与 `JwtTokenService` 过期一致
 - 写入：`SET` 覆盖（`replace`），实现单点登录/后登录踢前登录
 - 删除：`revoke` 预留登出，当前登录流程不先 DEL 再 SET
 
@@ -24,7 +24,7 @@
 
 ```
 登录：UserServiceImpl → JwtSessionStore.replace → 成功才返回 token
-请求：JwtAuthenticationFilter → JwtUtil 验签 → JwtSessionStore.find → 匹配才写 UserHolder
+请求：JwtAuthenticationFilter → JwtTokenService 验签 → JwtSessionStore.find → 匹配才写 UserHolder
 ```
 
 Filter 三态：
@@ -45,6 +45,10 @@ Filter 三态：
 | 1012 | 503 | Redis 登录态不可用 | **不会**踢登录（`VITE_SERVICE_LOGOUT_CODES` 不含 1012） |
 
 Filter 与 Security 入口共用 `ProblemDetailHttpWriter`（尚未进入 MVC 时写 RFC 9457；响应已提交则 Writer 内跳过）。MVC 内异常见 [exception-handling.md](exception-handling.md)。
+
+## 测试
+
+`SecurityProblemDetailsIT` 覆盖缺少令牌、验签失败、allowlist 不一致，以及 `find` 抛出 `DataAccessException` 时的 503。`AuthenticationFlowIT` 用 `PUT /users/me` 确认令牌恢复的用户、请求结束后 `UserHolder` 与 `SecurityContext` 已清空，并检查连续请求和并发请求的身份隔离。响应中不出现密码和令牌原文。
 
 ## 不采用
 
