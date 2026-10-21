@@ -141,7 +141,6 @@ zdmj/
 ├── client/                               # Vue 3 前端
 ├── deploy/                               # Docker Compose、Nginx、部署脚本
 ├── sql/                                  # 建表脚本与字段字典
-├── docs/backend/                         # 后端设计文档
 ├── .env.example                          # 环境变量模板
 └── README.md
 ```
