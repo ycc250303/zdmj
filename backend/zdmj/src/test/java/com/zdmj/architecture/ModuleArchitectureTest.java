@@ -36,6 +36,22 @@ class ModuleArchitectureTest {
     };
 
     @ArchTest
+    static final ArchRule ai_does_not_depend_on_job_types = noClasses()
+            .that().resideInAPackage("com.zdmj.aiService..")
+            .should().dependOnClassesThat().resideInAPackage("com.zdmj.jobService..");
+
+    @ArchTest
+    static final ArchRule prompt_loader_does_not_depend_on_business = noClasses()
+            .that().resideInAPackage("com.zdmj.common.prompt..")
+            .should().dependOnClassesThat().resideInAnyPackage(modulePackages());
+
+    @ArchTest
+    static final ArchRule role_detection_implementation_stays_inside_job = noClasses()
+            .that().resideOutsideOfPackage("com.zdmj.jobService..")
+            .should().dependOnClassesThat().haveFullyQualifiedName(
+                    "com.zdmj.jobService.service.impl.JobRoleDetectionServiceImpl");
+
+    @ArchTest
     static final ArchRule common_does_not_depend_on_business_modules = FreezingArchRule.freeze(
             noClasses()
                     .that().resideInAPackage("com.zdmj.common..")

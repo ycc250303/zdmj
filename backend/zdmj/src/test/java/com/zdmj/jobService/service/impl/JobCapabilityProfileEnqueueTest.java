@@ -13,10 +13,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.core.io.DefaultResourceLoader;
 
 import com.zdmj.aiService.api.ModelGateway;
-import com.zdmj.common.ai.PromptUtil;
+import com.zdmj.jobService.service.impl.JobRoleDetectionServiceImpl;
 import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.common.async.AsyncTaskService;
 import com.zdmj.common.async.AsyncTaskType;
@@ -42,7 +41,7 @@ class JobCapabilityProfileEnqueueTest {
     @BeforeEach
     void setUp() {
         service = new JobCapabilityProfileServiceImpl(
-                jobService, modelGateway, new PromptUtil(new DefaultResourceLoader()), asyncTaskService);
+                jobService, modelGateway, new JobRoleDetectionServiceImpl(modelGateway), asyncTaskService);
         UserHolder.set(UserContext.of(8L, "u"));
     }
 

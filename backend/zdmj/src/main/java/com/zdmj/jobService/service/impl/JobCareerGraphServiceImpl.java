@@ -10,9 +10,7 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.common.context.CurrentActor;
-import com.zdmj.common.ai.JobRole;
-import com.zdmj.common.ai.PromptScenario;
-import com.zdmj.common.ai.PromptUtil;
+import com.zdmj.jobService.api.JobRole;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobCareerGraphResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
@@ -45,6 +43,8 @@ import org.springframework.util.StringUtils;
 public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper, JobCareerGraph>
         implements JobCareerGraphService {
 
+    private static final String PROFILE_PROMPT_DIRECTORY = "job-career-graph/";
+
     /** 晋升路径最少节点数（任务书："岗位未来发展路径" 体现层级感） */
     private static final int MIN_VERTICAL_PATH_NODES = 3;
     /** 换岗路径的最小条数（任务书硬性要求） */
@@ -55,7 +55,6 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
     private final JobService jobService;
     private final ModelGateway modelGateway;
     private final ObjectMapper objectMapper;
-    private final PromptUtil promptUtil;
     private final JobCapabilityProfileService jobCapabilityProfileService;
 
     @Override
@@ -80,7 +79,7 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
             jobProfile = jobCapabilityProfileService.getJobCapabilityProfile(jobId);
         }
         JobRole role = JobRole.fromString(jobProfile.getTargetRoleType());
-        String promptName = promptUtil.resolve(PromptScenario.JOB_CAREER_GRAPH, role);
+        String promptName = PROFILE_PROMPT_DIRECTORY + role.slug();
         log.info("生成岗位关联图谱: jobId={}, role={}, prompt={}", jobId, role, promptName);
 
         JobCareerGraphResponse aiResult;

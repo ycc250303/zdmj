@@ -15,12 +15,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.aiService.api.ModelGateway;
-import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.common.async.AsyncTaskService;
 import com.zdmj.common.async.AsyncTaskType;
@@ -61,7 +59,7 @@ class JobStudentMatchEnqueueTest {
                 studentCapabilityProfileService,
                 modelGateway,
                 new ObjectMapper(),
-                new PromptUtil(new DefaultResourceLoader()),
+
                 asyncTaskService);
         ReflectionTestUtils.setField(matchService, "baseMapper", matchMapper);
         UserHolder.set(UserContext.of(8L, "u"));

@@ -1,60 +1,63 @@
-package com.zdmj.jobService;
+package com.zdmj.jobService.service.impl;
 
-import com.zdmj.common.ai.JobRole;
-import com.zdmj.common.constants.PromptNames;
+import com.zdmj.jobService.api.JobRole;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.common.context.CurrentActor;
 import lombok.Data;
-import org.slf4j.Logger;
+import org.springframework.stereotype.Service;
+import com.zdmj.jobService.api.JobRoleDetectionService;
+import com.zdmj.jobService.api.JobRoleDetectionResult;
 import org.springframework.util.StringUtils;
 
 import java.util.Locale;
 
 /**
- * 岗位方向识别：关键词直出，不足则 LLM {@code job-detect} 兜底。
+ * 岗位方向识别：关键词达到阈值时返回结果，其余文本通过模型识别。
  *
  * <p>仅简历画像与岗位画像生成时调用。其他流程读取已落库的 {@code targetRoleType}。</p>
  */
-public final class JobRoleDetector {
+@Service
+public final class JobRoleDetectionServiceImpl implements JobRoleDetectionService {
+
+    private static final String DETECT_PROMPT = "job-detect";
+    private final ModelGateway modelGateway;
 
     static final int KEYWORD_DIRECT_HIT_THRESHOLD = 4;
 
-    private JobRoleDetector() {
+    public JobRoleDetectionServiceImpl(ModelGateway modelGateway) {
+        this.modelGateway = modelGateway;
     }
 
-    public static DetectResult detect(Long userId, String text, ModelGateway modelGateway, Logger log) {
+    @Override
+    public JobRoleDetectionResult detect(CurrentActor actor, String text) {
+        java.util.Objects.requireNonNull(actor, "操作者不能为空");
         if (!StringUtils.hasText(text)) {
-            return new DetectResult(JobRole.UNKNOWN, 0.0, "文本为空");
+            return new JobRoleDetectionResult(JobRole.UNKNOWN, 0.0, "文本为空");
         }
 
         ScoredRole scored = scoreByKeywords(text);
         if (scored.score() >= KEYWORD_DIRECT_HIT_THRESHOLD) {
             double conf = Math.min(0.9, 0.45 + scored.score() * 0.1);
-            return new DetectResult(scored.role(), conf, "关键词规则命中: " + scored.score());
+            return new JobRoleDetectionResult(scored.role(), conf, "关键词规则命中: " + scored.score());
         }
 
-        try {
-            RoleDetectLLMResult llmResult = modelGateway.generateStructured(
-                    CurrentActor.of(userId),
-                    StructuredModelRequest.of(text, PromptNames.JOB_DETECT, null, RoleDetectLLMResult.class));
-            JobRole role = JobRole.fromString(llmResult.getRoleCode());
-            if (role == JobRole.UNKNOWN && scored.role() != JobRole.UNKNOWN) {
-                return new DetectResult(scored.role(), 0.45,
-                        "LLM 返回 unknown，采用关键词弱命中: " + scored.score());
-            }
-            double confidence = llmResult.getConfidence();
-            String reason = StringUtils.hasText(llmResult.getReason()) ? llmResult.getReason() : "LLM 分类";
-            return new DetectResult(role, confidence, reason);
-        } catch (Exception e) {
-            if (log != null) {
-                log.warn("岗位/简历方向识别失败，回退关键词规则: {}", e.getMessage());
-            }
-            if (scored.role() != JobRole.UNKNOWN) {
-                return new DetectResult(scored.role(), 0.35, "LLM 失败，回退关键词弱命中");
-            }
-            return new DetectResult(JobRole.UNKNOWN, 0.2, "规则与 LLM 均未明确岗位/简历方向");
+        RoleDetectLLMResult result = modelGateway.generateStructured(actor,
+                StructuredModelRequest.of(text, DETECT_PROMPT, null, RoleDetectLLMResult.class));
+        if (result == null || !StringUtils.hasText(result.getRoleCode())) {
+            throw new IllegalStateException("模型未返回岗位方向");
         }
+        String code = result.getRoleCode().trim().toLowerCase(Locale.ROOT);
+        JobRole role = JobRole.fromString(code);
+        if (role == JobRole.UNKNOWN && !code.equals("unknown") && !code.equals("default")) {
+            throw new IllegalStateException("模型返回非法岗位方向");
+        }
+        Double confidence = result.getConfidence();
+        if (confidence == null || !Double.isFinite(confidence) || confidence < 0 || confidence > 1) {
+            throw new IllegalStateException("模型返回的置信度必须为 [0, 1] 内的有限数值");
+        }
+        String reason = StringUtils.hasText(result.getReason()) ? result.getReason() : "模型分类";
+        return new JobRoleDetectionResult(role, confidence, reason);
     }
 
     private static ScoredRole scoreByKeywords(String text) {
@@ -120,16 +123,17 @@ public final class JobRoleDetector {
         return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9');
     }
 
-    public record DetectResult(JobRole role, double confidence, String reason) {
-    }
-
     private record ScoredRole(JobRole role, int score) {
     }
 
+    /** 模型结构化响应，仅供岗位识别实现解析。 */
     @Data
     public static class RoleDetectLLMResult {
+        /** 模型返回的规范方向代码，允许 unknown。 */
         private String roleCode;
-        private double confidence;
+        /** 必填置信度，必须为 [0, 1] 内的有限数值。 */
+        private Double confidence;
+        /** 模型给出的识别依据。 */
         private String reason;
     }
 }

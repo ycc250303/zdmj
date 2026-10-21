@@ -17,12 +17,10 @@ import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.storage.FileUploadService;
 import com.zdmj.common.util.PdfParserUtil;
-import com.zdmj.common.ai.JobRole;
-import com.zdmj.jobService.JobRoleDetector;
-import com.zdmj.common.ai.PromptScenario;
-import com.zdmj.common.ai.PromptUtil;
+import com.zdmj.jobService.api.JobRole;
+import com.zdmj.jobService.api.JobRoleDetectionService;
+import com.zdmj.jobService.api.JobRoleDetectionResult;
 import com.zdmj.resumeService.dto.CapabilityProfileGenerateRequest;
-import com.zdmj.resumeService.dto.ResumeRoleDetectDTO;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
 import com.zdmj.resumeService.entity.StudentCapabilityProfile;
 import com.zdmj.resumeService.mapper.StudentCapabilityProfileMapper;
@@ -43,6 +41,8 @@ public class StudentCapabilityProfileServiceImpl
         extends ServiceImpl<StudentCapabilityProfileMapper, StudentCapabilityProfile>
         implements StudentCapabilityProfileService {
 
+    private static final String PROFILE_PROMPT_DIRECTORY = "resume-analysis/";
+
     /** scoreDetail 五项上限，与 resume-analysis 评分标准（40-20-15-15-10）一致 */
     private static final int MAX_PROJECT_EXPERIENCE_SCORE = 40;
     private static final int MAX_SKILL_MATCH_SCORE = 20;
@@ -57,7 +57,7 @@ public class StudentCapabilityProfileServiceImpl
     private final ObjectMapper objectMapper;
     private final FileUploadService fileUploadService;
     private final PdfParserUtil pdfParserUtil;
-    private final PromptUtil promptUtil;
+    private final JobRoleDetectionService roleDetectionService;
     private final AsyncTaskService asyncTaskService;
 
     @Override
@@ -108,14 +108,14 @@ public class StudentCapabilityProfileServiceImpl
         String pdfUrl = StringUtils.hasText(reqDTO.getPdfUrl()) ? reqDTO.getPdfUrl().trim() : null;
         String sourceText = resolveSourceText(reqDTO);
 
-        ResumeRoleDetectDTO resumeRole = detect(userId, sourceText);
-        JobRole jobRole = resumeRole.getRole();
-        log.info("岗位识别: role={}, confidence={}", jobRole, resumeRole.getConfidence());
+        JobRoleDetectionResult resumeRole = detect(userId, sourceText);
+        JobRole jobRole = resumeRole.role();
+        log.info("岗位识别: role={}, confidence={}", jobRole, resumeRole.confidence());
 
         log.info("开始调用大模型生成能力画像...");
         StudentCapabilityProfileResponse aiResult;
         try {
-            String promptName = promptUtil.resolve(PromptScenario.RESUME_ANALYSIS, jobRole);
+            String promptName = PROFILE_PROMPT_DIRECTORY + jobRole.slug();
             log.info("使用提示词: {}", promptName);
             aiResult = modelGateway.generateStructured(CurrentActor.of(userId),
                     StructuredModelRequest.of(sourceText, promptName, null, StudentCapabilityProfileResponse.class));
@@ -139,8 +139,8 @@ public class StudentCapabilityProfileServiceImpl
 
         StudentCapabilityProfile newProfile = toEntity(aiResult);
         newProfile.setUserId(userId);
-        newProfile.setRoleConfidence(BigDecimal.valueOf(resumeRole.getConfidence()));
-        String promptName = promptUtil.resolve(PromptScenario.RESUME_ANALYSIS, jobRole);
+        newProfile.setRoleConfidence(BigDecimal.valueOf(resumeRole.confidence()));
+        String promptName = PROFILE_PROMPT_DIRECTORY + jobRole.slug();
         newProfile.setPromptName(promptName);
         newProfile.setTargetRoleType(jobRole.slug());
         newProfile.setScoreDetail(toJson(aiResult.getScoreDetail()));
@@ -364,12 +364,10 @@ public class StudentCapabilityProfileServiceImpl
      * @param resumeText 简历文本
      * @return 岗位画像
      */
-    private ResumeRoleDetectDTO detect(Long userId, String resumeText) {
-        JobRoleDetector.DetectResult detected = JobRoleDetector.detect(userId, resumeText, modelGateway, log);
-        String reason = !StringUtils.hasText(resumeText)
-                ? "简历文本为空"
-                : detected.reason();
-        return new ResumeRoleDetectDTO(detected.role(), detected.confidence(), reason);
+    private JobRoleDetectionResult detect(Long userId, String resumeText) {
+        JobRoleDetectionResult detected = roleDetectionService.detect(CurrentActor.of(userId), resumeText);
+        return StringUtils.hasText(resumeText) ? detected
+                : new JobRoleDetectionResult(detected.role(), detected.confidence(), "简历文本为空");
     }
 
     private String toJson(Object value) {

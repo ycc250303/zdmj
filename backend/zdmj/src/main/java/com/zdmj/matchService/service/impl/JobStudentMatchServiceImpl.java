@@ -16,9 +16,7 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.common.context.CurrentActor;
-import com.zdmj.common.ai.JobRole;
-import com.zdmj.common.ai.PromptScenario;
-import com.zdmj.common.ai.PromptUtil;
+import com.zdmj.jobService.api.JobRole;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.PageRequests;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
@@ -66,12 +64,13 @@ public class JobStudentMatchServiceImpl
         extends ServiceImpl<JobStudentMatchMapper, JobStudentMatch>
         implements JobStudentMatchService {
 
+    private static final String MATCH_PROMPT_DIRECTORY = "job-student-match/";
+
     private final JobService jobService;
     private final JobCapabilityProfileService jobCapabilityProfileService;
     private final StudentCapabilityProfileService studentCapabilityProfileService;
     private final ModelGateway modelGateway;
     private final ObjectMapper objectMapper;
-    private final PromptUtil promptUtil;
     private final AsyncTaskService asyncTaskService;
 
 
@@ -153,7 +152,7 @@ public class JobStudentMatchServiceImpl
         JobRole role = JobRole.fromString(jobProfile.getTargetRoleType());
         MatchWeightConfigResponse weights = MatchWeightResolver.resolve(
                 role, req == null ? null : req.getWeights());
-        String promptName = promptUtil.resolve(PromptScenario.JOB_STUDENT_MATCH, role);
+        String promptName = MATCH_PROMPT_DIRECTORY + role.slug();
         log.info("人岗匹配开始: jobId={}, userId={}, role={}, prompt={}", jobId, userId, role, promptName);
 
         // 4. 拼装 LLM 上下文（权重 / 关键词 全部内联进 user message，避免触发 Spring AI

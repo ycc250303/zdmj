@@ -14,12 +14,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.aiService.api.ModelGateway;
-import com.zdmj.common.ai.PromptUtil;
+import com.zdmj.jobService.service.impl.JobRoleDetectionServiceImpl;
 import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.common.async.AsyncTaskService;
 import com.zdmj.common.async.AsyncTaskType;
@@ -51,7 +50,7 @@ class StudentCapabilityProfileEnqueueTest {
     @BeforeEach
     void setUp() {
         service = new StudentCapabilityProfileServiceImpl(modelGateway, new ObjectMapper(), fileUploadService,
-                pdfParserUtil, new PromptUtil(new DefaultResourceLoader()), asyncTaskService);
+                pdfParserUtil, new JobRoleDetectionServiceImpl(modelGateway), asyncTaskService);
         ReflectionTestUtils.setField(service, "baseMapper", mapper);
         UserHolder.set(UserContext.of(8L, "u"));
     }

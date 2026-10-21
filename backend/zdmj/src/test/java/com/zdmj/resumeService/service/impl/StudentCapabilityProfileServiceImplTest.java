@@ -11,10 +11,10 @@ import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.common.storage.FileUploadService;
 import com.zdmj.common.util.PdfParserUtil;
-import com.zdmj.common.ai.JobRole;
-import com.zdmj.common.ai.PromptUtil;
+import com.zdmj.jobService.api.JobRole;
+import com.zdmj.jobService.service.impl.JobRoleDetectionServiceImpl;
 import com.zdmj.resumeService.dto.CapabilityProfileGenerateRequest;
-import com.zdmj.resumeService.dto.ResumeRoleDetectDTO;
+import com.zdmj.jobService.api.JobRoleDetectionResult;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
 import com.zdmj.resumeService.entity.StudentCapabilityProfile;
 import com.zdmj.resumeService.mapper.StudentCapabilityProfileMapper;
@@ -25,7 +25,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
@@ -66,7 +65,7 @@ class StudentCapabilityProfileServiceImplTest {
     void setUp() {
         initMybatisPlusLambdaCache();
         service = spy(new StudentCapabilityProfileServiceImpl(modelGateway, new ObjectMapper(), fileUploadService,
-                pdfParserUtil, new PromptUtil(new DefaultResourceLoader()), asyncTaskService));
+                pdfParserUtil, new JobRoleDetectionServiceImpl(modelGateway), asyncTaskService));
         ReflectionTestUtils.setField(service, "baseMapper", studentCapabilityProfileMapper);
         UserHolder.set(UserContext.of(1L, "u1"));
     }
@@ -249,11 +248,11 @@ class StudentCapabilityProfileServiceImplTest {
 
     @Test
     void detect_emptyText_shouldRewriteReasonAndSkipLlm() {
-        ResumeRoleDetectDTO out = ReflectionTestUtils.invokeMethod(service, "detect", 1L, "  ");
+        JobRoleDetectionResult out = ReflectionTestUtils.invokeMethod(service, "detect", 1L, "  ");
 
         assertNotNull(out);
-        assertEquals(JobRole.UNKNOWN, out.getRole());
-        assertEquals("简历文本为空", out.getReason());
+        assertEquals(JobRole.UNKNOWN, out.role());
+        assertEquals("简历文本为空", out.reason());
         verify(modelGateway, never()).generateStructured(any(), any());
     }
 

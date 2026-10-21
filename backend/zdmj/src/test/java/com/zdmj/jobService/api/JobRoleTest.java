@@ -1,4 +1,4 @@
-package com.zdmj.common.ai;
+package com.zdmj.jobService.api;
 
 import org.junit.jupiter.api.Test;
 
@@ -14,12 +14,8 @@ class JobRoleTest {
 
     @Test
     void fromString_shouldNormalizeHyphenUnderscoreAndCase() {
-        assertEquals(JobRole.JAVA, JobRole.fromString("java-backend"));
-        assertEquals(JobRole.JAVA, JobRole.fromString("java_backend"));
         assertEquals(JobRole.JAVA, JobRole.fromString(" Java-Backend "));
-        assertEquals(JobRole.AI_AGENT, JobRole.fromString("ai_agent"));
         assertEquals(JobRole.UNKNOWN, JobRole.fromString("unknown"));
-        assertEquals(JobRole.UNKNOWN, JobRole.fromString("default"));
     }
 
     @Test

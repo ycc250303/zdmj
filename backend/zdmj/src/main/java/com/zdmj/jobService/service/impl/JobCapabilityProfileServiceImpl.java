@@ -12,10 +12,9 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.common.context.CurrentActor;
-import com.zdmj.common.ai.JobRole;
-import com.zdmj.jobService.JobRoleDetector;
-import com.zdmj.common.ai.PromptScenario;
-import com.zdmj.common.ai.PromptUtil;
+import com.zdmj.jobService.api.JobRole;
+import com.zdmj.jobService.api.JobRoleDetectionService;
+import com.zdmj.jobService.api.JobRoleDetectionResult;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.entity.JobCapabilityProfile;
@@ -35,9 +34,11 @@ import org.springframework.util.StringUtils;
 public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityProfileMapper, JobCapabilityProfile>
         implements JobCapabilityProfileService {
 
+    private static final String PROFILE_PROMPT_DIRECTORY = "job-requirement/";
+
     private final JobService jobService;
     private final ModelGateway modelGateway;
-    private final PromptUtil promptUtil;
+    private final JobRoleDetectionService roleDetectionService;
     private final AsyncTaskService asyncTaskService;
 
     @Override
@@ -68,10 +69,10 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         String jobContext = buildJobContext(
                 jobDetail,
                 "这是待分析的岗位信息（面向求职者输出岗位要求画像）：");
-        JobRoleDetector.DetectResult detected = JobRoleDetector.detect(userId, jobContext, modelGateway, log);
+        JobRoleDetectionResult detected = roleDetectionService.detect(CurrentActor.of(userId), jobContext);
         JobRole role = detected.role();
         log.info("岗位类型识别: role={}", role);
-        String promptName = promptUtil.resolve(PromptScenario.JOB_REQUIREMENT, role);
+        String promptName = PROFILE_PROMPT_DIRECTORY + role.slug();
         log.info("使用提示词: {}", promptName);
 
         JobCapabilityProfileResponse aiResult;

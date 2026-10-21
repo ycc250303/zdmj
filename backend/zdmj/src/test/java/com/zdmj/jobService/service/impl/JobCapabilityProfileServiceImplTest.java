@@ -7,7 +7,7 @@ import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.StructuredModelRequest;
-import com.zdmj.common.ai.PromptUtil;
+import com.zdmj.jobService.service.impl.JobRoleDetectionServiceImpl;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.entity.JobCapabilityProfile;
@@ -18,7 +18,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.springframework.core.io.DefaultResourceLoader;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Collections;
@@ -53,7 +52,7 @@ class JobCapabilityProfileServiceImplTest {
     @BeforeEach
     void setUp() {
         profileService = spy(new JobCapabilityProfileServiceImpl(
-                jobService, modelGateway, new PromptUtil(new DefaultResourceLoader()), asyncTaskService));
+                jobService, modelGateway, new JobRoleDetectionServiceImpl(modelGateway), asyncTaskService));
         UserHolder.set(UserContext.of(1L, "u1"));
     }
 

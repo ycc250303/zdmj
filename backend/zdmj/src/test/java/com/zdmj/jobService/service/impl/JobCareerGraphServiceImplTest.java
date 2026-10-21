@@ -8,7 +8,6 @@ import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.StructuredModelRequest;
-import com.zdmj.common.ai.PromptUtil;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobCareerGraphResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
@@ -22,7 +21,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
@@ -56,7 +54,7 @@ class JobCareerGraphServiceImplTest {
     @BeforeEach
     void setUp() {
         graphService = spy(new JobCareerGraphServiceImpl(
-                jobService, modelGateway, new ObjectMapper(), new PromptUtil(new DefaultResourceLoader()),
+                jobService, modelGateway, new ObjectMapper(),
                 jobCapabilityProfileService));
         UserHolder.set(UserContext.of(1L, "u1"));
     }
@@ -300,7 +298,7 @@ class JobCareerGraphServiceImplTest {
             }
         };
         JobCareerGraphServiceImpl service = spy(new JobCareerGraphServiceImpl(
-                jobService, modelGateway, throwing, new PromptUtil(new DefaultResourceLoader()),
+                jobService, modelGateway, throwing,
                 jobCapabilityProfileService));
 
         assertNull(ReflectionTestUtils.invokeMethod(service, "toJson", List.of("a"), "serialize fail"));
