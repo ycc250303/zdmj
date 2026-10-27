@@ -78,8 +78,6 @@ class JobStudentMatchServiceImplTest {
     private ModelGateway modelGateway;
     @Mock
     private JobStudentMatchMapper matchMapper;
-    @Mock
-    private com.zdmj.common.async.AsyncTaskService asyncTaskService;
 
     private JobStudentMatchServiceImpl matchService;
 
@@ -90,9 +88,7 @@ class JobStudentMatchServiceImplTest {
                 jobCapabilityProfileService,
                 studentCapabilityProfileService,
                 modelGateway,
-                new ObjectMapper(),
-
-                asyncTaskService));
+                new ObjectMapper()));
         ReflectionTestUtils.setField(matchService, "baseMapper", matchMapper);
         UserHolder.set(new UserContext(USER_ID, "tester", "tester@example.com"));
     }

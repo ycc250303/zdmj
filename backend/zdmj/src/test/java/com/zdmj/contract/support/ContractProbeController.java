@@ -13,9 +13,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
-import com.zdmj.common.async.AsyncTaskDTO;
-import com.zdmj.common.async.AsyncTaskStatus;
-import com.zdmj.common.async.AsyncTaskType;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.model.PageDTO;
@@ -67,17 +64,17 @@ public class ContractProbeController {
 
     @GetMapping("/serialization")
     Result<SerializationSample> serialization() {
-        AsyncTaskDTO task = new AsyncTaskDTO();
-        task.setTaskId(7L);
-        task.setTaskType(AsyncTaskType.RESUME_PARSE.getCode());
-        task.setStatus(AsyncTaskStatus.SUCCESS.getCode());
-        task.setStartedAt(LocalDateTime.of(2024, 9, 1, 8, 30, 0));
-        task.setErrorMessage(null);
-        task.setResult(null);
-        task.setCompletedAt(null);
+        PageItem item = new PageItem();
+        item.setTaskId(7L);
+        item.setTaskType(8);
+        item.setStatus(3);
+        item.setStartedAt(LocalDateTime.of(2024, 9, 1, 8, 30, 0));
+        item.setErrorMessage(null);
+        item.setResult(null);
+        item.setCompletedAt(null);
 
         SerializationSample sample = new SerializationSample();
-        sample.setTasks(PageDTO.of(List.of(task), 1, 2, 20));
+        sample.setTasks(PageDTO.of(List.of(item), 1, 2, 20));
         sample.setEmpty(null);
         return Result.success(sample);
     }
@@ -112,8 +109,19 @@ public class ContractProbeController {
     }
 
     @Data
+    public static class PageItem {
+        private Long taskId;
+        private Integer taskType;
+        private Integer status;
+        private LocalDateTime startedAt;
+        private String errorMessage;
+        private String result;
+        private LocalDateTime completedAt;
+    }
+
+    @Data
     public static class SerializationSample {
-        private PageDTO<AsyncTaskDTO> tasks;
+        private PageDTO<PageItem> tasks;
         private String empty;
     }
 

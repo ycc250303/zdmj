@@ -1,5 +1,4 @@
 import { request } from '../request';
-import type { AsyncTaskApi } from './async-task';
 
 /**
  * =====================================================================
@@ -91,17 +90,18 @@ export function fetchGetJobStudentMatch(jobId: number | string) {
 }
 
 /**
- * 入队生成人岗匹配。完成后查 GET /matches/jobs/{jobId}。
+ * 生成人岗匹配并返回结果。
  * 后端：POST /matches/jobs/{jobId}（请求体可选）
  */
 export function fetchGenerateJobStudentMatch(
   jobId: number | string,
   req?: MatchApi.JobStudentMatchGenerateReq
 ) {
-  return request<AsyncTaskApi.AsyncTask>({
+  return request<MatchApi.JobStudentMatch>({
     url: `/matches/jobs/${jobId}`,
     method: 'post',
-    data: req ?? {}
+    data: req ?? {},
+    timeout: 300000
   });
 }
 

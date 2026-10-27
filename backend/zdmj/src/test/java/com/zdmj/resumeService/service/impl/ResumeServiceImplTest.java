@@ -85,10 +85,6 @@ class ResumeServiceImplTest {
     private Validator validator;
     @Mock
     private PdfParserUtil pdfParserUtil;
-    @Mock
-    private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
-    @Mock
-    private com.zdmj.common.async.AsyncTaskService asyncTaskService;
 
     private ResumeServiceImpl resumeService;
 
@@ -97,7 +93,7 @@ class ResumeServiceImplTest {
         resumeService = spy(new ResumeServiceImpl(
                 educationMapper, projectExperienceMapper, careerMapper, awardMapper, skillMapper, userMapper, modelGateway,
                 educationService, careerService, awardService, projectExperienceService, skillService, validator,
-                pdfParserUtil, objectMapper, asyncTaskService));
+                pdfParserUtil));
         ReflectionTestUtils.setField(Objects.requireNonNull(resumeService), "baseMapper", resumeMapper);
         lenient().doReturn(ModelCode.DEEPSEEK_FLASH).when(modelGateway).resumeImportModel();
     }

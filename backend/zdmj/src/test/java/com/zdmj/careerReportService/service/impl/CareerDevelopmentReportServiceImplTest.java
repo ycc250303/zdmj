@@ -85,8 +85,6 @@ class CareerDevelopmentReportServiceImplTest {
     private KnowledgeEmbeddingService knowledgeEmbeddingService;
     @Mock
     private EmbeddingModel embeddingModel;
-    @Mock
-    private com.zdmj.common.async.AsyncTaskService asyncTaskService;
 
     private CareerDevelopmentReportServiceImpl service;
 
@@ -105,8 +103,7 @@ class CareerDevelopmentReportServiceImplTest {
                 knowledgeVectorMapper,
                 knowledgeDocumentMapper,
                 knowledgeEmbeddingService,
-                embeddingModel,
-                asyncTaskService));
+                embeddingModel));
     }
 
     @AfterEach

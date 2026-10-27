@@ -14,20 +14,15 @@ import org.springframework.ai.transformer.splitter.TextSplitter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
 import com.zdmj.knowledgeService.entity.KnowledgeVector;
-import com.zdmj.knowledgeService.entity.KnowledgeVectorTask;
 import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
 import com.zdmj.knowledgeService.enums.KnowledgeVectorTaskStatusEnum;
-import com.zdmj.knowledgeService.enums.KnowledgeVectorTaskTypeEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
-import com.zdmj.knowledgeService.mapper.KnowledgeVectorTaskMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
 
@@ -46,84 +41,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
     private final KnowledgeBasesService knowledgeBasesService;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeVectorMapper knowledgeVectorMapper;
-    private final KnowledgeVectorTaskMapper knowledgeVectorTaskMapper;
     private final PdfParserUtil pdfParserUtil;
-
-    @Override
-    public Long submitVectorizeTask(Long DocumentId) {
-        // 1. 获取用户ID
-        Long userId = UserHolder.requireUserId();
-        // 2. 查询正在进行的任务
-        KnowledgeVectorTask inflight = findInflight(DocumentId, KnowledgeVectorTaskTypeEnum.EMBEDDING.getCode());
-        // 3. 如果正在进行的任务存在，则返回任务ID
-        if (inflight != null) {
-            return inflight.getId();
-        }
-        // 4. 创建知识库ID
-        Long knowledgeId = knowledgeBasesService.getOrCreateKnowledgeBaseId();
-        // 5. 创建向量化任务
-        KnowledgeVectorTask task = new KnowledgeVectorTask();
-        task.setDocumentId(DocumentId);
-        task.setUserId(userId);
-        task.setKnowledgeId(knowledgeId);
-        task.setTaskType(KnowledgeVectorTaskTypeEnum.EMBEDDING.getCode());
-        task.setStatus(KnowledgeVectorTaskStatusEnum.PENDING.getCode());
-        knowledgeVectorTaskMapper.insert(task);
-        return task.getId();
-    }
-
-    @Override   
-    public Long submitDeleteTask(Long DocumentId) {
-        // 1. 获取用户ID
-        Long userId = UserHolder.requireUserId();
-        // 2. 查询正在进行的任务
-        KnowledgeVectorTask inflight = findInflight(DocumentId, KnowledgeVectorTaskTypeEnum.DELETE.getCode());
-        // 3. 如果正在进行的任务存在，则返回任务ID
-        if (inflight != null) {
-            return inflight.getId();
-        }
-        // 4. 创建知识库ID
-        Long knowledgeId = knowledgeBasesService.getOrCreateKnowledgeBaseId();
-        // 5. 创建删除任务
-        KnowledgeVectorTask task = new KnowledgeVectorTask();
-        task.setDocumentId(DocumentId);
-        task.setUserId(userId);
-        task.setKnowledgeId(knowledgeId);
-        task.setTaskType(KnowledgeVectorTaskTypeEnum.DELETE.getCode());
-        task.setStatus(KnowledgeVectorTaskStatusEnum.PENDING.getCode());
-        knowledgeVectorTaskMapper.insert(task);
-        return task.getId();
-    }
-
-    /**
-     * 查询正在进行的任务
-     * 
-     * @param documentId 知识文档ID
-     * @param taskType 任务类型
-     * @return 正在进行的任务
-     */
-    private KnowledgeVectorTask findInflight(Long documentId, int taskType) {
-        return knowledgeVectorTaskMapper.selectOne(new LambdaQueryWrapper<KnowledgeVectorTask>()
-                .eq(KnowledgeVectorTask::getDocumentId, documentId)
-                .eq(KnowledgeVectorTask::getTaskType, taskType)
-                .in(KnowledgeVectorTask::getStatus,
-                        KnowledgeVectorTaskStatusEnum.PENDING.getCode(),
-                        KnowledgeVectorTaskStatusEnum.RUNNING.getCode())
-                .last("LIMIT 1"));
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void executeClaimed(KnowledgeVectorTask task) {
-        if (task.getTaskType() != null && task.getTaskType() == KnowledgeVectorTaskTypeEnum.EMBEDDING.getCode()) {
-            runEmbeddingTaskByUser(task.getDocumentId(), task.getUserId());
-        } else if (task.getTaskType() != null
-                && task.getTaskType() == KnowledgeVectorTaskTypeEnum.DELETE.getCode()) {
-            runDeleteTaskByUser(task.getDocumentId(), task.getUserId());
-        } else {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "未知任务类型");
-        }
-    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -147,12 +65,12 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
 
     /**
      * 单文档向量化：抽文本 → 切块 → 批量 Embedding → 写入 knowledge_vectors。
-     * 事务由调用方（executeClaimed / vectorizeAndStore）的 {@code @Transactional} 覆盖。
+     * 事务由调用方 {@code vectorizeAndStore} 的 {@code @Transactional} 覆盖。
      */
     private void runEmbeddingTaskByUser(Long DocumentId, Long userId) {
         log.info("开始向量化并存储知识库: DocumentId={}, userId={}", DocumentId, userId);
 
-        // --- 1. 校验：文档存在且归属于任务上的 userId（异步线程无 UserHolder） ---
+        // --- 1. 校验：文档存在且归属于当前用户 ---
         KnowledgeDocument kd = knowledgeDocumentMapper.selectById(DocumentId);
         if (kd == null || !userId.equals(kd.getUserId())) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
@@ -162,7 +80,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
         }
 
-        // --- 2. 状态：先标 RUNNING，前端可轮询 embeddingStatus ---
+        // --- 2. 状态：先标 RUNNING，失败时保留错误摘要 ---
         kd.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.RUNNING.getCode());
         kd.setLastError(null);
         knowledgeDocumentMapper.updateById(kd);
@@ -229,7 +147,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
             knowledgeDocumentMapper.updateById(kd);
             log.info("向量化完成: DocumentId={}, chunks={}, batches={}", DocumentId, persistedCount, batchCount);
         } catch (Exception e) {
-            // 文档标 FAILED 后上抛；外层消费者吞异常并 markTaskFailed。
+            // 文档标 FAILED 后上抛，由当前事务回滚或由调用方处理。
             kd.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.FAILED.getCode());
             kd.setLastError(e.getMessage());
             knowledgeDocumentMapper.updateById(kd);

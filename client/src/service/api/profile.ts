@@ -1,5 +1,4 @@
 import { request } from '../request';
-import type { AsyncTaskApi } from './async-task';
 
 /** * =====================================================================
  * TypeScript 类型定义区域 (DTOs)
@@ -99,14 +98,15 @@ export function fetchQueryCapabilityProfile() {
 }
 
 /**
- * 入队生成能力画像。完成后查 GET /capability-profile/current/query。
+ * 生成能力画像并返回结果。
  * 对应接口：POST /capability-profile/generate
  */
 export function fetchGenerateCapabilityProfile(data: CapabilityProfileApi.CapabilityProfileGenerateReq) {
-  return request<AsyncTaskApi.AsyncTask>({
+  return request<CapabilityProfileApi.StudentCapabilityProfile>({
     url: '/capability-profile/generate',
     method: 'post',
-    data
+    data,
+    timeout: 300000
   });
 }
 

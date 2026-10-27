@@ -108,12 +108,22 @@ export function fetchGetKnowledgeDocumentDetail(id: number) {
 
 /** 创建知识文档 */
 export function fetchCreateKnowledgeDocument(data: KnowledgeApi.KnowledgeDocumentCreate) {
-  return request<KnowledgeApi.KnowledgeDocumentDTO>({ url: '/knowledge-document', method: 'post', data });
+  return request<KnowledgeApi.KnowledgeDocumentDTO>({
+    url: '/knowledge-document',
+    method: 'post',
+    data,
+    timeout: 300000
+  });
 }
 
 /** 更新知识文档 */
 export function fetchUpdateKnowledgeDocument(data: KnowledgeApi.KnowledgeDocumentUpdate) {
-  return request<KnowledgeApi.KnowledgeDocumentDTO>({ url: '/knowledge-document', method: 'put', data });
+  return request<KnowledgeApi.KnowledgeDocumentDTO>({
+    url: '/knowledge-document',
+    method: 'put',
+    data,
+    timeout: 300000
+  });
 }
 
 /** 删除知识文档 */

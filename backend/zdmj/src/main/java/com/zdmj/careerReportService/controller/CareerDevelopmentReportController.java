@@ -5,8 +5,8 @@ import com.zdmj.careerReportService.dto.CareerReportGenerateRequest;
 import com.zdmj.careerReportService.dto.CareerReportPolishRequest;
 import com.zdmj.careerReportService.dto.CareerReportUpdateRequest;
 import com.zdmj.careerReportService.service.CareerDevelopmentReportService;
+import com.zdmj.careerReportService.dto.CareerReportCheckResponse;
 import com.zdmj.common.annotation.RateLimit;
-import com.zdmj.common.async.AsyncTaskDTO;
 import com.zdmj.common.model.Result;
 
 import java.util.concurrent.TimeUnit;
@@ -46,46 +46,46 @@ public class CareerDevelopmentReportController {
     }
 
     /**
-     * 入队生成职业发展报告。学生画像缺失立即 {@code MATCH_PRECONDITION_MISSING}。
+     * 生成职业发展报告并返回新版本。学生画像缺失时返回 {@code MATCH_PRECONDITION_MISSING}。
      *
      * @param jobId 岗位ID
      * @param req   生成请求（可选：用户偏好、生成侧重点）
-     * @return 异步任务
+     * @return 新生成的报告
      */
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 5, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/jobs/{jobId}")
-    public Result<AsyncTaskDTO> generate(@PathVariable Long jobId,
+    public Result<CareerReportResponse> generate(@PathVariable Long jobId,
                                             @RequestBody(required = false) CareerReportGenerateRequest req) {
-        log.info("入队职业发展报告: jobId={}", jobId);
-        return Result.success("已提交职业发展报告生成任务", reportService.enqueueGenerate(jobId, req));
+        log.info("生成职业发展报告: jobId={}", jobId);
+        return Result.success("生成职业发展报告成功", reportService.generate(jobId, req));
     }
 
     /**
-     * 入队智能润色（生成新版本）。完成后查最新报告。
+     * 润色指定报告并返回新版本。
      *
      * @param id  报告ID
      * @param req 润色请求（可选：润色说明）
-     * @return 异步任务
+     * @return 润色后的新版本报告
      */
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/{id}/polish")
-    public Result<AsyncTaskDTO> polish(@PathVariable Long id,
+    public Result<CareerReportResponse> polish(@PathVariable Long id,
                                           @RequestBody(required = false) CareerReportPolishRequest req) {
-        log.info("入队润色职业发展报告: reportId={}", id);
-        return Result.success("已提交报告润色任务", reportService.enqueuePolish(id, req));
+        log.info("润色职业发展报告: reportId={}", id);
+        return Result.success("润色职业发展报告成功", reportService.polish(id, req));
     }
 
     /**
-     * 入队完整性检查。完成后查最新报告的质量标记。
+     * 检查报告完整性，并把结果写回当前报告。
      *
      * @param id 报告ID
-     * @return 异步任务
+     * @return 检查结果
      */
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/{id}/integrity-check")
-    public Result<AsyncTaskDTO> integrityCheck(@PathVariable Long id) {
-        log.info("入队检查职业发展报告完整性: reportId={}", id);
-        return Result.success("已提交报告完整性检查任务", reportService.enqueueCheckIntegrity(id));
+    public Result<CareerReportCheckResponse> integrityCheck(@PathVariable Long id) {
+        log.info("检查职业发展报告完整性: reportId={}", id);
+        return Result.success("检查职业发展报告完整性成功", reportService.checkIntegrity(id));
     }
 
     /**

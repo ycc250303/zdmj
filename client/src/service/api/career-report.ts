@@ -1,5 +1,4 @@
 import { request } from '../request';
-import type { AsyncTaskApi } from './async-task';
 
 /**
  * =====================================================================
@@ -109,43 +108,46 @@ export function fetchGetLatestCareerReport(jobId: number | string) {
 }
 
 /**
- * 入队生成职业发展报告。完成后查 GET /career-reports/jobs/{jobId}。
+ * 生成职业发展报告并返回新版本。
  * 后端：POST /career-reports/jobs/{jobId}（body 可选）
  */
 export function fetchGenerateCareerReport(
   jobId: number | string,
   req?: CareerReportApi.CareerReportGenerateReq
 ) {
-  return request<AsyncTaskApi.AsyncTask>({
+  return request<CareerReportApi.CareerReport>({
     url: `/career-reports/jobs/${jobId}`,
     method: 'post',
-    data: req ?? {}
+    data: req ?? {},
+    timeout: 300000
   });
 }
 
 /**
- * 入队智能润色。完成后查最新报告。
+ * 润色报告并返回新版本。
  * 后端：POST /career-reports/{id}/polish
  */
 export function fetchPolishCareerReport(
   id: number | string,
   req?: CareerReportApi.CareerReportPolishReq
 ) {
-  return request<AsyncTaskApi.AsyncTask>({
+  return request<CareerReportApi.CareerReport>({
     url: `/career-reports/${id}/polish`,
     method: 'post',
-    data: req ?? {}
+    data: req ?? {},
+    timeout: 300000
   });
 }
 
 /**
- * 入队完整性检查。完成后查最新报告质量标记。
+ * 检查报告完整性并返回检查结果。
  * 后端：POST /career-reports/{id}/integrity-check
  */
 export function fetchCheckCareerReportIntegrity(id: number | string) {
-  return request<AsyncTaskApi.AsyncTask>({
+  return request<CareerReportApi.CareerReportCheck>({
     url: `/career-reports/${id}/integrity-check`,
-    method: 'post'
+    method: 'post',
+    timeout: 300000
   });
 }
 

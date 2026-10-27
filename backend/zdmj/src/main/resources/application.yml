@@ -112,8 +112,3 @@ app:
       encryption-key: ${APP_AI_USER_KEY_ENCRYPTION_KEY:}
     deepseek:
       api-key: ${DEEPSEEK_API_KEY:}
-
-zdmj:
-  async:
-    stream:
-      enabled: true

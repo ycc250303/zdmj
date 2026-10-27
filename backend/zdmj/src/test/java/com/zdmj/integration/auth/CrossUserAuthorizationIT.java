@@ -175,7 +175,7 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
     @Test
     void 知识文档_其他用户查询修改或删除_返回不存在且标题保持不变() throws Exception {
         api.post(tokenA, "/knowledge", null);
-        String url = upload(tokenA, "owned.md", "归属文档");
+        String url = upload(tokenA, "owned.md", "这份文档归属于当前用户，用于校验其他人不能查看或修改。");
         long id = ApiClient.dataId(api.post(tokenA, "/knowledge-document", """
                 {"title":"原标题","type":1,"content":"%s"}
                 """.formatted(url)));

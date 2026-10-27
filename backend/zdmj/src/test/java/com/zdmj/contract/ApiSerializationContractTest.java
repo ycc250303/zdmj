@@ -15,8 +15,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.zdmj.common.async.AsyncTaskStatus;
-import com.zdmj.common.async.AsyncTaskType;
 import com.zdmj.common.config.WebMvcConfig;
 import com.zdmj.common.exception.GlobalExceptionHandler;
 import com.zdmj.contract.support.ContractProbeController;
@@ -45,8 +43,8 @@ class ApiSerializationContractTest {
                 .andExpect(jsonPath("$.data.tasks.total").value(1))
                 .andExpect(jsonPath("$.data.tasks.totalPages").value(1))
                 .andExpect(jsonPath("$.data.tasks.list[0].taskId").value(7))
-                .andExpect(jsonPath("$.data.tasks.list[0].taskType").value(AsyncTaskType.RESUME_PARSE.getCode()))
-                .andExpect(jsonPath("$.data.tasks.list[0].status").value(AsyncTaskStatus.SUCCESS.getCode()))
+                .andExpect(jsonPath("$.data.tasks.list[0].taskType").value(8))
+                .andExpect(jsonPath("$.data.tasks.list[0].status").value(3))
                 .andExpect(jsonPath("$.data.tasks.list[0].startedAt").value("2024-09-01T08:30:00"))
                 .andExpect(jsonPath("$.data.tasks.list[0].completedAt").value(nullValue()))
                 .andExpect(jsonPath("$.data.tasks.list[0].errorMessage").value(nullValue()))

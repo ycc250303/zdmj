@@ -14,7 +14,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.zdmj.common.async.AsyncTaskStatus;
 import com.zdmj.common.config.WebMvcConfig;
 import com.zdmj.common.exception.GlobalExceptionHandler;
 import com.zdmj.contract.support.ContractProbeController;
@@ -41,9 +40,6 @@ class EnumSerializationContractTest {
         assertThat(AwardTypeEnum.fromCode(9)).isNull();
         assertThat(MessageRoleEnum.fromCode(1)).isEqualTo(MessageRoleEnum.USER);
         assertThat(MessageRoleEnum.fromCode(null)).isNull();
-        assertThat(AsyncTaskStatus.fromCode(AsyncTaskStatus.SUCCESS.getCode())).isEqualTo(AsyncTaskStatus.SUCCESS);
-        assertThat(AsyncTaskStatus.fromCode(null)).isNull();
-        assertThat(AsyncTaskStatus.fromCode(0)).isNull();
 
         mockMvc.perform(get("/api/zdmj/contract/enums"))
                 .andExpect(status().isOk())

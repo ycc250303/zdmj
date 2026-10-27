@@ -22,9 +22,6 @@ spring:
     password: ""
 
 zdmj:
-  async:
-    stream:
-      enabled: false
   storage:
     mode: stub
 

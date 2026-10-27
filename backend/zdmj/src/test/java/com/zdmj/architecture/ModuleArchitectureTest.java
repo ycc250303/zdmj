@@ -90,9 +90,6 @@ class ModuleArchitectureTest {
     static final ArchRule ai_does_not_access_foreign_internals = freezeForeignInternals("aiService");
 
     @ArchTest
-    static final ArchRule common_mappers_stay_inside_common = freezeMapperAccess("common");
-
-    @ArchTest
     static final ArchRule user_auth_mappers_stay_inside_module = freezeMapperAccess("userAuthService");
 
     @ArchTest
@@ -127,16 +124,12 @@ class ModuleArchitectureTest {
     }
 
     private static ArchRule freezeMapperAccess(String module) {
-        String mapperPackage = "common".equals(module)
-                ? "com.zdmj.common..mapper.."
-                : "com.zdmj." + module + ".mapper..";
-        String[] allowed = "common".equals(module)
-                ? new String[] {"com.zdmj.common.."}
-                : new String[] {
-                        "com.zdmj." + module + ".mapper..",
-                        "com.zdmj." + module + ".service..",
-                        "com.zdmj." + module + ".support.."
-                };
+        String mapperPackage = "com.zdmj." + module + ".mapper..";
+        String[] allowed = {
+                "com.zdmj." + module + ".mapper..",
+                "com.zdmj." + module + ".service..",
+                "com.zdmj." + module + ".support.."
+        };
         return FreezingArchRule.freeze(classes()
                 .that().resideInAPackage(mapperPackage)
                 .should().onlyBeAccessed().byAnyPackage(allowed)

@@ -5,11 +5,6 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zdmj.common.async.AsyncBizKeys;
-import com.zdmj.common.async.AsyncTaskDTO;
-import com.zdmj.common.async.AsyncTaskPayloads;
-import com.zdmj.common.async.AsyncTaskService;
-import com.zdmj.common.async.AsyncTaskType;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -71,8 +66,6 @@ public class JobStudentMatchServiceImpl
     private final StudentCapabilityProfileService studentCapabilityProfileService;
     private final ModelGateway modelGateway;
     private final ObjectMapper objectMapper;
-    private final AsyncTaskService asyncTaskService;
-
 
     @Override
     public PageDTO<JobStudentMatchListItemResponse> getMyPage(Integer page, Integer limit) {
@@ -96,31 +89,6 @@ public class JobStudentMatchServiceImpl
             return null;
         }
         return toDto(match);
-    }
-
-    @Override
-    public AsyncTaskDTO enqueueGenerate(Long jobId, JobStudentMatchGenerateRequest req) {
-        Long userId = UserHolder.requireUserId();
-        if (jobId == null) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "jobId不能为空");
-        }
-        JobListItemResponse jobDetail = jobService.getDetail(jobId);
-        if (jobDetail == null) {
-            throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
-        }
-        if (studentCapabilityProfileService.getCurrentUserProfileOrNull() == null) {
-            throw new BusinessException(ErrorCode.MATCH_PRECONDITION_MISSING);
-        }
-        com.fasterxml.jackson.databind.node.ObjectNode node = objectMapper.createObjectNode();
-        node.put("jobId", jobId);
-        if (req != null && req.getWeights() != null) {
-            node.set("weights", objectMapper.valueToTree(req.getWeights()));
-        }
-        return asyncTaskService.enqueue(
-                AsyncTaskType.JOB_MATCH,
-                userId,
-                AsyncBizKeys.userJob(userId, jobId),
-                AsyncTaskPayloads.write(node, objectMapper));
     }
 
     @Override

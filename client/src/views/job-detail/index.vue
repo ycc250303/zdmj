@@ -22,7 +22,6 @@ import {
   fetchCheckCareerReportIntegrity,
   type CareerReportApi
 } from '@/service/api/career-report';
-import { waitForAsyncTask, isAsyncTaskFailedError } from '@/composables/useAsyncTaskPoll';
 import CapabilityScoreCard, { type Dimension } from '@/components/common/CapabilityScoreCard.vue';
 
 import { parseApiErrorBody } from '@/service/request/api-error';
@@ -283,13 +282,6 @@ function getTransitionDifficultyType(difficulty?: string): 'success' | 'warning'
   }
 }
 
-function taskErrorMessage(err: unknown, fallback: string): string {
-  if (isAsyncTaskFailedError(err)) {
-    return err.message || fallback;
-  }
-  return extractApiError(err, fallback);
-}
-
 async function handleGenerateProfile() {
   if (!jobId.value) return;
 
@@ -297,19 +289,18 @@ async function handleGenerateProfile() {
   window.$message?.info($t('page.jobs.profileGenerating') as string, { duration: 5000 });
   try {
     const { data, error } = await fetchGenerateJobCapabilityProfile(jobId.value);
-    if (error || !data?.taskId) {
+    if (error || !data) {
       window.$message?.error(
         extractApiError(error, $t('page.jobs.createFailed') as string),
         { duration: 6000 }
       );
       return;
     }
-    await waitForAsyncTask(data.taskId);
-    await loadCapabilityProfile();
+    capabilityProfile.value = data;
     window.$message?.success($t('page.jobs.profileGenerated') as string);
   } catch (err) {
     console.error($t('page.jobs.generateProfileError'), err);
-    window.$message?.error(taskErrorMessage(err, $t('page.jobs.createFailed') + $t('page.jobs.retryLater')), {
+    window.$message?.error(extractApiError(err, $t('page.jobs.createFailed') + $t('page.jobs.retryLater')), {
       duration: 6000
     });
   } finally {
@@ -323,18 +314,17 @@ async function handleGenerateMatch() {
   window.$message?.info($t('page.jobs.matchAnalyzing') as string, { duration: 5000 });
   try {
     const { data, error } = await fetchGenerateJobStudentMatch(jobId.value);
-    if (error || !data?.taskId) {
+    if (error || !data) {
       window.$message?.error(
         extractApiError(error, $t('page.jobs.matchFailed') as string),
         { duration: 6000 }
       );
       return;
     }
-    await waitForAsyncTask(data.taskId);
-    await loadMatchResult();
+    matchResult.value = data;
     window.$message?.success($t('page.jobs.matchSuccess') as string);
   } catch (err) {
-    window.$message?.error(taskErrorMessage(err, $t('page.jobs.matchFailedRetry') as string), { duration: 6000 });
+    window.$message?.error(extractApiError(err, $t('page.jobs.matchFailedRetry') as string), { duration: 6000 });
   } finally {
     generatingMatch.value = false;
   }
@@ -415,39 +405,6 @@ function isGatewayTimeout(errLike: any): boolean {
   return false;
 }
 
-/**
- * 网关 504 时的兜底：后端可能还在跑，跑完会把记录写进数据库，
- * 这里轮询查最新报告，命中即认为成功。
- * @param totalMs 总轮询时长（默认 90 秒）
- * @param intervalMs 间隔（默认 5 秒）
- * @param baseline 之前已有的报告（用 version/id 做新旧对比，避免拿到旧数据当成新生成）
- */
-async function pollLatestCareerReport(
-  totalMs = 90_000,
-  intervalMs = 5_000,
-  baseline?: CareerReportApi.CareerReport | null
-): Promise<CareerReportApi.CareerReport | null> {
-  if (!jobId.value) return null;
-  const start = Date.now();
-  // 用 id + version 联合判断"是否是新一份报告"
-  const baselineKey = baseline ? `${baseline.id ?? ''}-${baseline.version ?? ''}` : '';
-  while (Date.now() - start < totalMs) {
-    await new Promise(r => setTimeout(r, intervalMs));
-    try {
-      const { data, error } = await fetchGetLatestCareerReport(jobId.value);
-      if (!error && data) {
-        const currentKey = `${data.id ?? ''}-${data.version ?? ''}`;
-        if (currentKey && currentKey !== baselineKey) {
-          return data;
-        }
-      }
-    } catch {
-      // 单次失败忽略，继续轮询
-    }
-  }
-  return null;
-}
-
 async function handleGenerateCareerReport() {
   if (!jobId.value) return;
   generatingCareerReport.value = true;
@@ -458,24 +415,18 @@ async function handleGenerateCareerReport() {
       focus: careerReportGenerateForm.value.focus?.trim() || undefined
     };
     const { data, error } = await fetchGenerateCareerReport(jobId.value, payload);
-    if (error || !data?.taskId) {
+    if (error || !data) {
       window.$message?.error(
         extractApiError(error, $t('page.jobs.careerReport.generateFailed') as string),
         { duration: 6000 }
       );
       return;
     }
-    await waitForAsyncTask(data.taskId);
-    const { data: report } = await fetchGetLatestCareerReport(jobId.value);
-    if (report) {
-      await applyCareerReportSuccess(report);
-      window.$message?.success($t('page.jobs.careerReport.generateSuccess') as string);
-    } else {
-      window.$message?.error($t('page.jobs.careerReport.generateFailed') as string, { duration: 6000 });
-    }
+    await applyCareerReportSuccess(data);
+    window.$message?.success($t('page.jobs.careerReport.generateSuccess') as string);
   } catch (err) {
     window.$message?.error(
-      taskErrorMessage(err, $t('page.jobs.careerReport.generateFailed') as string),
+      extractApiError(err, $t('page.jobs.careerReport.generateFailed') as string),
       { duration: 6000 }
     );
   } finally {
@@ -491,42 +442,24 @@ async function handlePolishCareerReport() {
     const { data, error } = await fetchPolishCareerReport(careerReport.value.id, {
       instruction: careerReportPolishInstruction.value?.trim() || undefined
     });
-    if (error || !data?.taskId) {
+    if (error || !data) {
       window.$message?.error(
         extractApiError(error, $t('page.jobs.careerReport.polishFailed') as string),
         { duration: 6000 }
       );
       return;
     }
-    await waitForAsyncTask(data.taskId);
-    const { data: report } = await fetchGetLatestCareerReport(jobId.value!);
-    if (report) {
-      careerReport.value = report;
-      careerReportPolishInstruction.value = '';
-      window.$message?.success($t('page.jobs.careerReport.polishSuccess') as string);
-    } else {
-      window.$message?.error($t('page.jobs.careerReport.polishFailed') as string, { duration: 6000 });
-    }
+    careerReport.value = data;
+    careerReportPolishInstruction.value = '';
+    window.$message?.success($t('page.jobs.careerReport.polishSuccess') as string);
   } catch (err) {
     window.$message?.error(
-      taskErrorMessage(err, $t('page.jobs.careerReport.polishFailed') as string),
+      extractApiError(err, $t('page.jobs.careerReport.polishFailed') as string),
       { duration: 6000 }
     );
   } finally {
     polishingCareerReport.value = false;
   }
-}
-
-function checkFromReport(report: CareerReportApi.CareerReport): CareerReportApi.CareerReportCheck {
-  const flags = report.qualityFlags ?? {};
-  return {
-    passed: report.status === 2,
-    completenessScore: report.completenessScore,
-    riskLevel: flags.riskLevel as CareerReportApi.CareerReportCheck['riskLevel'],
-    missingSections: flags.missingSections,
-    nonActionableItems: flags.nonActionableItems,
-    weakEvidenceItems: flags.weakEvidenceItems
-  };
 }
 
 async function handleCheckCareerReportIntegrity() {
@@ -535,22 +468,19 @@ async function handleCheckCareerReportIntegrity() {
   window.$message?.info($t('page.jobs.careerReport.checking') as string, { duration: 4000 });
   try {
     const { data, error } = await fetchCheckCareerReportIntegrity(careerReport.value.id);
-    if (error || !data?.taskId) {
+    if (error || !data) {
       window.$message?.error(
         extractApiError(error, $t('page.jobs.careerReport.checkFailed') as string),
         { duration: 6000 }
       );
       return;
     }
-    await waitForAsyncTask(data.taskId);
+    careerReportCheckResult.value = data;
     await loadCareerReport();
-    if (careerReport.value) {
-      careerReportCheckResult.value = checkFromReport(careerReport.value);
-    }
     window.$message?.success($t('page.jobs.careerReport.checkSuccess') as string);
   } catch (err) {
     window.$message?.error(
-      taskErrorMessage(err, $t('page.jobs.careerReport.checkFailed') as string),
+      extractApiError(err, $t('page.jobs.careerReport.checkFailed') as string),
       { duration: 6000 }
     );
   } finally {

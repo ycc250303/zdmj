@@ -55,8 +55,6 @@ class StudentCapabilityProfileServiceImplTest {
     private PdfParserUtil pdfParserUtil;
     @Mock
     private StudentCapabilityProfileMapper studentCapabilityProfileMapper;
-    @Mock
-    private com.zdmj.common.async.AsyncTaskService asyncTaskService;
 
     private StudentCapabilityProfileServiceImpl service;
     private static boolean tableInfoInitialized;
@@ -65,7 +63,7 @@ class StudentCapabilityProfileServiceImplTest {
     void setUp() {
         initMybatisPlusLambdaCache();
         service = spy(new StudentCapabilityProfileServiceImpl(modelGateway, new ObjectMapper(), fileUploadService,
-                pdfParserUtil, new JobRoleDetectionServiceImpl(modelGateway), asyncTaskService));
+                pdfParserUtil, new JobRoleDetectionServiceImpl(modelGateway)));
         ReflectionTestUtils.setField(service, "baseMapper", studentCapabilityProfileMapper);
         UserHolder.set(UserContext.of(1L, "u1"));
     }

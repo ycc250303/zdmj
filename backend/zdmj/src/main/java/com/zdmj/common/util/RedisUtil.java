@@ -1,20 +1,8 @@
 package com.zdmj.common.util;
 
-import java.time.Duration;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-import org.springframework.data.redis.connection.RedisStreamCommands.XAddOptions;
-import org.springframework.data.redis.connection.stream.Consumer;
-import org.springframework.data.redis.connection.stream.MapRecord;
-import org.springframework.data.redis.connection.stream.ReadOffset;
-import org.springframework.data.redis.connection.stream.RecordId;
-import org.springframework.data.redis.connection.stream.StreamOffset;
-import org.springframework.data.redis.connection.stream.StreamReadOptions;
-import org.springframework.data.redis.core.StreamOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -25,15 +13,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Redis 辅助：岗位等业务缓存（软失败）与 Stream（硬失败）。
+ * Redis 辅助：岗位等业务缓存。故障记日志并返回空结果，调用方可回源数据库。
  *
- * <p><b>禁止</b>用于登录 allowlist、验证码、限流。登录态见 {@code com.zdmj.common.security.JwtSessionStore}；
+ * <p>禁止用于登录 allowlist、验证码、限流。登录态见 {@code com.zdmj.common.security.JwtSessionStore}；
  * 验证码与限流已直连 {@link StringRedisTemplate}。</p>
- *
- * <ul>
- *   <li>缓存 API（{@code get}/{@code set}/{@code setString} 等）：故障记日志并返回 {@code null}/{@code false}，调用方可回源 DB。</li>
- *   <li>Stream API（{@link #xadd} 起）：失败上抛，由调用方回退。</li>
- * </ul>
  */
 @Slf4j
 @Component
@@ -204,125 +187,4 @@ public class RedisUtil {
         String nullKey = RedisConstants.NULL_VALUE_KEY + key;
         delete(nullKey);
     }
-
-    // ========== Redis Stream 消息队列 ==========
-
-    /**
-     * {@code XADD} 写入 Stream，并按 {@link RedisConstants#STREAM_MAXLEN} 近似裁剪。
-     *
-     * @param streamKey Stream 键，如 {@code zdmj:llm:stream}
-     * @param fields    消息字段（字符串 Map）
-     * @return 新消息 ID
-     */
-    public RecordId xadd(String streamKey, Map<String, String> fields) {
-        XAddOptions options = XAddOptions.maxlen(RedisConstants.STREAM_MAXLEN).approximateTrimming(true);
-        RecordId recordId = streamOps().add(streamKey, fields, options);
-        if (recordId == null) {
-            throw new IllegalStateException("XADD 返回空 recordId: stream=" + streamKey);
-        }
-        log.debug("XADD: stream={}, id={}, fields={}", streamKey, recordId, fields);
-        return recordId;
-    }
-
-    /**
-     * 写入异步任务消息（仅 {@code taskId}，payload 在 DB）。
-     *
-     * @param streamKey Stream 键
-     * @param taskId    {@code async_llm_tasks.id}
-     * @return 新消息 ID
-     */
-    public RecordId xaddTask(String streamKey, long taskId) {
-        Map<String, String> fields = new LinkedHashMap<>();
-        fields.put(RedisConstants.STREAM_FIELD_TASK_ID, Long.toString(taskId));
-        return xadd(streamKey, fields);
-    }
-
-    /**
-     * 创建消费组（{@code XGROUP CREATE ... MKSTREAM}）；组已存在则忽略 BUSYGROUP。
-     *
-     * @param streamKey Stream 键，不存在时会一并创建
-     * @param group     消费组名
-     */
-    public void ensureConsumerGroup(String streamKey, String group) {
-        try {
-            streamOps().createGroup(streamKey, ReadOffset.from("0-0"), group);
-            log.info("创建 Stream 消费组: stream={}, group={}", streamKey, group);
-        } catch (RuntimeException e) {
-            if (isBusyGroup(e)) {
-                log.debug("消费组已存在: stream={}, group={}", streamKey, group);
-                return;
-            }
-            log.error("创建消费组失败: stream={}, group={}", streamKey, group, e);
-            throw e;
-        }
-    }
-
-    /**
-     * {@code XREADGROUP}。偏移 {@code >}（{@link ReadOffset#lastConsumed()}）读新消息；
-     * {@code 0-0} 读本消费者未 ACK 的 PEL。
-     *
-     * @param streamKey    Stream 键
-     * @param group        消费组名
-     * @param consumerName 本实例消费者名（单实例固定名）
-     * @param count        单次最多条数
-     * @param block        阻塞等待时长；{@code null}/零/负则立即返回
-     * @param offset       读偏移；{@code null} 视为 {@code >}
-     * @return 消息列表，无消息时为空列表（非 {@code null}）
-     */
-    public List<MapRecord<String, String, String>> xreadGroup(String streamKey, String group, String consumerName,
-            int count, Duration block, ReadOffset offset) {
-        StreamReadOptions options = StreamReadOptions.empty().count(count);
-        if (block != null && !block.isZero() && !block.isNegative()) {
-            options = options.block(block);
-        }
-        ReadOffset readOffset = offset == null ? ReadOffset.lastConsumed() : offset;
-        List<MapRecord<String, String, String>> records = streamOps().read(
-                Consumer.from(group, consumerName),
-                options,
-                StreamOffset.create(streamKey, readOffset));
-        return records == null ? List.of() : records;
-    }
-
-    /**
-     * {@code XACK} 确认已处理消息，并从 PEL 移除。
-     *
-     * @param streamKey Stream 键
-     * @param group     消费组名
-     * @param recordIds 待确认消息 ID，可空
-     * @return 实际 ACK 条数；{@code recordIds} 为空时为 0
-     */
-    public long xack(String streamKey, String group, RecordId... recordIds) {
-        if (recordIds == null || recordIds.length == 0) {
-            return 0L;
-        }
-        Long acked = streamOps().acknowledge(streamKey, group, recordIds);
-        long n = acked == null ? 0L : acked;
-        log.debug("XACK: stream={}, group={}, ids={}, acked={}", streamKey, group, recordIds, n);
-        return n;
-    }
-
-    /** 取得 Redis Stream 操作句柄。 */
-    @SuppressWarnings("unchecked")
-    private StreamOperations<String, String, String> streamOps() {
-        return redisTemplate.opsForStream();
-    }
-
-    /**
-     * 判断异常链是否为消费组已存在（BUSYGROUP）。
-     *
-     * @param error {@code XGROUP CREATE} 抛出的异常
-     * @return {@code true} 组已存在，调用方可忽略
-     */
-    private static boolean isBusyGroup(Throwable error) {
-        Throwable current = error;
-        while (current != null) {
-            String message = current.getMessage();
-            if (message != null && message.contains("BUSYGROUP")) {
-                return true;
-            }
-            current = current.getCause();
-        }
-        return false;
-    }
-
 }

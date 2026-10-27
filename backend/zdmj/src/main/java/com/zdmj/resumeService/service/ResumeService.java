@@ -6,7 +6,6 @@ import com.zdmj.resumeService.dto.ResumeImportParseRequest;
 import com.zdmj.resumeService.dto.ResumeImportParseResponse;
 import com.zdmj.resumeService.dto.ResumeRequest;
 import com.zdmj.resumeService.dto.ResumeResponse;
-import com.zdmj.common.async.AsyncTaskDTO;
 
 import java.util.List;
 
@@ -30,9 +29,4 @@ public interface ResumeService {
     ResumeContentResponse saveMyResumeContent(ResumeContentSaveRequest request);
 
     ResumeImportParseResponse parseImport(ResumeImportParseRequest request);
-
-    /**
-     * 校验已提供 pdfUrl 或 rawText 后入队识别；结果写入任务 {@code result}。
-     */
-    AsyncTaskDTO enqueueParseImport(ResumeImportParseRequest request);
 }

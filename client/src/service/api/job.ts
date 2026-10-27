@@ -1,5 +1,4 @@
 import { request } from '../request';
-import type { AsyncTaskApi } from './async-task';
 
 /**
  * =====================================================================
@@ -229,13 +228,14 @@ export function fetchGetJobCapabilityProfile(id: number | string) {
 }
 
 /**
- * 入队生成岗位能力画像。完成后查 GET /jobs/capability-profile。
+ * 生成岗位能力画像并返回结果。
  * 后端：POST /jobs/{id}/capability-profile
  */
 export function fetchGenerateJobCapabilityProfile(id: number | string) {
-  return request<AsyncTaskApi.AsyncTask>({
+  return request<JobApi.JobCapabilityProfile>({
     url: `/jobs/${id}/capability-profile`,
-    method: 'post'
+    method: 'post',
+    timeout: 300000
   });
 }
 

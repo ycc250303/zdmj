@@ -14,7 +14,6 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.PageRequests;
-import com.zdmj.knowledgeService.support.EmbedStreamProducer;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -33,9 +32,7 @@ import com.zdmj.knowledgeService.service.KnowledgeDocumentService;
 import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
 
 import org.springframework.beans.BeanUtils;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,7 +48,6 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
     private final KnowledgeBasesService knowledgeBasesService;
     private final KnowledgeEmbeddingService knowledgeEmbeddingService;
     private final FileUploadService fileUploadService;
-    private final EmbedStreamProducer embedStreamProducer;
 
     /**
      * 创建知识文档
@@ -92,19 +88,11 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
             throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_CREATE_FAILED);
         }
 
-        // 4. 提交异步向量化任务
-        Long taskId = knowledgeEmbeddingService.submitVectorizeTask(knowledgeDocument.getId());
-
-        knowledgeDocument.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.PENDING.getCode());
-        knowledgeDocument.setLastError(null);
-        boolean persisted = updateById(knowledgeDocument);
-        if (!persisted) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_UPDATE_FAILED);
-        }
-        dispatchTaskAfterCommit(taskId);
-        log.info("创建知识文档并提交异步向量化任务，documentId={}, knowledgeId={}, taskId={}",
-                knowledgeDocument.getId(), knowledgeId, taskId);
-        return convertToResponse(knowledgeDocument);
+        knowledgeEmbeddingService.vectorizeAndStore(knowledgeDocument.getId());
+        KnowledgeDocument stored = knowledgeDocumentMapper.selectById(knowledgeDocument.getId());
+        log.info("创建知识文档并完成向量化，documentId={}, knowledgeId={}",
+                knowledgeDocument.getId(), knowledgeId);
+        return convertToResponse(stored);
     }
 
     /**
@@ -183,21 +171,14 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
         knowledgeDocument.setTitle(request.getTitle());
         knowledgeDocument.setMetadata(buildMetadata(request));
 
-        // 5. 提交异步向量化任务
-        Long taskId = null;
-        if (contentChanged) {
-            taskId = knowledgeEmbeddingService.submitVectorizeTask(knowledgeDocument.getId());
-            knowledgeDocument.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.PENDING.getCode());
-        }
-
-        // 6. 更新知识文档到数据库
         boolean updated = updateById(knowledgeDocument);
         if (!updated) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_UPDATE_FAILED);
         }
         if (contentChanged) {
-            dispatchTaskAfterCommit(taskId);
-            log.info("更新知识文档并提交异步向量化任务，knowledgeId={}, taskId={}", knowledgeDocument.getId(), taskId);
+            knowledgeEmbeddingService.vectorizeAndStore(knowledgeDocument.getId());
+            knowledgeDocument = knowledgeDocumentMapper.selectById(knowledgeDocument.getId());
+            log.info("更新知识文档并完成向量化，knowledgeId={}", knowledgeDocument.getId());
         } else {
             log.info("更新知识文档，knowledgeId={}", knowledgeDocument.getId());
         }
@@ -333,27 +314,5 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
         KnowledgeDocumentResponse response = new KnowledgeDocumentResponse();
         BeanUtils.copyProperties(document, response);
         return response;
-    }
-
-    /**
-     * 提交后投递到向量化 Stream；无事务时立即 XADD。
-     *
-     * @param taskId {@code knowledge_vector_tasks.id}
-     */
-    private void dispatchTaskAfterCommit(Long taskId) {
-        if (taskId == null) {
-            return;
-        }
-        Runnable send = () -> embedStreamProducer.send(taskId);
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    send.run();
-                }
-            });
-        } else {
-            send.run();
-        }
     }
 }
