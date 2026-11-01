@@ -17,7 +17,7 @@ concurrency:
 
 env:
   # 目标服务器与项目目录
-  SERVER_HOST: 111.229.81.45
+  SERVER_HOST: ${{ secrets.SERVER_HOST }}
   SERVER_USER: root
   APP_DIR: /opt/zdmj/zdmj
   # 仅清理 7 天前的 Docker 缓存，兼顾磁盘回收与构建速度

@@ -1,6 +1,6 @@
 # CD 工作流：前后端统一部署，共享 zdmj-server-deploy 并发组，避免 git/SSH 冲突。
 # 实际部署逻辑见 deploy/deploy_backend.sh、deploy/deploy_frontend.sh
-# 前置要求：GitHub Secrets 配置 SSH_PRIVATE_KEY，公钥已写入服务器 ~/.ssh/authorized_keys
+# 前置要求：GitHub Secrets 配置 SSH_PRIVATE_KEY 与 SERVER_HOST，公钥已写入服务器 ~/.ssh/authorized_keys
 
 name: CD - Deploy
 
@@ -29,7 +29,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  SERVER_HOST: 111.229.81.45
+  SERVER_HOST: ${{ secrets.SERVER_HOST }}
   SERVER_USER: root
   APP_DIR_MAIN: /opt/zdmj/zdmj
   DOCKER_CLEANUP_UNTIL: 168h
