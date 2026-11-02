@@ -44,25 +44,6 @@ class PdfParserUtilTest {
     }
 
     @Test
-    void extractTextFromLocalPath_shouldParseClasspathFixture() throws Exception {
-        URL resource = PdfParserUtilTest.class.getResource("/fixtures/minimal-sample.pdf");
-        assertTrue(resource != null, "测试 PDF 资源缺失");
-
-        String parsedText = pdfParserUtil.extractTextFromLocalPath(Path.of(resource.toURI()).toString());
-
-        assertTrue(parsedText != null && !parsedText.isBlank(), "本地 PDF 解析结果不应为空");
-        assertTrue(parsedText.contains("ZDMJ"), "应解析出 fixture 中的文本");
-    }
-
-    @Test
-    void extractTextFromLocalPath_shouldWrapExceptionForMissingFile(@TempDir Path tempDir) {
-        Path missing = tempDir.resolve("not-exists.pdf");
-        RuntimeException ex = assertThrows(RuntimeException.class,
-                () -> pdfParserUtil.extractTextFromLocalPath(missing.toString()));
-        assertTrue(ex.getMessage().startsWith("PDF解析失败："));
-    }
-
-    @Test
     void extractTextFromUrl_shouldRejectNonCosUrl() {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> pdfParserUtil.extractTextFromUrl("https://invalid-host-for-test-zdmj/pdf.pdf"));

@@ -6,8 +6,6 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.zdmj.common.model.BaseEntity;
-import com.zdmj.jobService.enums.CompanyFundingTypeEnum;
-import com.zdmj.jobService.enums.CompanySizeEnum;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -43,32 +41,4 @@ public class Company extends BaseEntity {
      * 公司介绍
      */
     private String introduction;
-
-    /**
-     * 获取人员规模枚举）
-     */
-    public CompanySizeEnum getSizeEnum() {
-        return CompanySizeEnum.fromCode(this.size);
-    }
-
-    /**
-     * 设置人员规模枚举
-     */
-    public void setSizeEnum(CompanySizeEnum sizeEnum) {
-        this.size = sizeEnum != null ? sizeEnum.getCode() : null;
-    }
-
-    /**
-     * 获取融资阶段枚举
-     */
-    public CompanyFundingTypeEnum getTypeEnum() {
-        return CompanyFundingTypeEnum.fromCode(this.type);
-    }
-
-    /**
-     * 设置融资阶段枚举
-     */
-    public void setTypeEnum(CompanyFundingTypeEnum typeEnum) {
-        this.type = typeEnum != null ? typeEnum.getCode() : null;
-    }
 }

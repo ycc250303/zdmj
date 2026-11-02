@@ -31,15 +31,4 @@ class ProjectHighlightsSupportTest {
     void normalizeForStorage_blank_shouldReturnNull() {
         assertNull(ProjectHighlightsSupport.normalizeForStorage("  "));
     }
-
-    @Test
-    void toPlainText_jsonArray_shouldJoinLines() {
-        String plain = ProjectHighlightsSupport.toPlainText("[\"该项目获全国一等奖\"]");
-        assertEquals("该项目获全国一等奖", plain);
-    }
-
-    @Test
-    void toPlainText_plainString_shouldReturnSelf() {
-        assertEquals("plain", ProjectHighlightsSupport.toPlainText("plain"));
-    }
 }

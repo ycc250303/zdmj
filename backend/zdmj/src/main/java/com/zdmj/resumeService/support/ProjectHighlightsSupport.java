@@ -1,6 +1,5 @@
 package com.zdmj.resumeService.support;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.util.StringUtils;
 
@@ -13,8 +12,6 @@ import java.util.stream.Collectors;
 public final class ProjectHighlightsSupport {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {
-    };
 
     private ProjectHighlightsSupport() {
     }
@@ -55,28 +52,6 @@ public final class ProjectHighlightsSupport {
             return MAPPER.writeValueAsString(values);
         } catch (Exception e) {
             return null;
-        }
-    }
-
-    /**
-     * 提取亮点纯文本，便于规则匹配（如从亮点中补充奖项）。
-     */
-    public static String toPlainText(String highlights) {
-        if (!StringUtils.hasText(highlights)) {
-            return null;
-        }
-        String trimmed = highlights.trim();
-        if (!isJsonArray(trimmed)) {
-            return trimmed;
-        }
-        try {
-            List<String> values = MAPPER.readValue(trimmed, STRING_LIST);
-            if (values == null || values.isEmpty()) {
-                return null;
-            }
-            return String.join("\n", values);
-        } catch (Exception e) {
-            return trimmed;
         }
     }
 

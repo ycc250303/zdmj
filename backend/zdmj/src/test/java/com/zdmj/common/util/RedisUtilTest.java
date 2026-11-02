@@ -56,7 +56,6 @@ class RedisUtilTest {
         when(redisTemplate.delete("null:value:job:1")).thenThrow(new IllegalStateException("down"));
 
         redisUtil.setString("job:1", "1", 10);
-        assertNull(redisUtil.getString("job:1"));
         assertFalse(redisUtil.exists("job:1"));
         redisUtil.setNullValue("job:1", 10);
         assertFalse(redisUtil.isNullValue("job:1"));

@@ -1,7 +1,5 @@
 package com.zdmj.knowledgeService.enums;
 
-import java.util.Arrays;
-
 /**
  * 知识类型枚举
  */
@@ -24,15 +22,5 @@ public enum KnowledgeTypeEnum {
 
     public String getLabel() {
         return label;
-    }
-
-    public static KnowledgeTypeEnum fromCode(Integer code) {
-        if (code == null) {
-            return null;
-        }
-        return Arrays.stream(values())
-                .filter(v -> v.code == code)
-                .findFirst()
-                .orElse(null);
     }
 }

@@ -105,24 +105,6 @@ public class RedisUtil {
     }
 
     /**
-     * 读取字符串缓存；缺失或故障返回 {@code null}。
-     *
-     * @param key 缓存键
-     * @return 缓存字符串；键不存在或 Redis 故障时为 {@code null}
-     */
-    public String getString(String key) {
-        try {
-            return redisTemplate.opsForValue().get(key);
-        } catch (org.springframework.dao.QueryTimeoutException | io.lettuce.core.RedisCommandTimeoutException e) {
-            log.warn("获取缓存超时（不影响主流程）: key={}, error={}", key, e.getMessage());
-            return null;
-        } catch (Exception e) {
-            log.warn("获取缓存失败（不影响主流程）: key={}, error={}", key, e.getMessage());
-            return null;
-        }
-    }
-
-    /**
      * 删除指定缓存键；Redis 故障只记日志。
      *
      * @param key 缓存键

@@ -1,8 +1,6 @@
 package com.zdmj.common.util;
 
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 import org.apache.tika.Tika;
 import org.springframework.stereotype.Component;
@@ -48,20 +46,6 @@ public class PdfParserUtil {
             throw e;
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "PDF解析失败：" + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * 从本地文件路径提取 PDF 文本内容。
-     * 
-     * @param path 文件路径
-     * @return 标准化后的 PDF 文本内容
-     */
-    public String extractTextFromLocalPath(String path) {
-        try (InputStream inputStream = Files.newInputStream(Path.of(path))) {
-            return normalizeExtractedText(TIKA.parseToString(inputStream));
-        } catch (Exception e) {
-            throw new RuntimeException("PDF解析失败：" + e.getMessage(), e);
         }
     }
 

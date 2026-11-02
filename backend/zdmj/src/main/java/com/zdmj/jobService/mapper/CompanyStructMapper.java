@@ -18,8 +18,6 @@ public interface CompanyStructMapper {
     @Mapping(target = "type", source = "companyFundingType")
     @Mapping(target = "industries", expression = "java(dto.getCompanyIndustries() == null ? new java.util.ArrayList<>() : dto.getCompanyIndustries())")
     @Mapping(target = "introduction", source = "companyIntroduction")
-    @Mapping(target = "sizeEnum", ignore = true)
-    @Mapping(target = "typeEnum", ignore = true)
     Company fromJobDto(JobRequest dto);
 }
 

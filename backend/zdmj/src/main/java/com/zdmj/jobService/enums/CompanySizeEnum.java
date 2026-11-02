@@ -1,7 +1,5 @@
 package com.zdmj.jobService.enums;
 
-import java.util.Arrays;
-
 /**
  * 公司人员规模枚举
  */
@@ -28,15 +26,5 @@ public enum CompanySizeEnum {
 
     public String getLabel() {
         return label;
-    }
-
-    public static CompanySizeEnum fromCode(Integer code) {
-        if (code == null) {
-            return null;
-        }
-        return Arrays.stream(values())
-                .filter(v -> v.code == code)
-                .findFirst()
-                .orElse(null);
     }
 }
