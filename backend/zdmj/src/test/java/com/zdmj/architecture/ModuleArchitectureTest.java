@@ -11,7 +11,8 @@ import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.library.freeze.FreezingArchRule;
 
 /**
- * 模块边界。当前违规写入 {@code src/test/resources/archunit_store}，新违规会使测试失败。
+ * 模块边界。{@code common} 不依赖业务模块为严格规则。
+ * 其余既有违规写入 {@code src/test/resources/archunit_store}，新违规会使测试失败。
  * 修复一项依赖后，从对应冻结文件删除该行。边界重构完成后删除冻结存储，只保留严格规则。
  */
 @AnalyzeClasses(packages = "com.zdmj", importOptions = ImportOption.DoNotIncludeTests.class)
@@ -52,11 +53,10 @@ class ModuleArchitectureTest {
                     "com.zdmj.jobService.service.impl.JobRoleDetectionServiceImpl");
 
     @ArchTest
-    static final ArchRule common_does_not_depend_on_business_modules = FreezingArchRule.freeze(
-            noClasses()
-                    .that().resideInAPackage("com.zdmj.common..")
-                    .should().dependOnClassesThat().resideInAnyPackage(modulePackages())
-                    .as("common 不依赖业务模块"));
+    static final ArchRule common_does_not_depend_on_business_modules = noClasses()
+            .that().resideInAPackage("com.zdmj.common..")
+            .should().dependOnClassesThat().resideInAnyPackage(modulePackages())
+            .as("common 不依赖业务模块");
 
     @ArchTest
     static final ArchRule controllers_do_not_depend_on_mappers = FreezingArchRule.freeze(

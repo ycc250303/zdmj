@@ -1,10 +1,10 @@
 package com.zdmj.jobService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.zdmj.common.util.RedisUtil;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.constants.RedisConstants;
 import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.dto.JobPageQueryDTO;
 import com.zdmj.jobService.dto.JobRequest;
@@ -20,6 +20,7 @@ import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.PageRequests;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -27,30 +28,66 @@ import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
 public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobService {
 
-    private final CompanyMapper companyMapper;
-    private final RedisUtil redisCacheUtil;
+    /** 详情缓存键前缀，完整键为 {@code job:detail:{id}}。 */
+    private static final String DETAIL_KEY_PREFIX = "job:detail:";
 
+    /** 空值标记前缀。与详情键拼接后为 {@code null:value:job:detail:{id}}。 */
+    private static final String NULL_VALUE_KEY_PREFIX = "null:value:";
+
+    /** 详情缓存有效期，单位秒。 */
+    private static final long DETAIL_TTL_SECONDS = 10L * 60;
+
+    /** 岗位不存在时的空值标记有效期，单位秒。 */
+    private static final long NULL_TTL_SECONDS = 60L;
+
+    private final CompanyMapper companyMapper;
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
+
+    /**
+     * 查询岗位详情。
+     * 先读取空值标记，命中则抛出岗位不存在；再读取详情缓存，命中则反序列化后返回。
+     * 缓存未命中时查询数据库。数据库没有记录时写入 60 秒空值标记并抛出岗位不存在。
+     * 查到记录时写入 10 分钟详情缓存并返回。Redis 读写失败或缓存无法解析时异常向上抛出。
+     *
+     * @param id 岗位编号
+     * @return 岗位详情
+     */
     @Override
     public JobListItemResponse getDetail(Long id) {
-        String key = RedisConstants.JOB_DETAIL_KEY + id;
-        if (redisCacheUtil.isNullValue(key)) {
+        String detailKey = DETAIL_KEY_PREFIX + id;
+        String nullMarkerKey = NULL_VALUE_KEY_PREFIX + detailKey;
+        if (Boolean.TRUE.equals(redisTemplate.hasKey(nullMarkerKey))) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
-        JobListItemResponse cached = redisCacheUtil.get(key, JobListItemResponse.class);
-        if (cached != null) {
-            return cached;
+        String cachedJson = redisTemplate.opsForValue().get(detailKey);
+        if (cachedJson != null) {
+            try {
+                return objectMapper.readValue(cachedJson, JobListItemResponse.class);
+            } catch (JsonProcessingException exception) {
+                throw new IllegalStateException("岗位详情缓存无法解析: " + detailKey, exception);
+            }
         }
         JobListItemResponse dto = baseMapper.selectDetailById(id);
         if (dto == null) {
-            redisCacheUtil.setNullValue(key, RedisConstants.JOB_DETAIL_NULL_TTL);
+            redisTemplate.opsForValue().set(nullMarkerKey, "1", NULL_TTL_SECONDS, TimeUnit.SECONDS);
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
-        redisCacheUtil.set(key, dto, RedisConstants.JOB_DETAIL_TTL);
+        try {
+            redisTemplate.opsForValue().set(
+                    detailKey,
+                    objectMapper.writeValueAsString(dto),
+                    DETAIL_TTL_SECONDS,
+                    TimeUnit.SECONDS);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("岗位详情无法写入缓存: " + detailKey, exception);
+        }
         return dto;
     }
 
@@ -133,7 +170,7 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
         Company company = resolveCompanyByName(dto);
         fillJobFromDto(existing, dto, company);
         updateById(existing);
-        evictJobDetailCache(dto.getId());
+        deleteDetailCache(dto.getId());
         return convertToResponse(existing);
     }
 
@@ -143,7 +180,7 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
         if (!removeById(id)) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
-        evictJobDetailCache(id);
+        deleteDetailCache(id);
     }
 
     private void fillJobFromDto(Job job, JobRequest dto, Company company) {
@@ -216,15 +253,10 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
         }
     }
 
-    /**
-     * 删除岗位详情缓存
-     * 
-     * @param id 岗位ID
-     */
-    private void evictJobDetailCache(Long id) {
-        String key = RedisConstants.JOB_DETAIL_KEY + id;
-        redisCacheUtil.delete(key);
-        redisCacheUtil.deleteNullValue(key);
+    private void deleteDetailCache(Long id) {
+        String detailKey = DETAIL_KEY_PREFIX + id;
+        redisTemplate.delete(detailKey);
+        redisTemplate.delete(NULL_VALUE_KEY_PREFIX + detailKey);
     }
 
     private JobResponse convertToResponse(Job job) {

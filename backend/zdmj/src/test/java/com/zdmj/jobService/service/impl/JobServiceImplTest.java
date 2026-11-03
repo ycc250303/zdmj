@@ -3,8 +3,8 @@ package com.zdmj.jobService.service.impl;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.zdmj.common.constants.RedisConstants;
-import com.zdmj.common.util.RedisUtil;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.model.PageDTO;
@@ -24,92 +24,99 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.RedisConnectionFailureException;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class JobServiceImplTest {
     @Mock
     private CompanyMapper companyMapper;
     @Mock
-    private RedisUtil redisUtil;
+    private StringRedisTemplate redisTemplate;
+    @Mock
+    private ValueOperations<String, String> valueOps;
     @Mock
     private JobMapper jobMapper;
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private JobServiceImpl jobService;
     private static boolean tableInfoInitialized;
 
     @BeforeEach
     void setUp() {
         initMybatisPlusLambdaCache();
-        jobService = spy(new JobServiceImpl(companyMapper, redisUtil));
+        jobService = spy(new JobServiceImpl(companyMapper, redisTemplate, objectMapper));
         ReflectionTestUtils.setField(jobService, "baseMapper", jobMapper);
     }
 
     @Test
     void getDetail_null_marker_notFound_shouldThrow10001() {
         Long jobId = 101L;
-        String key = RedisConstants.JOB_DETAIL_KEY + jobId;
-        doReturn(true).when(redisUtil).isNullValue(key);
+        when(redisTemplate.hasKey(nullMarkerKey(jobId))).thenReturn(true);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> jobService.getDetail(jobId));
 
         assertEquals(ErrorCode.JOB_NOT_FOUND.getCode(), ex.getCode());
-        verify(redisUtil).isNullValue(key);
         verify(jobMapper, never()).selectDetailById(any());
+        verify(redisTemplate, never()).opsForValue();
     }
 
     @Test
     void getDetail_db_miss_notFound_shouldSetNullCacheAndThrow10001() {
         Long jobId = 102L;
-        String key = RedisConstants.JOB_DETAIL_KEY + jobId;
-        doReturn(false).when(redisUtil).isNullValue(key);
-        doReturn(null).when(redisUtil).get(key, JobListItemResponse.class);
+        when(redisTemplate.hasKey(nullMarkerKey(jobId))).thenReturn(false);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get(detailKey(jobId))).thenReturn(null);
         doReturn(null).when(jobMapper).selectDetailById(jobId);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> jobService.getDetail(jobId));
 
         assertEquals(ErrorCode.JOB_NOT_FOUND.getCode(), ex.getCode());
-        verify(redisUtil).setNullValue(key, RedisConstants.JOB_DETAIL_NULL_TTL);
+        verify(valueOps).set(nullMarkerKey(jobId), "1", 60L, TimeUnit.SECONDS);
     }
 
     @Test
-    void getDetail_cache_hit_shouldReturnCachedAndSkipDb() {
+    void getDetail_cache_hit_shouldReturnCachedAndSkipDb() throws JsonProcessingException {
         Long jobId = 103L;
-        String key = RedisConstants.JOB_DETAIL_KEY + jobId;
         JobListItemResponse cached = new JobListItemResponse();
         cached.setJobName("cached-java");
-        doReturn(false).when(redisUtil).isNullValue(key);
-        doReturn(cached).when(redisUtil).get(key, JobListItemResponse.class);
+        when(redisTemplate.hasKey(nullMarkerKey(jobId))).thenReturn(false);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get(detailKey(jobId))).thenReturn(objectMapper.writeValueAsString(cached));
 
         JobListItemResponse result = jobService.getDetail(jobId);
 
         assertEquals("cached-java", result.getJobName());
-        verify(redisUtil).get(key, JobListItemResponse.class);
         verify(jobMapper, never()).selectDetailById(any());
     }
 
     @Test
-    void getDetail_db_hit_shouldCacheAndReturnDbValue() {
+    void getDetail_db_hit_shouldCacheAndReturnDbValue() throws JsonProcessingException {
         Long jobId = 104L;
-        String key = RedisConstants.JOB_DETAIL_KEY + jobId;
         JobListItemResponse dbValue = new JobListItemResponse();
         dbValue.setJobName("db-java");
         dbValue.setCompanyName("ACME");
-        doReturn(false).when(redisUtil).isNullValue(key);
-        doReturn(null).when(redisUtil).get(key, JobListItemResponse.class);
+        when(redisTemplate.hasKey(nullMarkerKey(jobId))).thenReturn(false);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get(detailKey(jobId))).thenReturn(null);
         doReturn(dbValue).when(jobMapper).selectDetailById(jobId);
 
         JobListItemResponse result = jobService.getDetail(jobId);
@@ -117,7 +124,34 @@ class JobServiceImplTest {
         assertEquals("db-java", result.getJobName());
         assertEquals("ACME", result.getCompanyName());
         verify(jobMapper).selectDetailById(jobId);
-        verify(redisUtil).set(key, dbValue, RedisConstants.JOB_DETAIL_TTL);
+        verify(valueOps).set(
+                detailKey(jobId),
+                objectMapper.writeValueAsString(dbValue),
+                600L,
+                TimeUnit.SECONDS);
+    }
+
+    @Test
+    void getDetail_whenRedisFails_shouldPropagate() {
+        Long jobId = 105L;
+        when(redisTemplate.hasKey(nullMarkerKey(jobId)))
+                .thenThrow(new RedisConnectionFailureException("down"));
+
+        assertThrows(RedisConnectionFailureException.class, () -> jobService.getDetail(jobId));
+
+        verify(jobMapper, never()).selectDetailById(any());
+    }
+
+    @Test
+    void getDetail_whenCacheJsonInvalid_shouldPropagate() {
+        Long jobId = 106L;
+        when(redisTemplate.hasKey(nullMarkerKey(jobId))).thenReturn(false);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get(detailKey(jobId))).thenReturn("{");
+
+        assertThrows(IllegalStateException.class, () -> jobService.getDetail(jobId));
+
+        verify(jobMapper, never()).selectDetailById(any());
     }
 
     @Test
@@ -168,9 +202,8 @@ class JobServiceImplTest {
 
         jobService.delete(jobId);
 
-        String key = RedisConstants.JOB_DETAIL_KEY + jobId;
-        verify(redisUtil).delete(key);
-        verify(redisUtil).deleteNullValue(key);
+        verify(redisTemplate).delete(detailKey(jobId));
+        verify(redisTemplate).delete(nullMarkerKey(jobId));
     }
 
     @Test
@@ -220,7 +253,7 @@ class JobServiceImplTest {
 
         assertEquals(ErrorCode.JOB_NOT_FOUND.getCode(), ex.getCode());
         verify(jobService, never()).updateById(any(Job.class));
-        verify(redisUtil, never()).delete(any());
+        verify(redisTemplate, never()).delete(anyString());
     }
 
     @Test
@@ -231,9 +264,8 @@ class JobServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> jobService.delete(jobId));
 
         assertEquals(ErrorCode.JOB_NOT_FOUND.getCode(), ex.getCode());
-        String key = RedisConstants.JOB_DETAIL_KEY + jobId;
-        verify(redisUtil, never()).delete(key);
-        verify(redisUtil, never()).deleteNullValue(key);
+        verify(redisTemplate, never()).delete(detailKey(jobId));
+        verify(redisTemplate, never()).delete(nullMarkerKey(jobId));
     }
 
     @Test
@@ -407,6 +439,14 @@ class JobServiceImplTest {
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
         assertEquals("最低薪资不能大于最高薪资", ex.getMessage());
         verify(jobMapper, never()).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
+    }
+
+    private static String detailKey(Long jobId) {
+        return "job:detail:" + jobId;
+    }
+
+    private static String nullMarkerKey(Long jobId) {
+        return "null:value:job:detail:" + jobId;
     }
 
     private static void initMybatisPlusLambdaCache() {

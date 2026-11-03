@@ -11,7 +11,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.zdmj.common.constants.RedisConstants;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,16 +44,16 @@ class RedisJwtSessionStoreTest {
         store.replace(42L, "jwt-token");
 
         verify(valueOps).set(
-                RedisConstants.JWT_TOKEN_KEY + 42L,
+                "jwt:token:42",
                 "jwt-token",
-                RedisConstants.JWT_TOKEN_TTL,
+                7L * 24 * 60 * 60,
                 TimeUnit.SECONDS);
     }
 
     @Test
     void find_whenMissing_shouldReturnEmpty() {
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
-        when(valueOps.get(RedisConstants.JWT_TOKEN_KEY + 1L)).thenReturn(null);
+        when(valueOps.get("jwt:token:1")).thenReturn(null);
 
         Optional<String> found = store.find(1L);
 
@@ -64,7 +63,7 @@ class RedisJwtSessionStoreTest {
     @Test
     void find_whenPresent_shouldReturnToken() {
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
-        when(valueOps.get(RedisConstants.JWT_TOKEN_KEY + 1L)).thenReturn("stored");
+        when(valueOps.get("jwt:token:1")).thenReturn("stored");
 
         assertEquals("stored", store.find(1L).orElseThrow());
     }
@@ -90,7 +89,7 @@ class RedisJwtSessionStoreTest {
     void revoke_shouldDeleteKey() {
         store.revoke(7L);
 
-        verify(redisTemplate).delete(RedisConstants.JWT_TOKEN_KEY + 7L);
+        verify(redisTemplate).delete("jwt:token:7");
         verify(redisTemplate, never()).opsForValue();
     }
 }

@@ -5,7 +5,7 @@ import java.util.Optional;
 /**
  * JWT 登录 allowlist。Redis IO/超时必须上抛，禁止把故障当成 miss。
  *
- * <p>实现见 {@link RedisJwtSessionStore}；勿使用 {@code RedisUtil} 缓存 API。</p>
+ * <p>实现见 {@link RedisJwtSessionStore}。键为 {@code jwt:token:{userId}}。</p>
  */
 public interface JwtSessionStore {
 

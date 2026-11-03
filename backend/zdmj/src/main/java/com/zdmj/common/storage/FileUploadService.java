@@ -143,7 +143,7 @@ public class FileUploadService {
     }
 
     public void deleteByKey(String key) {
-        validateUserKey(key);
+        requireOwnedKey(key, UserHolder.requireUserId());
         deleteObject(key);
         log.info("文件删除成功，key={}", key);
     }
@@ -349,10 +349,6 @@ public class FileUploadService {
         String bizArea = sanitizeBizArea(prefix);
         String finalPrefix = String.format("user-%d/%s", userId, bizArea);
         return generateKey(finalPrefix, originalFilename);
-    }
-
-    private void validateUserKey(String key) {
-        requireOwnedKey(key, UserHolder.requireUserId());
     }
 
     private static String requireOwnedKey(String key, long userId) {
