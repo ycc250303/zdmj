@@ -16,7 +16,6 @@ import static org.mockito.Mockito.when;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zdmj.common.context.UserContext;
@@ -46,9 +45,6 @@ class KnowledgeDocumentServiceImplTest {
     @AfterEach
     void tearDown() {
         UserHolder.clear();
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.clearSynchronization();
-        }
     }
 
     @Test

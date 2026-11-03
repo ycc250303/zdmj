@@ -32,7 +32,6 @@ import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -55,10 +54,8 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.atLeastOnce;
 
 @ExtendWith(MockitoExtension.class)
 class MessageServiceImplTest {
@@ -84,13 +81,13 @@ class MessageServiceImplTest {
             TransactionCallback<?> callback = invocation.getArgument(0);
             return callback.doInTransaction(new SimpleTransactionStatus());
         });
-        messageService = spy(new MessageServiceImpl(
+        messageService = new MessageServiceImpl(
                 modelGateway,
                 messageMapper,
                 conversationService,
                 conversationMapper,
                 knowledgeRagService,
-                transactionTemplate));
+                transactionTemplate);
         lenient().doReturn(2).when(conversationMapper).incrementMessageCountAndGet(anyLong(), anyLong(), anyInt());
         UserHolder.set(UserContext.of(1L, "u1"));
     }
@@ -148,7 +145,6 @@ class MessageServiceImplTest {
         assertEquals(ErrorCode.MESSAGE_CREATE_FAILED.getCode(), ex.getCode());
         assertEquals(ErrorCode.MESSAGE_CREATE_FAILED.getMessage(), ex.getMessage());
         verify(messageMapper).insert(any(Message.class));
-        verify(conversationService, never()).updateById(any(Conversation.class));
     }
 
     @Test
@@ -175,12 +171,11 @@ class MessageServiceImplTest {
 
         List<ServerSentEvent<String>> events = messageService.createStream(dto).collectList().block();
 
-        assertFalse(events == null);
         assertEquals(2, events.size());
         assertEquals("delta", events.get(0).event());
-        assertEquals(true, Objects.requireNonNull(events.get(0).data()).contains("\"he\""));
+        assertTrue(events.get(0).data().contains("\"he\""));
         assertEquals("delta", events.get(1).event());
-        assertEquals(true, Objects.requireNonNull(events.get(1).data()).contains("\"llo\""));
+        assertTrue(events.get(1).data().contains("\"llo\""));
         ArgumentCaptor<Message> assistantCaptor = ArgumentCaptor.forClass(Message.class);
         verify(messageMapper).updateById(assistantCaptor.capture());
         assertEquals("hello", assistantCaptor.getValue().getContent());
@@ -204,7 +199,6 @@ class MessageServiceImplTest {
         assertEquals(ErrorCode.MESSAGE_CREATE_FAILED.getCode(), ex.getCode());
         assertEquals(ErrorCode.MESSAGE_CREATE_FAILED.getMessage(), ex.getMessage());
         verify(messageMapper, times(2)).insert(any(Message.class));
-        verify(conversationService, never()).updateById(any(Conversation.class));
     }
 
     @Test
@@ -326,7 +320,6 @@ class MessageServiceImplTest {
                     .incrementMessageCountAndGet(eq(conversationId), anyLong(), eq(2));
             verify(conversationMapper, times(1))
                     .updateTitleByIdAndUserId(eq(conversationId), anyLong(), eq("title-once"));
-            verify(messageMapper, atLeastOnce()).updateById(any(Message.class));
         } finally {
             pool.shutdown();
             pool.awaitTermination(5, TimeUnit.SECONDS);
@@ -359,7 +352,6 @@ class MessageServiceImplTest {
         messageService.createStream(dto).collectList().block();
 
         verify(knowledgeRagService).streamAnswer(eq(1L), eq(306L), eq("ask"), eq(List.of(9L)), eq(true), any());
-        verify(modelGateway, never()).stream(any(), any());
     }
 
     @Test

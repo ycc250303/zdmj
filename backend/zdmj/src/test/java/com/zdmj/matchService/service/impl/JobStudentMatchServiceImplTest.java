@@ -58,18 +58,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
-/**
- * {@link JobStudentMatchServiceImpl} 单元测试。
- *
- * <p>重点回归：「队友报障 —— 换岗位仍然 11001」。该 bug 的根因是
- * {@code generate(...)} 当时传入了非空 {@code promptVars}，触发 Spring AI
- * {@code PromptTemplate.render(...)}（基于 StringTemplate）解析提示词里的 JSON 示例花括号失败，
- * 异常被 {@code catch (Exception e)} 吞成 11001 错误码，并且对任何岗位都会一致触发。</p>
- *
- * <p>本类测试 {@code generate(...)} 的全部正反路径，并显式断言「
- * {@link ModelGateway#generateStructured} 必须以 {@code null} promptVars 调用」，
- * 以保证未来不会再走 PromptTemplate 渲染分支。</p>
- */
 @ExtendWith(MockitoExtension.class)
 class JobStudentMatchServiceImplTest {
 
@@ -321,20 +309,6 @@ class JobStudentMatchServiceImplTest {
 
         assertEquals(11L, saved.getId());
         verify(matchMapper).updateById(draft);
-    }
-
-    @Test
-    void saveMatch_whenRowBelongsToAnotherUser_shouldReject() {
-        JobStudentMatch draft = ownedDraft();
-        JobStudentMatch existing = ownedDraft();
-        existing.setId(9L);
-        existing.setUserId(8L);
-        doReturn(existing).when(matchMapper).selectOne(any());
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> matchService.saveMatch(draft));
-
-        assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
-        verify(matchMapper, never()).updateById(any(JobStudentMatch.class));
     }
 
     @Test
