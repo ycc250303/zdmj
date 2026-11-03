@@ -3,9 +3,10 @@ package com.zdmj.knowledgeService.service;
 public interface KnowledgeEmbeddingService {
 
     /**
-     * 向量化并存储知识库，先删除旧向量再写入新向量。
+     * 在事务外抽文本并向量化，再以短事务覆盖保存向量和文档状态。
+     * 远程调用期间来源地址变化时，不写入这次算出的向量。
      *
-     * @param knowledgeDocumentId 知识文档 ID
+     * @param knowledgeDocumentId 知识文档编号
      */
     void vectorizeAndStore(Long knowledgeDocumentId);
 

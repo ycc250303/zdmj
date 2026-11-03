@@ -40,7 +40,7 @@ public interface JobStudentMatchService extends IService<JobStudentMatch> {
      *   <li>解析权重（默认权重 + 请求体覆盖 → 归一化）；</li>
      *   <li>路由 Prompt（按岗位 targetRoleType）→ 调 LLM 结构化输出；</li>
      *   <li>后端兜底重算关键技能匹配率 与 综合分；</li>
-     *   <li>落库 upsert，返回完整 DTO。</li>
+     *   <li>再次确认岗位仍存在后，短事务按用户与岗位覆盖保存。</li>
      * </ol>
      *
      * @param jobId 岗位ID

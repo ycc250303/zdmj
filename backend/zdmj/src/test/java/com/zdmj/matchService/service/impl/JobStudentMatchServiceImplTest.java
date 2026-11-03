@@ -31,7 +31,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -41,6 +45,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -48,6 +53,8 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
@@ -78,17 +85,21 @@ class JobStudentMatchServiceImplTest {
     private ModelGateway modelGateway;
     @Mock
     private JobStudentMatchMapper matchMapper;
+    @Mock
+    private PlatformTransactionManager transactionManager;
 
     private JobStudentMatchServiceImpl matchService;
 
     @BeforeEach
     void setUp() {
+        lenient().when(transactionManager.getTransaction(any())).thenReturn(org.mockito.Mockito.mock(TransactionStatus.class));
         matchService = spy(new JobStudentMatchServiceImpl(
                 jobService,
                 jobCapabilityProfileService,
                 studentCapabilityProfileService,
                 modelGateway,
-                new ObjectMapper()));
+                new ObjectMapper(),
+                new TransactionTemplate(transactionManager)));
         ReflectionTestUtils.setField(matchService, "baseMapper", matchMapper);
         UserHolder.set(new UserContext(USER_ID, "tester", "tester@example.com"));
     }
@@ -110,6 +121,7 @@ class JobStudentMatchServiceImplTest {
                 argThat((StructuredModelRequest<?> req) -> req.promptVars() == null
                         && "job-student-match/default".equals(req.promptName())
                         && req.outputType() == JobStudentMatchResponse.class));
+        verify(matchMapper).insert(argThat(match -> USER_ID.equals(match.getUserId()) && jobId.equals(match.getJobId())));
     }
 
     @Test
@@ -148,6 +160,7 @@ class JobStudentMatchServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> matchService.generate(jobId, null));
         assertEquals(ErrorCode.MATCH_GENERATION_FAILED.getCode(), ex.getCode());
+        verify(matchMapper, never()).insert(any(JobStudentMatch.class));
     }
 
     @Test
@@ -159,6 +172,7 @@ class JobStudentMatchServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> matchService.generate(jobId, null));
         assertEquals(ErrorCode.MATCH_GENERATION_FAILED.getCode(), ex.getCode());
+        verify(matchMapper, never()).insert(any(JobStudentMatch.class));
     }
 
     @Test
@@ -172,6 +186,8 @@ class JobStudentMatchServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> matchService.generate(jobId, null));
         assertEquals(ErrorCode.MATCH_PRECONDITION_MISSING.getCode(), ex.getCode());
+        verify(modelGateway, never()).generateStructured(any(), any(StructuredModelRequest.class));
+        verify(matchMapper, never()).insert(any(JobStudentMatch.class));
     }
 
     @Test
@@ -182,6 +198,24 @@ class JobStudentMatchServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> matchService.generate(jobId, null));
         assertEquals(ErrorCode.JOB_NOT_FOUND.getCode(), ex.getCode());
+        verify(matchMapper, never()).insert(any(JobStudentMatch.class));
+    }
+
+    @Test
+    void generate_jobRemovedBeforeSave_shouldThrow10001AndSkipSave() {
+        Long jobId = 25L;
+        doReturn(buildJobDetail()).doReturn(null).when(jobService).getDetail(jobId);
+        doReturn(buildJobProfile("java-backend")).when(jobCapabilityProfileService)
+                .getJobCapabilityProfileOrNull(jobId);
+        doReturn(buildStudentProfile()).when(studentCapabilityProfileService)
+                .getCurrentUserProfileOrNull();
+        doReturn(buildAiResult()).when(modelGateway).generateStructured(any(), any(StructuredModelRequest.class));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> matchService.generate(jobId, null));
+
+        assertEquals(ErrorCode.JOB_NOT_FOUND.getCode(), ex.getCode());
+        verify(matchMapper, never()).insert(any(JobStudentMatch.class));
     }
 
     // ========================================================
@@ -250,18 +284,82 @@ class JobStudentMatchServiceImplTest {
         verify(matchMapper).selectMyMatchPage(any(Page.class), eq(USER_ID));
     }
 
+    @Test
+    void saveMatch_whenAbsent_shouldInsert() {
+        JobStudentMatch draft = ownedDraft();
+        doReturn(null).when(matchMapper).selectOne(any());
+        doReturn(1).when(matchMapper).insert(draft);
+
+        assertSame(draft, matchService.saveMatch(draft));
+        verify(matchMapper, never()).updateById(any(JobStudentMatch.class));
+    }
+
+    @Test
+    void saveMatch_whenOwnedRowExists_shouldUpdateThatRow() {
+        JobStudentMatch draft = ownedDraft();
+        JobStudentMatch existing = ownedDraft();
+        existing.setId(9L);
+        doReturn(existing).when(matchMapper).selectOne(any());
+        doReturn(1).when(matchMapper).updateById(draft);
+
+        JobStudentMatch saved = matchService.saveMatch(draft);
+
+        assertEquals(9L, saved.getId());
+        verify(matchMapper, never()).insert(any(JobStudentMatch.class));
+    }
+
+    @Test
+    void saveMatch_whenInsertRaces_shouldUpdateTheCommittedRow() {
+        JobStudentMatch draft = ownedDraft();
+        JobStudentMatch raced = ownedDraft();
+        raced.setId(11L);
+        doReturn(null).doReturn(raced).when(matchMapper).selectOne(any());
+        doThrow(new DuplicateKeyException("duplicate")).when(matchMapper).insert(draft);
+        doReturn(1).when(matchMapper).updateById(draft);
+
+        JobStudentMatch saved = matchService.saveMatch(draft);
+
+        assertEquals(11L, saved.getId());
+        verify(matchMapper).updateById(draft);
+    }
+
+    @Test
+    void saveMatch_whenRowBelongsToAnotherUser_shouldReject() {
+        JobStudentMatch draft = ownedDraft();
+        JobStudentMatch existing = ownedDraft();
+        existing.setId(9L);
+        existing.setUserId(8L);
+        doReturn(existing).when(matchMapper).selectOne(any());
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> matchService.saveMatch(draft));
+
+        assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
+        verify(matchMapper, never()).updateById(any(JobStudentMatch.class));
+    }
+
+    @Test
+    void saveMatch_whenUserMissing_shouldRejectBeforeQuery() {
+        JobStudentMatch draft = ownedDraft();
+        draft.setUserId(null);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> matchService.saveMatch(draft));
+
+        assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
+        verify(matchMapper, never()).selectOne(any());
+    }
+
     // ========================================================
     // 辅助构造
     // ========================================================
 
     /**
-     * 串联 happy path：JobDetail + JobProfile + StudentProfile + aiResult + getOne=null + save=true。
+     * 串联 happy path：岗位与画像就绪，模型返回结果，短事务中插入新匹配记录。
      */
     private void wireHappyPath(Long jobId, String roleType, JobStudentMatchResponse aiResult) {
         prepareJobAndProfiles(jobId, roleType);
         doReturn(aiResult).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobStudentMatchResponse.class));
-        doReturn(null).when(matchService).getOne(any(LambdaQueryWrapper.class));
-        doReturn(true).when(matchService).save(any(JobStudentMatch.class));
+        doReturn(null).when(matchMapper).selectOne(any());
+        doReturn(1).when(matchMapper).insert(any(JobStudentMatch.class));
     }
 
     private void prepareJobAndProfiles(Long jobId, String roleType) {
@@ -270,6 +368,14 @@ class JobStudentMatchServiceImplTest {
                 .getJobCapabilityProfileOrNull(jobId);
         doReturn(buildStudentProfile()).when(studentCapabilityProfileService)
                 .getCurrentUserProfileOrNull();
+    }
+
+    private static JobStudentMatch ownedDraft() {
+        JobStudentMatch draft = new JobStudentMatch();
+        draft.setUserId(7L);
+        draft.setJobId(3L);
+        draft.setOverallScore(80);
+        return draft;
     }
 
     private static JobListItemResponse buildJobDetail() {

@@ -41,8 +41,9 @@ import java.util.Objects;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 /**
@@ -66,6 +67,7 @@ public class JobStudentMatchServiceImpl
     private final StudentCapabilityProfileService studentCapabilityProfileService;
     private final ModelGateway modelGateway;
     private final ObjectMapper objectMapper;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
     public PageDTO<JobStudentMatchListItemResponse> getMyPage(Integer page, Integer limit) {
@@ -91,8 +93,14 @@ public class JobStudentMatchServiceImpl
         return toDto(match);
     }
 
+    /**
+     * 生成人岗匹配。读取与模型调用在事务外完成，结果在短事务中按用户与岗位覆盖保存。
+     *
+     * @param jobId 岗位编号
+     * @param req   自定义权重，可为 null
+     * @return 匹配结果
+     */
     @Override
-    @Transactional
     public JobStudentMatchResponse generate(Long jobId, JobStudentMatchGenerateRequest req) {
         Long userId = UserHolder.requireUserId();
         if (jobId == null) {
@@ -123,9 +131,7 @@ public class JobStudentMatchServiceImpl
         String promptName = MATCH_PROMPT_DIRECTORY + role.slug();
         log.info("人岗匹配开始: jobId={}, userId={}, role={}, prompt={}", jobId, userId, role, promptName);
 
-        // 4. 拼装 LLM 上下文（权重 / 关键词 全部内联进 user message，避免触发 Spring AI
-        //    PromptTemplate 的 StringTemplate 渲染——prompt 体内的 JSON 示例花括号会被 ST
-        //    解析成变量从而抛 STException，详见回归测试 PromptTemplateRenderingTest）
+        // 4. 拼装 LLM 上下文
         List<String> jobKeywords = jobDetail.getKeywords() == null
                 ? List.of()
                 : jobDetail.getKeywords().stream().filter(StringUtils::hasText).map(String::trim).toList();
@@ -156,14 +162,19 @@ public class JobStudentMatchServiceImpl
         int potentialScore = clamp(getDimensionScore(dims, MatchDimension.DEVELOPMENT_POTENTIAL));
         int overall = MatchWeightResolver.weightedOverall(weights, basicScore, skillScore, qualityScore, potentialScore);
 
-        // 7. 落库 upsert
-        JobStudentMatch entity = upsert(userId, jobId, jobProfile, promptName, weights,
+        JobStudentMatch entity = buildMatch(userId, jobId, jobProfile, promptName, weights,
                 basicScore, skillScore, qualityScore, potentialScore, overall,
                 dims, aiResult.getMatchedHighlights(), aiResult.getCriticalGaps(),
                 kw.matched, kw.missing, kw.rate, aiResult.getSummary());
-
-        // 8. 拼装返回 DTO
-        return toDto(entity);
+        if (jobService.getDetail(jobId) == null) {
+            throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
+        }
+        // 7. 落库
+        JobStudentMatch saved = transactionTemplate.execute(status -> saveMatch(entity));
+        if (saved == null) {
+            throw new IllegalStateException("人岗匹配结果未写入");
+        }
+        return toDto(saved);
     }
 
     @Override
@@ -387,7 +398,7 @@ public class JobStudentMatchServiceImpl
     // ============================================================
 
     @SuppressWarnings("checkstyle:ParameterNumber")
-    private JobStudentMatch upsert(Long userId, Long jobId,
+    private JobStudentMatch buildMatch(Long userId, Long jobId,
                                    JobCapabilityProfileResponse jobProfile,
                                    String promptName,
                                    MatchWeightConfigResponse weights,
@@ -400,14 +411,7 @@ public class JobStudentMatchServiceImpl
                                    List<String> missingKeywords,
                                    BigDecimal keySkillMatchRate,
                                    String summary) {
-        JobStudentMatch existing = getOne(new LambdaQueryWrapper<JobStudentMatch>()
-                .eq(JobStudentMatch::getUserId, userId)
-                .eq(JobStudentMatch::getJobId, jobId));
-
         JobStudentMatch entity = new JobStudentMatch();
-        if (existing != null) {
-            entity.setId(existing.getId());
-        }
         entity.setUserId(userId);
         entity.setJobId(jobId);
         entity.setOverallScore(overall);
@@ -426,13 +430,53 @@ public class JobStudentMatchServiceImpl
         entity.setTargetRoleType(StringUtils.hasText(jobProfile.getTargetRoleType())
                 ? jobProfile.getTargetRoleType() : "default");
         entity.setPromptName(promptName);
-
-        if (existing != null) {
-            updateById(entity);
-        } else {
-            save(entity);
-        }
         return entity;
+    }
+
+    /**
+     * 在当前事务中按用户与岗位保存匹配结果。
+     * 重新读取已有记录：不存在则插入，已存在则覆盖；并发插入撞上唯一约束时改为更新该行。
+     *
+     * @param draft 已算好分数和说明的匹配结果，须带用户编号与岗位编号
+     * @return 已写入的匹配结果
+     */
+    JobStudentMatch saveMatch(JobStudentMatch draft) {
+        if (draft.getUserId() == null || draft.getJobId() == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "匹配结果缺少用户或岗位");
+        }
+        JobStudentMatch existing = findOwned(draft.getUserId(), draft.getJobId());
+        if (existing != null) {
+            return updateOwned(draft, existing);
+        }
+        try {
+            if (baseMapper.insert(draft) != 1) {
+                throw new BusinessException(ErrorCode.MATCH_GENERATION_FAILED);
+            }
+            return draft;
+        } catch (DuplicateKeyException exception) {
+            JobStudentMatch raced = findOwned(draft.getUserId(), draft.getJobId());
+            if (raced == null) {
+                throw exception;
+            }
+            return updateOwned(draft, raced);
+        }
+    }
+
+    private JobStudentMatch updateOwned(JobStudentMatch draft, JobStudentMatch existing) {
+        if (!draft.getUserId().equals(existing.getUserId())) {
+            throw new BusinessException(ErrorCode.NO_PERMISSION);
+        }
+        draft.setId(existing.getId());
+        if (baseMapper.updateById(draft) != 1) {
+            throw new BusinessException(ErrorCode.MATCH_GENERATION_FAILED);
+        }
+        return draft;
+    }
+
+    private JobStudentMatch findOwned(Long userId, Long jobId) {
+        return baseMapper.selectOne(new LambdaQueryWrapper<JobStudentMatch>()
+                .eq(JobStudentMatch::getUserId, userId)
+                .eq(JobStudentMatch::getJobId, jobId));
     }
 
     private String toJson(Object value) {

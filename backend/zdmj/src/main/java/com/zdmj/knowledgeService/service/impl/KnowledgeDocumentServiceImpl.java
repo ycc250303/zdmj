@@ -50,13 +50,12 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
     private final FileUploadService fileUploadService;
 
     /**
-     * 创建知识文档
+     * 创建知识文档。文档插入先提交，再在事务外向量化。
      *
      * @param request 知识文档请求
-     * @return 知识文档
+     * @return 向量化完成后的知识文档
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public KnowledgeDocumentResponse create(KnowledgeDocumentRequest request) {
 
         // 1. 验证内容

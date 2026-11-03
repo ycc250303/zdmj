@@ -27,6 +27,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
@@ -359,5 +360,37 @@ class MessageServiceImplTest {
 
         verify(knowledgeRagService).streamAnswer(eq(1L), eq(306L), eq("ask"), eq(List.of(9L)), eq(true), any());
         verify(modelGateway, never()).stream(any(), any());
+    }
+
+    @Test
+    void createStream_whenClientCancels_shouldPersistPartialAndStopUpstream() {
+        ChatStreamRequest dto = new ChatStreamRequest();
+        dto.setConversationId(307L);
+        dto.setMessage("wait");
+        Conversation conversation = new Conversation();
+        conversation.setId(307L);
+        conversation.setMessageCount(1);
+        doReturn(conversation).when(conversationService).requireOwned(307L);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            Message message = invocation.getArgument(0);
+            if (message.getRole() == 2) {
+                message.setId(904L);
+            }
+            return 1;
+        }).when(messageMapper).insert(any(Message.class));
+        doReturn(1).when(messageMapper).updateById(any(Message.class));
+        java.util.concurrent.atomic.AtomicBoolean upstreamCancelled = new java.util.concurrent.atomic.AtomicBoolean(false);
+        doReturn(Flux.concat(Flux.just("部分"), Flux.never()).doOnCancel(() -> upstreamCancelled.set(true)))
+                .when(knowledgeRagService)
+                .streamAnswer(eq(1L), eq(307L), eq("wait"), isNull(), eq(false), any());
+
+        Disposable subscription = messageService.createStream(dto).subscribe();
+        subscription.dispose();
+
+        ArgumentCaptor<Message> assistantCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(messageMapper).updateById(assistantCaptor.capture());
+        assertEquals("部分", assistantCaptor.getValue().getContent());
+        assertTrue(upstreamCancelled.get());
+        verify(transactionTemplate, times(2)).execute(any());
     }
 }

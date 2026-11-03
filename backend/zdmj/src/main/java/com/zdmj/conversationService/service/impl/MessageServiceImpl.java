@@ -24,6 +24,7 @@ import com.zdmj.conversationService.support.ConversationContextSupport;
 import com.zdmj.knowledgeService.service.KnowledgeRagService;
 
 import lombok.RequiredArgsConstructor;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
@@ -34,6 +35,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 消息 Service 实现类
@@ -54,7 +56,8 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
 
     /**
      * 先在短事务中写入用户消息和助手占位并提交，再生成标题、订阅模型流。
-     * 远程模型调用与 SSE 推送不持有该写入事务。
+     * 流正常结束、失败或客户端中断时，另以短事务回写助手消息内容。
+     * 失败仍通过流错误向下游传递，消息表没有单独的状态列。
      *
      * @param request 会话编号与用户消息
      * @return SSE 增量事件
@@ -76,6 +79,16 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         }
         subscribeAnswer(conversation, userId, request, prepared);
         return prepared.sink().asFlux()
+                .doOnCancel(() -> {
+                    try {
+                        persistAssistantContent(prepared.assistantMsg(), prepared.full().toString());
+                    } finally {
+                        Disposable upstream = prepared.upstream().get();
+                        if (upstream != null) {
+                            upstream.dispose();
+                        }
+                    }
+                })
                 .index()
                 .map(tp -> ServerSentEvent.<String>builder()
                         .event("delta")
@@ -112,7 +125,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
             throw new BusinessException(ErrorCode.MESSAGE_CREATE_FAILED);
         }
         return new PreparedMessages(newCount, assistantMsg, Sinks.many().unicast().onBackpressureBuffer(),
-                new StringBuilder(256));
+                new StringBuilder(256), new AtomicReference<>());
     }
 
     private void subscribeAnswer(Conversation conversation, Long userId, ChatStreamRequest request,
@@ -127,7 +140,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
                 ragDocumentIds,
                 useSystemKnowledge,
                 promptVars);
-        chatFlux.doOnNext(chunk -> {
+        Disposable upstream = chatFlux.doOnNext(chunk -> {
             if (chunk == null || chunk.isEmpty()) {
                 return;
             }
@@ -139,18 +152,18 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
                     prepared.sink().tryEmitError(e);
                 })
                 .doOnComplete(() -> {
-                    String finalText = prepared.full().toString();
-                    prepared.assistantMsg().setContent(finalText);
-                    if (messageMapper.updateById(prepared.assistantMsg()) != 1) {
+                    if (persistAssistantContent(prepared.assistantMsg(), prepared.full().toString()) != 1) {
                         prepared.sink().tryEmitError(new RuntimeException("assistant message persist failed"));
                         return;
                     }
                     prepared.sink().tryEmitComplete();
                 })
                 .subscribe();
+        prepared.upstream().set(upstream);
     }
 
-    private record PreparedMessages(int newCount, Message assistantMsg, Sinks.Many<String> sink, StringBuilder full) {
+    private record PreparedMessages(int newCount, Message assistantMsg, Sinks.Many<String> sink, StringBuilder full,
+            AtomicReference<Disposable> upstream) {
     }
 
     /**
@@ -197,10 +210,19 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         }
     }
 
-    /** 错误路径尽力回写已生成内容，失败不影响向下游抛错。 */
-    private void persistAssistantContent(Message assistantMsg, String content) {
-        assistantMsg.setContent(content);
-        messageMapper.updateById(assistantMsg);
+    /**
+     * 在短事务中回写助手消息内容。
+     *
+     * @param assistantMsg 占位助手消息
+     * @param content 已生成的文本，失败或中断时可能不完整
+     * @return 更新行数；事务未返回结果时为 0
+     */
+    private int persistAssistantContent(Message assistantMsg, String content) {
+        Integer updated = transactionTemplate.execute(status -> {
+            assistantMsg.setContent(content);
+            return messageMapper.updateById(assistantMsg);
+        });
+        return updated == null ? 0 : updated;
     }
 
     private MessageResponse convertToResponse(Message message) {

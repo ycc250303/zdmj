@@ -7,12 +7,16 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.springframework.ai.document.Document;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.transformer.splitter.TextSplitter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -23,7 +27,6 @@ import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
 import com.zdmj.knowledgeService.enums.KnowledgeVectorTaskStatusEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
-import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
 
 import lombok.AllArgsConstructor;
@@ -38,19 +41,53 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
 
     private final TextSplitter textSplitter;
     private final EmbeddingModel embeddingModel;
-    private final KnowledgeBasesService knowledgeBasesService;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeVectorMapper knowledgeVectorMapper;
     private final PdfParserUtil pdfParserUtil;
+    private final TransactionTemplate transactionTemplate;
 
+    /**
+     * 向量化一篇知识文档。
+     * 先短事务标记为进行中，再在事务外抽文本、切块和嵌入；成功后短事务按当时的文档内容覆盖向量。
+     * 失败时另开短事务写入失败状态。文档内容在远程调用期间变化时，不覆盖新内容，也不改写其状态。
+     *
+     * @param documentId 知识文档编号
+     * @throws BusinessException 文档不存在、类型不支持、分块或向量结果非法，或保存失败
+     */
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void vectorizeAndStore(Long DocumentId) {
-        KnowledgeDocument kd = knowledgeDocumentMapper.selectById(DocumentId);
-        if (kd == null) {
+    public void vectorizeAndStore(Long documentId) {
+        // 1. 获取知识文档
+        KnowledgeDocument loaded = knowledgeDocumentMapper.selectById(documentId);
+        if (loaded == null || loaded.getUserId() == null || loaded.getKnowledgeId() == null) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
         }
-        runEmbeddingTaskByUser(DocumentId, kd.getUserId());
+        Long userId = loaded.getUserId();
+        String contentSnapshot = loaded.getContent();
+        log.info("开始向量化并存储知识库: documentId={}, userId={}", documentId, userId);
+        // 2. 标记为进行中
+        if (markStatus(documentId, userId, contentSnapshot,
+                KnowledgeVectorTaskStatusEnum.RUNNING.getCode(), null) != 1) {
+            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
+        }
+
+        try {
+            // 3. 抽文本
+            String rawText = extractText(loaded);
+            // 4. 切块
+            List<Document> chunks = textSplitter.apply(List.of(new Document(rawText)));
+            if (chunks.isEmpty()) {
+                throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "分块结果为空");
+            }
+            List<KnowledgeVector> rows = embedChunks(loaded, chunks);
+            transactionTemplate.execute(status -> {
+                saveVectors(documentId, userId, contentSnapshot, rows);
+                return null;
+            });
+        } catch (RuntimeException exception) {
+            markStatus(documentId, userId, contentSnapshot,
+                    KnowledgeVectorTaskStatusEnum.FAILED.getCode(), exception.getMessage());
+            throw exception;
+        }
     }
 
     @Override
@@ -64,95 +101,94 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
     }
 
     /**
-     * 单文档向量化：抽文本 → 切块 → 批量 Embedding → 写入 knowledge_vectors。
-     * 事务由调用方 {@code vectorizeAndStore} 的 {@code @Transactional} 覆盖。
+     * 按文档、用户和开始向量化时的内容更新状态。内容已变化时影响行数为 0。
+     *
+     * @param documentId 知识文档编号
+     * @param userId 文档所属用户
+     * @param contentSnapshot 开始向量化时的来源地址
+     * @param embeddingStatus 目标状态码
+     * @param lastError 失败摘要；进行中时为空
+     * @return 更新行数
      */
-    private void runEmbeddingTaskByUser(Long DocumentId, Long userId) {
-        log.info("开始向量化并存储知识库: DocumentId={}, userId={}", DocumentId, userId);
+    private int markStatus(Long documentId, Long userId, String contentSnapshot, Integer embeddingStatus, String lastError) {
+        Integer updated = transactionTemplate.execute(status -> knowledgeDocumentMapper.update(null,
+                new LambdaUpdateWrapper<KnowledgeDocument>()
+                        .eq(KnowledgeDocument::getId, documentId)
+                        .eq(KnowledgeDocument::getUserId, userId)
+                        .eq(KnowledgeDocument::getContent, contentSnapshot)
+                        .set(KnowledgeDocument::getEmbeddingStatus, embeddingStatus)
+                        .set(KnowledgeDocument::getLastError, lastError)));
+        return updated == null ? 0 : updated;
+    }
 
-        // --- 1. 校验：文档存在且归属于当前用户 ---
-        KnowledgeDocument kd = knowledgeDocumentMapper.selectById(DocumentId);
-        if (kd == null || !userId.equals(kd.getUserId())) {
+    /**
+     * 调用嵌入模型并组装待写入的向量行，不访问数据库。
+     *
+     * @param source 开始向量化时读到的文档
+     * @param chunks 文本分块
+     * @return 与分块顺序一致的向量行
+     */
+    private List<KnowledgeVector> embedChunks(KnowledgeDocument source, List<Document> chunks) {
+        int totalChunks = chunks.size();
+        int batchCount = (totalChunks + MAX_BATCH_SIZE - 1) / MAX_BATCH_SIZE;
+        List<KnowledgeVector> rows = new ArrayList<>(totalChunks);
+        for (int batchIndex = 0; batchIndex < batchCount; batchIndex++) {
+            int start = batchIndex * MAX_BATCH_SIZE;
+            int end = Math.min(start + MAX_BATCH_SIZE, totalChunks);
+            List<String> batchTexts = chunks.subList(start, end).stream().map(Document::getText).toList();
+            List<float[]> batchVectors = embeddingModel.embed(batchTexts);
+            if (batchVectors == null || batchVectors.size() != batchTexts.size()) {
+                throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "批量向量化结果数量异常");
+            }
+            for (int j = 0; j < batchTexts.size(); j++) {
+                String chunkText = batchTexts.get(j);
+                KnowledgeVector row = new KnowledgeVector();
+                row.setDocumentId(source.getId());
+                row.setKnowledgeId(source.getKnowledgeId());
+                row.setUserId(source.getUserId());
+                row.setEmbedding(toPgVector(batchVectors.get(j)));
+                row.setContent(chunkText);
+                row.setChunkIndex(start + j);
+                row.setChunkHash(sha256(chunkText));
+                row.setTokenCount(estimateToken(chunkText));
+                Map<String, Object> meta = new HashMap<>();
+                meta.put("DocumentId", String.valueOf(source.getId()));
+                meta.put("KnowledgeId", String.valueOf(source.getKnowledgeId()));
+                meta.put("content", source.getContent());
+                row.setMetadata(meta);
+                rows.add(row);
+            }
+        }
+        return rows;
+    }
+
+    /**
+     * 在当前事务中确认文档仍属于原用户且来源地址未变，然后覆盖向量并标记成功。
+     *
+     * @param documentId 知识文档编号
+     * @param userId 开始向量化时的用户
+     * @param contentSnapshot 开始向量化时的来源地址
+     * @param rows 已算好的向量行
+     */
+    private void saveVectors(Long documentId, Long userId, String contentSnapshot, List<KnowledgeVector> rows) {
+        KnowledgeDocument current = knowledgeDocumentMapper.selectById(documentId);
+        if (current == null || !userId.equals(current.getUserId()) || current.getKnowledgeId() == null) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
         }
-        Long knowledgeId = kd.getKnowledgeId();
-        if (knowledgeId == null) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
+        if (!Objects.equals(contentSnapshot, current.getContent())) {
+            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "文档内容已变化");
         }
-
-        // --- 2. 状态：先标 RUNNING，失败时保留错误摘要 ---
-        kd.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.RUNNING.getCode());
-        kd.setLastError(null);
-        knowledgeDocumentMapper.updateById(kd);
-
-        try {
-            // --- 3. 清旧向量：重跑/更新文档时保证「一份文档一份当前切片」 ---
-            knowledgeVectorMapper.deleteByDocumentIdAndUserId(DocumentId, userId);
-
-            // --- 4. 抽文本：content 存的是 COS URL，Tika 按类型取出纯文本 ---
-            String rawText = extractText(kd);
-
-            // --- 5. 切块：TokenTextSplitter 默认 800 token/块 ---
-            List<Document> chunks = textSplitter.apply(List.of(new Document(rawText)));
-            if (chunks.isEmpty()) {
-                throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "分块结果为空");
-            }
-
-            // --- 6. 批量 Embedding + 落库：每批 ≤10，控制厂商限流与失败粒度 ---
-            int totalChunks = chunks.size();
-            int batchCount = (totalChunks + MAX_BATCH_SIZE - 1) / MAX_BATCH_SIZE;
-            int persistedCount = 0;
-            for (int batchIndex = 0; batchIndex < batchCount; batchIndex++) {
-                int start = batchIndex * MAX_BATCH_SIZE;
-                int end = Math.min(start + MAX_BATCH_SIZE, totalChunks);
-                List<Document> batchDocs = chunks.subList(start, end);
-                List<String> batchTexts = batchDocs.stream().map(Document::getText).toList();
-                List<float[]> batchVectors = embeddingModel.embed(batchTexts);
-                if (batchVectors == null || batchVectors.size() != batchTexts.size()) {
-                    throw new BusinessException(
-                            ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED,
-                            "批量向量化结果数量异常");
-                }
-                List<KnowledgeVector> rows = new ArrayList<>(batchTexts.size());
-                for (int j = 0; j < batchTexts.size(); j++) {
-                    int chunkIndex = start + j;
-                    String chunkText = batchTexts.get(j);
-                    float[] vec = batchVectors.get(j);
-                    KnowledgeVector kv = new KnowledgeVector();
-                    kv.setDocumentId(DocumentId);
-                    kv.setKnowledgeId(knowledgeId);
-                    kv.setUserId(userId);
-                    kv.setEmbedding(toPgVector(vec));
-                    kv.setContent(chunkText);
-                    kv.setChunkIndex(chunkIndex);
-                    kv.setChunkHash(sha256(chunkText));
-                    kv.setTokenCount(estimateToken(chunkText));
-                    Map<String, Object> meta = new HashMap<>();
-                    meta.put("DocumentId", String.valueOf(DocumentId));
-                    meta.put("KnowledgeId", String.valueOf(knowledgeId));
-                    meta.put("content", kd.getContent());
-                    kv.setMetadata(meta);
-                    rows.add(kv);
-                }
-                knowledgeVectorMapper.batchInsert(rows);
-                persistedCount += rows.size();
-            }
-
-            // --- 7. 回写文档：success + 块数 + 内容哈希（供以后判断是否需要重嵌） ---
-            kd.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.SUCCESS.getCode());
-            kd.setChunkCount(persistedCount);
-            kd.setLastEmbeddedAt(LocalDateTime.now());
-            kd.setLastError(null);
-            kd.setContentHash(sha256(kd.getContent()));
-            knowledgeDocumentMapper.updateById(kd);
-            log.info("向量化完成: DocumentId={}, chunks={}, batches={}", DocumentId, persistedCount, batchCount);
-        } catch (Exception e) {
-            // 文档标 FAILED 后上抛，由当前事务回滚或由调用方处理。
-            kd.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.FAILED.getCode());
-            kd.setLastError(e.getMessage());
-            knowledgeDocumentMapper.updateById(kd);
-            throw e;
+        knowledgeVectorMapper.deleteByDocumentIdAndUserId(documentId, userId);
+        knowledgeVectorMapper.batchInsert(rows);
+        current.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.SUCCESS.getCode());
+        current.setChunkCount(rows.size());
+        current.setLastEmbeddedAt(LocalDateTime.now());
+        current.setLastError(null);
+        current.setContentHash(sha256(current.getContent()));
+        if (knowledgeDocumentMapper.updateById(current) != 1) {
+            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED);
         }
+        log.info("向量化完成: documentId={}, chunks={}", documentId, rows.size());
     }
 
     @Override
