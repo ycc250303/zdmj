@@ -33,7 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 
 /**
- * {@link ModelGateway} 的实现：按用户配置或平台模型构建客户端，完成提示词渲染、结构化输出和流式调用。
+ * {@link ModelGateway} 的实现：按用户配置构建客户端，完成提示词渲染、结构化输出和流式调用。
  */
 @Slf4j
 @Service
@@ -52,7 +52,6 @@ public class ModelGatewayImpl implements ModelGateway {
     private final ModelClientConfiguration clients;
     private final ChatMemory chatMemory;
     private final Map<String, ChatClient> clientCache = new ConcurrentHashMap<>();
-    private final Map<String, ChatClient> platformClientCache = new ConcurrentHashMap<>();
 
     /**
      * 装配提示词、用户配置查询、供应商客户端和会话记忆。
@@ -81,13 +80,8 @@ public class ModelGatewayImpl implements ModelGateway {
 
     @Override
     public <T> T generateStructured(CurrentActor actor, StructuredModelRequest<T> request) {
-        ChatClientRequestSpec spec;
-        if (request.platformModel() != null) {
-            spec = platformChatClient(request.platformModel()).prompt();
-        } else {
-            requireUserId(actor);
-            spec = userChatClient(actor, false).prompt();
-        }
+        requireUserId(actor);
+        ChatClientRequestSpec spec = userChatClient(actor, false).prompt();
         return invokeStructured(
                 applySystemPrompt(spec, request.promptName(), request.promptVars()),
                 request.message(),
@@ -109,16 +103,6 @@ public class ModelGatewayImpl implements ModelGateway {
                 .user(request.message())
                 .stream()
                 .content();
-    }
-
-    @Override
-    public ModelCode resumeImportModel() {
-        return clients.resumeImportModel();
-    }
-
-    @Override
-    public boolean platformFallbackEnabled() {
-        return clients.platformFallbackEnabled();
     }
 
     @Override
@@ -164,40 +148,25 @@ public class ModelGatewayImpl implements ModelGateway {
     }
 
     /**
-     * 取得平台指定模型的客户端，忽略用户配置。
+     * 按用户已保存的模型与密钥构建客户端。未配置时立即终止。
      *
-     * @param model 平台模型
-     * @return 无会话记忆的客户端
+     * @param userId     用户主键
+     * @param withMemory 是否挂载会话记忆
+     * @return 客户端
+     * @throws BusinessException 用户未配置模型或密钥时抛出 {@link ErrorCode#USER_LLM_NOT_CONFIGURED}
      */
-    protected ChatClient platformChatClient(ModelCode model) {
-        return platformClientCache.computeIfAbsent("platform:" + model.code(),
-                key -> {
-                    ChatClient client = ChatClient.builder(clients.buildPlatformModel(model)).build();
-                    log.info("[ModelGateway] created platform ChatClient model={}", model.apiModelName());
-                    return client;
-                });
-    }
-
     private ChatClient createUserClient(Long userId, boolean withMemory) {
         ResolvedModelConfiguration resolved = configurationProvider.resolve(CurrentActor.of(userId));
-        ChatModel chatModel;
-        boolean platformDefault;
-        String modelName;
-        if (resolved.configured()) {
-            chatModel = clients.buildUserModel(resolved.model(), resolved.apiKey());
-            platformDefault = false;
-            modelName = resolved.model().apiModelName();
-        } else {
-            chatModel = clients.buildPlatformDefaultModel();
-            platformDefault = true;
-            modelName = clients.platformModelName();
+        if (!resolved.configured()) {
+            throw new BusinessException(ErrorCode.USER_LLM_NOT_CONFIGURED);
         }
+        ChatModel chatModel = clients.buildUserModel(resolved.model(), resolved.apiKey());
         ChatClient.Builder builder = ChatClient.builder(chatModel);
         if (withMemory) {
             builder.defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build());
         }
-        log.info("[ModelGateway] created ChatClient userId={} memory={} platformDefault={} model={}",
-                userId, withMemory, platformDefault, modelName);
+        log.info("[ModelGateway] created ChatClient userId={} memory={} model={}",
+                userId, withMemory, resolved.model().apiModelName());
         return builder.build();
     }
 

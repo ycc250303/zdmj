@@ -3,7 +3,6 @@ package com.zdmj.resumeService.service.impl;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.StructuredModelRequest;
-import com.zdmj.aiService.model.ModelCode;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
@@ -455,18 +454,15 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         List<String> warnings = new ArrayList<>();
         String sourceText = PdfParserUtil.normalizeExtractedText(resolveImportSourceText(request));
 
-        ModelCode importModel = modelGateway.resumeImportModel();
-        log.info("简历识别：使用平台模型 {}", importModel.code());
         ResumeImportParseResponse parsed;
         try {
             parsed = modelGateway.generateStructured(
                     CurrentActor.of(userId),
-                    StructuredModelRequest.platform(
+                    StructuredModelRequest.of(
                             sourceText,
                             IMPORT_PROMPT,
                             null,
-                            ResumeImportParseResponse.class,
-                            importModel));
+                            ResumeImportParseResponse.class));
         } catch (BusinessException e) {
             throw e;
         } catch (IllegalStateException e) {

@@ -35,9 +35,6 @@ const statusTag = computed(() => {
   if (config.value.configured) {
     return { type: 'success' as const, label: $t('page.userSettings.statusConfigured') };
   }
-  if (config.value.usingPlatformDefault) {
-    return { type: 'info' as const, label: $t('page.userSettings.statusPlatformDefault') };
-  }
   return { type: 'warning' as const, label: $t('page.userSettings.statusNotConfigured') };
 });
 

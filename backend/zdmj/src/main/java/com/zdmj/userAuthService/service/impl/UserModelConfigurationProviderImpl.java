@@ -14,7 +14,7 @@ import com.zdmj.userAuthService.llm.UserApiKeyCipher;
 import com.zdmj.userAuthService.mapper.UserLlmConfigMapper;
 
 /**
- * 从用户模型配置表解析已保存的模型与密钥。平台密钥和供应商客户端不在本类处理。
+ * 从用户模型配置表解析已保存的模型与密钥。供应商客户端不在本类处理。
  */
 @Service
 public class UserModelConfigurationProviderImpl implements UserModelConfigurationProvider {

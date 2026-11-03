@@ -35,7 +35,6 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
         if (config == null) {
             UserLlmConfigResponse dto = new UserLlmConfigResponse();
             dto.setConfigured(false);
-            dto.setUsingPlatformDefault(modelGateway.platformFallbackEnabled());
             return dto;
         }
 
@@ -43,7 +42,6 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
         UserLlmConfigResponse dto = new UserLlmConfigResponse();
         ModelCode meta = ModelCode.fromCode(config.getModelCode());
         dto.setConfigured(true);
-        dto.setUsingPlatformDefault(false);
         dto.setModelCode(meta.code());
         dto.setModelDisplayName(meta.displayName());
         dto.setApiKeyMasked(UserApiKeyCipher.mask(plain));

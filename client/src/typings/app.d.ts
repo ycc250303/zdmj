@@ -792,7 +792,6 @@ declare namespace App {
           deleteSuccess: string;
           testSuccess: string;
           statusConfigured: string;
-          statusPlatformDefault: string;
           statusNotConfigured: string;
           currentModel: string;
           currentApiKey: string;

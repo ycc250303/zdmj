@@ -3,7 +3,6 @@ import { request } from '../request';
 export namespace UserLlmConfigApi {
   export interface Config {
     configured: boolean;
-    usingPlatformDefault: boolean;
     modelCode?: string;
     modelDisplayName?: string;
     apiKeyMasked?: string;
@@ -50,7 +49,7 @@ export function fetchSaveUserLlmConfig(data: UserLlmConfigApi.SaveRequest) {
   });
 }
 
-/** 删除用户大模型配置（恢复平台默认） */
+/** 删除用户大模型配置。删除后对话调用返回未配置。 */
 export function fetchDeleteUserLlmConfig() {
   return request<null>({
     url: '/users/llm-config',

@@ -152,5 +152,4 @@ app:
     secret: your-jwt-secret
   ai:
     user-llm:
-      platform-fallback-enabled: true
       encryption-key: ${APP_AI_USER_KEY_ENCRYPTION_KEY:}

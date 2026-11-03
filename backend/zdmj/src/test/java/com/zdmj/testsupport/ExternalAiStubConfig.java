@@ -27,7 +27,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.config.ModelClientConfiguration;
-import com.zdmj.aiService.model.ModelCode;
 import com.zdmj.aiService.provider.UserModelConfigurationProvider;
 import com.zdmj.aiService.service.ModelGatewayImpl;
 import com.zdmj.common.prompt.PromptLoader;
@@ -227,11 +226,6 @@ public class ExternalAiStubConfig {
         @Override
         protected ChatClient userChatClient(CurrentActor actor, boolean withMemory) {
             return withMemory ? this.withMemory : plain;
-        }
-
-        @Override
-        protected ChatClient platformChatClient(ModelCode model) {
-            return plain;
         }
     }
 }

@@ -4,7 +4,6 @@ import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.aiService.model.ModelCode;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.common.util.PdfParserUtil;
@@ -46,7 +45,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -95,7 +93,6 @@ class ResumeServiceImplTest {
                 educationService, careerService, awardService, projectExperienceService, skillService, validator,
                 pdfParserUtil));
         ReflectionTestUtils.setField(Objects.requireNonNull(resumeService), "baseMapper", resumeMapper);
-        lenient().doReturn(ModelCode.DEEPSEEK_FLASH).when(modelGateway).resumeImportModel();
     }
 
     @AfterEach
@@ -447,7 +444,7 @@ class ResumeServiceImplTest {
                 ArgumentCaptor.forClass(StructuredModelRequest.class);
         verify(modelGateway).generateStructured(any(), parseMsg.capture());
         assertTrue(parseMsg.getValue().message().contains("GPA: 4.43/5.00"));
-        assertEquals(ModelCode.DEEPSEEK_FLASH, parseMsg.getValue().platformModel());
+        assertEquals("resume-import-parse", parseMsg.getValue().promptName());
         assertEquals(3, out.getAwards().size());
         assertEquals(1, out.getAwards().stream().filter(a -> a.getName().contains("优秀学生奖学金")).count());
     }
@@ -531,7 +528,7 @@ class ResumeServiceImplTest {
                 ArgumentCaptor.forClass(StructuredModelRequest.class);
         verify(modelGateway).generateStructured(any(), parseMsg.capture());
         assertEquals(16000, parseMsg.getValue().message().length());
-        assertEquals(ModelCode.DEEPSEEK_FLASH, parseMsg.getValue().platformModel());
+        assertEquals("resume-import-parse", parseMsg.getValue().promptName());
         assertEquals(true, out.getWarnings() == null || out.getWarnings().stream().noneMatch(w -> w.contains("截断")));
     }
 
@@ -569,7 +566,6 @@ class ResumeServiceImplTest {
     private static boolean resumeImportRequest(StructuredModelRequest<?> request) {
         return "resume-import-parse".equals(request.promptName())
                 && request.promptVars() == null
-                && request.outputType() == ResumeImportParseResponse.class
-                && request.platformModel() == ModelCode.DEEPSEEK_FLASH;
+                && request.outputType() == ResumeImportParseResponse.class;
     }
 }

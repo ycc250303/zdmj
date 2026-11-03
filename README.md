@@ -119,7 +119,7 @@
 ### 账号与模型
 
 - **注册登录**：邮箱验证码、JWT 鉴权，用户数据按账号隔离。
-- **多模型配置**：用户可自选通义千问 3.8 Flash / Max、DeepSeek V4 Flash / Pro，并加密保存 API Key；未配置时回退平台默认模型。简历结构化识别固定走平台 DeepSeek Flash（无 Key 时回退千问 Flash）。
+- **多模型配置**：用户可自选通义千问 3.8 Flash / Max、DeepSeek V4 Flash / Pro，并加密保存 API Key。画像、匹配、会话和简历识别使用该配置；未配置时接口返回 2010。知识库向量继续使用平台默认嵌入模型。
 - **限流**：长耗时生成接口按用户维度限流，超限返回 429。
 
 ---
@@ -198,7 +198,7 @@ pnpm dev
 Compose 会启动 PostgreSQL（pgvector）、Redis、Spring Boot 后端和 Nginx 前端。
 
 ```bash
-cp .env.example .env   # 填入 DASHSCOPE_API_KEY / DEEPSEEK_API_KEY、COS、JWT 等
+cp .env.example .env   # 填入 DASHSCOPE_API_KEY、COS、JWT 等
 cd deploy
 docker compose --env-file ../.env up -d --build
 ```

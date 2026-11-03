@@ -542,7 +542,7 @@ const local: App.I18n.Schema = {
     userSettings: {
       navTitle: '用户设置',
       title: '大模型配置',
-      desc: '配置你自己的模型与 API Key；未配置时将使用平台默认模型。',
+      desc: '配置你自己的模型与 API Key。未配置时，画像、匹配、会话和简历识别无法调用模型。',
       model: '模型',
       modelPlaceholder: '请选择模型',
       modelRequired: '请选择模型',
@@ -553,12 +553,11 @@ const local: App.I18n.Schema = {
       save: '保存配置',
       test: '测试连通性',
       clearConfig: '清除配置',
-      deleteConfirm: '确定清除当前模型配置并恢复为平台默认吗？',
+      deleteConfirm: '确定清除当前模型配置吗？清除后相关功能需要重新配置才能使用。',
       saveSuccess: '配置保存成功',
       deleteSuccess: '配置已清除',
       testSuccess: '连通性测试成功',
       statusConfigured: '已配置自定义模型',
-      statusPlatformDefault: '使用平台默认模型',
       statusNotConfigured: '未配置',
       currentModel: '当前模型',
       currentApiKey: '当前 Key'

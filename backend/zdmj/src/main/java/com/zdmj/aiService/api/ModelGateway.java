@@ -1,6 +1,5 @@
 package com.zdmj.aiService.api;
 
-import com.zdmj.aiService.model.ModelCode;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -23,9 +22,9 @@ public interface ModelGateway {
     String generate(CurrentActor actor, ModelRequest request);
 
     /**
-     * 完成一次结构化生成。{@code request.platformModel()} 有值时使用平台模型，否则按用户配置路由。
+     * 按用户配置完成一次结构化生成。
      *
-     * @param actor   当前操作者；按用户配置路由时用户主键为空则抛出 {@link ErrorCode#USER_NOT_LOGIN}
+     * @param actor   当前操作者，用户主键为空时抛出 {@link ErrorCode#USER_NOT_LOGIN}
      * @param request 结构化请求
      * @param <T>     结果类型
      * @return 解析后的对象
@@ -44,21 +43,6 @@ public interface ModelGateway {
      * @throws IllegalArgumentException 会话标识为空
      */
     Flux<String> stream(CurrentActor actor, StreamingModelRequest request);
-
-    /**
-     * 解析简历识别使用的平台模型：优先 DeepSeek Flash，未配置 DeepSeek 密钥时使用通义 Flash。
-     *
-     * @return 平台模型
-     * @throws BusinessException 平台密钥都未配置时抛出 {@link ErrorCode#USER_LLM_NOT_CONFIGURED}
-     */
-    ModelCode resumeImportModel();
-
-    /**
-     * 当前环境是否允许未配置用户使用平台默认模型。
-     *
-     * @return 允许时为 true
-     */
-    boolean platformFallbackEnabled();
 
     /**
      * 清除指定用户的客户端缓存。保存或删除用户模型配置后调用。

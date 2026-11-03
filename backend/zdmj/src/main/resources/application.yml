@@ -108,7 +108,4 @@ app:
     secret: ${JWT_SECRET:}
   ai:
     user-llm:
-      platform-fallback-enabled: true
       encryption-key: ${APP_AI_USER_KEY_ENCRYPTION_KEY:}
-    deepseek:
-      api-key: ${DEEPSEEK_API_KEY:}

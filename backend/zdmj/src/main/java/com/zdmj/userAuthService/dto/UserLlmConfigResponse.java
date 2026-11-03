@@ -7,8 +7,6 @@ public class UserLlmConfigResponse {
 
     private boolean configured;
 
-    private boolean usingPlatformDefault;
-
     private String modelCode;
 
     private String modelDisplayName;

@@ -545,7 +545,7 @@ const local: App.I18n.Schema = {
     userSettings: {
       navTitle: 'User Settings',
       title: 'LLM Configuration',
-      desc: 'Configure your own model and API Key. Platform default is used when not configured.',
+      desc: 'Configure your own model and API Key. Portraits, matching, chat, and resume import cannot call a model until it is configured.',
       model: 'Model',
       modelPlaceholder: 'Select a model',
       modelRequired: 'Please select a model',
@@ -556,12 +556,11 @@ const local: App.I18n.Schema = {
       save: 'Save',
       test: 'Test Connection',
       clearConfig: 'Clear Config',
-      deleteConfirm: 'Clear your LLM config and revert to platform default?',
+      deleteConfirm: 'Clear the current model configuration? Related features require a new configuration before they can be used.',
       saveSuccess: 'Configuration saved',
       deleteSuccess: 'Configuration cleared',
       testSuccess: 'Connection test succeeded',
       statusConfigured: 'Custom model configured',
-      statusPlatformDefault: 'Using platform default',
       statusNotConfigured: 'Not configured',
       currentModel: 'Current model',
       currentApiKey: 'Current key'
