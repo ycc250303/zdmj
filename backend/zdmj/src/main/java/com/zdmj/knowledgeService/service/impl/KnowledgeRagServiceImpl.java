@@ -8,10 +8,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import com.zdmj.aiService.api.EmbeddingGateway;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.aiService.api.StreamingModelRequest;
@@ -44,7 +44,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
     /** 单条命中写入日志时，文本预览最大字符数（避免超长 content 撑爆日志） */
     private static final int RAG_LOG_CONTENT_PREVIEW_MAX = 500;
 
-    private final EmbeddingModel embeddingModel;
+    private final EmbeddingGateway embeddingGateway;
     private final RagConfig ragConfig;
     private final KnowledgeBasesService knowledgeBasesService;
     private final KnowledgeEmbeddingService knowledgeEmbeddingService;
@@ -130,8 +130,8 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         response.setRewriteUsed(dualPath);
 
         // --- 4. 原文 / 改写各 embed 一次（同句复用向量） ---
-        String vecRaw = toPgVector(query);
-        String vecRewritten = dualPath ? toPgVector(rewritten) : vecRaw;
+        String vecRaw = toPgVector(userId, query);
+        String vecRewritten = dualPath ? toPgVector(userId, rewritten) : vecRaw;
 
         // --- 5. 个人库 + 系统库：每个向量各做一次 ANN ---
         List<KnowledgeRetrivalDTO> combined = new ArrayList<>();
@@ -190,15 +190,12 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
     }
 
     /** 查询文本 embed 一次并转成 pgvector 字面量；失败返回 null，该路当空命中。 */
-    private String toPgVector(String queryText) {
+    private String toPgVector(Long userId, String queryText) {
         if (!StringUtils.hasText(queryText)) {
             return null;
         }
         try {
-            float[] vector = embeddingModel.embed(queryText);
-            if (vector == null) {
-                return null;
-            }
+            float[] vector = embeddingGateway.embed(CurrentActor.of(userId), List.of(queryText)).get(0);
             return knowledgeEmbeddingService.toPgVector(vector);
         } catch (Exception e) {
             log.warn("查询向量生成失败: {}", e.getMessage());

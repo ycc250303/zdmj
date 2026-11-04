@@ -16,6 +16,7 @@ import org.springframework.ai.openai.api.ResponseFormat;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import com.zdmj.aiService.api.ModelAdministration;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.aiService.api.StreamingModelRequest;
@@ -33,11 +34,12 @@ import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 
 /**
- * {@link ModelGateway} 的实现：按用户配置构建客户端，完成提示词渲染、结构化输出和流式调用。
+ * {@link ModelGateway} 与 {@link ModelAdministration} 的实现：按用户配置构建客户端，完成提示词渲染、结构化输出和流式调用。
+ * 缓存失效与连通性探测留在本类，以便清除同一份客户端缓存。
  */
 @Slf4j
 @Service
-public class ModelGatewayImpl implements ModelGateway {
+public class ModelGatewayImpl implements ModelGateway, ModelAdministration {
 
     /**
      * 仅结构化调用附带 JSON Mode。请求 options 与客户端默认项合并，不改缓存的 ChatClient。

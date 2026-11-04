@@ -28,7 +28,7 @@ import org.mockito.Mockito;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.embedding.EmbeddingModel;
+import com.zdmj.aiService.api.EmbeddingGateway;
 import org.springframework.ai.transformer.splitter.TextSplitter;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
@@ -53,7 +53,7 @@ class KnowledgeEmbeddingServiceImplTest {
     }
 
     private final TextSplitter textSplitter = Mockito.mock(TextSplitter.class);
-    private final EmbeddingModel embeddingModel = Mockito.mock(EmbeddingModel.class);
+    private final EmbeddingGateway embeddingGateway = Mockito.mock(EmbeddingGateway.class);
     private final KnowledgeDocumentMapper knowledgeDocumentMapper = Mockito.mock(KnowledgeDocumentMapper.class);
     private final KnowledgeVectorMapper knowledgeVectorMapper = Mockito.mock(KnowledgeVectorMapper.class);
     private final PdfParserUtil pdfParserUtil = Mockito.mock(PdfParserUtil.class);
@@ -87,7 +87,7 @@ class KnowledgeEmbeddingServiceImplTest {
         assertEquals(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED.getCode(), ex.getCode());
         verify(knowledgeDocumentMapper, times(2)).update(isNull(), any());
         verify(knowledgeVectorMapper, never()).deleteByDocumentIdAndUserId(100L, 1L);
-        verify(embeddingModel, never()).embed(anyList());
+        verify(embeddingGateway, never()).embed(any(), anyList());
     }
 
     @Test
@@ -102,7 +102,7 @@ class KnowledgeEmbeddingServiceImplTest {
             return "项目说明";
         });
         when(textSplitter.apply(any())).thenReturn(List.of(new Document("项目说明")));
-        when(embeddingModel.embed(anyList())).thenAnswer(invocation -> {
+        when(embeddingGateway.embed(any(), anyList())).thenAnswer(invocation -> {
             assertFalse(inWrite.get());
             return List.of(new float[] {0.25f});
         });
@@ -113,9 +113,9 @@ class KnowledgeEmbeddingServiceImplTest {
 
         assertEquals(KnowledgeVectorTaskStatusEnum.SUCCESS.getCode(), kd.getEmbeddingStatus());
         assertEquals(1, kd.getChunkCount());
-        InOrder order = inOrder(pdfParserUtil, embeddingModel, knowledgeVectorMapper);
+        InOrder order = inOrder(pdfParserUtil, embeddingGateway, knowledgeVectorMapper);
         order.verify(pdfParserUtil).extractTextFromUrl(kd.getContent(), 1L);
-        order.verify(embeddingModel).embed(anyList());
+        order.verify(embeddingGateway).embed(any(), anyList());
         order.verify(knowledgeVectorMapper).deleteByDocumentIdAndUserId(110L, 1L);
         order.verify(knowledgeVectorMapper).batchInsert(any());
     }
@@ -127,7 +127,7 @@ class KnowledgeEmbeddingServiceImplTest {
         when(knowledgeDocumentMapper.update(isNull(), any())).thenReturn(1);
         when(pdfParserUtil.extractTextFromUrl(kd.getContent(), 1L)).thenReturn("正文");
         when(textSplitter.apply(any())).thenReturn(List.of(new Document("正文")));
-        doThrow(new RuntimeException("embed down")).when(embeddingModel).embed(anyList());
+        doThrow(new RuntimeException("embed down")).when(embeddingGateway).embed(any(), anyList());
         KnowledgeEmbeddingServiceImpl service = newService();
 
         RuntimeException ex = assertThrows(RuntimeException.class, () -> service.vectorizeAndStore(120L));
@@ -146,7 +146,7 @@ class KnowledgeEmbeddingServiceImplTest {
         when(knowledgeDocumentMapper.update(isNull(), any())).thenReturn(1);
         when(pdfParserUtil.extractTextFromUrl(loaded.getContent(), 1L)).thenReturn("旧正文");
         when(textSplitter.apply(any())).thenReturn(List.of(new Document("旧正文")));
-        doReturn(List.of(new float[] {0.5f})).when(embeddingModel).embed(anyList());
+        doReturn(List.of(new float[] {0.5f})).when(embeddingGateway).embed(any(), anyList());
         KnowledgeEmbeddingServiceImpl service = newService();
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.vectorizeAndStore(130L));
@@ -154,7 +154,7 @@ class KnowledgeEmbeddingServiceImplTest {
         assertEquals(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED.getCode(), ex.getCode());
         assertEquals("文档内容已变化", ex.getMessage());
         verify(knowledgeVectorMapper, never()).batchInsert(any());
-        verify(embeddingModel).embed(anyList());
+        verify(embeddingGateway).embed(any(), anyList());
     }
 
     @Test
@@ -230,7 +230,7 @@ class KnowledgeEmbeddingServiceImplTest {
 
     private KnowledgeEmbeddingServiceImpl newService(TransactionTemplate transactionTemplate) {
         return new KnowledgeEmbeddingServiceImpl(
-                textSplitter, embeddingModel, knowledgeDocumentMapper, knowledgeVectorMapper,
+                textSplitter, embeddingGateway, knowledgeDocumentMapper, knowledgeVectorMapper,
                 pdfParserUtil, transactionTemplate);
     }
 

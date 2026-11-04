@@ -43,20 +43,4 @@ public interface ModelGateway {
      * @throws IllegalArgumentException 会话标识为空
      */
     Flux<String> stream(CurrentActor actor, StreamingModelRequest request);
-
-    /**
-     * 清除指定用户的客户端缓存。保存或删除用户模型配置后调用。
-     *
-     * @param actor 当前操作者
-     */
-    void evict(CurrentActor actor);
-
-    /**
-     * 用请求中的模型码和明文密钥探测连通性，不读库、不写缓存。
-     *
-     * @param modelCode 模型码
-     * @param apiKey    明文密钥
-     * @throws BusinessException 模型码非法，或探测失败
-     */
-    void testConnection(String modelCode, String apiKey);
 }

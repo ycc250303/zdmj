@@ -42,7 +42,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.ai.embedding.EmbeddingModel;
+import com.zdmj.aiService.api.EmbeddingGateway;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -84,7 +84,7 @@ class CareerDevelopmentReportServiceImplTest {
     @Mock
     private KnowledgeEmbeddingService knowledgeEmbeddingService;
     @Mock
-    private EmbeddingModel embeddingModel;
+    private EmbeddingGateway embeddingGateway;
 
     private CareerDevelopmentReportServiceImpl service;
 
@@ -103,7 +103,7 @@ class CareerDevelopmentReportServiceImplTest {
                 knowledgeVectorMapper,
                 knowledgeDocumentMapper,
                 knowledgeEmbeddingService,
-                embeddingModel));
+                embeddingGateway));
     }
 
     @AfterEach
@@ -174,7 +174,7 @@ class CareerDevelopmentReportServiceImplTest {
         doReturn(100L).when(knowledgeBasesService).getOrCreateKnowledgeBaseId();
         doReturn(9L).when(knowledgeBasesService).findKnowledgeBaseIdByScope(KnowledgeScopeEnum.LEARNING_PATH.getCode());
 
-        when(embeddingModel.embed(org.mockito.ArgumentMatchers.anyString())).thenReturn(new float[] {0.1f, 0.2f});
+        when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
         when(knowledgeEmbeddingService.toPgVector(org.mockito.ArgumentMatchers.any())).thenReturn("[0.1,0.2]");
 
         KnowledgeRetrivalDTO learningHit = new KnowledgeRetrivalDTO();

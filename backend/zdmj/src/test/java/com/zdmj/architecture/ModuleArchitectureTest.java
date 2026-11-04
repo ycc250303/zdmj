@@ -42,6 +42,13 @@ class ModuleArchitectureTest {
             .should().dependOnClassesThat().resideInAPackage("com.zdmj.jobService..");
 
     @ArchTest
+    static final ArchRule embedding_model_stays_inside_ai = noClasses()
+            .that().resideOutsideOfPackage("com.zdmj.aiService..")
+            .should().dependOnClassesThat().haveFullyQualifiedName(
+                    "org.springframework.ai.embedding.EmbeddingModel")
+            .as("只有 aiService 依赖 EmbeddingModel");
+
+    @ArchTest
     static final ArchRule prompt_loader_does_not_depend_on_business = noClasses()
             .that().resideInAPackage("com.zdmj.common.prompt..")
             .should().dependOnClassesThat().resideInAnyPackage(modulePackages());

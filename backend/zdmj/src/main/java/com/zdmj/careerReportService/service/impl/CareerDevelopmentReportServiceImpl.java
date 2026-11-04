@@ -15,6 +15,7 @@ import com.zdmj.careerReportService.service.CareerDevelopmentReportService;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.aiService.api.EmbeddingGateway;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.common.context.CurrentActor;
@@ -55,7 +56,6 @@ import java.util.stream.Collectors;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -110,7 +110,7 @@ public class CareerDevelopmentReportServiceImpl
     private final KnowledgeVectorMapper knowledgeVectorMapper;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeEmbeddingService knowledgeEmbeddingService;
-    private final EmbeddingModel embeddingModel;
+    private final EmbeddingGateway embeddingGateway;
 
     @Override
     public CareerReportResponse getLatestOrNull(Long jobId) {
@@ -288,7 +288,7 @@ public class CareerDevelopmentReportServiceImpl
     private List<KnowledgeRetrivalDTO> retrieveLearningPathHits(JobListItemResponse jobDetail, CareerReportGenerateRequest req) {
         Long userId = UserHolder.requireUserId();
         String query = buildKnowledgeQuery(jobDetail, req);
-        float[] vector = embedQueryText(query);
+        float[] vector = embedQueryText(userId, query);
         if (vector == null) {
             return List.of();
         }
@@ -481,12 +481,12 @@ public class CareerDevelopmentReportServiceImpl
         return response;
     }
 
-    private float[] embedQueryText(String queryText) {
+    private float[] embedQueryText(Long userId, String queryText) {
         if (!StringUtils.hasText(queryText)) {
             return null;
         }
         try {
-            return embeddingModel.embed(queryText);
+            return embeddingGateway.embed(CurrentActor.of(userId), List.of(queryText)).get(0);
         } catch (Exception e) {
             log.warn("查询向量生成失败: {}", e.getMessage());
             return null;

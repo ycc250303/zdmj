@@ -10,7 +10,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import org.springframework.ai.document.Document;
-import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.transformer.splitter.TextSplitter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +17,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 
+import com.zdmj.aiService.api.EmbeddingGateway;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.PdfParserUtil;
@@ -40,7 +41,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
     private static final int MAX_BATCH_SIZE = 10;
 
     private final TextSplitter textSplitter;
-    private final EmbeddingModel embeddingModel;
+    private final EmbeddingGateway embeddingGateway;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeVectorMapper knowledgeVectorMapper;
     private final PdfParserUtil pdfParserUtil;
@@ -136,10 +137,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
             int start = batchIndex * MAX_BATCH_SIZE;
             int end = Math.min(start + MAX_BATCH_SIZE, totalChunks);
             List<String> batchTexts = chunks.subList(start, end).stream().map(Document::getText).toList();
-            List<float[]> batchVectors = embeddingModel.embed(batchTexts);
-            if (batchVectors == null || batchVectors.size() != batchTexts.size()) {
-                throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "批量向量化结果数量异常");
-            }
+            List<float[]> batchVectors = embeddingGateway.embed(CurrentActor.of(source.getUserId()), batchTexts);
             for (int j = 0; j < batchTexts.size(); j++) {
                 String chunkText = batchTexts.get(j);
                 KnowledgeVector row = new KnowledgeVector();

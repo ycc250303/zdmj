@@ -6,7 +6,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.zdmj.aiService.api.ModelGateway;
+import com.zdmj.aiService.api.ModelAdministration;
 import com.zdmj.aiService.model.ModelCode;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.context.UserHolder;
@@ -25,7 +25,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class UserLlmConfigServiceImpl implements UserLlmConfigService {
     private final UserLlmConfigMapper userLlmConfigMapper;
-    private final ModelGateway modelGateway;
+    private final ModelAdministration modelAdministration;
     private final UserApiKeyCipher userApiKeyCipher;
 
     @Override
@@ -79,7 +79,7 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
             existingConfig.setApiKeyCiphertext(ciphertext);
             userLlmConfigMapper.updateById(existingConfig);
         }
-        modelGateway.evict(CurrentActor.of(userId));
+        modelAdministration.evict(CurrentActor.of(userId));
     }
 
     @Override
@@ -87,11 +87,11 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
     public void deleteMyConfig(){
         Long userId = UserHolder.requireUserId();
         userLlmConfigMapper.deleteById(userId);
-        modelGateway.evict(CurrentActor.of(userId));
+        modelAdministration.evict(CurrentActor.of(userId));
     }
 
     @Override
     public void testConnection(UserLlmConnectionTestRequest request) {
-        modelGateway.testConnection(request.getModelCode(), request.getApiKey().trim());
+        modelAdministration.testConnection(request.getModelCode(), request.getApiKey().trim());
     }
 }
