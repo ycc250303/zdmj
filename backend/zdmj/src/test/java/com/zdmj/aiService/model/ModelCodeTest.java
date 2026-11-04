@@ -29,6 +29,24 @@ class ModelCodeTest {
     }
 
     @Test
+    void fromCode_shouldResolveCurrentDeepSeekCodes() {
+        assertEquals(ModelCode.DEEPSEEK_FLASH, ModelCode.fromCode("deepseek-flash"));
+        assertEquals(ModelCode.DEEPSEEK_PRO, ModelCode.fromCode("deepseek-v4-pro"));
+        assertEquals("deepseek-flash", ModelCode.DEEPSEEK_FLASH.apiModelName());
+        assertEquals("deepseek-v4-pro", ModelCode.DEEPSEEK_PRO.apiModelName());
+        assertEquals("DeepSeek V4.1 Flash", ModelCode.DEEPSEEK_FLASH.displayName());
+        assertEquals("deepseek-flash", ModelCode.values()[2].code());
+        assertEquals("deepseek-v4-pro", ModelCode.values()[3].code());
+    }
+
+    @Test
+    void fromCode_shouldMapLegacyDeepSeekFlashCode() {
+        assertEquals(ModelCode.DEEPSEEK_FLASH, ModelCode.fromCode("deepseek-v4-flash"));
+        assertEquals("deepseek-flash", ModelCode.fromCode("DEEPSEEK-V4-FLASH").code());
+        assertEquals("deepseek-flash", ModelCode.fromCode(" deepseek-v4-flash ").code());
+    }
+
+    @Test
     void fromCode_whenBlankOrUnknown_shouldThrow() {
         assertEquals(ErrorCode.USER_LLM_CONFIG_INVALID.getCode(),
                 assertThrows(BusinessException.class, () -> ModelCode.fromCode(null)).getCode());

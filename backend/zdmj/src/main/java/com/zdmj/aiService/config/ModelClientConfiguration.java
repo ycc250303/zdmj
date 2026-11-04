@@ -83,14 +83,14 @@ public class ModelClientConfiguration {
     }
 
     /**
-     * qwen3 / deepseek-v4 非流式默认关闭思考链，缩短探测和对话首 token。
+     * qwen3 / deepseek 非流式默认关闭思考链，缩短探测和对话首 token。
      */
     private static Map<String, Object> thinkingDisabledExtraBody(String apiModelName) {
         Map<String, Object> extraBody = new HashMap<>();
         if (!StringUtils.hasText(apiModelName)) {
             return extraBody;
         }
-        if (apiModelName.startsWith("deepseek-v4")) {
+        if (apiModelName.startsWith("deepseek")) {
             extraBody.put("thinking", Map.of("type", "disabled"));
         }
         if (apiModelName.startsWith("qwen3")) {

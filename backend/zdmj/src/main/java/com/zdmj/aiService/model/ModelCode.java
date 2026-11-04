@@ -14,8 +14,8 @@ public enum ModelCode {
             "https://dashscope.aliyuncs.com/compatible-mode", "qwen3.8-flash"),
     QWEN_MAX("qwen3.8-max", "通义千问 3.8 Max",
             "https://dashscope.aliyuncs.com/compatible-mode", "qwen3.8-max"),
-    DEEPSEEK_FLASH("deepseek-v4-flash", "DeepSeek V4 Flash (2026-04-24)",
-            "https://api.deepseek.com", "deepseek-v4-flash"),
+    DEEPSEEK_FLASH("deepseek-flash", "DeepSeek V4.1 Flash",
+            "https://api.deepseek.com", "deepseek-flash"),
     DEEPSEEK_PRO("deepseek-v4-pro", "DeepSeek V4 Pro (2026-04-24)",
             "https://api.deepseek.com", "deepseek-v4-pro");
 
@@ -52,7 +52,8 @@ public enum ModelCode {
     }
 
     /**
-     * 按模型码解析目录项。旧码 {@code qwen3.6-plus}、{@code qwen3.7-max} 分别对应 Flash 与 Max。
+     * 按模型码解析目录项。旧码 {@code qwen3.6-plus}、{@code qwen3.7-max} 分别对应通义 Flash 与 Max，
+     * {@code deepseek-v4-flash} 对应 DeepSeek V4.1 Flash。
      *
      * @param modelCode 模型码
      * @return 目录项
@@ -68,6 +69,9 @@ public enum ModelCode {
         }
         if ("qwen3.7-max".equalsIgnoreCase(normalized)) {
             return QWEN_MAX;
+        }
+        if ("deepseek-v4-flash".equalsIgnoreCase(normalized)) {
+            return DEEPSEEK_FLASH;
         }
         for (ModelCode value : values()) {
             if (value.code.equalsIgnoreCase(normalized)) {
