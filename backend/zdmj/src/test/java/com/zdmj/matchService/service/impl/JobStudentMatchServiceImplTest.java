@@ -2,6 +2,7 @@ package com.zdmj.matchService.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.context.UserContext;
@@ -44,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -220,6 +222,55 @@ class JobStudentMatchServiceImplTest {
     }
 
     @Test
+    void getOrNull_whenJsonColumnsBlank_shouldReturnEmptyDimensions() {
+        JobStudentMatch entity = new JobStudentMatch();
+        entity.setJobId(99L);
+        entity.setDimensionDetail("  ");
+        entity.setWeights(null);
+        doReturn(entity).when(matchService).getOne(any(LambdaQueryWrapper.class));
+
+        JobStudentMatchResponse dto = matchService.getOrNull(99L);
+
+        assertTrue(dto.getDimensions().isEmpty());
+        assertNull(dto.getWeights());
+    }
+
+    @Test
+    void getOrNull_whenDimensionDetailInvalid_shouldThrow() {
+        JobStudentMatch entity = new JobStudentMatch();
+        entity.setJobId(99L);
+        entity.setDimensionDetail("{bad-json");
+        doReturn(entity).when(matchService).getOne(any(LambdaQueryWrapper.class));
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> matchService.getOrNull(99L));
+
+        assertInstanceOf(JsonProcessingException.class, ex.getCause());
+    }
+
+    @Test
+    void generate_whenDimensionSerializationFails_shouldThrowAndSkipSave() {
+        Long jobId = 24L;
+        prepareJobAndProfiles(jobId, "java-backend");
+        doReturn(buildAiResult()).when(modelGateway).generateStructured(any(), any(StructuredModelRequest.class));
+        ReflectionTestUtils.setField(matchService, "objectMapper", new ObjectMapper() {
+            @Override
+            public String writeValueAsString(Object value) throws JsonProcessingException {
+                if (value instanceof Map<?, ?>) {
+                    throw new JsonWriteFailure("dimension");
+                }
+                return super.writeValueAsString(value);
+            }
+        });
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> matchService.generate(jobId, null));
+
+        assertInstanceOf(JsonProcessingException.class, ex.getCause());
+        verify(matchMapper, never()).insert(any(JobStudentMatch.class));
+        verify(matchMapper, never()).updateById(any(JobStudentMatch.class));
+    }
+
+    @Test
     void getDefaultWeights_forFrontendJob_shouldReturnFrontendDefaults() {
         Long jobId = 31L;
         doReturn(buildJobProfile("frontend")).when(jobCapabilityProfileService)
@@ -342,6 +393,12 @@ class JobStudentMatchServiceImplTest {
                 .getJobCapabilityProfileOrNull(jobId);
         doReturn(buildStudentProfile()).when(studentCapabilityProfileService)
                 .getCurrentUserProfileOrNull();
+    }
+
+    private static final class JsonWriteFailure extends JsonProcessingException {
+        private JsonWriteFailure(String message) {
+            super(message);
+        }
     }
 
     private static JobStudentMatch ownedDraft() {

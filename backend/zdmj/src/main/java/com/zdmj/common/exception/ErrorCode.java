@@ -99,6 +99,7 @@ public enum ErrorCode {
     KNOWLEDGE_DOCUMENT_NOT_FOUND(8012, "知识文档不存在", HttpStatus.NOT_FOUND),
     KNOWLEDGE_DOCUMENT_UPDATE_FAILED(8013, "更新知识文档失败", HttpStatus.BAD_REQUEST),
     KNOWLEDGE_DOCUMENT_CONTENT_EXISTS(8014, "该知识文档已存在，请勿重复添加", HttpStatus.CONFLICT),
+    KNOWLEDGE_RETRIEVAL_FAILED(8015, "知识检索失败", HttpStatus.BAD_REQUEST),
 
     // ========== 对话 9xxx ==========
     CONVERSATION_CREATE_FAILED(9001, "创建会话失败", HttpStatus.BAD_REQUEST),

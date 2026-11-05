@@ -3,6 +3,7 @@ package com.zdmj.matchService.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserHolder;
@@ -288,16 +289,17 @@ public class JobStudentMatchServiceImpl
         return StringUtils.hasText(value) ? value.trim() : "未提供";
     }
 
+    /**
+     * 把权重写成提示词中的 JSON。权重为空时写入空对象；无法序列化时保留原因并终止本次匹配。
+     *
+     * @param value 权重配置，可以为空
+     * @return JSON 文本
+     */
     private String toJsonOrEmpty(Object value) {
         if (value == null) {
             return "{}";
         }
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (Exception e) {
-            log.warn("权重/关键词序列化失败: {}", e.getMessage());
-            return "{}";
-        }
+        return writeJson(value);
     }
 
     /**
@@ -479,15 +481,24 @@ public class JobStudentMatchServiceImpl
                 .eq(JobStudentMatch::getJobId, jobId));
     }
 
+    /**
+     * 把匹配字段写成 JSON 文本。空值保持为空列；无法序列化时保留原因并终止当前操作。
+     *
+     * @param value 待写入的权重或维度明细，可以为空
+     * @return JSON 文本；{@code value} 为空时返回 null
+     */
     private String toJson(Object value) {
         if (value == null) {
             return null;
         }
+        return writeJson(value);
+    }
+
+    private String writeJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
-        } catch (Exception e) {
-            log.warn("人岗匹配 JSON 序列化失败，字段将置空: {}", e.getMessage());
-            return null;
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("人岗匹配结果无法序列化", exception);
         }
     }
 
@@ -517,15 +528,21 @@ public class JobStudentMatchServiceImpl
         return dto;
     }
 
+    /**
+     * 读取匹配结果中的 JSON 列。空白列表示该字段为空；内容无法解析时保留原因并终止当前操作。
+     *
+     * @param raw 数据库中的 JSON 文本，可以为空
+     * @param typeRef 目标类型
+     * @return 解析结果；空白文本返回 null
+     */
     private <T> T readJson(String raw, TypeReference<T> typeRef) {
         if (!StringUtils.hasText(raw)) {
             return null;
         }
         try {
             return objectMapper.readValue(raw, typeRef);
-        } catch (Exception e) {
-            log.warn("人岗匹配 JSON 反序列化失败: {}", e.getMessage());
-            return null;
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("人岗匹配结果无法读取", exception);
         }
     }
 }

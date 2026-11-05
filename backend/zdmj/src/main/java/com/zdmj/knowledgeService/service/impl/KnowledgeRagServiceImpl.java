@@ -120,7 +120,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
             return response;
         }
 
-        // --- 3. 查询改写；失败或与原文相同则只走一路 ---
+        // --- 3. 查询改写；与原文相同则只检索一路。改写失败时终止 ---
         String rewritten = query;
         if (ragConfig.getRewrite().isEnabled() && StringUtils.hasText(query)) {
             rewritten = rewriteQuery(userId, query);
@@ -171,36 +171,64 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         return search.getTopkLong();
     }
 
-    /** 把用户问题改写成更可检索的单句；空结果或异常一律回退原文。 */
+    /**
+     * 把用户问题改写成更可检索的单句。改写失败或没有返回文本时终止本次检索。
+     *
+     * @param userId 当前用户
+     * @param rawText 原始问题，调用前已确认为非空
+     * @return 改写后的问题
+     */
     private String rewriteQuery(Long userId, String rawText) {
+        String queryText;
         try {
-            String queryText = modelGateway.generate(
+            queryText = modelGateway.generate(
                     CurrentActor.of(userId),
                     new ModelRequest(rawText, QUERY_REWRITE_PROMPT, Map.of("question", rawText)));
-            if (!StringUtils.hasText(queryText)) {
-                log.info("RAG 查询改写: 模型返回空，沿用原文 | originalQuestion={}", rawText);
-                return rawText;
-            }
-            log.info("RAG 查询改写: originalQuestion={} | rewrittenQuestion={}", rawText, queryText);
-            return queryText;
-        } catch (Exception e) {
-            log.warn("RAG 查询改写失败，使用原文: originalQuestion={}, error={}", rawText, e.getMessage());
-            return rawText;
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            log.error("查询改写失败", exception);
+            throw new BusinessException(ErrorCode.KNOWLEDGE_RETRIEVAL_FAILED, exception);
         }
+        if (!StringUtils.hasText(queryText)) {
+            throw new BusinessException(ErrorCode.KNOWLEDGE_RETRIEVAL_FAILED, "查询改写没有返回可用文本");
+        }
+        log.info("RAG 查询改写: originalQuestion={} | rewrittenQuestion={}", rawText, queryText);
+        return queryText.trim();
     }
 
-    /** 查询文本 embed 一次并转成 pgvector 字面量；失败返回 null，该路当空命中。 */
+    /**
+     * 为检索文本生成向量字面量。文本为空时返回 null，表示这一路没有查询；嵌入失败时终止本次检索。
+     *
+     * @param userId 当前用户
+     * @param queryText 待嵌入的问题
+     * @return pgvector 字面量；文本为空时返回 null
+     */
     private String toPgVector(Long userId, String queryText) {
         if (!StringUtils.hasText(queryText)) {
             return null;
         }
-        try {
-            float[] vector = embeddingGateway.embed(CurrentActor.of(userId), List.of(queryText)).get(0);
-            return knowledgeEmbeddingService.toPgVector(vector);
-        } catch (Exception e) {
-            log.warn("查询向量生成失败: {}", e.getMessage());
-            return null;
+        String literal = knowledgeEmbeddingService.toPgVector(embedQuery(userId, queryText));
+        if (!StringUtils.hasText(literal)) {
+            throw new BusinessException(ErrorCode.KNOWLEDGE_RETRIEVAL_FAILED, "查询向量生成失败");
         }
+        return literal;
+    }
+
+    private float[] embedQuery(Long userId, String queryText) {
+        List<float[]> vectors;
+        try {
+            vectors = embeddingGateway.embed(CurrentActor.of(userId), List.of(queryText));
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            log.error("查询向量生成失败", exception);
+            throw new BusinessException(ErrorCode.KNOWLEDGE_RETRIEVAL_FAILED, exception);
+        }
+        if (vectors == null || vectors.isEmpty() || vectors.get(0) == null || vectors.get(0).length == 0) {
+            throw new BusinessException(ErrorCode.KNOWLEDGE_RETRIEVAL_FAILED, "查询向量生成失败");
+        }
+        return vectors.get(0);
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.zdmj.careerReportService.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.careerReportService.dto.CareerReportCheckResponse;
 import com.zdmj.careerReportService.dto.CareerReportResponse;
@@ -42,11 +43,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 import com.zdmj.aiService.api.EmbeddingGateway;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -55,6 +58,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -119,6 +123,7 @@ class CareerDevelopmentReportServiceImplTest {
         doReturn(buildJobProfile()).when(jobCapabilityProfileService).getJobCapabilityProfileOrNull(jobId);
         doReturn(buildMatch()).when(jobStudentMatchService).getOrNull(jobId);
         doReturn(buildGraph()).when(jobCareerGraphService).getOrNull(jobId);
+        when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
 
         JobStudentMatch matchEntity = new JobStudentMatch();
         matchEntity.setId(300L);
@@ -161,6 +166,62 @@ class CareerDevelopmentReportServiceImplTest {
         assertEquals(999L, dto.getId());
         assertEquals(1, dto.getVersion());
         assertThat(dto.getCompletenessScore()).isGreaterThanOrEqualTo(60);
+    }
+
+    @Test
+    void generate_whenEmbeddingFails_shouldThrowAndSkipSave() {
+        Long jobId = 10L;
+        doReturn(buildJob()).when(jobService).getDetail(jobId);
+        doReturn(buildStudentProfile()).when(studentCapabilityProfileService).getCurrentUserProfileOrNull();
+        doReturn(buildJobProfile()).when(jobCapabilityProfileService).getJobCapabilityProfileOrNull(jobId);
+        doReturn(buildMatch()).when(jobStudentMatchService).getOrNull(jobId);
+        doReturn(buildGraph()).when(jobCareerGraphService).getOrNull(jobId);
+        when(embeddingGateway.embed(any(), any())).thenThrow(new RuntimeException("embed fail"));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.generate(jobId, new CareerReportGenerateRequest()));
+
+        assertEquals(ErrorCode.CAREER_REPORT_GENERATION_FAILED.getCode(), ex.getCode());
+        assertEquals("embed fail", ex.getCause().getMessage());
+        verify(modelGateway, never()).generateStructured(any(), any());
+        verify(service, never()).save(any(CareerDevelopmentReport.class));
+        verify(service, never()).updateById(any(CareerDevelopmentReport.class));
+    }
+
+    @Test
+    void generate_whenReportContentSerializationFails_shouldThrowAndSkipSave() throws Exception {
+        Long jobId = 10L;
+        doReturn(buildJob()).when(jobService).getDetail(jobId);
+        doReturn(buildStudentProfile()).when(studentCapabilityProfileService).getCurrentUserProfileOrNull();
+        doReturn(buildJobProfile()).when(jobCapabilityProfileService).getJobCapabilityProfileOrNull(jobId);
+        doReturn(buildMatch()).when(jobStudentMatchService).getOrNull(jobId);
+        doReturn(buildGraph()).when(jobCareerGraphService).getOrNull(jobId);
+        when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
+        ReflectionTestUtils.setField(service, "objectMapper", new ObjectMapper() {
+            @Override
+            public String writeValueAsString(Object value) throws JsonProcessingException {
+                if (value instanceof Map<?, ?>) {
+                    throw new JsonWriteFailure("report");
+                }
+                return super.writeValueAsString(value);
+            }
+        });
+        doAnswer(invocation -> {
+            StructuredModelRequest<?> request = invocation.getArgument(1, StructuredModelRequest.class);
+            Class<?> outputClass = request.outputType();
+            Object payload = outputClass.getDeclaredConstructor().newInstance();
+            Field reportContent = outputClass.getDeclaredField("reportContent");
+            reportContent.setAccessible(true);
+            reportContent.set(payload, Map.of("careerExploration", "匹配分析"));
+            return payload;
+        }).when(modelGateway).generateStructured(any(), any());
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> service.generate(jobId, new CareerReportGenerateRequest()));
+
+        assertInstanceOf(JsonProcessingException.class, ex.getCause());
+        verify(service, never()).save(any(CareerDevelopmentReport.class));
+        verify(service, never()).updateById(any(CareerDevelopmentReport.class));
     }
 
     @Test
@@ -256,6 +317,42 @@ class CareerDevelopmentReportServiceImplTest {
     }
 
     @Test
+    void getLatestOrNull_whenStoredJsonBlank_shouldReturnEmptyContent() {
+        CareerDevelopmentReport entity = new CareerDevelopmentReport();
+        entity.setId(51L);
+        entity.setUserId(1L);
+        entity.setJobId(10L);
+        entity.setVersion(1);
+        entity.setIsLatest(true);
+        doReturn(entity).when(service)
+                .getOne(org.mockito.ArgumentMatchers.<Wrapper<CareerDevelopmentReport>>any());
+
+        CareerReportResponse dto = service.getLatestOrNull(10L);
+
+        assertThat(dto.getReportContent()).isEmpty();
+        assertThat(dto.getQualityFlags()).isEmpty();
+        assertThat(dto.getKnowledgeSources()).isEmpty();
+    }
+
+    @Test
+    void getLatestOrNull_whenReportContentInvalid_shouldThrowAndSkipUpdate() {
+        CareerDevelopmentReport entity = new CareerDevelopmentReport();
+        entity.setId(52L);
+        entity.setUserId(1L);
+        entity.setJobId(10L);
+        entity.setReportContent("{bad-json");
+        entity.setIsLatest(true);
+        doReturn(entity).when(service)
+                .getOne(org.mockito.ArgumentMatchers.<Wrapper<CareerDevelopmentReport>>any());
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> service.getLatestOrNull(10L));
+
+        assertInstanceOf(JsonProcessingException.class, ex.getCause());
+        verify(service, never()).updateById(any(CareerDevelopmentReport.class));
+        verify(service, never()).save(any(CareerDevelopmentReport.class));
+    }
+
+    @Test
     void checkIntegrity_shouldMarkFailed_whenSectionsMissing() {
         CareerDevelopmentReport existing = new CareerDevelopmentReport();
         existing.setId(20L);
@@ -323,6 +420,12 @@ class CareerDevelopmentReportServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> service.saveManualEdit(31L, req));
 
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
+    }
+
+    private static final class JsonWriteFailure extends JsonProcessingException {
+        private JsonWriteFailure(String message) {
+            super(message);
+        }
     }
 
     private static JobListItemResponse buildJob() {

@@ -2,6 +2,7 @@ package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
@@ -30,6 +31,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -285,7 +287,7 @@ class StudentCapabilityProfileServiceImplTest {
     }
 
     @Test
-    void getCurrentUserProfileOrNull_jsonInvalid_shouldNotThrowAndKeepBaseFields() {
+    void getCurrentUserProfileOrNull_jsonInvalid_shouldThrow() {
         StudentCapabilityProfile profile = new StudentCapabilityProfile();
         profile.setUserId(1L);
         profile.setPromptName("resume-analysis/frontend");
@@ -293,12 +295,12 @@ class StudentCapabilityProfileServiceImplTest {
         profile.setScoreDetail("{bad-json");
         doReturn(profile).when(service).getOne(any());
 
-        StudentCapabilityProfileResponse out = service.getCurrentUserProfileOrNull();
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> service.getCurrentUserProfileOrNull());
 
-        assertNotNull(out);
-        assertEquals(61, out.getCompetitivenessScore());
-        assertNull(out.getScoreDetail());
-        verify(service).getOne(any());
+        assertInstanceOf(JsonProcessingException.class, ex.getCause());
+        verify(service, never()).save(any(StudentCapabilityProfile.class));
+        verify(service, never()).updateById(any(StudentCapabilityProfile.class));
     }
 
     @Test
@@ -352,7 +354,14 @@ class StudentCapabilityProfileServiceImplTest {
     }
 
     @Test
-    void toJson_whenSerializationFailed_shouldReturnNull() {
+    void toJson_whenValueMissing_shouldReturnNull() {
+        String json = ReflectionTestUtils.invokeMethod(service, "toJson", new Object[] {null});
+
+        assertNull(json);
+    }
+
+    @Test
+    void toJson_whenSerializationFailed_shouldThrowWithCause() {
         Object invalid = new Object() {
             @SuppressWarnings("unused")
             public Object self() {
@@ -360,9 +369,38 @@ class StudentCapabilityProfileServiceImplTest {
             }
         };
 
-        String json = ReflectionTestUtils.invokeMethod(service, "toJson", invalid);
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> ReflectionTestUtils.invokeMethod(service, "toJson", invalid));
 
-        assertNull(json);
+        assertInstanceOf(JsonProcessingException.class, ex.getCause());
+    }
+
+    @Test
+    void generateProfile_whenScoreSerializationFails_shouldThrowAndSkipSave() {
+        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
+        req.setRawText("java spring boot redis mysql");
+        ReflectionTestUtils.setField(service, "objectMapper", new ObjectMapper() {
+            @Override
+            public String writeValueAsString(Object value) throws JsonProcessingException {
+                if (value instanceof StudentCapabilityProfileResponse.ScoreDetail) {
+                    throw new JsonWriteFailure("score");
+                }
+                return super.writeValueAsString(value);
+            }
+        });
+
+        StudentCapabilityProfileResponse ai = new StudentCapabilityProfileResponse();
+        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
+        detail.setContentCompletenessScore(7);
+        ai.setScoreDetail(detail);
+        doReturn(ai).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> request) -> request.outputType() == StudentCapabilityProfileResponse.class));
+        doReturn(null).when(service).getOne(any());
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> service.generateProfile(req));
+
+        assertInstanceOf(JsonProcessingException.class, ex.getCause());
+        verify(service, never()).save(any(StudentCapabilityProfile.class));
+        verify(service, never()).updateById(any(StudentCapabilityProfile.class));
     }
 
     @Test
@@ -413,6 +451,12 @@ class StudentCapabilityProfileServiceImplTest {
 
         assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
         verify(service, never()).getOne(any());
+    }
+
+    private static final class JsonWriteFailure extends JsonProcessingException {
+        private JsonWriteFailure(String message) {
+            super(message);
+        }
     }
 
     private static void initMybatisPlusLambdaCache() {

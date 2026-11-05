@@ -2,6 +2,7 @@ package com.zdmj.careerReportService.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.careerReportService.dto.CareerReportCheckResponse;
@@ -481,16 +482,30 @@ public class CareerDevelopmentReportServiceImpl
         return response;
     }
 
+    /**
+     * 为报告检索生成查询向量。查询文本为空时返回 null，调用方按无命中处理；嵌入失败时保留原因并终止报告生成。
+     *
+     * @param userId 当前用户
+     * @param queryText 检索文本
+     * @return 查询向量；文本为空时返回 null
+     */
     private float[] embedQueryText(Long userId, String queryText) {
         if (!StringUtils.hasText(queryText)) {
             return null;
         }
+        List<float[]> vectors;
         try {
-            return embeddingGateway.embed(CurrentActor.of(userId), List.of(queryText)).get(0);
-        } catch (Exception e) {
-            log.warn("查询向量生成失败: {}", e.getMessage());
-            return null;
+            vectors = embeddingGateway.embed(CurrentActor.of(userId), List.of(queryText));
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            log.error("报告查询向量生成失败", exception);
+            throw new BusinessException(ErrorCode.CAREER_REPORT_GENERATION_FAILED, exception);
         }
+        if (vectors == null || vectors.isEmpty() || vectors.get(0) == null || vectors.get(0).length == 0) {
+            throw new BusinessException(ErrorCode.CAREER_REPORT_GENERATION_FAILED, "查询向量生成失败");
+        }
+        return vectors.get(0);
     }
 
     private String buildKnowledgeQuery(JobListItemResponse jobDetail, CareerReportGenerateRequest req) {
@@ -899,37 +914,54 @@ public class CareerDevelopmentReportServiceImpl
         return false;
     }
 
+    /**
+     * 读取报告中的对象 JSON。空白列表示内容为空；内容无法解析时保留原因并终止当前操作。
+     *
+     * @param raw 数据库中的 JSON 文本，可以为空
+     * @return 对象内容；空白文本返回空映射
+     */
     private Map<String, Object> readMap(String raw) {
         if (!StringUtils.hasText(raw)) {
             return new LinkedHashMap<>();
         }
         try {
             return objectMapper.readValue(raw, new TypeReference<Map<String, Object>>() {});
-        } catch (Exception e) {
-            return new LinkedHashMap<>();
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("职业发展报告内容无法读取", exception);
         }
     }
 
+    /**
+     * 读取报告中的对象数组 JSON。空白列表示没有来源；内容无法解析时保留原因并终止当前操作。
+     *
+     * @param raw 数据库中的 JSON 文本，可以为空
+     * @return 对象列表；空白文本返回空列表
+     */
     private List<Map<String, Object>> readListOfMap(String raw) {
         if (!StringUtils.hasText(raw)) {
             return List.of();
         }
         try {
             return objectMapper.readValue(raw, new TypeReference<List<Map<String, Object>>>() {});
-        } catch (Exception e) {
-            return List.of();
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("职业发展报告内容无法读取", exception);
         }
     }
 
+    /**
+     * 把报告字段写成 JSON 文本。空值保持为空列；无法序列化时保留原因并终止当前操作。
+     *
+     * @param val 待写入的快照、正文或质量标记，可以为空
+     * @return JSON 文本；{@code val} 为空时返回 null
+     */
     private String toJson(Object val) {
         if (val == null) {
             return null;
         }
         try {
             return objectMapper.writeValueAsString(val);
-        } catch (Exception e) {
-            log.warn("JSON 序列化失败: {}", e.getMessage());
-            return null;
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("职业发展报告内容无法序列化", exception);
         }
     }
 

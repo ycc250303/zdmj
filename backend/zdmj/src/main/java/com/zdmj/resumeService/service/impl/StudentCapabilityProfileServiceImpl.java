@@ -2,6 +2,7 @@ package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserHolder;
@@ -189,21 +190,21 @@ public class StudentCapabilityProfileServiceImpl
     }
 
     /**
-     * 实体 JSON 列存为 String，扁平字段由 toDto 拷贝；嵌套列表/对象在此反序列化补全。
+     * 用已保存的评分和建议补全返回结果。对应列为空时保持为空；内容无法解析时保留原因并终止当前操作。
+     *
+     * @param entity 已保存的能力画像
+     * @param dto 已拷贝扁平字段的返回结果
      */
     private void hydrateDtoFromEntity(StudentCapabilityProfile entity, StudentCapabilityProfileResponse dto) {
         if (entity == null || dto == null) {
             return;
         }
-        try {
-            if (StringUtils.hasText(entity.getScoreDetail())) {
-                dto.setScoreDetail(objectMapper.readValue(entity.getScoreDetail(), StudentCapabilityProfileResponse.ScoreDetail.class));
-            }
-            if (StringUtils.hasText(entity.getSuggestions())) {
-                dto.setSuggestions(objectMapper.readValue(entity.getSuggestions(), new TypeReference<List<StudentCapabilityProfileResponse.Suggestion>>() {}));
-            }
-        } catch (Exception e) {
-            log.warn("反序列化画像 JSON 失败: {}", e.getMessage());
+        if (StringUtils.hasText(entity.getScoreDetail())) {
+            dto.setScoreDetail(readJson(entity.getScoreDetail(), StudentCapabilityProfileResponse.ScoreDetail.class));
+        }
+        if (StringUtils.hasText(entity.getSuggestions())) {
+            dto.setSuggestions(readJson(entity.getSuggestions(),
+                    new TypeReference<List<StudentCapabilityProfileResponse.Suggestion>>() {}));
         }
     }
 
@@ -350,15 +351,36 @@ public class StudentCapabilityProfileServiceImpl
                 : new JobRoleDetectionResult(detected.role(), detected.confidence(), "简历文本为空");
     }
 
+    /**
+     * 把画像中的评分或建议写成 JSON 文本。空值保持为空列；无法序列化时保留原因并终止当前操作。
+     *
+     * @param value 评分明细或建议列表，可以为空
+     * @return JSON 文本；{@code value} 为空时返回 null
+     */
     private String toJson(Object value) {
         if (value == null) {
             return null;
         }
         try {
             return objectMapper.writeValueAsString(value);
-        } catch (Exception e) {
-            log.warn("JSON 序列化失败，字段将置空: {}", e.getMessage());
-            return null;
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("能力画像结果无法序列化", exception);
+        }
+    }
+
+    private <T> T readJson(String raw, Class<T> type) {
+        try {
+            return objectMapper.readValue(raw, type);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("能力画像结果无法读取", exception);
+        }
+    }
+
+    private <T> T readJson(String raw, TypeReference<T> type) {
+        try {
+            return objectMapper.readValue(raw, type);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("能力画像结果无法读取", exception);
         }
     }
 }

@@ -2,6 +2,7 @@ package com.zdmj.knowledgeService.service.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -55,11 +56,34 @@ class KnowledgeRagServiceImplTest {
 
     @Test
     @SuppressWarnings("null")
-    void streamAnswerEmptyHitsFallback_shouldUseSystemPrompt() {
+    void streamAnswer_whenEmbeddingFails_shouldStopBeforeAnswer() {
         UserHolder.set(UserContext.of(401L, "u"));
         ragConfig.getRewrite().setEnabled(false);
         when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(501L);
         when(embeddingGateway.embed(any(), any())).thenThrow(new RuntimeException("embed fail"));
+        KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
+                embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.streamAnswer(401L, 13L, "hello", null, false, null));
+
+        assertEquals(ErrorCode.KNOWLEDGE_RETRIEVAL_FAILED.getCode(), ex.getCode());
+        assertInstanceOf(RuntimeException.class, ex.getCause());
+        assertEquals("embed fail", ex.getCause().getMessage());
+        verify(modelGateway, never()).stream(any(), any());
+        verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
+    }
+
+    @Test
+    @SuppressWarnings("null")
+    void streamAnswer_whenRetrievalMisses_shouldUseSystemPrompt() {
+        UserHolder.set(UserContext.of(401L, "u"));
+        ragConfig.getRewrite().setEnabled(false);
+        when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(501L);
+        when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.1,0.2]");
+        when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
+        when(knowledgeVectorMapper.searchBySimilarity(401L, 501L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium()))
+                .thenReturn(List.of());
         when(modelGateway.stream(eq(CurrentActor.of(401L)), eq(new StreamingModelRequest(13L, "hello", "system", null))))
                 .thenReturn(Flux.just("fallback-system"));
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
@@ -68,7 +92,7 @@ class KnowledgeRagServiceImplTest {
         List<String> chunks = service.streamAnswer(401L, 13L, "hello", null, false, null).collectList().block();
 
         assertEquals(List.of("fallback-system"), chunks);
-        verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
+        verify(knowledgeVectorMapper).searchBySimilarity(401L, 501L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium());
     }
 
     @Test
@@ -195,6 +219,39 @@ class KnowledgeRagServiceImplTest {
                 () -> service.retrieveRanked(null, "hello", List.of(), true));
 
         assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
+        verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
+    }
+
+    @Test
+    void retrieveRanked_whenRewriteFails_shouldStopBeforeEmbedding() {
+        ragConfig.getRewrite().setEnabled(true);
+        when(modelGateway.generate(eq(CurrentActor.of(405L)), any())).thenThrow(new RuntimeException("rewrite fail"));
+        KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
+                embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.retrieveRanked(405L, "raw question", null, true));
+
+        assertEquals(ErrorCode.KNOWLEDGE_RETRIEVAL_FAILED.getCode(), ex.getCode());
+        assertEquals("rewrite fail", ex.getCause().getMessage());
+        verify(embeddingGateway, never()).embed(any(), any());
+        verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
+        verify(modelGateway, never()).stream(any(), any());
+    }
+
+    @Test
+    void retrieveRanked_whenRewriteReturnsBlank_shouldStopBeforeEmbedding() {
+        ragConfig.getRewrite().setEnabled(true);
+        when(modelGateway.generate(eq(CurrentActor.of(405L)), any())).thenReturn("  ");
+        KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
+                embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.retrieveRanked(405L, "raw question", null, true));
+
+        assertEquals(ErrorCode.KNOWLEDGE_RETRIEVAL_FAILED.getCode(), ex.getCode());
+        assertEquals("查询改写没有返回可用文本", ex.getMessage());
+        verify(embeddingGateway, never()).embed(any(), any());
         verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
     }
 
