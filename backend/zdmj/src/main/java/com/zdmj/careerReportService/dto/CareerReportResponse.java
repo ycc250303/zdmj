@@ -33,16 +33,6 @@ public class CareerReportResponse {
     private Integer completenessScore;
 
     /**
-     * 版本号
-     */
-    private Integer version;
-
-    /**
-     * 是否为该岗位下的最新版本
-     */
-    private Boolean latest;
-
-    /**
      * 生成/润色时使用的提示词名称
      */
     private String promptName;

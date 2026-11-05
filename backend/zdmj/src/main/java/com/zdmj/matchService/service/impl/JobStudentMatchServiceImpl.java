@@ -507,6 +507,7 @@ public class JobStudentMatchServiceImpl
             return null;
         }
         JobStudentMatchResponse dto = new JobStudentMatchResponse();
+        dto.setId(entity.getId());
         dto.setJobId(entity.getJobId());
         dto.setTargetRoleType(entity.getTargetRoleType());
         dto.setOverallScore(entity.getOverallScore());

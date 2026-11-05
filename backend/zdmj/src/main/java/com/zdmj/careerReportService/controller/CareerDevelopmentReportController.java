@@ -46,11 +46,11 @@ public class CareerDevelopmentReportController {
     }
 
     /**
-     * 生成职业发展报告并返回新版本。学生画像缺失时返回 {@code MATCH_PRECONDITION_MISSING}。
+     * 生成职业发展报告并覆盖保存。学生画像缺失时返回 {@code MATCH_PRECONDITION_MISSING}。
      *
      * @param jobId 岗位ID
      * @param req   生成请求（可选：用户偏好、生成侧重点）
-     * @return 新生成的报告
+     * @return 保存后的报告
      */
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 5, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/jobs/{jobId}")
@@ -61,11 +61,11 @@ public class CareerDevelopmentReportController {
     }
 
     /**
-     * 润色指定报告并返回新版本。
+     * 润色指定报告并覆盖保存。
      *
      * @param id  报告ID
      * @param req 润色请求（可选：润色说明）
-     * @return 润色后的新版本报告
+     * @return 润色后的报告
      */
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/{id}/polish")
@@ -89,11 +89,11 @@ public class CareerDevelopmentReportController {
     }
 
     /**
-     * 保存手动编辑后的报告内容（生成新版本）。
+     * 保存手动编辑后的报告内容，并覆盖原报告。
      *
      * @param id  报告ID
      * @param req 编辑后的结构化正文
-     * @return 保存后的新版本报告
+     * @return 保存后的报告
      */
     @PutMapping("/{id}")
     public Result<CareerReportResponse> saveManualEdit(@PathVariable Long id,

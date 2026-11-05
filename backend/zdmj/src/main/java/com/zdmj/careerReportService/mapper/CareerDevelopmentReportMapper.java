@@ -18,5 +18,5 @@ import org.apache.ibatis.annotations.Mapper;
  */
 @Mapper
 public interface CareerDevelopmentReportMapper extends BaseMapper<CareerDevelopmentReport> {
-    // 版本化查询与业务写入均在 Service 层通过 QueryWrapper 实现，无需定义额外方法
+    // 查询与写入均在 Service 层通过 QueryWrapper 实现，无需定义额外方法
 }

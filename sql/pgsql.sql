@@ -528,10 +528,6 @@ CREATE TABLE IF NOT EXISTS career_development_reports (
     -- 状态：1=draft/2=checked/3=published/4=check_failed
     completeness_score INTEGER NOT NULL DEFAULT 0,
     -- 完整度评分（0~100）
-    version INTEGER NOT NULL DEFAULT 1,
-    -- 同 user_id + job_id 下的版本号
-    is_latest BOOLEAN NOT NULL DEFAULT true,
-    -- 是否为该岗位的最新版本
     export_url VARCHAR(1000),
     -- 导出文件地址（可选）
     export_type VARCHAR(32),
@@ -542,10 +538,8 @@ CREATE TABLE IF NOT EXISTS career_development_reports (
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uk_career_reports_user_job_version
-    ON career_development_reports(user_id, job_id, version);
-CREATE INDEX IF NOT EXISTS idx_career_reports_user_job_latest
-    ON career_development_reports(user_id, job_id, is_latest);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_career_reports_user_job
+    ON career_development_reports(user_id, job_id);
 CREATE INDEX IF NOT EXISTS idx_career_reports_status_updated
     ON career_development_reports(status, updated_at DESC);
 --

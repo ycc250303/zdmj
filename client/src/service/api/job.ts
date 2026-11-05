@@ -93,6 +93,7 @@ export namespace JobApi {
 
   /** 岗位关联图谱（对应后端 JobCareerGraphDTO） */
   export interface JobCareerGraph {
+    id?: number; // 图谱记录编号
     jobId?: number;
     targetRoleType?: string;
     currentNode?: JobCareerGraphCurrentNode;

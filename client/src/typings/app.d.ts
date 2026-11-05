@@ -1133,8 +1133,6 @@ declare namespace App {
             checking: string;
             checkSuccess: string;
             checkFailed: string;
-            version: string;
-            latest: string;
             completenessScore: string;
             statusLabel: string;
             status: {

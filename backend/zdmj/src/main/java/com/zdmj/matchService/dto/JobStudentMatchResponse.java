@@ -22,6 +22,11 @@ import lombok.Data;
 public class JobStudentMatchResponse {
 
     /**
+     * 匹配记录编号，对应 {@code job_student_matches.id}。模型不输出该字段，保存后由数据库编号回填。
+     */
+    private Long id;
+
+    /**
      * 岗位ID（接口出参，便于前端复用；LLM 不必输出）。
      */
     private Long jobId;

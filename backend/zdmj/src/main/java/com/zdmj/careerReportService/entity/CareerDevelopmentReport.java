@@ -91,16 +91,6 @@ public class CareerDevelopmentReport extends BaseEntity {
     private Integer completenessScore;
 
     /**
-     * 同一用户+岗位下的版本号
-     */
-    private Integer version;
-
-    /**
-     * 是否为该用户+岗位下的最新版本
-     */
-    private Boolean isLatest;
-
-    /**
      * 实际使用的提示词名称
      */
     private String promptName;

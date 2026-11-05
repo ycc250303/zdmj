@@ -1,6 +1,7 @@
 package com.zdmj.careerReportService.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -24,7 +25,6 @@ import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobCareerGraphResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
-import com.zdmj.jobService.entity.JobCareerGraph;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobCareerGraphService;
 import com.zdmj.jobService.service.JobService;
@@ -36,10 +36,11 @@ import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
 import com.zdmj.matchService.dto.JobStudentMatchResponse;
-import com.zdmj.matchService.entity.JobStudentMatch;
 import com.zdmj.matchService.service.JobStudentMatchService;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
 import com.zdmj.resumeService.service.StudentCapabilityProfileService;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.regex.Matcher;
@@ -57,14 +58,17 @@ import java.util.stream.Collectors;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.ConnectionCallback;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 /**
  * 职业发展报告服务实现类
  *
  * <p>负责聚合学生画像、岗位画像、人岗匹配、岗位图谱与知识库向量检索，
- * 调用大模型生成/润色结构化报告，并支持版本化落库、完整性校验与导出。</p>
+ * 调用大模型生成或润色结构化报告。模型调用在事务外完成，覆盖写入在同一次短事务中完成。</p>
  */
 @Slf4j
 @Service
@@ -77,8 +81,6 @@ public class CareerDevelopmentReportServiceImpl
     private static final String POLISH_PROMPT = "career-report/polish";
     private static final String INTEGRITY_CHECK_PROMPT = "career-report/integrity-check";
 
-    /** 状态：草稿 */
-    private static final int STATUS_DRAFT = 1;
     /** 状态：已通过完整性校验 */
     private static final int STATUS_CHECKED = 2;
     /** 状态：完整性校验未通过 */
@@ -112,6 +114,8 @@ public class CareerDevelopmentReportServiceImpl
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeEmbeddingService knowledgeEmbeddingService;
     private final EmbeddingGateway embeddingGateway;
+    private final TransactionTemplate transactionTemplate;
+    private final JdbcTemplate jdbcTemplate;
 
     @Override
     public CareerReportResponse getLatestOrNull(Long jobId) {
@@ -122,8 +126,6 @@ public class CareerDevelopmentReportServiceImpl
         CareerDevelopmentReport entity = getOne(new LambdaQueryWrapper<CareerDevelopmentReport>()
                 .eq(CareerDevelopmentReport::getUserId, userId)
                 .eq(CareerDevelopmentReport::getJobId, jobId)
-                .eq(CareerDevelopmentReport::getIsLatest, true)
-                .orderByDesc(CareerDevelopmentReport::getVersion)
                 .last("LIMIT 1"));
         return entity == null ? null : toResponse(entity);
     }
@@ -153,25 +155,19 @@ public class CareerDevelopmentReportServiceImpl
         Map<String, Object> reportContent = generateStructuredReport(
                 userId, jobDetail, studentProfile, jobProfile, match, graph, ragHits, req);
         CareerReportCheckResponse check = localIntegrityCheck(reportContent);
-        // 5. 写入新版本并返回
-        JobStudentMatch matchEntity = getOneFromMatchService(userId, jobId);
-        JobCareerGraph graphEntity = getOneFromGraphService(jobId);
-
-        CareerDevelopmentReport created = createNewVersion(
-                userId,
-                jobId,
-                matchEntity == null ? null : matchEntity.getId(),
-                graphEntity == null ? null : graphEntity.getId(),
-                toJson(studentProfile),
-                toJson(jobProfile),
-                toJson(match),
-                toJson(toKnowledgeSources(ragHits)),
-                toJson(reportContent),
-                toJson(toQualityFlags(check)),
-                Boolean.TRUE.equals(check.getPassed()) ? STATUS_CHECKED : STATUS_CHECK_FAILED,
-                check.getCompletenessScore(),
-                GENERATE_PROMPT);
-        return toResponse(created);
+        // 5. 事务外组装待保存报告，再覆盖写入唯一一行
+        CareerDevelopmentReport draft = new CareerDevelopmentReport();
+        draft.setUserId(userId);
+        draft.setJobId(jobId);
+        draft.setMatchId(match.getId());
+        draft.setCareerGraphId(graph.getId());
+        draft.setStudentProfileSnapshot(toJson(studentProfile));
+        draft.setJobProfileSnapshot(toJson(jobProfile));
+        draft.setMatchSnapshot(toJson(match));
+        draft.setKnowledgeSources(toJson(toKnowledgeSources(ragHits)));
+        draft.setReportContent(toJson(reportContent));
+        fillCheckResult(draft, check, GENERATE_PROMPT);
+        return toResponse(saveReport(draft));
     }
 
     @Override
@@ -199,22 +195,8 @@ public class CareerDevelopmentReportServiceImpl
         Map<String, Object> polished = payload == null || payload.getReportContent() == null
                 ? currentContent : payload.getReportContent();
         CareerReportCheckResponse check = localIntegrityCheck(polished);
-
-        CareerDevelopmentReport created = createNewVersion(
-                current.getUserId(),
-                current.getJobId(),
-                current.getMatchId(),
-                current.getCareerGraphId(),
-                current.getStudentProfileSnapshot(),
-                current.getJobProfileSnapshot(),
-                current.getMatchSnapshot(),
-                current.getKnowledgeSources(),
-                toJson(polished),
-                toJson(toQualityFlags(check)),
-                Boolean.TRUE.equals(check.getPassed()) ? STATUS_CHECKED : STATUS_CHECK_FAILED,
-                check.getCompletenessScore(),
-                POLISH_PROMPT);
-        return toResponse(created);
+        return toResponse(saveReport(
+                draftFromCurrent(current, toJson(polished), check, POLISH_PROMPT)));
     }
 
     @Override
@@ -237,10 +219,15 @@ public class CareerDevelopmentReportServiceImpl
             log.warn("LLM 完整性检查失败，使用本地校验结果: reportId={}, err={}", reportId, e.getMessage());
         }
 
-        report.setCompletenessScore(local.getCompletenessScore());
-        report.setQualityFlags(toJson(toQualityFlags(local)));
-        report.setStatus(Boolean.TRUE.equals(local.getPassed()) ? STATUS_CHECKED : STATUS_CHECK_FAILED);
-        updateById(report);
+        Integer completenessScore = local.getCompletenessScore();
+        if (completenessScore == null) {
+            throw new IllegalStateException("完整性检查缺少完整度");
+        }
+        String qualityFlags = toJson(toQualityFlags(local));
+        Integer status = Boolean.TRUE.equals(local.getPassed()) ? STATUS_CHECKED : STATUS_CHECK_FAILED;
+        transactionTemplate.executeWithoutResult(tx -> writeIntegrityResult(
+                report.getId(), report.getUserId(), report.getJobId(),
+                completenessScore, qualityFlags, status));
         return local;
     }
 
@@ -251,21 +238,8 @@ public class CareerDevelopmentReportServiceImpl
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "报告内容不能为空");
         }
         CareerReportCheckResponse check = localIntegrityCheck(req.getReportContent());
-        CareerDevelopmentReport created = createNewVersion(
-                current.getUserId(),
-                current.getJobId(),
-                current.getMatchId(),
-                current.getCareerGraphId(),
-                current.getStudentProfileSnapshot(),
-                current.getJobProfileSnapshot(),
-                current.getMatchSnapshot(),
-                current.getKnowledgeSources(),
-                toJson(req.getReportContent()),
-                toJson(toQualityFlags(check)),
-                Boolean.TRUE.equals(check.getPassed()) ? STATUS_CHECKED : STATUS_CHECK_FAILED,
-                check.getCompletenessScore(),
-                current.getPromptName());
-        return toResponse(created);
+        return toResponse(saveReport(draftFromCurrent(
+                current, toJson(req.getReportContent()), check, current.getPromptName())));
     }
 
     private JobCapabilityProfileResponse loadOrGenerateJobProfile(Long jobId) {
@@ -406,65 +380,150 @@ public class CareerDevelopmentReportServiceImpl
     }
 
     /**
-     * 将同用户+岗位下的旧 latest 置为 false，并插入递增版本的新记录。
+     * 用当前报告的快照复制出待覆盖的报告。编号由覆盖写入保留。
+     *
+     * @param current 当前用户拥有的报告
+     * @param reportContent 新正文 JSON
+     * @param check 本地完整性结果
+     * @param promptName 本次使用的提示词名称
+     * @return 尚未写入的报告
      */
-    private CareerDevelopmentReport createNewVersion(Long userId,
-                                                     Long jobId,
-                                                     Long matchId,
-                                                     Long careerGraphId,
-                                                     String studentSnapshot,
-                                                     String jobSnapshot,
-                                                     String matchSnapshot,
-                                                     String knowledgeSources,
-                                                     String reportContent,
-                                                     String qualityFlags,
-                                                     Integer status,
-                                                     Integer completenessScore,
-                                                     String promptName) {
-        CareerDevelopmentReport latest = getOne(new LambdaQueryWrapper<CareerDevelopmentReport>()
-                .eq(CareerDevelopmentReport::getUserId, userId)
-                .eq(CareerDevelopmentReport::getJobId, jobId)
-                .eq(CareerDevelopmentReport::getIsLatest, true)
-                .orderByDesc(CareerDevelopmentReport::getVersion)
-                .last("LIMIT 1"));
-        int nextVersion = 1;
-        if (latest != null) {
-            nextVersion = latest.getVersion() == null ? 1 : latest.getVersion() + 1;
-            latest.setIsLatest(false);
-            updateById(latest);
+    private CareerDevelopmentReport draftFromCurrent(CareerDevelopmentReport current, String reportContent,
+                                                     CareerReportCheckResponse check, String promptName) {
+        CareerDevelopmentReport draft = new CareerDevelopmentReport();
+        draft.setUserId(current.getUserId());
+        draft.setJobId(current.getJobId());
+        draft.setMatchId(current.getMatchId());
+        draft.setCareerGraphId(current.getCareerGraphId());
+        draft.setStudentProfileSnapshot(current.getStudentProfileSnapshot());
+        draft.setJobProfileSnapshot(current.getJobProfileSnapshot());
+        draft.setMatchSnapshot(current.getMatchSnapshot());
+        draft.setKnowledgeSources(current.getKnowledgeSources());
+        draft.setReportContent(reportContent);
+        fillCheckResult(draft, check, promptName);
+        return draft;
+    }
+
+    /**
+     * 把完整性结果写入待保存报告。
+     *
+     * @param draft 待保存报告
+     * @param check 完整性结果
+     * @param promptName 提示词名称
+     */
+    private void fillCheckResult(CareerDevelopmentReport draft, CareerReportCheckResponse check, String promptName) {
+        draft.setQualityFlags(toJson(toQualityFlags(check)));
+        draft.setStatus(Boolean.TRUE.equals(check.getPassed()) ? STATUS_CHECKED : STATUS_CHECK_FAILED);
+        draft.setCompletenessScore(check.getCompletenessScore());
+        draft.setPromptName(promptName);
+    }
+
+    /**
+     * 报告写入的唯一入口。调用方在事务外填好正文和快照，本方法在短事务中插入或覆盖同一用户与岗位的唯一一行。
+     *
+     * @param draft 待写入报告，须包含用户、岗位、正文、状态、完整度和提示词
+     * @return 已写入的报告，编号在覆盖时保持不变
+     */
+    private CareerDevelopmentReport saveReport(CareerDevelopmentReport draft) {
+        if (draft == null || draft.getUserId() == null || draft.getJobId() == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "报告缺少用户或岗位");
         }
-
-        CareerDevelopmentReport entity = new CareerDevelopmentReport();
-        entity.setUserId(userId);
-        entity.setJobId(jobId);
-        entity.setMatchId(matchId);
-        entity.setCareerGraphId(careerGraphId);
-        entity.setStudentProfileSnapshot(studentSnapshot);
-        entity.setJobProfileSnapshot(jobSnapshot);
-        entity.setMatchSnapshot(matchSnapshot);
-        entity.setKnowledgeSources(knowledgeSources);
-        entity.setReportContent(reportContent);
-        entity.setQualityFlags(qualityFlags);
-        entity.setStatus(status);
-        entity.setCompletenessScore(completenessScore);
-        entity.setVersion(nextVersion);
-        entity.setIsLatest(true);
-        entity.setPromptName(promptName);
-        save(entity);
-        return entity;
+        if (!StringUtils.hasText(draft.getReportContent())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "报告内容不能为空");
+        }
+        if (draft.getStatus() == null || draft.getCompletenessScore() == null
+                || !StringUtils.hasText(draft.getPromptName())) {
+            throw new IllegalStateException("报告缺少状态、完整度或提示词");
+        }
+        CareerDevelopmentReport saved = transactionTemplate.execute(status -> overwriteReport(draft));
+        if (saved == null) {
+            throw new IllegalStateException("职业发展报告未写入");
+        }
+        return saved;
     }
 
-    private JobStudentMatch getOneFromMatchService(Long userId, Long jobId) {
-        return jobStudentMatchService.getOne(new LambdaQueryWrapper<JobStudentMatch>()
-                .eq(JobStudentMatch::getUserId, userId)
-                .eq(JobStudentMatch::getJobId, jobId)
-                .last("LIMIT 1"));
+    /**
+     * 在当前事务中锁定用户与岗位，没有记录则插入，已有记录则按原编号覆盖。写入行数必须为 1，否则终止并由事务回滚。
+     *
+     * @param draft 待写入报告
+     * @return 已写入的报告
+     */
+    private CareerDevelopmentReport overwriteReport(CareerDevelopmentReport draft) {
+        lockUserJob(draft.getUserId(), draft.getJobId());
+        CareerDevelopmentReport existing = baseMapper.selectOne(new LambdaQueryWrapper<CareerDevelopmentReport>()
+                .eq(CareerDevelopmentReport::getUserId, draft.getUserId())
+                .eq(CareerDevelopmentReport::getJobId, draft.getJobId())
+                .last("FOR UPDATE"));
+        if (existing == null) {
+            draft.setId(null);
+            int inserted = baseMapper.insert(draft);
+            if (inserted != 1 || draft.getId() == null) {
+                throw new IllegalStateException("职业发展报告未写入");
+            }
+            return draft;
+        }
+        if (existing.getId() == null) {
+            throw new IllegalStateException("职业发展报告未写入");
+        }
+        draft.setId(existing.getId());
+        int updated = baseMapper.updateById(draft);
+        if (updated != 1) {
+            throw new IllegalStateException("职业发展报告未写入");
+        }
+        return draft;
     }
 
-    private JobCareerGraph getOneFromGraphService(Long jobId) {
-        return jobCareerGraphService.getOne(new LambdaQueryWrapper<JobCareerGraph>()
-                .eq(JobCareerGraph::getJobId, jobId)
-                .last("LIMIT 1"));
+    /**
+     * 在短事务中按用户与岗位加锁后，只更新指定报告的完整度、质量标记和状态。
+     *
+     * @param reportId 报告编号
+     * @param userId 用户编号
+     * @param jobId 岗位编号
+     * @param completenessScore 完整度
+     * @param qualityFlags 质量标记 JSON
+     * @param status 报告状态
+     */
+    private void writeIntegrityResult(Long reportId, Long userId, Long jobId, Integer completenessScore,
+                                      String qualityFlags, Integer status) {
+        lockUserJob(userId, jobId);
+        CareerDevelopmentReport current = baseMapper.selectOne(new LambdaQueryWrapper<CareerDevelopmentReport>()
+                .eq(CareerDevelopmentReport::getId, reportId)
+                .eq(CareerDevelopmentReport::getUserId, userId)
+                .last("FOR UPDATE"));
+        if (current == null) {
+            throw new BusinessException(ErrorCode.CAREER_REPORT_NOT_FOUND);
+        }
+        int updated = baseMapper.update(null, new LambdaUpdateWrapper<CareerDevelopmentReport>()
+                .eq(CareerDevelopmentReport::getId, reportId)
+                .eq(CareerDevelopmentReport::getUserId, userId)
+                .set(CareerDevelopmentReport::getCompletenessScore, completenessScore)
+                .set(CareerDevelopmentReport::getQualityFlags, qualityFlags)
+                .set(CareerDevelopmentReport::getStatus, status));
+        if (updated != 1) {
+            throw new IllegalStateException("完整性检查结果写入失败");
+        }
+    }
+
+    /**
+     * 按用户与岗位取得事务级咨询锁。同一对用户和岗位的报告写入会排队，事务结束时释放。
+     *
+     * @param userId 用户编号
+     * @param jobId 岗位编号
+     */
+    private void lockUserJob(Long userId, Long jobId) {
+        String lockKey = "career-development-report:" + userId + ":" + jobId;
+        jdbcTemplate.execute((ConnectionCallback<Void>) connection -> {
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))")) {
+                statement.setString(1, lockKey);
+                try (ResultSet resultSet = statement.executeQuery()) {
+                    if (!resultSet.next()) {
+                        throw new IllegalStateException("报告写入锁未取得");
+                    }
+                }
+            }
+            return null;
+        });
     }
 
     private CareerReportResponse toResponse(CareerDevelopmentReport entity) {
@@ -473,8 +532,6 @@ public class CareerDevelopmentReportServiceImpl
         response.setJobId(entity.getJobId());
         response.setStatus(entity.getStatus());
         response.setCompletenessScore(entity.getCompletenessScore());
-        response.setVersion(entity.getVersion());
-        response.setLatest(entity.getIsLatest());
         response.setPromptName(entity.getPromptName());
         response.setReportContent(readMap(entity.getReportContent()));
         response.setQualityFlags(readMap(entity.getQualityFlags()));
@@ -577,7 +634,7 @@ public class CareerDevelopmentReportServiceImpl
             row.put("documentId", hit.getDocumentId());
             row.put("chunkIndex", hit.getChunkIndex());
             row.put("score", hit.getScore());
-            row.put("title", resolveKnowledgeSourceTitle(hit, doc));
+            row.put("title", knowledgeSourceTitle(doc, hit.getMetadata(), hit.getContent(), hit.getDocumentId()));
             row.put("snippet", buildKnowledgeSourceSnippet(hit));
             row.put("metadata", mergeSourceMetadata(hit, doc));
             out.add(row);
@@ -602,7 +659,13 @@ public class CareerDevelopmentReportServiceImpl
             }
             Long docId = toLong(row.get("documentId"));
             KnowledgeDocument doc = docId == null ? null : docById.get(docId);
-            row.put("title", resolveStoredKnowledgeSourceTitle(row, doc));
+            Object metadata = row.get("metadata");
+            Object snippet = row.get("snippet");
+            row.put("title", knowledgeSourceTitle(
+                    doc,
+                    metadata instanceof Map<?, ?> meta ? meta : null,
+                    snippet == null ? null : String.valueOf(snippet),
+                    docId));
         }
         return sources;
     }
@@ -615,44 +678,30 @@ public class CareerDevelopmentReportServiceImpl
         return PLACEHOLDER_DOC_TITLE.matcher(String.valueOf(title).trim()).matches();
     }
 
-    private String resolveStoredKnowledgeSourceTitle(Map<String, Object> row, KnowledgeDocument doc) {
+    /**
+     * 解析知识来源标题。依次使用文档标题、元数据中的文件名、正文里的一级标题；都没有时用「学习路线」加文档编号。
+     *
+     * @param doc 知识文档，可以为空
+     * @param metadata 来源元数据，可以为空
+     * @param headingText 可能包含一级标题的正文或片段，可以为空
+     * @param documentId 文档编号，可以为空
+     * @return 展示标题
+     */
+    private String knowledgeSourceTitle(KnowledgeDocument doc, Map<?, ?> metadata, String headingText,
+                                        Long documentId) {
         String fromDoc = documentDisplayTitle(doc);
         if (StringUtils.hasText(fromDoc)) {
             return fromDoc;
         }
-        Object snippet = row.get("snippet");
-        if (snippet != null) {
-            String fromSnippet = parseMarkdownHeadingTitle(String.valueOf(snippet));
-            if (StringUtils.hasText(fromSnippet)) {
-                return fromSnippet;
-            }
-        }
-        Object metadata = row.get("metadata");
-        if (metadata instanceof Map<?, ?> meta) {
-            String fromMeta = titleFromMetadataMap(meta);
-            if (StringUtils.hasText(fromMeta)) {
-                return fromMeta;
-            }
-        }
-        Long docId = toLong(row.get("documentId"));
-        return docId != null ? "学习路线 #" + docId : "知识片段";
-    }
-
-    private String resolveKnowledgeSourceTitle(KnowledgeRetrivalDTO hit, KnowledgeDocument doc) {
-        String fromDoc = documentDisplayTitle(doc);
-        if (StringUtils.hasText(fromDoc)) {
-            return fromDoc;
-        }
-        String fromMeta = hit.getMetadata() == null ? null : titleFromMetadataMap(hit.getMetadata());
+        String fromMeta = titleFromMetadataMap(metadata);
         if (StringUtils.hasText(fromMeta)) {
             return fromMeta;
         }
-        String fromChunk = parseMarkdownHeadingTitle(hit.getContent());
-        if (StringUtils.hasText(fromChunk)) {
-            return fromChunk;
+        String fromHeading = parseMarkdownHeadingTitle(headingText);
+        if (StringUtils.hasText(fromHeading)) {
+            return fromHeading;
         }
-        Long docId = hit.getDocumentId();
-        return docId != null ? "学习路线 #" + docId : "知识片段";
+        return documentId != null ? "学习路线 #" + documentId : "知识片段";
     }
 
     private Map<Long, KnowledgeDocument> loadDocumentsByIds(List<Long> documentIds) {

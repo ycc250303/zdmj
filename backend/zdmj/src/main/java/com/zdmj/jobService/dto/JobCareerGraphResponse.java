@@ -19,6 +19,11 @@ import lombok.Data;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class JobCareerGraphResponse {
 
+    /**
+     * 图谱记录编号，对应 {@code job_career_graphs.id}。模型不输出该字段，保存后由数据库编号回填。
+     */
+    private Long id;
+
     /** 岗位ID */
     private Long jobId;
 

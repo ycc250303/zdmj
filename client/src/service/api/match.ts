@@ -27,6 +27,7 @@ export namespace MatchApi {
 
   // 人岗匹配分析结果（对应 JobStudentMatchDTO）
   export interface JobStudentMatch {
+    id?: number; // 匹配记录编号
     jobId?: number;
     targetRoleType?: string; // 岗位类型展示值
     overallScore?: number; // 综合匹配度 0~100

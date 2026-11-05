@@ -55,10 +55,6 @@ export namespace CareerReportApi {
     status?: ReportStatus;
     /** 完整度评分 0~100 */
     completenessScore?: number;
-    /** 版本号 */
-    version?: number;
-    /** 是否为该岗位下的最新版本 */
-    latest?: boolean;
     /** 生成/润色使用的 prompt 名称 */
     promptName?: string;
     /** 结构化报告正文（章节键 -> 内容）*/
@@ -97,7 +93,7 @@ export namespace CareerReportApi {
 }
 
 /**
- * 查询当前用户针对某岗位的最新职业发展报告（不触发生成；不存在返回 null）。
+ * 查询当前用户针对某岗位的职业发展报告（不触发生成；不存在返回 null）。
  * 后端：GET /career-reports/jobs/{jobId}
  */
 export function fetchGetLatestCareerReport(jobId: number | string) {
@@ -108,7 +104,7 @@ export function fetchGetLatestCareerReport(jobId: number | string) {
 }
 
 /**
- * 生成职业发展报告并返回新版本。
+ * 生成职业发展报告并覆盖保存。
  * 后端：POST /career-reports/jobs/{jobId}（body 可选）
  */
 export function fetchGenerateCareerReport(
@@ -124,7 +120,7 @@ export function fetchGenerateCareerReport(
 }
 
 /**
- * 润色报告并返回新版本。
+ * 润色报告并覆盖保存。
  * 后端：POST /career-reports/{id}/polish
  */
 export function fetchPolishCareerReport(
@@ -152,7 +148,7 @@ export function fetchCheckCareerReportIntegrity(id: number | string) {
 }
 
 /**
- * 保存手动编辑后的报告（生成新版本）。
+ * 保存手动编辑后的报告，并覆盖原报告。
  * 后端：PUT /career-reports/{id}
  */
 export function fetchSaveCareerReportManualEdit(

@@ -112,7 +112,7 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
         } else {
             save(entity);
         }
-
+        aiResult.setId(entity.getId());
         return aiResult;
     }
 
@@ -204,6 +204,7 @@ public class JobCareerGraphServiceImpl extends ServiceImpl<JobCareerGraphMapper,
     /** Entity → DTO（JSONB 列回填为强类型对象） */
     private JobCareerGraphResponse toDto(JobCareerGraph entity) {
         JobCareerGraphResponse dto = new JobCareerGraphResponse();
+        dto.setId(entity.getId());
         dto.setJobId(entity.getJobId());
         dto.setTargetRoleType(StringUtils.hasText(entity.getTargetRoleType()) ? entity.getTargetRoleType()
                 : JobRole.fromPromptName(entity.getPromptName()).slug());

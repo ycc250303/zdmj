@@ -1031,12 +1031,6 @@ onMounted(() => {
               <NTag :type="getCareerReportStatusType(careerReport.status)" round size="small">
                 {{ $t('page.jobs.careerReport.statusLabel') }}：{{ getCareerReportStatusLabel(careerReport.status) }}
               </NTag>
-              <NTag type="info" round size="small">
-                {{ $t('page.jobs.careerReport.version') }} v{{ careerReport.version ?? '-' }}
-              </NTag>
-              <NTag v-if="careerReport.latest" type="success" round size="small">
-                {{ $t('page.jobs.careerReport.latest') }}
-              </NTag>
               <NTag v-if="careerReport.completenessScore != null" type="warning" round size="small">
                 {{ $t('page.jobs.careerReport.completenessScore') }}：{{ careerReport.completenessScore }}/100
               </NTag>

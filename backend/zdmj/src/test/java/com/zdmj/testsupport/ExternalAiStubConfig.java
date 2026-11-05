@@ -66,6 +66,49 @@ public class ExternalAiStubConfig {
             """.formatted(FIXED_MATCH_SUMMARY, FIXED_MATCH_SCORE, FIXED_MATCH_SCORE, FIXED_MATCH_SCORE,
             FIXED_MATCH_SCORE);
 
+    static final String FIXED_REPORT_JSON = """
+            {
+              "reportContent": {
+                "careerExploration": "生成探索",
+                "careerGoals": ["生成目标"],
+                "careerPath": ["生成路径"],
+                "actionPlan": {
+                  "shortTerm": [{"task": "补齐技能", "cycle": "4周", "deliverable": "演示"}],
+                  "midTerm": [{"task": "投递", "cycle": "8周", "deliverable": "清单"}]
+                },
+                "evaluationPlan": {"cycle": "双周", "metrics": ["完成率"]},
+                "evidence": ["生成证据"]
+              }
+            }
+            """;
+
+    static final String FIXED_POLISHED_REPORT_JSON = """
+            {
+              "reportContent": {
+                "careerExploration": "润色探索",
+                "careerGoals": ["润色目标"],
+                "careerPath": ["润色路径"],
+                "actionPlan": {
+                  "shortTerm": [{"task": "补齐技能", "cycle": "4周", "deliverable": "演示"}],
+                  "midTerm": [{"task": "投递", "cycle": "8周", "deliverable": "清单"}]
+                },
+                "evaluationPlan": {"cycle": "双周", "metrics": ["完成率"]},
+                "evidence": ["润色证据"]
+              }
+            }
+            """;
+
+    static final String FIXED_REPORT_CHECK_JSON = """
+            {
+              "passed": true,
+              "completenessScore": 80,
+              "riskLevel": "low",
+              "missingSections": [],
+              "nonActionableItems": [],
+              "weakEvidenceItems": []
+            }
+            """;
+
     @Bean
     @Primary
     MutableClock mutableClock() {
@@ -158,6 +201,15 @@ public class ExternalAiStubConfig {
             }
             if (text.indexOf("专项评估") >= 0) {
                 return response("{\"professionalSkills\":\"Java 简历能力\",\"competitivenessScore\":80}");
+            }
+            if (text.indexOf("请生成结构化职业发展报告") >= 0) {
+                return response(FIXED_REPORT_JSON);
+            }
+            if (text.indexOf("请对以下职业发展报告进行润色") >= 0) {
+                return response(FIXED_POLISHED_REPORT_JSON);
+            }
+            if (text.indexOf("请检查这份职业发展报告是否完整且可执行") >= 0) {
+                return response(FIXED_REPORT_CHECK_JSON);
             }
             if (text.indexOf("请输出 JSON") >= 0) {
                 return response(FIXED_MATCH_JSON);
