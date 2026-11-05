@@ -4,36 +4,33 @@ import { $t } from '@/locales'; // 引入国际化
 
 interface Props {
   data: ResumeApi.ResumeContentDTO;
-  personal: {
-    fullName: string;
-    phone: string;
-    email: string;
-    major: string;
-    homepageUrl?: string;
-  };
 }
 const props = defineProps<Props>();
 </script>
 
 <template>
   <div class="resume-wrapper grid grid-cols-12 min-h-[1123px] text-slate-800 font-sans shadow-sm">
-    
-    <aside class="col-span-4 bg-[#f8fafc] px-6 py-10 border-r border-slate-200 flex flex-col gap-8">
-      
+    <aside class="col-span-4 flex flex-col gap-8 border-r border-slate-200 bg-[#f8fafc] px-6 py-10">
       <section>
         <h2 class="theme-section-title">{{ $t('page.resume.contact', 'Contact') }}</h2>
         <div class="flex flex-col gap-3 text-sm text-slate-600 font-medium">
-          <div v-if="props.personal?.email" class="flex items-center gap-2">
-            <span class="text-lg text-slate-400">✉️</span>
-            <span class="break-all">{{ props.personal.email }}</span>
-          </div>
-          <div v-if="props.personal?.phone" class="flex items-center gap-2">
+          <div v-if="props.data.personalInfo?.phone" class="flex items-center gap-2">
             <span class="text-lg text-slate-400">📞</span>
-            <span>{{ props.personal.phone }}</span>
+            <span>{{ props.data.personalInfo.phone }}</span>
           </div>
-          <div v-if="props.personal?.homepageUrl" class="flex items-center gap-2">
+          <div v-if="props.data.personalInfo?.homepageUrl" class="flex items-center gap-2">
             <span class="text-lg text-slate-400">🔗</span>
-            <a :href="props.personal.homepageUrl" target="_blank" class="break-all hover:text-blue-600 truncate">{{ props.personal.homepageUrl.replace(/^https?:\/\//, '') }}</a>
+            <a
+              :href="props.data.personalInfo.homepageUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="truncate break-all hover:text-blue-600"
+            >
+              {{ props.data.personalInfo.homepageUrl.replace(/^https?:\/\//, '') }}
+            </a>
+          </div>
+          <div v-if="props.data.personalInfo?.preferredWorkCity" class="flex items-center gap-2">
+            <span>{{ props.data.personalInfo.preferredWorkCity }}</span>
           </div>
         </div>
       </section>
@@ -41,11 +38,13 @@ const props = defineProps<Props>();
       <section v-if="props.data.educations && props.data.educations.length">
         <h2 class="theme-section-title">{{ $t('page.resume.education', 'Education') }}</h2>
         <div class="flex flex-col gap-4">
-          <div v-for="edu in props.data.educations" :key="edu.id" v-show="edu.visible">
-            <h3 class="font-bold text-slate-800">{{ edu.school }}</h3>
-            <div class="text-sm text-slate-600 mt-0.5">{{ edu.major }}</div>
-            <div class="text-xs text-slate-400 font-medium mt-1">{{ edu.startDate }} - {{ edu.endDate || $t('page.resume.present', 'Present') }}</div>
-            <div v-if="edu.gpa" class="text-xs font-bold text-slate-500 mt-1">GPA: {{ edu.gpa }}</div>
+          <div v-for="edu in props.data.educations" v-show="edu.visible" :key="edu.id">
+            <h3 class="text-slate-800 font-bold">{{ edu.school }}</h3>
+            <div class="mt-0.5 text-sm text-slate-600">{{ edu.major }}</div>
+            <div class="mt-1 text-xs text-slate-400 font-medium">
+              {{ edu.startDate }} - {{ edu.endDate || $t('page.resume.present', 'Present') }}
+            </div>
+            <div v-if="edu.gpa" class="mt-1 text-xs text-slate-500 font-bold">GPA: {{ edu.gpa }}</div>
           </div>
         </div>
       </section>
@@ -54,12 +53,12 @@ const props = defineProps<Props>();
         <h2 class="theme-section-title">{{ $t('page.resume.skills', 'Skills') }}</h2>
         <div class="flex flex-col gap-3">
           <div v-for="(item, index) in props.data.skill.content" :key="index">
-            <h3 class="font-bold text-sm text-slate-800 mb-1">{{ item.type }}</h3>
-            <div class="flex flex-wrap gap-1.5 mt-1">
-              <span 
-                v-for="skill in item.content" 
-                :key="skill" 
-                class="text-xs font-semibold px-2 py-0.5 rounded-md theme-pill"
+            <h3 class="mb-1 text-sm text-slate-800 font-bold">{{ item.type }}</h3>
+            <div class="mt-1 flex flex-wrap gap-1.5">
+              <span
+                v-for="skill in item.content"
+                :key="skill"
+                class="theme-pill rounded-md px-2 py-0.5 text-xs font-semibold"
               >
                 {{ skill }}
               </span>
@@ -67,72 +66,105 @@ const props = defineProps<Props>();
           </div>
         </div>
       </section>
-
     </aside>
 
     <main class="col-span-8 bg-white px-10 py-12">
-      
       <header class="mb-10">
-        <h1 class="text-4xl font-black text-slate-900 tracking-tight mb-2">{{ props.personal?.fullName || $t('page.resume.name', '姓名') }}</h1>
-        <div class="text-lg font-medium tracking-wide theme-text">
-          {{ props.personal?.major || $t('page.resume.targetJob', '目标岗位') }}
+        <h1 class="mb-2 text-4xl text-slate-900 font-black tracking-tight">
+          {{ props.data.personalInfo?.name || $t('page.resume.name', '姓名') }}
+        </h1>
+        <div v-if="props.data.personalInfo?.preferredWorkCity" class="theme-text text-lg font-medium tracking-wide">
+          {{ props.data.personalInfo.preferredWorkCity }}
         </div>
       </header>
 
       <section v-if="props.data.careers && props.data.careers.length" class="mb-8">
-        <div class="flex items-center gap-2 mb-4">
-          <span class="text-2xl theme-text">💼</span>
-          <h2 class="text-xl font-black text-slate-800">{{ $t('page.resume.experience', 'Experience') }}</h2>
+        <div class="mb-4 flex items-center gap-2">
+          <span class="theme-text text-2xl">💼</span>
+          <h2 class="text-xl text-slate-800 font-black">{{ $t('page.resume.experience', 'Experience') }}</h2>
         </div>
-        
-        <div class="flex flex-col gap-6 relative">
-          <div class="absolute left-2 top-2 bottom-0 w-px bg-slate-200 -z-0"></div>
-          
-          <div v-for="career in props.data.careers" :key="career.id" v-show="career.visible" class="relative z-10 pl-6">
-            <div class="absolute left-[5px] top-1.5 w-2 h-2 rounded-full outline outline-4 outline-white theme-bg"></div>
-            
-            <div class="flex justify-between items-start mb-1">
-              <h3 class="font-bold text-lg text-slate-800 leading-tight">{{ career.position }}</h3>
-              <span class="text-xs font-bold px-2 py-1 rounded theme-date">{{ career.startDate }} - {{ career.endDate || $t('page.resume.present', 'Present') }}</span>
+
+        <div class="relative flex flex-col gap-6">
+          <div class="-z-0 absolute bottom-0 left-2 top-2 w-px bg-slate-200"></div>
+
+          <div v-for="career in props.data.careers" v-show="career.visible" :key="career.id" class="relative z-10 pl-6">
+            <div
+              class="theme-bg absolute left-[5px] top-1.5 h-2 w-2 rounded-full outline-4 outline-white outline"
+            ></div>
+
+            <div class="mb-1 flex items-start justify-between">
+              <h3 class="text-lg text-slate-800 font-bold leading-tight">{{ career.position }}</h3>
+              <span class="theme-date rounded px-2 py-1 text-xs font-bold">
+                {{ career.startDate }} - {{ career.endDate || $t('page.resume.present', 'Present') }}
+              </span>
             </div>
-            <div class="text-sm font-semibold text-slate-500 mb-3">{{ career.company }}</div>
-            
-            <div class="text-sm text-slate-600 leading-relaxed resume-rich-text" v-html="career.details || '<p></p>'"></div>
+            <div class="mb-3 text-sm text-slate-500 font-semibold">{{ career.company }}</div>
+
+            <div
+              class="resume-rich-text text-sm text-slate-600 leading-relaxed"
+              v-html="career.details || '<p></p>'"
+            ></div>
           </div>
         </div>
       </section>
 
       <section v-if="props.data.projects && props.data.projects.length">
-        <div class="flex items-center gap-2 mb-4">
-          <span class="text-2xl theme-text">🚀</span>
-          <h2 class="text-xl font-black text-slate-800">{{ $t('page.resume.projects', 'Projects') }}</h2>
+        <div class="mb-4 flex items-center gap-2">
+          <span class="theme-text text-2xl">🚀</span>
+          <h2 class="text-xl text-slate-800 font-black">{{ $t('page.resume.projects', 'Projects') }}</h2>
         </div>
-        
-        <div class="flex flex-col gap-6 relative">
-          <div class="absolute left-2 top-2 bottom-0 w-px bg-slate-200 -z-0"></div>
 
-          <div v-for="proj in props.data.projects" :key="proj.id" v-show="proj.visible" class="relative z-10 pl-6">
-             <div class="absolute left-[5px] top-1.5 w-2 h-2 rounded-full outline outline-4 outline-white theme-bg" style="opacity: 0.7;"></div>
+        <div class="relative flex flex-col gap-6">
+          <div class="-z-0 absolute bottom-0 left-2 top-2 w-px bg-slate-200"></div>
 
-            <div class="flex justify-between items-start mb-1">
-              <h3 class="font-bold text-lg text-slate-800 leading-tight">{{ proj.name }}</h3>
-              <span class="text-xs font-bold px-2 py-1 rounded theme-date">{{ proj.startDate }} - {{ proj.endDate || $t('page.resume.present', 'Present') }}</span>
+          <div v-for="proj in props.data.projects" v-show="proj.visible" :key="proj.id" class="relative z-10 pl-6">
+            <div
+              class="theme-bg absolute left-[5px] top-1.5 h-2 w-2 rounded-full outline-4 outline-white outline"
+              style="opacity: 0.7"
+            ></div>
+
+            <div class="mb-1 flex items-start justify-between">
+              <h3 class="text-lg text-slate-800 font-bold leading-tight">{{ proj.name }}</h3>
+              <span class="theme-date rounded px-2 py-1 text-xs font-bold">
+                {{ proj.startDate }} - {{ proj.endDate || $t('page.resume.present', 'Present') }}
+              </span>
             </div>
-            <div class="text-sm font-semibold text-slate-500 mb-3">{{ proj.role }}</div>
-            
-            <div class="text-sm text-slate-600 leading-relaxed resume-rich-text" v-html="proj.description || '<p></p>'"></div>
+            <div class="mb-3 text-sm text-slate-500 font-semibold">{{ proj.role }}</div>
+
+            <div
+              class="resume-rich-text text-sm text-slate-600 leading-relaxed"
+              v-html="proj.description || '<p></p>'"
+            ></div>
           </div>
         </div>
       </section>
 
+      <section v-if="props.data.awards && props.data.awards.length" class="mb-8">
+        <div class="mb-4 flex items-center gap-2">
+          <h2 class="text-xl text-slate-800 font-black">{{ $t('page.resume.awards') }}</h2>
+        </div>
+        <div class="flex flex-col gap-4">
+          <div v-for="award in props.data.awards" :key="award.id">
+            <div class="mb-1 flex items-start justify-between">
+              <h3 class="text-lg text-slate-800 font-bold leading-tight">{{ award.name }}</h3>
+              <span class="theme-date rounded px-2 py-1 text-xs font-bold">{{ award.awardDate }}</span>
+            </div>
+            <p v-if="award.description" class="text-sm text-slate-600">{{ award.description }}</p>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 </template>
 
 <style scoped>
 /* =========== 动态主题色核心绑定 =========== */
-.theme-text { color: var(--theme-color); }
-.theme-bg { background-color: var(--theme-color); }
+.theme-text {
+  color: var(--theme-color);
+}
+.theme-bg {
+  background-color: var(--theme-color);
+}
 .theme-section-title {
   font-size: 0.875rem;
   font-weight: 900;
@@ -155,11 +187,22 @@ const props = defineProps<Props>();
 }
 
 /* 富文本样式 */
-.resume-rich-text :deep(p) { margin-bottom: 0.35rem; text-align: justify; }
-.resume-rich-text :deep(ul) { list-style-type: none; padding-left: 0; margin-bottom: 0.5rem; }
-.resume-rich-text :deep(ul li) { position: relative; padding-left: 1.1rem; margin-bottom: 0.25rem; }
+.resume-rich-text :deep(p) {
+  margin-bottom: 0.35rem;
+  text-align: justify;
+}
+.resume-rich-text :deep(ul) {
+  list-style-type: none;
+  padding-left: 0;
+  margin-bottom: 0.5rem;
+}
+.resume-rich-text :deep(ul li) {
+  position: relative;
+  padding-left: 1.1rem;
+  margin-bottom: 0.25rem;
+}
 .resume-rich-text :deep(ul li::before) {
-  content: "•";
+  content: '•';
   color: var(--theme-color); /* 圆点也变为动态主题色 */
   position: absolute;
   left: 0;
@@ -167,13 +210,32 @@ const props = defineProps<Props>();
   font-size: 1.2em;
   line-height: 1;
 }
-.resume-rich-text :deep(ol) { list-style-type: decimal; padding-left: 1.2rem; margin-bottom: 0.5rem; }
-.resume-rich-text :deep(b), .resume-rich-text :deep(strong) { font-weight: 700; color: #0f172a; }
-.resume-rich-text :deep(u) { text-decoration-color: #cbd5e1; text-underline-offset: 3px; }
+.resume-rich-text :deep(ol) {
+  list-style-type: decimal;
+  padding-left: 1.2rem;
+  margin-bottom: 0.5rem;
+}
+.resume-rich-text :deep(b),
+.resume-rich-text :deep(strong) {
+  font-weight: 700;
+  color: #0f172a;
+}
+.resume-rich-text :deep(u) {
+  text-decoration-color: #cbd5e1;
+  text-underline-offset: 3px;
+}
 
 @media print {
-  .resume-wrapper { box-shadow: none !important; }
-  .resume-wrapper section, .resume-wrapper .relative { page-break-inside: avoid; break-inside: avoid; }
-  .preview-container { transform: none !important; }
+  .resume-wrapper {
+    box-shadow: none !important;
+  }
+  .resume-wrapper section,
+  .resume-wrapper .relative {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .preview-container {
+    transform: none !important;
+  }
 }
 </style>

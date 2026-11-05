@@ -1,45 +1,128 @@
+import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
-import { fetchGetResumeFullContentDetail } from '@/service/api/resume';
-import type { ResumeApi } from '@/service/api/resume';
+import { type ResumeApi, fetchGetMyResumeContent, fetchSaveMyResumeContent } from '@/service/api/resume';
+import { $t } from '@/locales';
+import {
+  type ResumeContentDraft,
+  buildDraftFromImportResult,
+  buildSaveRequest,
+  cloneResumeForEdit,
+  draftToPreview
+} from '@/views/resume-import/utils/resumeDraft';
 
-export const useResumeStore = defineStore('resume-editor', () => {
-  // 定义响应式状态
-  const loading = ref(false);
-  
-  const resumeData = ref<any>({
-    basicInfo: {},
-    educations: [],
-    projects: []
-  });
+export const useResumeStore = defineStore('resume', () => {
+  const resume = ref<ResumeApi.ResumeContentDTO | null>(null);
+  const draft = ref<ResumeContentDraft | null>(null);
+  const isLoading = ref(false);
+  const isSaving = ref(false);
 
-  // 定义获取数据的 Action
-  async function initResume(id: number) {
-    loading.value = true;
+  const isEditing = computed(() => draft.value !== null);
+  const preview = computed(() => (draft.value ? draftToPreview(draft.value) : resume.value));
+
+  async function load() {
+    isLoading.value = true;
     try {
-      const { data, error } = await fetchGetResumeFullContentDetail(id);
-      
-      if (!error && data) {
-        resumeData.value.educations = data.educations || [];
-        resumeData.value.projects = data.projects || [];
-        resumeData.value.basicInfo = data.basicInfo || { 
-          name: '', 
-          intention: '', 
-          phone: '', 
-          email: '' 
-        };
-      
+      const { data, error } = await fetchGetMyResumeContent();
+      if (error || !data) {
+        window.$message?.error($t('page.resumeImport.loadFail'));
+        return false;
       }
-    } catch (err) {
-      window.$message?.error('获取简历内容失败，请检查网络');
+      resume.value = data;
+      return true;
     } finally {
-      loading.value = false;
+      isLoading.value = false;
+    }
+  }
+
+  function beginEdit() {
+    if (!resume.value) return;
+    draft.value = cloneResumeForEdit(resume.value);
+  }
+
+  function cancelEdit() {
+    draft.value = null;
+  }
+
+  function notifyInvalidDraft(err: unknown) {
+    const code = err instanceof Error ? err.message : '';
+    const messages: Record<string, string> = {
+      skillRequired: $t('page.resumeImport.skillRequired'),
+      educationIncomplete: $t('page.resumeImport.educationIncomplete'),
+      careerIncomplete: $t('page.resumeImport.careerIncomplete'),
+      projectIncomplete: $t('page.resumeImport.projectIncomplete'),
+      awardIncomplete: $t('page.resumeImport.awardIncomplete')
+    };
+    window.$message?.warning(messages[code] ?? $t('page.resumeImport.saveFail'));
+  }
+
+  async function save(keepEditing = false) {
+    if (!draft.value) return false;
+
+    let payload: ResumeApi.ResumeContentSaveRequest;
+    try {
+      payload = buildSaveRequest(draft.value);
+    } catch (err) {
+      notifyInvalidDraft(err);
+      return false;
+    }
+
+    isSaving.value = true;
+    try {
+      const { data, error } = await fetchSaveMyResumeContent(payload);
+      if (error || !data) {
+        window.$message?.error($t('page.resumeImport.saveFail'));
+        return false;
+      }
+      resume.value = data;
+      draft.value = keepEditing ? cloneResumeForEdit(data) : null;
+      window.$message?.success(keepEditing ? $t('page.resume.saveSuccess') : $t('page.resumeImport.saveSuccess'));
+      return true;
+    } finally {
+      isSaving.value = false;
+    }
+  }
+
+  async function applyParsed(parsed: ResumeApi.ResumeImportParseResult) {
+    if (!resume.value) return false;
+
+    let payload: ResumeApi.ResumeContentSaveRequest;
+    try {
+      payload = buildSaveRequest(buildDraftFromImportResult(resume.value, parsed));
+    } catch (err) {
+      notifyInvalidDraft(err);
+      return false;
+    }
+
+    isSaving.value = true;
+    try {
+      const { data, error } = await fetchSaveMyResumeContent(payload);
+      if (error || !data) {
+        window.$message?.error($t('page.resumeImport.applyFail'));
+        return false;
+      }
+      resume.value = data;
+      draft.value = null;
+      if (parsed.warnings?.length) {
+        window.$message?.warning(parsed.warnings[0]);
+      }
+      window.$message?.success($t('page.resumeImport.applySuccess'));
+      return true;
+    } finally {
+      isSaving.value = false;
     }
   }
 
   return {
-    loading,
-    resumeData,
-    initResume
+    resume,
+    draft,
+    preview,
+    isLoading,
+    isSaving,
+    isEditing,
+    load,
+    beginEdit,
+    cancelEdit,
+    save,
+    applyParsed
   };
 });

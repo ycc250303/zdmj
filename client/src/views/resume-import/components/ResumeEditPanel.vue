@@ -1,17 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { $t } from '@/locales';
-import type { ResumeContentDraft, DraftCareer, DraftEducation, DraftProject, DraftAward } from '../utils/resumeDraft';
-import {
-  createEmptyAward,
-  createEmptyCareer,
-  createEmptyEducation,
-  createEmptyProject
-} from '../utils/resumeDraft';
+import type { DraftAward, DraftCareer, DraftEducation, DraftProject, ResumeContentDraft } from '../utils/resumeDraft';
+import { createEmptyAward, createEmptyCareer, createEmptyEducation, createEmptyProject } from '../utils/resumeDraft';
 
 defineOptions({ name: 'ResumeEditPanel' });
 
 const draft = defineModel<ResumeContentDraft>('draft', { required: true });
+
+withDefaults(defineProps<{ showHint?: boolean }>(), { showHint: true });
 
 const degreeOptions = computed(() => [
   { label: $t('page.profile.education.degrees.phd'), value: 1 },
@@ -40,11 +37,11 @@ function tsToDateStr(ts: number | null): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function bindDate(item: { startDate?: string; endDate?: string }, field: 'startDate' | 'endDate') {
+function bindDate<T extends object>(item: T, field: keyof T) {
   return computed({
-    get: () => dateStrToTs(item[field]),
-    set: (v: number | null) => {
-      item[field] = tsToDateStr(v) || undefined;
+    get: () => dateStrToTs(item[field] as string | undefined),
+    set: (value: number | null) => {
+      item[field] = (tsToDateStr(value) || undefined) as T[keyof T];
     }
   });
 }
@@ -119,8 +116,8 @@ function awardDateBind(item: DraftAward) {
 </script>
 
 <template>
-  <div class="max-w-3xl mx-auto">
-    <NAlert type="info" class="mb-4" :show-icon="false">
+  <div class="mx-auto max-w-3xl">
+    <NAlert v-if="showHint" type="info" class="mb-4" :show-icon="false">
       {{ $t('page.resumeImport.editHint') }}
     </NAlert>
 
@@ -130,12 +127,18 @@ function awardDateBind(item: DraftAward) {
           <NGrid :cols="2" :x-gap="12">
             <NGridItem>
               <NFormItem :label="$t('page.profile.basicInfo.name')">
-                <NInput v-model:value="draft.personalInfo.name" :placeholder="$t('page.profile.basicInfo.namePlaceholder')" />
+                <NInput
+                  v-model:value="draft.personalInfo.name"
+                  :placeholder="$t('page.profile.basicInfo.namePlaceholder')"
+                />
               </NFormItem>
             </NGridItem>
             <NGridItem>
               <NFormItem :label="$t('page.profile.basicInfo.phone')">
-                <NInput v-model:value="draft.personalInfo.phone" :placeholder="$t('page.profile.basicInfo.phonePlaceholder')" />
+                <NInput
+                  v-model:value="draft.personalInfo.phone"
+                  :placeholder="$t('page.profile.basicInfo.phonePlaceholder')"
+                />
               </NFormItem>
             </NGridItem>
             <NGridItem :span="2">
@@ -161,10 +164,10 @@ function awardDateBind(item: DraftAward) {
           <div
             v-for="(edu, index) in draft.educations"
             :key="edu._key"
-            class="mb-4 pb-4 border-b border-slate-100 last:border-0"
+            class="mb-4 border-b border-slate-100 pb-4 last:border-0"
           >
-            <div class="flex justify-between items-center mb-3">
-              <span class="font-medium text-slate-700">
+            <div class="mb-3 flex items-center justify-between">
+              <span class="text-slate-700 font-medium">
                 {{ edu.school || `${$t('page.resume.education')} ${index + 1}` }}
               </span>
               <NPopconfirm @positive-click="() => removeEducation(index)">
@@ -226,10 +229,10 @@ function awardDateBind(item: DraftAward) {
           <div
             v-for="(career, index) in draft.careers"
             :key="career._key"
-            class="mb-4 pb-4 border-b border-slate-100 last:border-0"
+            class="mb-4 border-b border-slate-100 pb-4 last:border-0"
           >
-            <div class="flex justify-between items-center mb-3">
-              <span class="font-medium text-slate-700">
+            <div class="mb-3 flex items-center justify-between">
+              <span class="text-slate-700 font-medium">
                 {{ career.company || `${$t('page.resume.experience')} ${index + 1}` }}
               </span>
               <NPopconfirm @positive-click="() => removeCareer(index)">
@@ -284,10 +287,10 @@ function awardDateBind(item: DraftAward) {
           <div
             v-for="(project, index) in draft.projects"
             :key="project._key"
-            class="mb-4 pb-4 border-b border-slate-100 last:border-0"
+            class="mb-4 border-b border-slate-100 pb-4 last:border-0"
           >
-            <div class="flex justify-between items-center mb-3">
-              <span class="font-medium text-slate-700">
+            <div class="mb-3 flex items-center justify-between">
+              <span class="text-slate-700 font-medium">
                 {{ project.name || `${$t('page.resume.projects')} ${index + 1}` }}
               </span>
               <NPopconfirm @positive-click="() => removeProject(index)">
@@ -348,10 +351,10 @@ function awardDateBind(item: DraftAward) {
           <div
             v-for="(award, index) in draft.awards"
             :key="award._key"
-            class="mb-4 pb-4 border-b border-slate-100 last:border-0"
+            class="mb-4 border-b border-slate-100 pb-4 last:border-0"
           >
-            <div class="flex justify-between items-center mb-3">
-              <span class="font-medium text-slate-700">
+            <div class="mb-3 flex items-center justify-between">
+              <span class="text-slate-700 font-medium">
                 {{ award.name || `${$t('page.resume.awards')} ${index + 1}` }}
               </span>
               <NPopconfirm @positive-click="() => removeAward(index)">
@@ -395,9 +398,9 @@ function awardDateBind(item: DraftAward) {
           <div
             v-for="(group, index) in draft.skill.content"
             :key="`${group.type}-${index}`"
-            class="mb-4 p-3 rounded-lg bg-slate-50 border border-slate-100"
+            class="mb-4 border border-slate-100 rounded-lg bg-slate-50 p-3"
           >
-            <div class="flex justify-between items-center mb-2">
+            <div class="mb-2 flex items-center justify-between">
               <NInput v-model:value="group.type" :placeholder="$t('page.resumeImport.skillTypePlaceholder')" />
               <NButton size="tiny" quaternary type="error" @click="removeSkillGroup(index)">
                 {{ $t('page.resume.delete') }}

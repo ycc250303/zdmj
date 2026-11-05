@@ -1,165 +1,35 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import type { UploadFileInfo, UploadCustomRequestOptions } from 'naive-ui';
-import { $t } from '@/locales';
+import { onMounted, ref } from 'vue';
+import type { UploadCustomRequestOptions, UploadFileInfo } from 'naive-ui';
 import { fetchUploadFile } from '@/service/api/profile';
-import {
-  fetchGetMyResumeContent,
-  fetchSaveMyResumeContent,
-  fetchParseResumeImport,
-  type ResumeApi
-} from '@/service/api/resume';
+import { fetchParseResumeImport } from '@/service/api/resume';
+import { useResumeStore } from '@/store/modules/resume';
+import { $t } from '@/locales';
 import ResumeDetailPanel from './components/ResumeDetailPanel.vue';
 import ResumeEditPanel from './components/ResumeEditPanel.vue';
-import {
-  buildSaveRequest,
-  buildDraftFromImportResult,
-  cloneResumeForEdit,
-  type ResumeContentDraft
-} from './utils/resumeDraft';
 
 defineOptions({ name: 'ResumeImport' });
 
-const loading = ref(false);
-const saving = ref(false);
+const resumeStore = useResumeStore();
 const importing = ref(false);
-const isEditing = ref(false);
-const resume = ref<ResumeApi.ResumeContentDTO | null>(null);
-const draft = ref<ResumeContentDraft | null>(null);
 const uploadFileList = ref<UploadFileInfo[]>([]);
 
-async function loadResume() {
-  loading.value = true;
-  try {
-    const { data, error } = await fetchGetMyResumeContent();
-    if (error || !data) {
-      resume.value = null;
-      window.$message?.error($t('page.resumeImport.loadFail'));
-      return;
-    }
-    resume.value = data;
-  } finally {
-    loading.value = false;
-  }
-}
-
 function enterEdit() {
-  if (!resume.value || importing.value) return;
-  draft.value = cloneResumeForEdit(resume.value);
-  isEditing.value = true;
-}
-
-function cancelEdit() {
-  draft.value = null;
-  isEditing.value = false;
-}
-
-async function handleSave() {
-  if (!draft.value) return;
-
-  let payload: ResumeApi.ResumeContentSaveRequest;
-  try {
-    payload = buildSaveRequest(draft.value);
-  } catch (err) {
-    const code = err instanceof Error ? err.message : '';
-    if (code === 'skillRequired') {
-      window.$message?.warning($t('page.resumeImport.skillRequired'));
-      return;
-    }
-    if (code === 'educationIncomplete') {
-      window.$message?.warning($t('page.resumeImport.educationIncomplete'));
-      return;
-    }
-    if (code === 'careerIncomplete') {
-      window.$message?.warning($t('page.resumeImport.careerIncomplete'));
-      return;
-    }
-    if (code === 'projectIncomplete') {
-      window.$message?.warning($t('page.resumeImport.projectIncomplete'));
-      return;
-    }
-    if (code === 'awardIncomplete') {
-      window.$message?.warning($t('page.resumeImport.awardIncomplete'));
-      return;
-    }
-    window.$message?.warning($t('page.resumeImport.saveFail'));
-    return;
-  }
-
-  saving.value = true;
-  try {
-    const { data, error } = await fetchSaveMyResumeContent(payload);
-    if (error || !data) {
-      window.$message?.error($t('page.resumeImport.saveFail'));
-      return;
-    }
-    resume.value = data;
-    isEditing.value = false;
-    draft.value = null;
-    window.$message?.success($t('page.resumeImport.saveSuccess'));
-  } finally {
-    saving.value = false;
-  }
-}
-
-async function applyImportFromParse(parsed: ResumeApi.ResumeImportParseResult): Promise<boolean> {
-  if (!resume.value) return false;
-
-  try {
-    const overwriteDraft = buildDraftFromImportResult(resume.value, parsed);
-    let payload: ResumeApi.ResumeContentSaveRequest;
-    try {
-      payload = buildSaveRequest(overwriteDraft);
-    } catch (err) {
-      const code = err instanceof Error ? err.message : '';
-      if (code === 'skillRequired') {
-        window.$message?.warning($t('page.resumeImport.skillRequired'));
-      } else if (code === 'educationIncomplete') {
-        window.$message?.warning($t('page.resumeImport.educationIncomplete'));
-      } else if (code === 'careerIncomplete') {
-        window.$message?.warning($t('page.resumeImport.careerIncomplete'));
-      } else if (code === 'projectIncomplete') {
-        window.$message?.warning($t('page.resumeImport.projectIncomplete'));
-      } else if (code === 'awardIncomplete') {
-        window.$message?.warning($t('page.resumeImport.awardIncomplete'));
-      } else {
-        window.$message?.warning($t('page.resumeImport.saveFail'));
-      }
-      return false;
-    }
-
-    const { data, error } = await fetchSaveMyResumeContent(payload);
-    if (error || !data) {
-      window.$message?.error($t('page.resumeImport.applyFail'));
-      return false;
-    }
-
-    resume.value = data;
-    uploadFileList.value = [];
-    isEditing.value = false;
-    draft.value = null;
-
-    if (parsed.warnings?.length) {
-      window.$message?.warning(parsed.warnings[0]);
-    }
-    window.$message?.success($t('page.resumeImport.applySuccess'));
-
-    return true;
-  } catch {
-    window.$message?.error($t('page.resumeImport.applyFail'));
-    return false;
-  }
+  if (!resumeStore.resume || importing.value) return;
+  resumeStore.beginEdit();
 }
 
 async function handlePdfUpload({ file, onFinish, onError }: UploadCustomRequestOptions) {
+  const fail = onError ?? (() => undefined);
+  const finish = onFinish ?? (() => undefined);
   const fileObj = file.file;
   if (!fileObj) {
-    onError?.();
+    fail();
     return;
   }
   if (!fileObj.name.toLowerCase().endsWith('.pdf')) {
     window.$message?.warning($t('page.resumeImport.pdfOnly'));
-    onError?.();
+    fail();
     return;
   }
 
@@ -168,77 +38,78 @@ async function handlePdfUpload({ file, onFinish, onError }: UploadCustomRequestO
     const { data: uploadData, error: uploadError } = await fetchUploadFile(fileObj, 'resume');
     if (uploadError || !uploadData?.url) {
       window.$message?.error($t('page.resumeImport.uploadFail'));
-      onError?.();
+      fail();
       return;
     }
     const { data: parseData, error: parseError } = await fetchParseResumeImport({ pdfUrl: uploadData.url });
     if (parseError || !parseData) {
       window.$message?.error($t('page.resumeImport.parseFail'));
-      onError?.();
+      fail();
       return;
     }
 
-    const applied = await applyImportFromParse(parseData);
+    const applied = await resumeStore.applyParsed(parseData);
     if (!applied) {
-      onError?.();
+      fail();
       return;
     }
-    onFinish?.();
+    uploadFileList.value = [];
+    finish();
   } catch {
     window.$message?.error($t('page.resumeImport.parseFail'));
-    onError?.();
+    fail();
   } finally {
     importing.value = false;
   }
 }
 
 onMounted(() => {
-  loadResume();
+  resumeStore.load();
 });
 </script>
 
 <template>
-  <div class="h-full flex flex-col bg-slate-50/80 min-h-[calc(100vh-120px)]">
-    <div class="px-6 py-4 border-b border-slate-200 bg-white shrink-0">
-      <div class="flex items-start justify-between gap-4 flex-wrap">
+  <div class="h-full min-h-[calc(100vh-120px)] flex flex-col bg-slate-50/80">
+    <div class="shrink-0 border-b border-slate-200 bg-white px-6 py-4">
+      <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 class="text-xl font-bold text-slate-800">{{ $t('page.resumeImport.title') }}</h1>
-          <p class="text-sm text-slate-500 mt-1">{{ $t('page.resumeImport.subtitle') }}</p>
+          <h1 class="text-xl text-slate-800 font-bold">{{ $t('page.resumeImport.title') }}</h1>
+          <p class="mt-1 text-sm text-slate-500">{{ $t('page.resumeImport.subtitle') }}</p>
         </div>
-        <div v-if="resume" class="flex items-center gap-2 shrink-0">
-          <template v-if="!isEditing">
+        <div v-if="resumeStore.resume" class="flex shrink-0 items-center gap-2">
+          <template v-if="!resumeStore.isEditing">
             <NButton type="primary" :disabled="importing" @click="enterEdit">
               {{ $t('page.resumeImport.edit') }}
             </NButton>
           </template>
           <template v-else>
-            <NButton type="primary" :loading="saving" :disabled="importing" @click="handleSave">
+            <NButton
+              type="primary"
+              :loading="resumeStore.isSaving"
+              :disabled="importing"
+              @click="resumeStore.save(false)"
+            >
               {{ $t('page.resumeImport.save') }}
             </NButton>
-            <NButton :disabled="importing" @click="cancelEdit">{{ $t('page.resumeImport.cancelEdit') }}</NButton>
+            <NButton :disabled="importing" @click="resumeStore.cancelEdit">
+              {{ $t('page.resumeImport.cancelEdit') }}
+            </NButton>
           </template>
         </div>
       </div>
     </div>
 
-    <NSpin :show="loading" class="flex-1 min-h-0">
+    <NSpin :show="resumeStore.isLoading" class="min-h-0 flex-1">
       <main class="h-full min-h-[560px] overflow-auto p-6">
-        <ResumeEditPanel
-          v-if="isEditing && draft"
-          v-model:draft="draft"
-        />
+        <ResumeEditPanel v-if="resumeStore.isEditing && resumeStore.draft" v-model:draft="resumeStore.draft" />
         <ResumeDetailPanel
-          v-else-if="resume"
+          v-else-if="resumeStore.resume"
           v-model:upload-file-list="uploadFileList"
-          :resume="resume"
+          :resume="resumeStore.resume"
           :parsing="importing"
           @upload="handlePdfUpload"
         />
-        <NEmpty
-          v-else-if="!loading"
-          class="py-24"
-          :description="$t('page.resumeImport.loadFail')"
-        />
+        <NEmpty v-else-if="!resumeStore.isLoading" class="py-24" :description="$t('page.resumeImport.loadFail')" />
       </main>
     </NSpin>
   </div>

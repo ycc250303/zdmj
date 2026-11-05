@@ -178,6 +178,64 @@ export function buildDraftFromImportResult(
   return draft;
 }
 
+function previewId(id: number | undefined, index: number) {
+  return id ?? -(index + 1);
+}
+
+/** 把编辑草稿转成模板预览使用的简历内容。未保存条目使用负数编号，避免列表键重复。 */
+export function draftToPreview(draft: ResumeContentDraft): ResumeApi.ResumeContentDTO {
+  return {
+    id: draft.id,
+    personalInfo: { ...draft.personalInfo },
+    skill: {
+      id: draft.skill.id,
+      content: draft.skill.content.map(item => ({
+        type: item.type,
+        content: [...(item.content ?? [])]
+      }))
+    },
+    educations: draft.educations.map((item, index) => ({
+      id: previewId(item.id, index),
+      school: item.school,
+      major: item.major,
+      degree: item.degree,
+      startDate: item.startDate,
+      endDate: item.endDate,
+      visible: item.visible,
+      gpa: item.gpa
+    })),
+    careers: draft.careers.map((item, index) => ({
+      id: previewId(item.id, index),
+      company: item.company,
+      position: item.position,
+      startDate: item.startDate,
+      endDate: item.endDate,
+      visible: item.visible,
+      details: item.details
+    })),
+    projects: draft.projects.map((item, index) => ({
+      id: previewId(item.id, index),
+      name: item.name,
+      startDate: item.startDate,
+      endDate: item.endDate,
+      role: item.role,
+      description: item.description,
+      contribution: item.contribution,
+      techStack: item.techStack,
+      highlights: item.highlights,
+      url: item.url,
+      visible: item.visible
+    })),
+    awards: draft.awards.map((item, index) => ({
+      id: previewId(item.id, index),
+      awardType: item.awardType,
+      name: item.name,
+      awardDate: item.awardDate,
+      description: item.description
+    }))
+  };
+}
+
 export function cloneResumeForEdit(source: ResumeApi.ResumeContentDTO): ResumeContentDraft {
   return {
     id: source.id,

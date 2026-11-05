@@ -232,122 +232,13 @@ export namespace ResumeApi {
  * =====================================================================
  */
 
-// ==================== 1. 技能控制器 (Skills) ====================
-export function fetchAddSkill(data: ResumeApi.SkillCreate) {
-  return request({ url: '/skills', method: 'post', data });
-}
-export function fetchUpdateSkill(data: ResumeApi.SkillUpdate) {
-  return request({ url: '/skills', method: 'put', data });
-}
-export function fetchGetSkillList() {
-  return request({ url: '/skills', method: 'get' });
-}
-export function fetchGetSkillDetail(id: number) {
-  return request({ url: `/skills/${id}`, method: 'get' });
-}
-export function fetchDeleteSkill(id: number) {
-  return request({ url: `/skills/${id}`, method: 'delete' });
-}
-
-// ==================== 2. 工作(实习)经历控制器 (Career) ====================
-export function fetchAddCareer(data: ResumeApi.CareerCreate) {
-  return request({ url: '/career', method: 'post', data });
-}
-export function fetchUpdateCareer(data: ResumeApi.CareerUpdate) {
-  return request({ url: '/career', method: 'put', data });
-}
-export function fetchGetCareerList() {
-  return request({ url: '/career', method: 'get' });
-}
-export function fetchGetCareerDetail(id: number) {
-  return request({ url: `/career/${id}`, method: 'get' });
-}
-export function fetchDeleteCareer(id: number) {
-  return request({ url: `/career/${id}`, method: 'delete' });
-}
-
-// ==================== 3. 教育经历控制器 (Educations) ====================
-export function fetchAddEducation(data: ResumeApi.EducationCreate) {
-  return request({ url: '/educations', method: 'post', data });
-}
-export function fetchUpdateEducation(data: ResumeApi.EducationUpdate) {
-  return request({ url: '/educations', method: 'put', data });
-}
-export function fetchGetEducationList() {
-  return request({ url: '/educations', method: 'get' });
-}
-export function fetchGetEducationDetail(id: number) {
-  return request({ url: `/educations/${id}`, method: 'get' });
-}
-export function fetchDeleteEducation(id: number) {
-  return request({ url: `/educations/${id}`, method: 'delete' });
-}
-
-// ==================== 4. 项目经历控制器 (Projects) ====================
-export function fetchAddProject(data: ResumeApi.ProjectCreate) {
-  return request({ url: '/projects', method: 'post', data });
-}
-export function fetchUpdateProject(data: ResumeApi.ProjectUpdate) {
-  return request({ url: '/projects', method: 'put', data });
-}
 export function fetchGetProjectList() {
-  return request({ url: '/projects', method: 'get' });
-}
-export function fetchGetProjectDetail(id: number) {
-  return request({ url: `/projects/${id}`, method: 'get' });
-}
-export function fetchDeleteProject(id: number) {
-  return request({ url: `/projects/${id}`, method: 'delete' });
+  return request<ResumeApi.ProjectDTO[]>({ url: '/projects', method: 'get' });
 }
 
-// ==================== 5. 获奖信息控制器 (Awards) ====================
-export function fetchAddAward(data: ResumeApi.AwardCreate) {
-  return request({ url: '/awards', method: 'post', data });
-}
-export function fetchUpdateAward(data: ResumeApi.AwardUpdate) {
-  return request({ url: '/awards', method: 'put', data });
-}
-export function fetchGetAwardList() {
-  return request({ url: '/awards', method: 'get' });
-}
-export function fetchGetAwardDetail(id: number) {
-  return request({ url: `/awards/${id}`, method: 'get' });
-}
-export function fetchDeleteAward(id: number) {
-  return request({ url: `/awards/${id}`, method: 'delete' });
-}
-
-// ==================== 6. 简历控制器 (Resumes) ====================
-export function fetchAddResume(data: ResumeApi.ResumeCreate) {
-  return request({ url: '/resumes', method: 'post', data });
-}
-export function fetchUpdateResume(data: ResumeApi.ResumeUpdate) {
-  return request({ url: '/resumes', method: 'put', data });
-}
-export function fetchGetResumeList() {
-  return request({ url: '/resumes', method: 'get' });
-}
-export function fetchGetResumeDetail(id: number) {
-  return request({ url: `/resumes/${id}`, method: 'get' });
-}
-export function fetchDeleteResume(id: number) {
-  return request({ url: `/resumes/${id}`, method: 'delete' });
-}
-
-/**
- * 聚合查询：一次性拉取整份简历的完整内容（包含技能、教育、工作、项目等关联数据）
- * 对应接口：/resumes/{id}/content
- */
-export function fetchGetResumeFullContentDetail(id: number) {
-  return request({ url: `/resumes/${id}/content`, method: 'get' });
-}
-
-/**
- * 聚合查询：拉取所有简历的完整内容列表
- * 对应接口：/resumes/content
- */
+/** 当前用户简历列表。单用户只有一份简历，结果为 0 或 1 条。 */
 export function fetchGetResumeFullContentList() {
-  return request({ url: '/resumes/content', method: 'get' });
+  return request<ResumeApi.ResumeContentDTO[]>({ url: '/resumes/content', method: 'get' });
 }
 
 /** 获取当前用户简历完整内容（不存在则后端自动创建） */
@@ -368,16 +259,4 @@ export function fetchParseResumeImport(data: ResumeApi.ResumeImportParseRequest)
     data,
     timeout: 300000
   });
-}
-
-// --- 基本信息模块 DTO ---
-export interface UserUpdateDTO {
-  name?: string;
-  phone?: string;
-  homepageUrl?: string;
-}
-
-// 请求方法：更新当前登录用户的基本信息
-export function fetchUpdateUserInfo(data: UserUpdateDTO) {
-  return request({ url: '/users/me', method: 'put', data });
 }

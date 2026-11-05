@@ -1,32 +1,26 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
-import { useResumeStore } from '@/store/modules/resumeStore';
-import StandardTemplate from './templates/StandardTemplate.vue';
-import ModernTemplate from './templates/ModernTemplate.vue'; 
+import { computed, ref, watch } from 'vue';
+import { useResumeStore } from '@/store/modules/resume';
 import { $t } from '@/locales';
+import StandardTemplate from './templates/StandardTemplate.vue';
+import ModernTemplate from './templates/ModernTemplate.vue';
 
-const route = useRoute();
 const resumeStore = useResumeStore();
 
-const resumeId = route.query.id as string;
+const zoomLevel = ref(1);
 
-const zoomLevel = ref(1); 
+const storageKeyColor = 'smarthire_resume_color';
+const themeColor = ref(localStorage.getItem(storageKeyColor) || '#2563eb');
 
-const storageKeyColor = `smarthire_resume_color_${resumeId}`;
-const savedColor = localStorage.getItem(storageKeyColor);
-const themeColor = ref(savedColor || '#2563eb');
-
-watch(themeColor, (newColor) => {
-  if (resumeId) localStorage.setItem(storageKeyColor, newColor);
+watch(themeColor, newColor => {
+  localStorage.setItem(storageKeyColor, newColor);
 });
 
-const storageKeyTemplate = `smarthire_resume_template_${resumeId}`;
-const savedTemplate = localStorage.getItem(storageKeyTemplate);
-const activeTemplate = ref(savedTemplate || 'modern');
+const storageKeyTemplate = 'smarthire_resume_template';
+const activeTemplate = ref(localStorage.getItem(storageKeyTemplate) || 'modern');
 
-watch(activeTemplate, (newTemplate) => {
-  if (resumeId) localStorage.setItem(storageKeyTemplate, newTemplate);
+watch(activeTemplate, newTemplate => {
+  localStorage.setItem(storageKeyTemplate, newTemplate);
 });
 
 const templateOptions = computed(() => [
@@ -37,13 +31,10 @@ const templateOptions = computed(() => [
 const currentComponent = computed(() => {
   if (activeTemplate.value === 'standard') return StandardTemplate;
   if (activeTemplate.value === 'modern') return ModernTemplate;
-  return ModernTemplate; 
+  return ModernTemplate;
 });
 
 const predefineColors = ['#2563eb', '#0f172a', '#059669', '#7c3aed', '#dc2626'];
-
-//pdf导出
-// 确保上面有 import { ref, computed, watch, onMounted } from 'vue';
 
 // 声明我们要抓取的 DOM 节点
 const printableRef = ref<HTMLElement | null>(null);
@@ -81,7 +72,7 @@ const handleExportPdf = () => {
     <!DOCTYPE html>
     <html>
       <head>
-        <title>简历导出 - ${resumeStore.personalInfo?.fullName || 'SmartHire'}</title>
+        <title>简历导出 - ${resumeStore.preview?.personalInfo?.name || 'SmartHire'}</title>
         ${styles}
         <style>
           /* 专门针对 iframe 内部的 A4 纸复位样式 */
@@ -118,7 +109,7 @@ const handleExportPdf = () => {
     setTimeout(() => {
       iframe.contentWindow?.focus();
       iframe.contentWindow?.print();
-      
+
       // 用户关闭打印窗口后，销毁这个 iframe 防止内存泄漏
       setTimeout(() => {
         document.body.removeChild(iframe);
@@ -129,26 +120,39 @@ const handleExportPdf = () => {
 </script>
 
 <template>
-  <div class="w-full h-full flex flex-col items-center bg-slate-100 dark:bg-dark-100">
-
-    <div class="w-full bg-white dark:bg-dark-200 border-b border-slate-200 dark:border-gray-700 p-3 flex justify-between items-center sticky top-0 z-20 shadow-sm px-6">
+  <div class="h-full w-full flex flex-col items-center bg-slate-100 dark:bg-dark-100">
+    <div
+      class="sticky top-0 z-20 w-full flex items-center justify-between border-b border-slate-200 bg-white p-3 px-6 shadow-sm dark:border-gray-700 dark:bg-dark-200"
+    >
       <div class="flex items-center gap-6">
         <div class="flex items-center gap-2">
-          <span class="text-sm font-bold text-slate-600 dark:text-gray-400">{{ $t('page.resume.template') }}:</span>
+          <span class="text-sm text-slate-600 font-bold dark:text-gray-400">{{ $t('page.resume.template') }}:</span>
           <NSelect v-model:value="activeTemplate" :options="templateOptions" size="small" class="w-56" />
         </div>
         <div class="flex items-center gap-2">
-          <span class="text-sm font-bold text-slate-600 dark:text-gray-400">{{ $t('page.resume.color') }}:</span>
-          <NColorPicker v-model:value="themeColor" :swatches="predefineColors" size="small" class="w-24" :show-alpha="false" />
+          <span class="text-sm text-slate-600 font-bold dark:text-gray-400">{{ $t('page.resume.color') }}:</span>
+          <NColorPicker
+            v-model:value="themeColor"
+            :swatches="predefineColors"
+            size="small"
+            class="w-24"
+            :show-alpha="false"
+          />
         </div>
       </div>
 
       <div class="flex items-center gap-6">
-        <div class="flex items-center gap-3 w-48">
-          <span class="text-slate-400 dark:text-gray-500 cursor-pointer hover:text-blue-600" @click="zoomLevel -= 0.1">🔍-</span>
+        <div class="w-48 flex items-center gap-3">
+          <span class="cursor-pointer text-slate-400 dark:text-gray-500 hover:text-blue-600" @click="zoomLevel -= 0.1">
+            🔍-
+          </span>
           <NSlider v-model:value="zoomLevel" :min="0.4" :max="1.5" :step="0.05" :tooltip="false" />
-          <span class="text-slate-400 dark:text-gray-500 cursor-pointer hover:text-blue-600" @click="zoomLevel += 0.1">🔍+</span>
-          <span class="text-xs font-bold text-slate-500 dark:text-gray-400 w-8">{{ Math.round(zoomLevel * 100) }}%</span>
+          <span class="cursor-pointer text-slate-400 dark:text-gray-500 hover:text-blue-600" @click="zoomLevel += 0.1">
+            🔍+
+          </span>
+          <span class="w-8 text-xs text-slate-500 font-bold dark:text-gray-400">
+            {{ Math.round(zoomLevel * 100) }}%
+          </span>
         </div>
         <NButton type="primary" size="small" @click="handleExportPdf">
           <template #icon><span>⬇️</span></template>
@@ -157,27 +161,26 @@ const handleExportPdf = () => {
       </div>
     </div>
 
-    <div class="flex-1 w-full overflow-y-auto py-8 custom-scrollbar">
-      <div 
-        class="preview-container flex justify-center transform-gpu" 
-        :style="{ transform: `scale(${zoomLevel})`, transformOrigin: 'top center', transition: 'transform 0.1s linear' }"
+    <div class="custom-scrollbar w-full flex-1 overflow-y-auto py-8">
+      <div
+        class="preview-container flex transform-gpu justify-center"
+        :style="{
+          transform: `scale(${zoomLevel})`,
+          transformOrigin: 'top center',
+          transition: 'transform 0.1s linear'
+        }"
       >
-        <div 
+        <div
           ref="printableRef"
-          class="bg-white printable-area"
-          :style="{ 
-            width: '794px', 
-            minHeight: '1123px', 
+          class="printable-area bg-white"
+          :style="{
+            width: '794px',
+            minHeight: '1123px',
             boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
-            '--theme-color': themeColor 
+            '--theme-color': themeColor
           }"
         >
-          <component 
-            :is="currentComponent" 
-            v-if="resumeStore.resumeData"
-            :data="resumeStore.resumeData"
-            :personal="resumeStore.personalInfo"
-          />
+          <component :is="currentComponent" v-if="resumeStore.preview" :data="resumeStore.preview" />
         </div>
       </div>
     </div>
@@ -185,7 +188,14 @@ const handleExportPdf = () => {
 </template>
 
 <style scoped>
-.custom-scrollbar::-webkit-scrollbar { width: 8px; }
-.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 20px;
+}
 </style>

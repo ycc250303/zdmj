@@ -716,6 +716,8 @@ declare namespace App {
             phonePlaceholder: string;
             homepageUrl: string;
             homepageUrlPlaceholder: string;
+            preferredWorkCity: string;
+            preferredWorkCityPlaceholder: string;
             updateSuccess: string;
           };
           capability: {
@@ -805,6 +807,7 @@ declare namespace App {
           skills: string;
           experience: string;
           projects: string;
+          awards: string;
           present: string;
           name: string;
           targetJob: string;
@@ -856,13 +859,16 @@ declare namespace App {
           "getFail":string;
           "pleaseInput": string;
           "createFail": string;
+          "position": string;
           "addEducation": string;
           "addProject": string;
+          "addAward": string;
           "addCareer": string;
           "confirmAdd": string;
           "delete": string;
           "confirmDeleteEdu": string;
           "confirmDeleteProj": string;
+          "confirmDeleteAward": string;
           "confirmDeleteCareer": string;
           "missingIdParam": string;
           "contentNotFound": string;
@@ -879,6 +885,13 @@ declare namespace App {
           "detailsLabel": string;
           "descLabel": string;
           "contributionLabel": string;
+          "awardType": string;
+          "awardTypeScholarship": string;
+          "awardTypeCompetition": string;
+          "awardTypeOther": string;
+          "awardName": string;
+          "awardDate": string;
+          "awardDescription": string;
         };
         resumeImport: {
           title: string;
@@ -895,6 +908,7 @@ declare namespace App {
           educationIncomplete: string;
           careerIncomplete: string;
           projectIncomplete: string;
+          awardIncomplete: string;
           skillTypePlaceholder: string;
           addSkillGroup: string;
           nameRequired: string;
