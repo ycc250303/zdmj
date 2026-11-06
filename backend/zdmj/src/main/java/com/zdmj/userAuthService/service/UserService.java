@@ -60,10 +60,23 @@ public interface UserService {
     void resetPassword(UserResetPasswordRequest resetPasswordDTO);
 
     /**
-     * 更新当前登录用户的基本信息
+     * 更新当前登录用户的基本信息。
+     * 姓名、电话、主页传入空白时拒绝；然后按当前用户编号调用 {@link #updateProfile(Long, UserUpdateRequest)}。
      *
-     * @param updateDTO 更新信息（姓名、电话、主页链接）
+     * @param updateDTO 更新信息（姓名、电话、主页链接、意向工作城市）
      * @return 更新后的用户信息
+     * @throws BusinessException 未登录、字段为空白、用户不存在或写入失败
      */
     UserResponse updateCurrentUser(UserUpdateRequest updateDTO);
+
+    /**
+     * 按用户编号更新姓名、电话、主页和意向工作城市。
+     * 字段为 null 时保持原值；非 null 时写入去掉首尾空白后的文本，空白截断后为空字符串。
+     *
+     * @param userId    用户编号
+     * @param updateDTO 待更新字段
+     * @return 更新后的用户信息
+     * @throws BusinessException 用户不存在或写入失败
+     */
+    UserResponse updateProfile(Long userId, UserUpdateRequest updateDTO);
 }

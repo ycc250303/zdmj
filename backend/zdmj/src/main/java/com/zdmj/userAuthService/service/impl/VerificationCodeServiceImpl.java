@@ -1,9 +1,12 @@
 package com.zdmj.userAuthService.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.userAuthService.enums.VerificationCodeKeys;
 import com.zdmj.userAuthService.enums.VerificationCodeScene;
+import com.zdmj.userAuthService.entity.User;
+import com.zdmj.userAuthService.mapper.UserMapper;
 import com.zdmj.userAuthService.service.EmailService;
 import com.zdmj.userAuthService.service.VerificationCodeService;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +31,7 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
 
     private final StringRedisTemplate redisTemplate;
     private final EmailService emailService;
+    private final UserMapper userMapper;
     private static final RedisScript<Long> VERIFY_AND_DELETE_SCRIPT = loadVerifyAndDeleteScript();
 
     private static RedisScript<Long> loadVerifyAndDeleteScript() {
@@ -37,10 +41,10 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
         return script;
     }
 
-    @Override
-    public VerificationCodeScene parseOptionalType(String type) {
+    private VerificationCodeScene resolveScene(String email, String type) {
         if (type == null) {
-            return null;
+            boolean registered = userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getEmail, email)) > 0;
+            return registered ? VerificationCodeScene.RESET_PASSWORD : VerificationCodeScene.REGISTER;
         }
         if (type.isBlank()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "type 不能为空");
@@ -52,13 +56,21 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
         };
     }
 
+    /**
+     * 解析显式类型或根据邮箱注册状态确定场景，检查重复发送后保存验证码并发送对应邮件。
+     *
+     * @param email 邮箱地址
+     * @param type 验证码类型；未传时根据邮箱注册状态确定场景
+     * @throws BusinessException 类型非法时返回参数校验错误；验证码尚未过期或发送失败时返回发送失败错误
+     */
     @Override
-    public boolean sendVerificationCode(String email, VerificationCodeScene scene) {
+    public void sendVerificationCode(String email, String type) {
+        VerificationCodeScene scene = resolveScene(email, type);
         try {
             String key = VerificationCodeKeys.key(scene, email);
             if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) {
                 log.warn("验证码未过期，拒绝重复发送: {}, scene={}", email, scene);
-                return false;
+                throw new BusinessException(ErrorCode.CAPTCHA_SEND_FAILED);
             }
             String code = generateCode();
             redisTemplate.opsForValue().set(key, code, VerificationCodeKeys.TTL_SECONDS, TimeUnit.SECONDS);
@@ -80,10 +92,11 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
             emailService.sendEmail(email, subject, content);
 
             log.info("验证码已发送到邮箱: {}, scene={}", email, scene);
-            return true;
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
             log.error("发送验证码失败: {}, scene={}", email, scene, e);
-            return false;
+            throw new BusinessException(ErrorCode.CAPTCHA_SEND_FAILED, e);
         }
     }
 
@@ -108,8 +121,7 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
         }
     }
 
-    @Override
-    public String generateCode() {
+    private String generateCode() {
         Random random = new Random();
         int code = 100000 + random.nextInt(900000);
         return String.valueOf(code);

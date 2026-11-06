@@ -171,24 +171,34 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     @Transactional(rollbackFor = Exception.class)
     public UserResponse updateCurrentUser(UserUpdateRequest updateDTO) {
-        Long userId = UserHolder.requireUserId();
+        if (updateDTO.getName() != null) {
+            rejectBlankField(updateDTO.getName(), "姓名不能为空");
+        }
+        if (updateDTO.getPhone() != null) {
+            rejectBlankField(updateDTO.getPhone(), "电话不能为空");
+        }
+        if (updateDTO.getWebsite() != null) {
+            rejectBlankField(updateDTO.getWebsite(), "主页链接不能为空");
+        }
+        return updateProfile(UserHolder.requireUserId(), updateDTO);
+    }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public UserResponse updateProfile(Long userId, UserUpdateRequest updateDTO) {
         User user = getById(userId);
         if (user == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
         if (updateDTO.getName() != null) {
-            rejectBlankField(updateDTO.getName(), "姓名不能为空");
-            user.setName(updateDTO.getName());
+            user.setName(updateDTO.getName().trim());
         }
         if (updateDTO.getPhone() != null) {
-            rejectBlankField(updateDTO.getPhone(), "电话不能为空");
-            user.setPhone(updateDTO.getPhone());
+            user.setPhone(updateDTO.getPhone().trim());
         }
         if (updateDTO.getWebsite() != null) {
-            rejectBlankField(updateDTO.getWebsite(), "主页链接不能为空");
-            user.setWebsite(updateDTO.getWebsite());
+            user.setWebsite(updateDTO.getWebsite().trim());
         }
         if (updateDTO.getPreferredWorkCity() != null) {
             user.setPreferredWorkCity(updateDTO.getPreferredWorkCity().trim());

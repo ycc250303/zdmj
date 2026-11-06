@@ -4,10 +4,15 @@ import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.userAuthService.enums.VerificationCodeKeys;
 import com.zdmj.userAuthService.enums.VerificationCodeScene;
+import com.zdmj.userAuthService.mapper.UserMapper;
 import com.zdmj.userAuthService.service.EmailService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -19,9 +24,11 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -43,65 +50,107 @@ class VerificationCodeServiceImplTest {
     @Mock
     private EmailService emailService;
 
+    @Mock
+    private UserMapper userMapper;
+
     private VerificationCodeServiceImpl verificationCodeService;
 
     @BeforeEach
     void setUp() {
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         lenient().when(redisTemplate.hasKey(anyString())).thenReturn(false);
-        verificationCodeService = new VerificationCodeServiceImpl(redisTemplate, emailService);
+        verificationCodeService = new VerificationCodeServiceImpl(redisTemplate, emailService, userMapper);
     }
 
     @Test
-    void sendVerificationCode_whenRedisThrows_shouldReturnFalse() {
+    void sendVerificationCode_whenRedisThrows_shouldThrowSendFailed() {
         String email = "test@demo.com";
         String key = VerificationCodeKeys.key(VerificationCodeScene.REGISTER, email);
-        doThrow(new RuntimeException("redis down")).when(valueOperations)
+        RuntimeException failure = new RuntimeException("redis down");
+        doThrow(failure).when(valueOperations)
                 .set(eq(key), anyString(), anyLong(), eq(TimeUnit.SECONDS));
 
-        boolean result = verificationCodeService.sendVerificationCode(email, VerificationCodeScene.REGISTER);
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> verificationCodeService.sendVerificationCode(email, "register"));
 
-        assertFalse(result);
+        assertEquals(ErrorCode.CAPTCHA_SEND_FAILED.getCode(), ex.getCode());
+        assertSame(failure, ex.getCause());
         verify(valueOperations).set(eq(key), anyString(), anyLong(), eq(TimeUnit.SECONDS));
         verifyNoInteractions(emailService);
     }
 
     @Test
-    void sendVerificationCode_whenCodeStillValid_shouldReturnFalseWithoutResend() {
+    void sendVerificationCode_whenCodeStillValid_shouldThrowSendFailedWithoutResend() {
         String email = "test@demo.com";
         String key = VerificationCodeKeys.key(VerificationCodeScene.REGISTER, email);
         when(redisTemplate.hasKey(key)).thenReturn(true);
 
-        boolean result = verificationCodeService.sendVerificationCode(email, VerificationCodeScene.REGISTER);
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> verificationCodeService.sendVerificationCode(email, "register"));
 
-        assertFalse(result);
+        assertEquals(ErrorCode.CAPTCHA_SEND_FAILED.getCode(), ex.getCode());
         verify(redisTemplate).hasKey(key);
         verify(valueOperations, never()).set(eq(key), anyString(), anyLong(), eq(TimeUnit.SECONDS));
         verifyNoInteractions(emailService);
     }
 
-    @Test
-    void sendVerificationCode_whenRegister_shouldSaveCodeAndSendRegisterEmail() {
-        String email = "test@demo.com";
-        String key = VerificationCodeKeys.key(VerificationCodeScene.REGISTER, email);
+    @ParameterizedTest
+    @CsvSource({"register, REGISTER, 注册验证码", "reset_password, RESET_PASSWORD, 重置密码验证码",
+            "reset-password, RESET_PASSWORD, 重置密码验证码", "reset, RESET_PASSWORD, 重置密码验证码",
+            "' REGISTER ', REGISTER, 注册验证码", "' RESET ', RESET_PASSWORD, 重置密码验证码"})
+    void sendVerificationCode_whenExplicitType_shouldSendMatchingCodeWithoutUserLookup(
+            String type, VerificationCodeScene scene, String subject) {
+        verificationCodeService.sendVerificationCode("test@demo.com", type);
 
-        boolean result = verificationCodeService.sendVerificationCode(email, VerificationCodeScene.REGISTER);
+        assertCodeSavedAndMailed(scene, subject);
+        verifyNoInteractions(userMapper);
+    }
 
-        assertEquals(true, result);
-        verify(valueOperations).set(eq(key), anyString(), anyLong(), eq(TimeUnit.SECONDS));
-        verify(emailService).sendEmail(eq(email), eq("注册验证码"), anyString());
+    @ParameterizedTest
+    @CsvSource({"0, REGISTER, 注册验证码", "1, RESET_PASSWORD, 重置密码验证码"})
+    void sendVerificationCode_whenTypeOmitted_shouldChooseSceneByRegistration(
+            long userCount, VerificationCodeScene scene, String subject) {
+        when(userMapper.selectCount(any())).thenReturn(userCount);
+
+        verificationCodeService.sendVerificationCode("test@demo.com", null);
+
+        assertCodeSavedAndMailed(scene, subject);
+        verify(userMapper).selectCount(any());
     }
 
     @Test
-    void sendVerificationCode_whenResetPassword_shouldSaveCodeAndSendResetEmail() {
+    void sendVerificationCode_whenMailThrows_shouldThrowSendFailed() {
+        RuntimeException failure = new RuntimeException("mail unavailable");
+        doThrow(failure).when(emailService).sendEmail(anyString(), anyString(), anyString());
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> verificationCodeService.sendVerificationCode("test@demo.com", "register"));
+
+        assertEquals(ErrorCode.CAPTCHA_SEND_FAILED.getCode(), ex.getCode());
+        assertSame(failure, ex.getCause());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "  ", "invalid"})
+    void sendVerificationCode_whenInvalidType_shouldRejectBeforeExternalAccess(String type) {
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> verificationCodeService.sendVerificationCode("test@demo.com", type));
+
+        assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
+        assertEquals(type.isBlank() ? "type 不能为空" : "type 无效", ex.getMessage());
+        verifyNoInteractions(userMapper, redisTemplate, emailService);
+    }
+
+    private void assertCodeSavedAndMailed(VerificationCodeScene scene, String subject) {
         String email = "test@demo.com";
-        String key = VerificationCodeKeys.key(VerificationCodeScene.RESET_PASSWORD, email);
+        String key = VerificationCodeKeys.key(scene, email);
+        ArgumentCaptor<String> code = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> content = ArgumentCaptor.forClass(String.class);
 
-        boolean result = verificationCodeService.sendVerificationCode(email, VerificationCodeScene.RESET_PASSWORD);
-
-        assertEquals(true, result);
-        verify(valueOperations).set(eq(key), anyString(), anyLong(), eq(TimeUnit.SECONDS));
-        verify(emailService).sendEmail(eq(email), eq("重置密码验证码"), anyString());
+        verify(valueOperations).set(eq(key), code.capture(), eq((long) VerificationCodeKeys.TTL_SECONDS), eq(TimeUnit.SECONDS));
+        assertTrue(code.getValue().matches("[1-9][0-9]{5}"));
+        verify(emailService).sendEmail(eq(email), eq(subject), content.capture());
+        assertEquals("您的" + subject + "是：" + code.getValue() + "，有效期10分钟，请勿泄露给他人。", content.getValue());
     }
 
     @Test
@@ -162,44 +211,5 @@ class VerificationCodeServiceImplTest {
         assertEquals(true, result);
         verify(redisTemplate).execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq(code));
         verify(redisTemplate, never()).delete(key);
-    }
-
-    @Test
-    void parseOptionalType_whenNull_shouldReturnNull() {
-        assertNull(verificationCodeService.parseOptionalType(null));
-    }
-
-    @Test
-    void parseOptionalType_whenRegister_shouldReturnRegister() {
-        assertEquals(VerificationCodeScene.REGISTER, verificationCodeService.parseOptionalType("register"));
-    }
-
-    @Test
-    void parseOptionalType_whenResetAliases_shouldReturnResetPassword() {
-        assertEquals(VerificationCodeScene.RESET_PASSWORD, verificationCodeService.parseOptionalType("reset_password"));
-        assertEquals(VerificationCodeScene.RESET_PASSWORD, verificationCodeService.parseOptionalType("reset-password"));
-        assertEquals(VerificationCodeScene.RESET_PASSWORD, verificationCodeService.parseOptionalType("reset"));
-    }
-
-    @Test
-    void parseOptionalType_whenBlank_shouldThrow1001() {
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> verificationCodeService.parseOptionalType("  "));
-        assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
-    }
-
-    @Test
-    void parseOptionalType_whenInvalid_shouldThrow1001() {
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> verificationCodeService.parseOptionalType("invalid"));
-        assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
-    }
-
-    @Test
-    void generateCode_shouldBeSixDigitNumber() {
-        String code = verificationCodeService.generateCode();
-
-        assertEquals(6, code.length());
-        assertEquals(code, String.format("%06d", Integer.parseInt(code)));
     }
 }

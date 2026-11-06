@@ -1,8 +1,6 @@
 package com.zdmj.userAuthService.controller;
 
 import com.zdmj.common.annotation.RateLimit;
-import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.model.Result;
 import com.zdmj.userAuthService.dto.UserResponse;
 import com.zdmj.userAuthService.dto.UserLoginRequest;
@@ -10,7 +8,6 @@ import com.zdmj.userAuthService.dto.UserLoginResponse;
 import com.zdmj.userAuthService.dto.UserRegisterRequest;
 import com.zdmj.userAuthService.dto.UserResetPasswordRequest;
 import com.zdmj.userAuthService.dto.UserUpdateRequest;
-import com.zdmj.userAuthService.enums.VerificationCodeScene;
 import com.zdmj.userAuthService.service.UserService;
 import com.zdmj.userAuthService.service.VerificationCodeService;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -85,6 +82,7 @@ public class UserController {
      * 发送验证码
      * 
      * @param email 邮箱地址
+     * @param type 验证码类型；未传时由服务根据邮箱注册状态确定
      * @return 发送结果
      */
     @PostMapping("/verification-codes")
@@ -94,16 +92,8 @@ public class UserController {
             @RequestParam @NotBlank(message = "邮箱不能为空") @Email(message = "邮箱格式不正确") String email,
             @RequestParam(required = false) String type) {
         log.info("发送验证码请求: email={}, type={}", email, type);
-        VerificationCodeScene explicit = verificationCodeService.parseOptionalType(type);
-        VerificationCodeScene scene = explicit != null
-                ? explicit
-                : (userService.existsByEmail(email) ? VerificationCodeScene.RESET_PASSWORD : VerificationCodeScene.REGISTER);
-        boolean success = verificationCodeService.sendVerificationCode(email, scene);
-        if (success) {
-            return Result.success("验证码已发送到邮箱", null);
-        } else {
-            throw new BusinessException(ErrorCode.CAPTCHA_SEND_FAILED);
-        }
+        verificationCodeService.sendVerificationCode(email, type);
+        return Result.success("验证码已发送到邮箱", null);
     }
 
     /**
