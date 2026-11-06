@@ -1,5 +1,7 @@
 package com.zdmj.userAuthService.service.impl;
 
+import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.userAuthService.enums.VerificationCodeKeys;
 import com.zdmj.userAuthService.enums.VerificationCodeScene;
 import com.zdmj.userAuthService.service.EmailService;
@@ -17,6 +19,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -158,6 +162,37 @@ class VerificationCodeServiceImplTest {
         assertEquals(true, result);
         verify(redisTemplate).execute(org.mockito.ArgumentMatchers.<RedisScript<Long>>any(), eq(List.of(key)), eq(code));
         verify(redisTemplate, never()).delete(key);
+    }
+
+    @Test
+    void parseOptionalType_whenNull_shouldReturnNull() {
+        assertNull(verificationCodeService.parseOptionalType(null));
+    }
+
+    @Test
+    void parseOptionalType_whenRegister_shouldReturnRegister() {
+        assertEquals(VerificationCodeScene.REGISTER, verificationCodeService.parseOptionalType("register"));
+    }
+
+    @Test
+    void parseOptionalType_whenResetAliases_shouldReturnResetPassword() {
+        assertEquals(VerificationCodeScene.RESET_PASSWORD, verificationCodeService.parseOptionalType("reset_password"));
+        assertEquals(VerificationCodeScene.RESET_PASSWORD, verificationCodeService.parseOptionalType("reset-password"));
+        assertEquals(VerificationCodeScene.RESET_PASSWORD, verificationCodeService.parseOptionalType("reset"));
+    }
+
+    @Test
+    void parseOptionalType_whenBlank_shouldThrow1001() {
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> verificationCodeService.parseOptionalType("  "));
+        assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
+    }
+
+    @Test
+    void parseOptionalType_whenInvalid_shouldThrow1001() {
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> verificationCodeService.parseOptionalType("invalid"));
+        assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
     }
 
     @Test

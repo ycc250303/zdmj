@@ -2,7 +2,8 @@ package com.zdmj.testsupport;
 
 import com.zdmj.userAuthService.entity.User;
 import com.zdmj.userAuthService.mapper.UserMapper;
-import com.zdmj.userAuthService.util.PasswordUtil;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
  * 创建两名普通用户。系统没有独立角色表，登录后过滤器授予 ROLE_USER。
@@ -10,6 +11,7 @@ import com.zdmj.userAuthService.util.PasswordUtil;
 public class TestUsers {
 
     public static final String PASSWORD = "test-password";
+    private static final PasswordEncoder PASSWORD_ENCODER = new BCryptPasswordEncoder();
 
     private final UserMapper userMapper;
 
@@ -31,7 +33,7 @@ public class TestUsers {
         user.setUsername(username);
         user.setEmail(email);
         user.setName(name);
-        user.setPassword(PasswordUtil.encode(PASSWORD));
+        user.setPassword(PASSWORD_ENCODER.encode(PASSWORD));
         userMapper.insert(user);
         if (user.getId() == null) {
             throw new IllegalStateException("插入用户后未回填主键: " + username);

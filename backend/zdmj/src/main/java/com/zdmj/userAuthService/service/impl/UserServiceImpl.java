@@ -9,7 +9,6 @@ import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.security.JwtSessionStore;
 import com.zdmj.common.security.JwtTokenService;
-import com.zdmj.userAuthService.util.PasswordUtil;
 import com.zdmj.userAuthService.dto.UserResponse;
 import com.zdmj.userAuthService.dto.UserLoginRequest;
 import com.zdmj.userAuthService.dto.UserLoginResponse;
@@ -25,6 +24,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.dao.DataAccessException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +36,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Service
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
+
+    private static final PasswordEncoder PASSWORD_ENCODER = new BCryptPasswordEncoder();
 
     private final VerificationCodeService verificationCodeService;
     private final JwtSessionStore jwtSessionStore;
@@ -62,7 +65,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 4. 创建用户对象
         User user = new User();
         user.setUsername(registerDTO.getUsername());
-        user.setPassword(PasswordUtil.encode(registerDTO.getPassword())); // 加密密码
+        user.setPassword(PASSWORD_ENCODER.encode(registerDTO.getPassword()));
         user.setEmail(registerDTO.getEmail());
 
         // 5. 保存到数据库
@@ -80,15 +83,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     public UserLoginResponse login(UserLoginRequest loginDTO) {
         // 1. 根据用户名或邮箱查询用户
-        User user = null;
         String usernameOrEmail = loginDTO.getUsernameOrEmail();
 
         // 判断是用户名还是邮箱（简单判断：包含@符号则为邮箱）
-        if (usernameOrEmail.contains("@")) {
-            user = getUserByEmail(usernameOrEmail);
-        } else {
-            user = getUserByUsername(usernameOrEmail);
-        }
+        User user = usernameOrEmail.contains("@")
+                ? getUserByEmail(usernameOrEmail)
+                : getOne(new LambdaQueryWrapper<User>().eq(User::getUsername, usernameOrEmail));
 
         // 2. 检查用户是否存在
         if (user == null) {
@@ -96,7 +96,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
 
         // 3. 验证密码
-        if (!PasswordUtil.matches(loginDTO.getPassword(), user.getPassword())) {
+        if (!PASSWORD_ENCODER.matches(loginDTO.getPassword(), user.getPassword())) {
             throw new BusinessException(ErrorCode.USER_PASSWORD_WRONG);
         }
 
@@ -127,18 +127,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     @Override
-    public User getUserByUsername(String username) {
-        return getOne(new LambdaQueryWrapper<User>()
-                .eq(User::getUsername, username));
-    }
-
-    @Override
-    public User getUserByEmail(String email) {
-        return getOne(new LambdaQueryWrapper<User>()
-                .eq(User::getEmail, email));
-    }
-
-    @Override
     public boolean existsByUsername(String username) {
         return count(new LambdaQueryWrapper<User>()
                 .eq(User::getUsername, username)) > 0;
@@ -166,7 +154,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
 
         // 3. 加密新密码
-        String encodedPassword = PasswordUtil.encode(resetPasswordDTO.getNewPassword());
+        String encodedPassword = PASSWORD_ENCODER.encode(resetPasswordDTO.getNewPassword());
 
         // 4. 使用 MyBatis-Plus 的 LambdaUpdateWrapper 更新密码
         boolean updated = update(new LambdaUpdateWrapper<User>()
@@ -212,6 +200,17 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
         log.info("用户信息更新成功: userId={}", userId);
         return convertToResponse(user);
+    }
+
+    /**
+     * 按邮箱查询用户。
+     *
+     * @param email 邮箱
+     * @return 用户；不存在时返回 {@code null}
+     */
+    private User getUserByEmail(String email) {
+        return getOne(new LambdaQueryWrapper<User>()
+                .eq(User::getEmail, email));
     }
 
     private void rejectBlankField(String value, String message) {

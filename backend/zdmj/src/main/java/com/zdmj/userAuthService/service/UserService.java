@@ -6,7 +6,6 @@ import com.zdmj.userAuthService.dto.UserLoginResponse;
 import com.zdmj.userAuthService.dto.UserRegisterRequest;
 import com.zdmj.userAuthService.dto.UserResetPasswordRequest;
 import com.zdmj.userAuthService.dto.UserUpdateRequest;
-import com.zdmj.userAuthService.entity.User;
 
 /**
  * 用户服务接口
@@ -36,22 +35,6 @@ public interface UserService {
      * @return 用户信息
      */
     UserResponse getUserById(Long id);
-
-    /**
-     * 根据用户名查询用户
-     * 
-     * @param username 用户名
-     * @return 用户实体
-     */
-    User getUserByUsername(String username);
-
-    /**
-     * 根据邮箱查询用户
-     * 
-     * @param email 邮箱
-     * @return 用户实体
-     */
-    User getUserByEmail(String email);
 
     /**
      * 检查用户名是否存在

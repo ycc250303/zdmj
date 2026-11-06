@@ -1,5 +1,7 @@
 package com.zdmj.userAuthService.service.impl;
 
+import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.userAuthService.enums.VerificationCodeKeys;
 import com.zdmj.userAuthService.enums.VerificationCodeScene;
 import com.zdmj.userAuthService.service.EmailService;
@@ -33,6 +35,21 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
         script.setLocation(new ClassPathResource("lua/verify_code_and_delete.lua"));
         script.setResultType(Long.class);
         return script;
+    }
+
+    @Override
+    public VerificationCodeScene parseOptionalType(String type) {
+        if (type == null) {
+            return null;
+        }
+        if (type.isBlank()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "type 不能为空");
+        }
+        return switch (type.trim().toLowerCase()) {
+            case "register" -> VerificationCodeScene.REGISTER;
+            case "reset_password", "reset-password", "reset" -> VerificationCodeScene.RESET_PASSWORD;
+            default -> throw new BusinessException(ErrorCode.VALIDATION_ERROR, "type 无效");
+        };
     }
 
     @Override

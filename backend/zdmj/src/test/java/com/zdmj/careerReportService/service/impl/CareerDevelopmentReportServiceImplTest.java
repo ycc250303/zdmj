@@ -346,8 +346,13 @@ class CareerDevelopmentReportServiceImplTest {
                 .getOne(org.mockito.ArgumentMatchers.<Wrapper<CareerDevelopmentReport>>any());
         when(reportMapper.selectOne(any())).thenReturn(existing);
         when(reportMapper.update(isNull(), any())).thenReturn(1);
-        doThrow(new RuntimeException("llm failed"))
-                .when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == CareerReportCheckResponse.class));
+        CareerReportCheckResponse modelCheck = new CareerReportCheckResponse();
+        modelCheck.setPassed(true);
+        modelCheck.setCompletenessScore(80);
+        modelCheck.setMissingSections(List.of());
+        modelCheck.setNonActionableItems(List.of());
+        modelCheck.setWeakEvidenceItems(List.of());
+        doReturn(modelCheck).when(modelGateway).generateStructured(any(), any());
 
         CareerReportCheckResponse check = service.checkIntegrity(20L);
 
@@ -356,6 +361,63 @@ class CareerDevelopmentReportServiceImplTest {
         verify(reportMapper).update(isNull(), any());
         verify(reportMapper, never()).updateById(any(CareerDevelopmentReport.class));
         verify(jdbcTemplate).execute(any(ConnectionCallback.class));
+    }
+
+    @Test
+    void checkIntegrity_whenModelFails_shouldPropagateAndSkipSave() {
+        stubOwnedReport();
+        RuntimeException failure = new IllegalStateException("模型检查失败");
+        doThrow(failure).when(modelGateway).generateStructured(any(), any());
+
+        assertThat(assertThrows(RuntimeException.class, () -> service.checkIntegrity(31L))).isSameAs(failure);
+        verify(reportMapper, never()).update(isNull(), any());
+        verify(jdbcTemplate, never()).execute(any(ConnectionCallback.class));
+    }
+
+    @Test
+    void checkIntegrity_whenModelReturnsNull_shouldRejectAndSkipSave() {
+        stubOwnedReport();
+
+        BusinessException failure = assertThrows(BusinessException.class, () -> service.checkIntegrity(31L));
+
+        assertEquals(ErrorCode.CAREER_REPORT_INVALID.getCode(), failure.getCode());
+        verify(reportMapper, never()).update(isNull(), any());
+        verify(jdbcTemplate, never()).execute(any(ConnectionCallback.class));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"nullPayload", "nullContent", "emptyContent"})
+    void polish_whenModelContentMissing_shouldRejectAndSkipSave(String scenario) throws Exception {
+        stubOwnedReport();
+        doAnswer(invocation -> {
+            if (scenario.equals("nullPayload")) {
+                return null;
+            }
+            StructuredModelRequest<?> request = invocation.getArgument(1);
+            Object payload = request.outputType().getDeclaredConstructor().newInstance();
+            if (scenario.equals("emptyContent")) {
+                Field field = request.outputType().getDeclaredField("reportContent");
+                field.setAccessible(true);
+                field.set(payload, Map.of());
+            }
+            return payload;
+        }).when(modelGateway).generateStructured(any(), any());
+
+        BusinessException failure = assertThrows(BusinessException.class, () -> service.polish(31L, null));
+
+        assertEquals(ErrorCode.CAREER_REPORT_INVALID.getCode(), failure.getCode());
+        verify(reportMapper, never()).updateById(any(CareerDevelopmentReport.class));
+        verify(jdbcTemplate, never()).execute(any(ConnectionCallback.class));
+    }
+
+    private void stubOwnedReport() {
+        CareerDevelopmentReport existing = new CareerDevelopmentReport();
+        existing.setId(31L);
+        existing.setUserId(1L);
+        existing.setJobId(11L);
+        existing.setReportContent("{\"careerExploration\":\"原正文\"}");
+        existing.setPromptName("career-report/generate");
+        doReturn(existing).when(service).getOne(org.mockito.ArgumentMatchers.<Wrapper<CareerDevelopmentReport>>any());
     }
 
     @Test

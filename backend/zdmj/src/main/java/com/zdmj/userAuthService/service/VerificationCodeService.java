@@ -1,11 +1,22 @@
 package com.zdmj.userAuthService.service;
 
+import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.userAuthService.enums.VerificationCodeScene;
 
 /**
  * 验证码服务接口
  */
 public interface VerificationCodeService {
+
+    /**
+     * 解析发送验证码接口的 {@code type} 查询参数。
+     *
+     * @param type 查询参数；{@code null} 表示未传，由调用方按邮箱是否已注册推断场景
+     * @return 显式场景；未传时返回 {@code null}
+     * @throws BusinessException {@code type} 为空白或无法识别时，错误码为 {@link ErrorCode#VALIDATION_ERROR}
+     */
+    VerificationCodeScene parseOptionalType(String type);
 
     /**
      * 发送验证码到邮箱

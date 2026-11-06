@@ -19,7 +19,6 @@ import com.zdmj.userAuthService.dto.UserUpdateRequest;
 import com.zdmj.userAuthService.entity.User;
 import com.zdmj.userAuthService.enums.VerificationCodeScene;
 import com.zdmj.userAuthService.service.VerificationCodeService;
-import com.zdmj.userAuthService.util.PasswordUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,6 +28,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.springframework.data.redis.RedisConnectionFailureException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -58,6 +59,7 @@ class UserServiceImplTest {
 
     private static final String TEST_JWT_SECRET =
             "test-jwt-secret-key-for-jwt-token-generation-2024-very-long-secret-key";
+    private static final PasswordEncoder PASSWORD_ENCODER = new BCryptPasswordEncoder();
 
     private UserServiceImpl userService;
     private static boolean tableInfoInitialized = false;
@@ -152,7 +154,7 @@ class UserServiceImplTest {
         assertEquals(dto.getUsername(), savedUser.getUsername());
         assertEquals(dto.getEmail(), savedUser.getEmail());
         assertNotEquals(dto.getPassword(), savedUser.getPassword());
-        assertTrue(PasswordUtil.matches(dto.getPassword(), savedUser.getPassword()));
+        assertTrue(PASSWORD_ENCODER.matches(dto.getPassword(), savedUser.getPassword()));
     }
 
     @Test
@@ -160,12 +162,12 @@ class UserServiceImplTest {
         UserLoginRequest dto = new UserLoginRequest();
         dto.setUsernameOrEmail("ghost");
         dto.setPassword("password123");
-        doReturn(null).when(userService).getUserByUsername("ghost");
+        doReturn(null).when(userService).getOne(any(LambdaQueryWrapper.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.login(dto));
 
         assertEquals(ErrorCode.USER_NOT_FOUND.getCode(), ex.getCode());
-        verify(userService).getUserByUsername("ghost");
+        verify(userService).getOne(any(LambdaQueryWrapper.class));
         verify(jwtSessionStore, never()).replace(anyLong(), anyString());
     }
 
@@ -177,13 +179,13 @@ class UserServiceImplTest {
         User user = new User();
         user.setId(1L);
         user.setUsername("alice");
-        user.setPassword(PasswordUtil.encode("right-password"));
-        doReturn(user).when(userService).getUserByUsername("alice");
+        user.setPassword(PASSWORD_ENCODER.encode("right-password"));
+        doReturn(user).when(userService).getOne(any(LambdaQueryWrapper.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.login(dto));
 
         assertEquals(ErrorCode.USER_PASSWORD_WRONG.getCode(), ex.getCode());
-        verify(userService).getUserByUsername("alice");
+        verify(userService).getOne(any(LambdaQueryWrapper.class));
         verify(jwtSessionStore, never()).replace(anyLong(), anyString());
     }
 
@@ -195,14 +197,33 @@ class UserServiceImplTest {
         User user = new User();
         user.setId(1L);
         user.setUsername("alice");
-        user.setPassword(PasswordUtil.encode("right-password"));
-        doReturn(user).when(userService).getUserByUsername("alice");
+        user.setPassword(PASSWORD_ENCODER.encode("right-password"));
+        doReturn(user).when(userService).getOne(any(LambdaQueryWrapper.class));
 
         UserLoginResponse response = userService.login(dto);
 
         assertEquals("alice", response.getUser().getUsername());
         assertEquals(3, response.getToken().split("\\.").length);
         verify(jwtSessionStore).replace(eq(1L), eq(response.getToken()));
+    }
+
+    @Test
+    void login_whenEmail_shouldReturnQueriedUser() {
+        UserLoginRequest dto = new UserLoginRequest();
+        dto.setUsernameOrEmail("alice@test.com");
+        dto.setPassword("right-password");
+        User user = new User();
+        user.setId(2L);
+        user.setUsername("alice");
+        user.setEmail("alice@test.com");
+        user.setPassword(PASSWORD_ENCODER.encode("right-password"));
+        doReturn(user).when(userService).getOne(any(LambdaQueryWrapper.class));
+
+        UserLoginResponse response = userService.login(dto);
+
+        assertEquals("alice@test.com", response.getUser().getEmail());
+        verify(userService).getOne(any(LambdaQueryWrapper.class));
+        verify(jwtSessionStore).replace(eq(2L), eq(response.getToken()));
     }
 
     @Test
@@ -213,8 +234,8 @@ class UserServiceImplTest {
         User user = new User();
         user.setId(1L);
         user.setUsername("alice");
-        user.setPassword(PasswordUtil.encode("right-password"));
-        doReturn(user).when(userService).getUserByUsername("alice");
+        user.setPassword(PASSWORD_ENCODER.encode("right-password"));
+        doReturn(user).when(userService).getOne(any(LambdaQueryWrapper.class));
         doThrow(new RedisConnectionFailureException("down")).when(jwtSessionStore).replace(eq(1L), anyString());
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.login(dto));
@@ -262,30 +283,14 @@ class UserServiceImplTest {
     }
 
     @Test
-    void getUserByUsername_andGetUserByEmail_shouldReturnQueryResult() {
-        User byUsername = new User();
-        byUsername.setUsername("alice");
-        User byEmail = new User();
-        byEmail.setEmail("alice@test.com");
-        doReturn(byUsername).doReturn(byEmail).when(userService).getOne(any(LambdaQueryWrapper.class));
-
-        User user1 = userService.getUserByUsername("alice");
-        User user2 = userService.getUserByEmail("alice@test.com");
-
-        assertEquals("alice", user1.getUsername());
-        assertEquals("alice@test.com", user2.getEmail());
-        verify(userService, times(2)).getOne(any(LambdaQueryWrapper.class));
-    }
-
-    @Test
     void resetPassword_whenEmailNotRegistered_shouldThrow2007() {
         UserResetPasswordRequest dto = buildResetDTO();
-        doReturn(null).when(userService).getUserByEmail(dto.getEmail());
+        doReturn(null).when(userService).getOne(any(LambdaQueryWrapper.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.resetPassword(dto));
 
         assertEquals(ErrorCode.USER_EMAIL_NOT_REGISTERED.getCode(), ex.getCode());
-        verify(userService).getUserByEmail(dto.getEmail());
+        verify(userService).getOne(any(LambdaQueryWrapper.class));
         verifyNoInteractions(verificationCodeService);
     }
 
@@ -294,7 +299,7 @@ class UserServiceImplTest {
         UserResetPasswordRequest dto = buildResetDTO();
         User user = new User();
         user.setId(99L);
-        doReturn(user).when(userService).getUserByEmail(dto.getEmail());
+        doReturn(user).when(userService).getOne(any(LambdaQueryWrapper.class));
         doReturn(false).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode(),
                 VerificationCodeScene.RESET_PASSWORD);
 
@@ -311,7 +316,7 @@ class UserServiceImplTest {
         UserResetPasswordRequest dto = buildResetDTO();
         User user = new User();
         user.setId(88L);
-        doReturn(user).when(userService).getUserByEmail(dto.getEmail());
+        doReturn(user).when(userService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode(),
                 VerificationCodeScene.RESET_PASSWORD);
         doReturn(false).when(userService).update(any(LambdaUpdateWrapper.class));
@@ -327,14 +332,14 @@ class UserServiceImplTest {
         UserResetPasswordRequest dto = buildResetDTO();
         User user = new User();
         user.setId(88L);
-        doReturn(user).when(userService).getUserByEmail(dto.getEmail());
+        doReturn(user).when(userService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode(),
                 VerificationCodeScene.RESET_PASSWORD);
         doReturn(true).when(userService).update(any(LambdaUpdateWrapper.class));
 
         userService.resetPassword(dto);
 
-        verify(userService).getUserByEmail(dto.getEmail());
+        verify(userService).getOne(any(LambdaQueryWrapper.class));
         verify(verificationCodeService).verifyCode(dto.getEmail(), dto.getVerificationCode(),
                 VerificationCodeScene.RESET_PASSWORD);
         verify(userService).update(any(LambdaUpdateWrapper.class));
