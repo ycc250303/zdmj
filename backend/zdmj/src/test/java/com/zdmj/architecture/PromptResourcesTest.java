@@ -13,7 +13,7 @@ class PromptResourcesTest {
 
     @Test
     void everySupportedRoleHasBusinessTemplates() {
-        for (String directory : new String[]{"resume-analysis", "job-requirement", "job-career-graph"}) {
+        for (String directory : new String[]{"resume-analysis", "job-requirement"}) {
             for (JobRole role : JobRole.values()) {
                 assertFalse(loader.load(directory + "/" + role.slug()).isBlank());
             }

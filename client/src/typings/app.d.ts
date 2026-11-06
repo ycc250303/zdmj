@@ -1161,35 +1161,6 @@ declare namespace App {
             confirmPolish: string;
             cancel: string;
           };
-          careerGraph: {
-            entry: string;
-            generate: string;
-            regenerate: string;
-            view: string;
-            drawerTitle: string;
-            empty: string;
-            generating: string;
-            generateSuccess: string;
-            generateFailed: string;
-            gatewayTimeoutFallback: string;
-            gatewayTimeoutHint: string;
-            targetRoleType: string;
-            currentNode: string;
-            verticalPath: string;
-            transitionPaths: string;
-            typicalYears: string;
-            responsibilities: string;
-            keyRequirements: string;
-            targetRole: string;
-            difficulty: string;
-            difficultyEasy: string;
-            difficultyMedium: string;
-            difficultyHard: string;
-            reason: string;
-            bridgingSkills: string;
-            pathNodes: string;
-            current: string;
-          };
         };
         matches: {
           title: string;

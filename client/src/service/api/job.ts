@@ -90,49 +90,6 @@ export namespace JobApi {
     missingSkills?: string[]; // 补充要求：JD 未写明的该方向常见核心门槛
     summary?: string; // 一句话总结
   }
-
-  /** 岗位关联图谱（对应后端 JobCareerGraphDTO） */
-  export interface JobCareerGraph {
-    id?: number; // 图谱记录编号
-    jobId?: number;
-    targetRoleType?: string;
-    currentNode?: JobCareerGraphCurrentNode;
-    verticalPath?: JobCareerGraphVerticalNode[];
-    transitionPaths?: JobCareerGraphTransitionPath[];
-    summary?: string;
-  }
-
-  export interface JobCareerGraphCurrentNode {
-    level?: number;
-    title?: string;
-    roleType?: string;
-    description?: string;
-  }
-
-  export interface JobCareerGraphVerticalNode {
-    level?: number;
-    title?: string;
-    description?: string;
-    responsibilities?: string[];
-    keyRequirements?: string[];
-    typicalYears?: string;
-    current?: boolean;
-  }
-
-  export interface JobCareerGraphTransitionPath {
-    name?: string;
-    targetRole?: string;
-    difficulty?: string;
-    reason?: string;
-    bridgingSkills?: string[];
-    nodes?: JobCareerGraphTransitionNode[];
-  }
-
-  export interface JobCareerGraphTransitionNode {
-    title?: string;
-    roleType?: string;
-    description?: string;
-  }
 }
 
 /**
@@ -235,29 +192,6 @@ export function fetchGetJobCapabilityProfile(id: number | string) {
 export function fetchGenerateJobCapabilityProfile(id: number | string) {
   return request<JobApi.JobCapabilityProfile>({
     url: `/jobs/${id}/capability-profile`,
-    method: 'post',
-    timeout: 300000
-  });
-}
-
-/**
- * 查询岗位关系图谱
- * 后端：GET /jobs/{id}/career-graph
- */
-export function fetchGetJobCareerGraph(id: number | string) {
-  return request<JobApi.JobCareerGraph | null>({
-    url: `/jobs/${id}/career-graph`,
-    method: 'get'
-  });
-}
-
-/**
- * 生成岗位关系图谱
- * 后端：POST /jobs/{id}/career-graph
- */
-export function fetchGenerateJobCareerGraph(id: number | string) {
-  return request<JobApi.JobCareerGraph>({
-    url: `/jobs/${id}/career-graph`,
     method: 'post',
     timeout: 300000
   });

@@ -38,9 +38,9 @@ class JobRoleTest {
     void fromPromptName_shouldUseLastPathSegment() {
         assertEquals(JobRole.JAVA, JobRole.fromPromptName("job-requirement/java-backend"));
         assertEquals(JobRole.FRONTEND, JobRole.fromPromptName("resume-analysis/frontend"));
-        assertEquals(JobRole.UNKNOWN, JobRole.fromPromptName("job-career-graph/default"));
+        assertEquals(JobRole.UNKNOWN, JobRole.fromPromptName("career-report/generate"));
         assertEquals(JobRole.UNKNOWN, JobRole.fromPromptName(null));
-        assertEquals(JobRole.UNKNOWN, JobRole.fromPromptName("JOB_CAREER_GRAPH_JAVA"));
+        assertEquals(JobRole.UNKNOWN, JobRole.fromPromptName("NOT_A_ROLE"));
     }
 
     @Test

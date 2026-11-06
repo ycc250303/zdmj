@@ -180,10 +180,6 @@ class CareerReportFlowIT extends IntegrationTestBase {
                 VALUES (?, 'Java', 'java-backend', 'job-requirement/java-backend')
                 """, jobId);
         jdbcTemplate.update("""
-                INSERT INTO job_career_graphs (job_id, summary, target_role_type, prompt_name)
-                VALUES (?, '路径清晰', 'java-backend', 'job-career-graph/java-backend')
-                """, jobId);
-        jdbcTemplate.update("""
                 INSERT INTO job_student_matches (
                     user_id, job_id, overall_score, summary, target_role_type, prompt_name)
                 VALUES (?, ?, 80, '固定匹配摘要', 'java-backend', 'job-student-match/java-backend')
