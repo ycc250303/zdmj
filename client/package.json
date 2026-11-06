@@ -111,7 +111,8 @@
   },
   "simple-git-hooks": {
     "commit-msg": "pnpm sa git-commit-verify",
-    "pre-commit": "pnpm typecheck && pnpm lint && git diff --exit-code"
+    "pre-commit": "pnpm typecheck && pnpm lint && git diff --exit-code",
+    "post-commit": "sh scripts/git/report-business-lines.sh"
   },
   "website": "https://admin.soybeanjs.cn"
 }
