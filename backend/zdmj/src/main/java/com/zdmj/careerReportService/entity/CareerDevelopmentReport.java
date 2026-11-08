@@ -40,11 +40,6 @@ public class CareerDevelopmentReport extends BaseEntity {
     private Long matchId;
 
     /**
-     * 岗位职业图谱ID（逻辑外键：job_career_graphs.id）
-     */
-    private Long careerGraphId;
-
-    /**
      * 生成时的学生能力画像快照（JSONB）
      */
     @TableField(typeHandler = JsonbStringTypeHandler.class)

@@ -18,10 +18,8 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
-import com.zdmj.jobService.dto.JobCareerGraphResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
-import com.zdmj.jobService.service.JobCareerGraphService;
 import com.zdmj.jobService.service.JobService;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
 import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
@@ -85,8 +83,6 @@ class CareerDevelopmentReportServiceImplTest {
     @Mock
     private JobCapabilityProfileService jobCapabilityProfileService;
     @Mock
-    private JobCareerGraphService jobCareerGraphService;
-    @Mock
     private JobStudentMatchService jobStudentMatchService;
     @Mock
     private StudentCapabilityProfileService studentCapabilityProfileService;
@@ -121,7 +117,6 @@ class CareerDevelopmentReportServiceImplTest {
                 modelGateway,
                 jobService,
                 jobCapabilityProfileService,
-                jobCareerGraphService,
                 jobStudentMatchService,
                 studentCapabilityProfileService,
                 knowledgeBasesService,
@@ -146,12 +141,14 @@ class CareerDevelopmentReportServiceImplTest {
         doReturn(buildStudentProfile()).when(studentCapabilityProfileService).getCurrentUserProfileOrNull();
         doReturn(buildJobProfile()).when(jobCapabilityProfileService).getJobCapabilityProfileOrNull(jobId);
         doReturn(buildMatch()).when(jobStudentMatchService).getOrNull(jobId);
-        doReturn(buildGraph()).when(jobCareerGraphService).getOrNull(jobId);
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
         stubInsertNewVersion(999L);
 
         doAnswer(invocation -> {
             StructuredModelRequest<?> request = invocation.getArgument(1, StructuredModelRequest.class);
+            assertThat(request.message()).doesNotContain("## 岗位图谱");
+            assertThat(request.message()).contains("## 岗位画像");
+            assertThat(request.message()).contains("## 人岗匹配");
             Class<?> outputClass = request.outputType();
             Object payload = outputClass.getDeclaredConstructor().newInstance();
             Field f = outputClass.getDeclaredField("reportContent");
@@ -174,8 +171,7 @@ class CareerDevelopmentReportServiceImplTest {
 
         assertEquals(999L, dto.getId());
         assertThat(dto.getCompletenessScore()).isGreaterThanOrEqualTo(60);
-        verify(reportMapper).insert(argThat(saved -> Long.valueOf(300L).equals(saved.getMatchId())
-                && Long.valueOf(400L).equals(saved.getCareerGraphId())));
+        verify(reportMapper).insert(argThat(saved -> Long.valueOf(300L).equals(saved.getMatchId())));
     }
 
     @Test
@@ -185,7 +181,6 @@ class CareerDevelopmentReportServiceImplTest {
         doReturn(buildStudentProfile()).when(studentCapabilityProfileService).getCurrentUserProfileOrNull();
         doReturn(buildJobProfile()).when(jobCapabilityProfileService).getJobCapabilityProfileOrNull(jobId);
         doReturn(buildMatch()).when(jobStudentMatchService).getOrNull(jobId);
-        doReturn(buildGraph()).when(jobCareerGraphService).getOrNull(jobId);
         when(embeddingGateway.embed(any(), any())).thenThrow(new RuntimeException("embed fail"));
 
         BusinessException ex = assertThrows(BusinessException.class,
@@ -205,7 +200,6 @@ class CareerDevelopmentReportServiceImplTest {
         doReturn(buildStudentProfile()).when(studentCapabilityProfileService).getCurrentUserProfileOrNull();
         doReturn(buildJobProfile()).when(jobCapabilityProfileService).getJobCapabilityProfileOrNull(jobId);
         doReturn(buildMatch()).when(jobStudentMatchService).getOrNull(jobId);
-        doReturn(buildGraph()).when(jobCareerGraphService).getOrNull(jobId);
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
         ReflectionTestUtils.setField(service, "objectMapper", new ObjectMapper() {
             @Override
@@ -241,7 +235,6 @@ class CareerDevelopmentReportServiceImplTest {
         doReturn(buildStudentProfile()).when(studentCapabilityProfileService).getCurrentUserProfileOrNull();
         doReturn(buildJobProfile()).when(jobCapabilityProfileService).getJobCapabilityProfileOrNull(jobId);
         doReturn(buildMatch()).when(jobStudentMatchService).getOrNull(jobId);
-        doReturn(buildGraph()).when(jobCareerGraphService).getOrNull(jobId);
         doReturn(100L).when(knowledgeBasesService).getOrCreateKnowledgeBaseId();
         doReturn(9L).when(knowledgeBasesService).findKnowledgeBaseIdByScope(KnowledgeScopeEnum.LEARNING_PATH.getCode());
 
@@ -353,8 +346,13 @@ class CareerDevelopmentReportServiceImplTest {
                 .getOne(org.mockito.ArgumentMatchers.<Wrapper<CareerDevelopmentReport>>any());
         when(reportMapper.selectOne(any())).thenReturn(existing);
         when(reportMapper.update(isNull(), any())).thenReturn(1);
-        doThrow(new RuntimeException("llm failed"))
-                .when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == CareerReportCheckResponse.class));
+        CareerReportCheckResponse modelCheck = new CareerReportCheckResponse();
+        modelCheck.setPassed(true);
+        modelCheck.setCompletenessScore(80);
+        modelCheck.setMissingSections(List.of());
+        modelCheck.setNonActionableItems(List.of());
+        modelCheck.setWeakEvidenceItems(List.of());
+        doReturn(modelCheck).when(modelGateway).generateStructured(any(), any());
 
         CareerReportCheckResponse check = service.checkIntegrity(20L);
 
@@ -363,6 +361,63 @@ class CareerDevelopmentReportServiceImplTest {
         verify(reportMapper).update(isNull(), any());
         verify(reportMapper, never()).updateById(any(CareerDevelopmentReport.class));
         verify(jdbcTemplate).execute(any(ConnectionCallback.class));
+    }
+
+    @Test
+    void checkIntegrity_whenModelFails_shouldPropagateAndSkipSave() {
+        stubOwnedReport();
+        RuntimeException failure = new IllegalStateException("模型检查失败");
+        doThrow(failure).when(modelGateway).generateStructured(any(), any());
+
+        assertThat(assertThrows(RuntimeException.class, () -> service.checkIntegrity(31L))).isSameAs(failure);
+        verify(reportMapper, never()).update(isNull(), any());
+        verify(jdbcTemplate, never()).execute(any(ConnectionCallback.class));
+    }
+
+    @Test
+    void checkIntegrity_whenModelReturnsNull_shouldRejectAndSkipSave() {
+        stubOwnedReport();
+
+        BusinessException failure = assertThrows(BusinessException.class, () -> service.checkIntegrity(31L));
+
+        assertEquals(ErrorCode.CAREER_REPORT_INVALID.getCode(), failure.getCode());
+        verify(reportMapper, never()).update(isNull(), any());
+        verify(jdbcTemplate, never()).execute(any(ConnectionCallback.class));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"nullPayload", "nullContent", "emptyContent"})
+    void polish_whenModelContentMissing_shouldRejectAndSkipSave(String scenario) throws Exception {
+        stubOwnedReport();
+        doAnswer(invocation -> {
+            if (scenario.equals("nullPayload")) {
+                return null;
+            }
+            StructuredModelRequest<?> request = invocation.getArgument(1);
+            Object payload = request.outputType().getDeclaredConstructor().newInstance();
+            if (scenario.equals("emptyContent")) {
+                Field field = request.outputType().getDeclaredField("reportContent");
+                field.setAccessible(true);
+                field.set(payload, Map.of());
+            }
+            return payload;
+        }).when(modelGateway).generateStructured(any(), any());
+
+        BusinessException failure = assertThrows(BusinessException.class, () -> service.polish(31L, null));
+
+        assertEquals(ErrorCode.CAREER_REPORT_INVALID.getCode(), failure.getCode());
+        verify(reportMapper, never()).updateById(any(CareerDevelopmentReport.class));
+        verify(jdbcTemplate, never()).execute(any(ConnectionCallback.class));
+    }
+
+    private void stubOwnedReport() {
+        CareerDevelopmentReport existing = new CareerDevelopmentReport();
+        existing.setId(31L);
+        existing.setUserId(1L);
+        existing.setJobId(11L);
+        existing.setReportContent("{\"careerExploration\":\"原正文\"}");
+        existing.setPromptName("career-report/generate");
+        doReturn(existing).when(service).getOne(org.mockito.ArgumentMatchers.<Wrapper<CareerDevelopmentReport>>any());
     }
 
     @Test
@@ -488,13 +543,6 @@ class CareerDevelopmentReportServiceImplTest {
         JobStudentMatchResponse dto = new JobStudentMatchResponse();
         dto.setId(300L);
         dto.setOverallScore(78);
-        return dto;
-    }
-
-    private static JobCareerGraphResponse buildGraph() {
-        JobCareerGraphResponse dto = new JobCareerGraphResponse();
-        dto.setId(400L);
-        dto.setSummary("路径清晰");
         return dto;
     }
 }

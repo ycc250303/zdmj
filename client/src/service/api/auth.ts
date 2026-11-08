@@ -48,16 +48,18 @@ export function fetchCustomBackendError(code: string, msg: string) {
 }
 
 /**
- * 发送注册验证码
+ * 发送验证码
  *
  * @param email 邮箱地址
+ * @param type 验证码类型，register 为注册，reset_password 为重置密码
  */
-export function fetchGetVerificationCode(email: string) {
+export function fetchGetVerificationCode(email: string, type: 'register' | 'reset_password') {
   return request({
     url: '/users/verification-codes',
     method: 'post',
     params: {
-      email: email
+      email,
+      type
     }
   });
 }

@@ -2,9 +2,13 @@ package com.zdmj.userAuthService.service.impl;
 
 import com.zdmj.userAuthService.service.EmailService;
 import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.MessagingException;
+import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
@@ -43,9 +47,9 @@ public class EmailServiceImpl implements EmailService {
 
             mailSender.send(message);
             log.info("邮件发送成功: To={}, From={}", to, fromEmail);
-        } catch (Exception e) {
+        } catch (MessagingException | MailException e) {
             log.error("邮件发送失败: To={}, From={}, Error={}", to, fromEmail, e.getMessage(), e);
-            throw new RuntimeException("邮件发送失败", e);
+            throw new BusinessException(ErrorCode.CAPTCHA_MAIL_UNAVAILABLE, e);
         }
     }
 }

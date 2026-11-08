@@ -1,6 +1,6 @@
 package com.zdmj.aiService.provider;
 
-import com.zdmj.aiService.model.ModelCode;
+import com.zdmj.aiService.enums.ModelCode;
 
 /**
  * 一次模型调用所需的用户配置。密钥只在构建客户端时使用，禁止写入日志、响应或缓存。

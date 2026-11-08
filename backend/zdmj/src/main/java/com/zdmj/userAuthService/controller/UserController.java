@@ -1,8 +1,7 @@
 package com.zdmj.userAuthService.controller;
 
 import com.zdmj.common.annotation.RateLimit;
-import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.model.Result;
 import com.zdmj.userAuthService.dto.UserResponse;
 import com.zdmj.userAuthService.dto.UserLoginRequest;
@@ -10,8 +9,7 @@ import com.zdmj.userAuthService.dto.UserLoginResponse;
 import com.zdmj.userAuthService.dto.UserRegisterRequest;
 import com.zdmj.userAuthService.dto.UserResetPasswordRequest;
 import com.zdmj.userAuthService.dto.UserUpdateRequest;
-import com.zdmj.userAuthService.enums.VerificationCodeScene;
-import com.zdmj.userAuthService.service.UserService;
+import com.zdmj.userAuthService.service.UserLoginService;
 import com.zdmj.userAuthService.service.VerificationCodeService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -19,7 +17,6 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import com.zdmj.userAuthService.support.VerificationCodeSceneResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
@@ -38,7 +35,7 @@ import java.util.concurrent.TimeUnit;
 @Validated
 public class UserController {
 
-    private final UserService userService;
+    private final UserLoginService userService;
     private final VerificationCodeService verificationCodeService;
 
     /**
@@ -86,6 +83,7 @@ public class UserController {
      * 发送验证码
      * 
      * @param email 邮箱地址
+     * @param type 验证码类型，必须传入；{@code register} 为注册，{@code reset_password} 为重置密码
      * @return 发送结果
      */
     @PostMapping("/verification-codes")
@@ -93,18 +91,10 @@ public class UserController {
     @RateLimit(dimension = RateLimit.Dimension.IP, count = 5, interval = 1, timeUnit = TimeUnit.MINUTES)
     public Result<Void> sendVerificationCode(
             @RequestParam @NotBlank(message = "邮箱不能为空") @Email(message = "邮箱格式不正确") String email,
-            @RequestParam(required = false) String type) {
+            @RequestParam String type) {
         log.info("发送验证码请求: email={}, type={}", email, type);
-        VerificationCodeScene explicit = VerificationCodeSceneResolver.parseOptionalType(type);
-        VerificationCodeScene scene = explicit != null
-                ? explicit
-                : (userService.existsByEmail(email) ? VerificationCodeScene.RESET_PASSWORD : VerificationCodeScene.REGISTER);
-        boolean success = verificationCodeService.sendVerificationCode(email, scene);
-        if (success) {
-            return Result.success("验证码已发送到邮箱", null);
-        } else {
-            throw new BusinessException(ErrorCode.CAPTCHA_SEND_FAILED);
-        }
+        verificationCodeService.sendVerificationCode(email, type);
+        return Result.success("验证码已发送到邮箱", null);
     }
 
     /**
@@ -130,7 +120,7 @@ public class UserController {
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 20, interval = 1, timeUnit = TimeUnit.MINUTES)
     public Result<UserResponse> updateCurrentUser(@Valid @RequestBody UserUpdateRequest updateDTO) {
         log.info("更新当前用户信息请求");
-        UserResponse userDTO = userService.updateCurrentUser(updateDTO);
+        UserResponse userDTO = userService.updateProfile(UserHolder.requireUserId(), updateDTO);
         return Result.success("更新成功", userDTO);
     }
 

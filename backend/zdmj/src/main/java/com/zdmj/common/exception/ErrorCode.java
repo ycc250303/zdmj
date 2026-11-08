@@ -42,6 +42,8 @@ public enum ErrorCode {
     USER_LLM_API_KEY_ENCRYPT_FAILED(2012, "API Key 加密失败", HttpStatus.BAD_REQUEST),
     USER_LLM_API_KEY_DECRYPT_FAILED(2013, "API Key 解密失败", HttpStatus.BAD_REQUEST),
     USER_LLM_CONNECTION_TEST_FAILED(2014, "大模型连通性测试失败", HttpStatus.BAD_REQUEST),
+    CAPTCHA_STORE_UNAVAILABLE(2015, "验证码存储服务暂不可用", HttpStatus.SERVICE_UNAVAILABLE),
+    CAPTCHA_MAIL_UNAVAILABLE(2016, "验证码邮件发送失败，请稍后重试", HttpStatus.SERVICE_UNAVAILABLE),
 
     // ========== 简历与能力画像 3xxx ==========
     RESUME_CREATE_FAILED(3002, "创建简历失败", HttpStatus.BAD_REQUEST),
@@ -112,8 +114,6 @@ public enum ErrorCode {
     // ========== 岗位 jobService 100xx ==========
     JOB_NOT_FOUND(10001, "岗位不存在", HttpStatus.NOT_FOUND),
     JOB_CAPABILITY_PROFILE_GENERATION_FAILED(10002, "生成岗位能力画像失败", HttpStatus.BAD_REQUEST),
-    JOB_CAREER_GRAPH_GENERATION_FAILED(10004, "生成岗位关联图谱失败", HttpStatus.BAD_REQUEST),
-    JOB_CAREER_GRAPH_INVALID(10005, "岗位关联图谱结果不符合要求（晋升路径或换岗路径数量不足）", HttpStatus.BAD_REQUEST),
 
     // ========== 人岗匹配 matchService 110xx ==========
     MATCH_GENERATION_FAILED(11001, "生成人岗匹配分析失败，请稍后重试", HttpStatus.BAD_REQUEST),

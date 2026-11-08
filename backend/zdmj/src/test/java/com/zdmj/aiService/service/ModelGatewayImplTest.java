@@ -63,17 +63,6 @@ class ModelGatewayImplTest {
         verify(clients, never()).buildUserModel(any(), any());
     }
 
-    @Test
-    void testConnection_whenModelCodeInvalid_shouldThrowBeforeBuildingProbe() {
-        ModelGatewayImpl gateway = gateway();
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> gateway.testConnection("not-a-model", "key"));
-
-        assertEquals(ErrorCode.USER_LLM_CONFIG_INVALID.getCode(), ex.getCode());
-        verify(clients, never()).buildProbe(any(), any());
-    }
-
     private ModelGatewayImpl gateway() {
         return new ModelGatewayImpl(promptLoader, configurationProvider, clients, chatMemory);
     }

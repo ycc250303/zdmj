@@ -20,13 +20,11 @@ import com.zdmj.common.model.Result;
 import com.zdmj.common.model.UpdateGroup;
 import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
-import com.zdmj.jobService.dto.JobCareerGraphResponse;
 import com.zdmj.jobService.dto.JobRequest;
 import com.zdmj.jobService.dto.JobResponse;
 import com.zdmj.jobService.dto.JobPageQueryDTO;
 import com.zdmj.jobService.enums.JobEmploymentEnum;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
-import com.zdmj.jobService.service.JobCareerGraphService;
 import com.zdmj.jobService.service.JobService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -37,12 +35,11 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/jobs")
-@Tag(name = "岗位管理", description = "岗位信息、能力画像与职业图谱")
+@Tag(name = "岗位管理", description = "岗位信息与能力画像")
 public class JobController {
 
     private final JobService jobService;
     private final JobCapabilityProfileService jobCapabilityProfileService;
-    private final JobCareerGraphService jobCareerGraphService;
 
     /**
      * 查询岗位详情
@@ -147,33 +144,4 @@ public class JobController {
     public Result<JobCapabilityProfileResponse> getJobCapabilityProfile(@PathVariable Long id) {
         return Result.success("生成岗位能力画像成功", jobCapabilityProfileService.getJobCapabilityProfile(id));
     }
-
-        /**
-     * 查询岗位关联图谱（仅查询，不触发 LLM 生成；不存在返回 null）。
-     *
-     * <p>图谱包含两部分：</p>
-     * <ul>
-     *     <li>{@code verticalPath} — 垂直岗位图谱（岗位未来发展路径，至少 3 个层级节点）。</li>
-     *     <li>{@code transitionPaths} — 换岗路径图谱（至少 5 条，每条 ≥2 个节点）。</li>
-     * </ul>
-     *
-     * @param id 岗位ID
-     * @return 岗位关联图谱或 null
-     */
-        @GetMapping("/{id}/career-graph")
-        public Result<JobCareerGraphResponse> queryJobCareerGraph(@PathVariable Long id) {
-            return Result.success("查询岗位关联图谱成功", jobCareerGraphService.getOrNull(id));
-        }
-    
-        /**
-         * 生成岗位关联图谱（若已有则覆盖重写）。
-         *
-         * @param id 岗位ID
-         * @return 岗位关联图谱
-         */
-        @RateLimit(dimension = RateLimit.Dimension.USER, count = 5, interval = 1, timeUnit = TimeUnit.MINUTES)
-        @PostMapping("/{id}/career-graph")
-        public Result<JobCareerGraphResponse> generateJobCareerGraph(@PathVariable Long id) {
-            return Result.success("生成岗位关联图谱成功", jobCareerGraphService.generate(id));
-        }
 }

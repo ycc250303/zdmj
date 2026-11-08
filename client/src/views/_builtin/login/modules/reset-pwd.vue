@@ -12,7 +12,7 @@ defineOptions({
 
 const { toggleLoginModule } = useRouterPush();
 const { formRef, validate } = useNaiveForm();
-const { label, isCounting, loading, getCaptcha, start } = useCaptcha();
+const { label, isCounting, loading, getCaptcha, start } = useCaptcha('reset_password');
 
 interface FormModel {
   email: string;

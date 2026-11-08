@@ -16,13 +16,11 @@ import org.springframework.ai.openai.api.ResponseFormat;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import com.zdmj.aiService.api.ModelAdministration;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.aiService.api.StreamingModelRequest;
 import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.aiService.config.ModelClientConfiguration;
-import com.zdmj.aiService.model.ModelCode;
 import com.zdmj.aiService.provider.ResolvedModelConfiguration;
 import com.zdmj.aiService.provider.UserModelConfigurationProvider;
 import com.zdmj.common.prompt.PromptLoader;
@@ -34,12 +32,12 @@ import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 
 /**
- * {@link ModelGateway} 与 {@link ModelAdministration} 的实现：按用户配置构建客户端，完成提示词渲染、结构化输出和流式调用。
- * 缓存失效与连通性探测留在本类，以便清除同一份客户端缓存。
+ * 按用户配置构建客户端，完成提示词渲染、结构化输出和流式调用。
+ * 客户端缓存由本类持有，配置管理通过模块内部方法清除缓存。
  */
 @Slf4j
 @Service
-public class ModelGatewayImpl implements ModelGateway, ModelAdministration {
+public class ModelGatewayImpl implements ModelGateway {
 
     /**
      * 仅结构化调用附带 JSON Mode。请求 options 与客户端默认项合并，不改缓存的 ChatClient。
@@ -107,34 +105,17 @@ public class ModelGatewayImpl implements ModelGateway, ModelAdministration {
                 .content();
     }
 
-    @Override
-    public void evict(CurrentActor actor) {
+    /**
+     * 清除当前用户的普通客户端与会话客户端缓存。
+     *
+     * @param actor 当前操作者
+     * @throws BusinessException 身份缺失时返回未登录错误
+     */
+    void evict(CurrentActor actor) {
         Long userId = requireUserId(actor);
         clientCache.remove(cacheKey(userId, false));
         clientCache.remove(cacheKey(userId, true));
         log.info("[ModelGateway] evicted cache userId={}", userId);
-    }
-
-    @Override
-    public void testConnection(String modelCode, String apiKey) {
-        long startedAt = System.currentTimeMillis();
-        try {
-            ModelCode model = ModelCode.fromCode(modelCode);
-            ChatClient.builder(clients.buildProbe(modelCode, apiKey))
-                    .build()
-                    .prompt()
-                    .user("ping")
-                    .call()
-                    .content();
-            log.info("[ModelGateway] testConnection ok modelCode={} apiModel={} elapsedMs={}",
-                    modelCode, model.apiModelName(), System.currentTimeMillis() - startedAt);
-        } catch (BusinessException e) {
-            throw e;
-        } catch (Exception e) {
-            log.warn("[ModelGateway] testConnection failed modelCode={} elapsedMs={}",
-                    modelCode, System.currentTimeMillis() - startedAt, e);
-            throw new BusinessException(ErrorCode.USER_LLM_CONNECTION_TEST_FAILED, e);
-        }
     }
 
     /**

@@ -6,7 +6,7 @@ import { fetchGetVerificationCode } from '@/service/api/auth';
 
 const REG_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function useCaptcha() {
+export function useCaptcha(type: 'register' | 'reset_password') {
   const { loading, startLoading, endLoading } = useLoading();
   const { count, start, stop, isCounting } = useCountDown(60);
 
@@ -51,7 +51,7 @@ export function useCaptcha() {
     }
 
     startLoading();
-    const { error } = await fetchGetVerificationCode(account);
+    const { error } = await fetchGetVerificationCode(account, type);
     if (error) {
       endLoading();
       return; 
