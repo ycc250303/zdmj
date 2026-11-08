@@ -11,7 +11,7 @@ defineOptions({
 
 const { toggleLoginModule } = useRouterPush();
 const { formRef, validate } = useNaiveForm();
-const { label, isCounting, loading, getCaptcha } = useCaptcha();
+const { label, isCounting, loading, getCaptcha } = useCaptcha('register');
 
 interface FormModel {
   email: string;

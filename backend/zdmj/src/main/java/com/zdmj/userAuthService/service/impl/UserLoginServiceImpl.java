@@ -6,7 +6,6 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.DateTimeUtil;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.security.JwtSessionStore;
 import com.zdmj.common.security.JwtTokenService;
 import com.zdmj.userAuthService.dto.UserResponse;
@@ -18,7 +17,7 @@ import com.zdmj.userAuthService.dto.UserUpdateRequest;
 import com.zdmj.userAuthService.entity.User;
 import com.zdmj.userAuthService.mapper.UserMapper;
 import com.zdmj.userAuthService.enums.VerificationCodeScene;
-import com.zdmj.userAuthService.service.UserService;
+import com.zdmj.userAuthService.service.UserLoginService;
 import com.zdmj.userAuthService.service.VerificationCodeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,7 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @RequiredArgsConstructor
 @Service
-public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
+public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implements UserLoginService {
 
     private static final PasswordEncoder PASSWORD_ENCODER = new BCryptPasswordEncoder();
 
@@ -43,6 +42,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private final JwtSessionStore jwtSessionStore;
     private final JwtTokenService jwtTokenService;
 
+    /**
+     * 注册用户
+     *
+     * @param registerDTO 用户名、邮箱、密码与验证码
+     * @return 提交后的用户信息
+     * @throws BusinessException 用户已存在、验证码被拒绝或基础设施不可用；数据库故障保留原因传播
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public UserResponse register(UserRegisterRequest registerDTO) {
@@ -56,30 +62,31 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new BusinessException(ErrorCode.USER_EMAIL_EXISTS);
         }
 
-        // 3. 验证验证码
-        if (!verificationCodeService.verifyCode(registerDTO.getEmail(), registerDTO.getVerificationCode(),
-                VerificationCodeScene.REGISTER)) {
-            throw new BusinessException(ErrorCode.CAPTCHA_ERROR);
-        }
-
-        // 4. 创建用户对象
+        // 3. 创建用户
         User user = new User();
         user.setUsername(registerDTO.getUsername());
         user.setPassword(PASSWORD_ENCODER.encode(registerDTO.getPassword()));
         user.setEmail(registerDTO.getEmail());
 
-        // 5. 保存到数据库
-        boolean saved = save(user);
-        if (!saved) {
+        // 4. 验证验证码
+        verificationCodeService.verifyAndConsume(registerDTO.getEmail(), registerDTO.getVerificationCode(),
+                VerificationCodeScene.REGISTER);
+
+        // 5. 保存用户
+        if (!save(user)) {
             throw new BusinessException(ErrorCode.USER_REGISTER_FAILED);
         }
-
         log.info("用户注册成功: {}", user.getUsername());
-
-        // 6. 转换为DTO返回
         return convertToResponse(user);
     }
 
+    /**
+     * 登录
+     *
+     * @param loginDTO 用户名或邮箱与密码
+     * @return 登录响应（包含Token和用户信息）
+     * @throws BusinessException 用户不存在、密码错误或基础设施不可用；数据库故障保留原因传播
+     */
     @Override
     public UserLoginResponse login(UserLoginRequest loginDTO) {
         // 1. 根据用户名或邮箱查询用户
@@ -138,6 +145,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 .eq(User::getEmail, email)) > 0;
     }
 
+    /**
+     * 确认邮箱已注册并准备新密码，消费验证码后更新密码。
+     * 数据库写入失败时保留原密码，验证码需要重新获取。
+     *
+     * @param resetPasswordDTO 邮箱、验证码与新密码
+     * @throws BusinessException 邮箱未注册、验证码被拒绝或基础设施不可用；数据库故障保留原因传播
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void resetPassword(UserResetPasswordRequest resetPasswordDTO) {
@@ -147,16 +161,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new BusinessException(ErrorCode.USER_EMAIL_NOT_REGISTERED);
         }
 
-        // 2. 验证验证码
-        if (!verificationCodeService.verifyCode(resetPasswordDTO.getEmail(), resetPasswordDTO.getVerificationCode(),
-                VerificationCodeScene.RESET_PASSWORD)) {
-            throw new BusinessException(ErrorCode.CAPTCHA_ERROR);
-        }
-
-        // 3. 加密新密码
         String encodedPassword = PASSWORD_ENCODER.encode(resetPasswordDTO.getNewPassword());
-
-        // 4. 使用 MyBatis-Plus 的 LambdaUpdateWrapper 更新密码
+        verificationCodeService.verifyAndConsume(resetPasswordDTO.getEmail(), resetPasswordDTO.getVerificationCode(),
+                VerificationCodeScene.RESET_PASSWORD);
         boolean updated = update(new LambdaUpdateWrapper<User>()
                 .eq(User::getId, user.getId())
                 .set(User::getPassword, encodedPassword)
@@ -164,23 +171,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (!updated) {
             throw new BusinessException(ErrorCode.PASSWORD_CHANGE_FAILED);
         }
-
         log.info("用户密码重置成功: userId={}, email={}", user.getId(), resetPasswordDTO.getEmail());
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public UserResponse updateCurrentUser(UserUpdateRequest updateDTO) {
-        if (updateDTO.getName() != null) {
-            rejectBlankField(updateDTO.getName(), "姓名不能为空");
-        }
-        if (updateDTO.getPhone() != null) {
-            rejectBlankField(updateDTO.getPhone(), "电话不能为空");
-        }
-        if (updateDTO.getWebsite() != null) {
-            rejectBlankField(updateDTO.getWebsite(), "主页链接不能为空");
-        }
-        return updateProfile(UserHolder.requireUserId(), updateDTO);
     }
 
     @Override
@@ -221,12 +212,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private User getUserByEmail(String email) {
         return getOne(new LambdaQueryWrapper<User>()
                 .eq(User::getEmail, email));
-    }
-
-    private void rejectBlankField(String value, String message) {
-        if (value.isBlank()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, message);
-        }
     }
 
     /**

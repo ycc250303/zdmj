@@ -19,6 +19,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import jakarta.mail.Multipart;
+import jakarta.mail.Part;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -39,7 +41,6 @@ import com.zdmj.testsupport.TestJwt;
 import com.zdmj.testsupport.TestMailSender;
 import com.zdmj.testsupport.TestUsers;
 import com.zdmj.userAuthService.entity.User;
-import com.zdmj.userAuthService.enums.VerificationCodeKeys;
 import com.zdmj.userAuthService.enums.VerificationCodeScene;
 
 @AutoConfigureMockMvc
@@ -66,46 +67,44 @@ class AuthenticationFlowIT extends IntegrationTestBase {
     }
 
     @ParameterizedTest
-    @CsvSource({"true, , RESET_PASSWORD, 重置密码验证码", "false, , REGISTER, 注册验证码",
-            "true, register, REGISTER, 注册验证码", "false, reset, RESET_PASSWORD, 重置密码验证码"})
-    void 发送验证码_按显式类型或邮箱注册状态发送邮件_有效期内拒绝重复发送(
+    @CsvSource({"true, register, REGISTER, 注册验证码", "false, reset_password, RESET_PASSWORD, 重置密码验证码"})
+    void 发送验证码_按类型发送邮件_有效期内拒绝重复发送(
             boolean registered, String type, VerificationCodeScene scene, String subject) throws Exception {
         TestUsers.Pair pair = testUsers.createPair();
         String email = registered ? pair.userA().getEmail() : "new-user@example.com";
         int sentBefore = mailSender.sentMessages().size();
-        var request = post(VERIFICATION_CODES).param("email", email);
-        if (type != null) {
-            request.param("type", type);
-        }
+        var request = post(VERIFICATION_CODES).param("email", email).param("type", type);
 
         mockMvc.perform(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.msg").value("验证码已发送到邮箱"));
 
-        String key = VerificationCodeKeys.key(scene, email);
-        String code = redisTemplate.opsForValue().get(key);
-        assertTrue(code != null && code.matches("[1-9][0-9]{5}"));
+        String key = scene.key(email);
+        String record = redisTemplate.opsForValue().get(key);
+        assertTrue(record != null && record.matches("[0-9a-f-]{36}:[1-9][0-9]{5}"));
+        String code = record.substring(record.lastIndexOf(':') + 1);
         Long ttl = redisTemplate.getExpire(key, TimeUnit.SECONDS);
-        assertTrue(ttl != null && ttl > 0 && ttl <= VerificationCodeKeys.TTL_SECONDS);
+        assertTrue(ttl != null && ttl > 0 && ttl <= VerificationCodeScene.TTL_SECONDS);
         VerificationCodeScene other = scene == VerificationCodeScene.REGISTER
                 ? VerificationCodeScene.RESET_PASSWORD : VerificationCodeScene.REGISTER;
-        assertNull(redisTemplate.opsForValue().get(VerificationCodeKeys.key(other, email)));
+        assertNull(redisTemplate.opsForValue().get(other.key(email)));
         assertEquals(sentBefore + 1, mailSender.sentMessages().size());
         var mail = mailSender.sentMessages().get(sentBefore);
         assertEquals(subject, mail.getSubject());
         assertEquals(email, mail.getAllRecipients()[0].toString());
+        assertTrue(mailContains(mail, code));
 
         mockMvc.perform(request)
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.code").value(2009));
-        assertEquals(code, redisTemplate.opsForValue().get(key));
+        assertEquals(record, redisTemplate.opsForValue().get(key));
         assertEquals(sentBefore + 1, mailSender.sentMessages().size());
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"", "  ", "invalid"})
+    @ValueSource(strings = {"", "  ", "invalid", "reset", "reset-password", "RESET_PASSWORD"})
     void 发送验证码_类型为空白或非法_返回参数错误且不发送邮件(String type) throws Exception {
         String email = "new-user@example.com";
         int sentBefore = mailSender.sentMessages().size();
@@ -118,7 +117,22 @@ class AuthenticationFlowIT extends IntegrationTestBase {
 
         assertEquals(sentBefore, mailSender.sentMessages().size());
         for (VerificationCodeScene scene : VerificationCodeScene.values()) {
-            assertNull(redisTemplate.opsForValue().get(VerificationCodeKeys.key(scene, email)));
+            assertNull(redisTemplate.opsForValue().get(scene.key(email)));
+        }
+    }
+
+    @Test
+    void 发送验证码_未传类型_返回参数错误且不发送邮件() throws Exception {
+        String email = "new-user@example.com";
+        int sentBefore = mailSender.sentMessages().size();
+
+        mockMvc.perform(post(VERIFICATION_CODES).param("email", email))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+
+        assertEquals(sentBefore, mailSender.sentMessages().size());
+        for (VerificationCodeScene scene : VerificationCodeScene.values()) {
+            assertNull(redisTemplate.opsForValue().get(scene.key(email)));
         }
     }
 
@@ -206,6 +220,21 @@ class AuthenticationFlowIT extends IntegrationTestBase {
         if (!unexpected.isEmpty()) {
             throw new AssertionError("响应身份与令牌不一致: " + unexpected + " body=" + body);
         }
+    }
+
+    private static boolean mailContains(Part part, String text) throws Exception {
+        Object content = part.getContent();
+        if (content instanceof String body) {
+            return body.contains(text);
+        }
+        if (content instanceof Multipart multipart) {
+            for (int index = 0; index < multipart.getCount(); index++) {
+                if (mailContains(multipart.getBodyPart(index), text)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static void assertContextCleared() {

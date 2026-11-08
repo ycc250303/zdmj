@@ -3,7 +3,7 @@ package com.zdmj.userAuthService.service.impl;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import com.zdmj.aiService.model.ModelCode;
+import com.zdmj.aiService.enums.ModelCode;
 import com.zdmj.aiService.provider.ResolvedModelConfiguration;
 import com.zdmj.aiService.provider.UserModelConfigurationProvider;
 import com.zdmj.common.context.CurrentActor;

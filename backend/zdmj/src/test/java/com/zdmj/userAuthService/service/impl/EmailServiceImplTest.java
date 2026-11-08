@@ -1,6 +1,8 @@
 package com.zdmj.userAuthService.service.impl;
 
 import jakarta.mail.internet.MimeMessage;
+import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,14 +35,16 @@ class EmailServiceImplTest {
     }
 
     @Test
-    void sendEmail_whenMailSenderFails_shouldThrowRuntimeException() {
+    void sendEmail_whenMailSenderFails_shouldPreserveCauseAndReportMailUnavailable() {
         when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
-        doThrow(new MailSendException("send failed")).when(mailSender).send(mimeMessage);
+        MailSendException cause = new MailSendException("send failed");
+        doThrow(cause).when(mailSender).send(mimeMessage);
 
-        RuntimeException ex = assertThrows(RuntimeException.class,
+        BusinessException ex = assertThrows(BusinessException.class,
                 () -> emailService.sendEmail("to@test.com", "subject", "content"));
 
-        assertEquals("邮件发送失败", ex.getMessage());
+        assertEquals(ErrorCode.CAPTCHA_MAIL_UNAVAILABLE, ex.getErrorCode());
+        org.junit.jupiter.api.Assertions.assertSame(cause, ex.getCause());
         verify(mailSender).send(mimeMessage);
     }
 

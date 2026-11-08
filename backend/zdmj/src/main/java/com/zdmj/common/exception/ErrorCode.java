@@ -42,6 +42,8 @@ public enum ErrorCode {
     USER_LLM_API_KEY_ENCRYPT_FAILED(2012, "API Key 加密失败", HttpStatus.BAD_REQUEST),
     USER_LLM_API_KEY_DECRYPT_FAILED(2013, "API Key 解密失败", HttpStatus.BAD_REQUEST),
     USER_LLM_CONNECTION_TEST_FAILED(2014, "大模型连通性测试失败", HttpStatus.BAD_REQUEST),
+    CAPTCHA_STORE_UNAVAILABLE(2015, "验证码存储服务暂不可用", HttpStatus.SERVICE_UNAVAILABLE),
+    CAPTCHA_MAIL_UNAVAILABLE(2016, "验证码邮件发送失败，请稍后重试", HttpStatus.SERVICE_UNAVAILABLE),
 
     // ========== 简历与能力画像 3xxx ==========
     RESUME_CREATE_FAILED(3002, "创建简历失败", HttpStatus.BAD_REQUEST),

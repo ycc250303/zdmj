@@ -1,28 +1,27 @@
 package com.zdmj.userAuthService.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.userAuthService.enums.VerificationCodeKeys;
+import com.zdmj.userAuthService.enums.VerificationCodeError;
 import com.zdmj.userAuthService.enums.VerificationCodeScene;
-import com.zdmj.userAuthService.entity.User;
-import com.zdmj.userAuthService.mapper.UserMapper;
 import com.zdmj.userAuthService.service.EmailService;
 import com.zdmj.userAuthService.service.VerificationCodeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
-import java.util.Random;
-import java.util.concurrent.TimeUnit;
+import java.security.SecureRandom;
+import java.time.Duration;
+import java.util.List;
+import java.util.UUID;
 
 /**
- * 验证码服务实现类
+ * 管理验证码的发送与一次性消费，Redis 记录保存发送标识和六位验证码。
  */
 @Slf4j
 @Service
@@ -31,99 +30,100 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
 
     private final StringRedisTemplate redisTemplate;
     private final EmailService emailService;
-    private final UserMapper userMapper;
-    private static final RedisScript<Long> VERIFY_AND_DELETE_SCRIPT = loadVerifyAndDeleteScript();
+    private static final SecureRandom RANDOM = new SecureRandom();
+    private static final RedisScript<Long> DELETE_SCRIPT;
 
-    private static RedisScript<Long> loadVerifyAndDeleteScript() {
+    static {
         DefaultRedisScript<Long> script = new DefaultRedisScript<>();
         script.setLocation(new ClassPathResource("lua/verify_code_and_delete.lua"));
         script.setResultType(Long.class);
-        return script;
-    }
-
-    private VerificationCodeScene resolveScene(String email, String type) {
-        if (type == null) {
-            boolean registered = userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getEmail, email)) > 0;
-            return registered ? VerificationCodeScene.RESET_PASSWORD : VerificationCodeScene.REGISTER;
-        }
-        if (type.isBlank()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "type 不能为空");
-        }
-        return switch (type.trim().toLowerCase()) {
-            case "register" -> VerificationCodeScene.REGISTER;
-            case "reset_password", "reset-password", "reset" -> VerificationCodeScene.RESET_PASSWORD;
-            default -> throw new BusinessException(ErrorCode.VALIDATION_ERROR, "type 无效");
-        };
+        DELETE_SCRIPT = script;
     }
 
     /**
-     * 解析显式类型或根据邮箱注册状态确定场景，检查重复发送后保存验证码并发送对应邮件。
+     * 原子建立带有效期的验证码记录并发送邮件，邮件失败时核对完整记录后清理。
      *
      * @param email 邮箱地址
-     * @param type 验证码类型；未传时根据邮箱注册状态确定场景
-     * @throws BusinessException 类型非法时返回参数校验错误；验证码尚未过期或发送失败时返回发送失败错误
+     * @param type 验证码场景，须与场景类型完整匹配
+     * @throws BusinessException 类型无效、重复发送、Redis 故障或邮件发送失败
      */
     @Override
     public void sendVerificationCode(String email, String type) {
-        VerificationCodeScene scene = resolveScene(email, type);
+        // 1. 解析场景
+        VerificationCodeScene scene = VerificationCodeScene.fromType(type);
+        // 2. 生成验证码
+        String key = scene.key(email);
+        String code = String.valueOf(100000 + RANDOM.nextInt(900000));
+        String record = UUID.randomUUID() + ":" + code;
+        Boolean created;
+        // 3. 写入Redis
         try {
-            String key = VerificationCodeKeys.key(scene, email);
-            if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) {
-                log.warn("验证码未过期，拒绝重复发送: {}, scene={}", email, scene);
-                throw new BusinessException(ErrorCode.CAPTCHA_SEND_FAILED);
-            }
-            String code = generateCode();
-            redisTemplate.opsForValue().set(key, code, VerificationCodeKeys.TTL_SECONDS, TimeUnit.SECONDS);
-
-            String subject;
-            String content;
-            if (scene == VerificationCodeScene.RESET_PASSWORD) {
-                subject = "重置密码验证码";
-                content = String.format(
-                        "您的重置密码验证码是：%s，有效期%d分钟，请勿泄露给他人。",
-                        code, VerificationCodeKeys.TTL_SECONDS / 60);
-            } else {
-                subject = "注册验证码";
-                content = String.format(
-                        "您的注册验证码是：%s，有效期%d分钟，请勿泄露给他人。",
-                        code, VerificationCodeKeys.TTL_SECONDS / 60);
-            }
-
+            created = redisTemplate.opsForValue().setIfAbsent(key, record,
+                    Duration.ofSeconds(VerificationCodeScene.TTL_SECONDS));
+        } catch (DataAccessException failure) {
+            throw new BusinessException(ErrorCode.CAPTCHA_STORE_UNAVAILABLE, failure);
+        }
+        if (created == null) {
+            throw new IllegalStateException("验证码写入未返回结果");
+        }
+        if (!created) {
+            throw new BusinessException(ErrorCode.CAPTCHA_SEND_FAILED, "验证码尚未过期，请勿重复发送");
+        }
+        // 4. 发送邮件
+        String subject = scene.getDescription();
+        String content = String.format("您的%s是：%s，有效期%d分钟，请勿泄露给他人。",
+                subject, code, VerificationCodeScene.TTL_SECONDS / 60);
+        try {
             emailService.sendEmail(email, subject, content);
-
-            log.info("验证码已发送到邮箱: {}, scene={}", email, scene);
-        } catch (BusinessException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("发送验证码失败: {}, scene={}", email, scene, e);
-            throw new BusinessException(ErrorCode.CAPTCHA_SEND_FAILED, e);
+        } catch (RuntimeException failure) {
+            try {
+                long deleted = delete(key, "cancel", record);
+                if (deleted != 0 && deleted != 1) {
+                    throw new IllegalStateException("验证码清理脚本返回未知结果: " + deleted);
+                }
+            } catch (RuntimeException cleanupFailure) {
+                failure.addSuppressed(cleanupFailure);
+                log.error("邮件失败后的验证码清理失败", cleanupFailure);
+            }
+            throw failure;
         }
     }
 
+    /**
+     * 删除验证码并验证结果
+     *
+     * @param email 邮箱地址
+     * @param code 验证码
+     * @param scene 验证码场景
+     * @throws BusinessException 验证码不存在、已使用、不匹配或 Redis 故障
+     */
     @Override
-    public boolean verifyCode(String email, String code, VerificationCodeScene scene) {
-        try {
-            String key = VerificationCodeKeys.key(scene, email);
-            Long result = redisTemplate.execute(VERIFY_AND_DELETE_SCRIPT, Collections.singletonList(key), code);
-            if (Long.valueOf(1L).equals(result)) {
-                log.info("验证码验证成功: {}, scene={}", email, scene);
-                return true;
-            }
-            if (Long.valueOf(-1L).equals(result)) {
-                log.warn("验证码错误: {}, scene={}", email, scene);
-                return false;
-            }
-            log.warn("验证码已过期或不存在: {}, scene={}", email, scene);
-            return false;
-        } catch (Exception e) {
-            log.error("验证验证码失败: {}, scene={}", email, scene, e);
-            return false;
+    public void verifyAndConsume(String email, String code, VerificationCodeScene scene) {
+        long result = delete(scene.key(email), "verify", code);
+        if (result != 1) {
+            throw VerificationCodeError.rejection(result);
         }
     }
 
-    private String generateCode() {
-        Random random = new Random();
-        int code = 100000 + random.nextInt(900000);
-        return String.valueOf(code);
+    /**
+     * 执行 Redis 脚本删除验证码。
+     *
+     * @param key Redis 键
+     * @param action 操作类型
+     * @param expected 期望值
+     * @return Redis 结果
+     * @throws BusinessException Redis 故障
+     */
+    private long delete(String key, String action, String expected) {
+        Long result;
+        try {
+            result = redisTemplate.execute(DELETE_SCRIPT, List.of(key), action, expected);
+        } catch (DataAccessException failure) {
+            throw new BusinessException(ErrorCode.CAPTCHA_STORE_UNAVAILABLE, failure);
+        }
+        if (result == null) {
+            throw new IllegalStateException("验证码脚本未返回结果");
+        }
+        return result;
     }
 }

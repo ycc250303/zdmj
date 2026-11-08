@@ -1,4 +1,4 @@
-package com.zdmj.aiService.model;
+package com.zdmj.aiService.enums;
 
 import org.springframework.util.StringUtils;
 

@@ -22,7 +22,7 @@ import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.aiService.api.StreamingModelRequest;
 import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.aiService.config.ModelClientConfiguration;
-import com.zdmj.aiService.model.ModelCode;
+import com.zdmj.aiService.enums.ModelCode;
 import com.zdmj.aiService.provider.ResolvedModelConfiguration;
 import com.zdmj.aiService.provider.UserModelConfigurationProvider;
 import com.zdmj.common.prompt.PromptLoader;

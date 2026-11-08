@@ -4,7 +4,7 @@ import { useRouterPush } from '@/hooks/common/router';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { useCaptcha } from '@/hooks/business/captcha';
 import { $t } from '@/locales';
-import { fetchGetVerificationCode, fetchRegister } from '@/service/api/auth';
+import { fetchRegister } from '@/service/api/auth';
 
 defineOptions({
   name: 'Register'
@@ -12,7 +12,7 @@ defineOptions({
 
 const { toggleLoginModule } = useRouterPush();
 const { formRef, validate } = useNaiveForm();
-const { label, isCounting, loading, getCaptcha, start } = useCaptcha();
+const { label, isCounting, loading, getCaptcha, start } = useCaptcha('register');
 
 interface FormModel {
   username: string;

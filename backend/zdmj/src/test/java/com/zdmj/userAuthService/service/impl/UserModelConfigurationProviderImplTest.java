@@ -15,7 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.zdmj.aiService.model.ModelCode;
+import com.zdmj.aiService.enums.ModelCode;
 import com.zdmj.aiService.provider.ResolvedModelConfiguration;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;

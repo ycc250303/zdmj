@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.zdmj.aiService.api.ModelAdministration;
-import com.zdmj.aiService.model.ModelCode;
+import com.zdmj.aiService.enums.ModelCode;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.userAuthService.llm.UserApiKeyCipher;

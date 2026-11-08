@@ -10,7 +10,7 @@ import com.zdmj.userAuthService.dto.UserUpdateRequest;
 /**
  * 用户服务接口
  */
-public interface UserService {
+public interface UserLoginService {
 
     /**
      * 用户注册
@@ -58,16 +58,6 @@ public interface UserService {
      * @param resetPasswordDTO 重置密码信息（包含邮箱、验证码、新密码）
      */
     void resetPassword(UserResetPasswordRequest resetPasswordDTO);
-
-    /**
-     * 更新当前登录用户的基本信息。
-     * 姓名、电话、主页传入空白时拒绝；然后按当前用户编号调用 {@link #updateProfile(Long, UserUpdateRequest)}。
-     *
-     * @param updateDTO 更新信息（姓名、电话、主页链接、意向工作城市）
-     * @return 更新后的用户信息
-     * @throws BusinessException 未登录、字段为空白、用户不存在或写入失败
-     */
-    UserResponse updateCurrentUser(UserUpdateRequest updateDTO);
 
     /**
      * 按用户编号更新姓名、电话、主页和意向工作城市。
