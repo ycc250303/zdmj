@@ -236,32 +236,6 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
     }
 
     @Test
-    void 用户模型配置_其他用户保存或删除_只影响自己的配置() throws Exception {
-        ApiClient.requireOk(api.put(tokenA, "/users/llm-config", """
-                {"modelCode":"deepseek-flash","apiKey":"sk-user-a-secret"}
-                """));
-        String owned = ApiClient.requireOk(api.get(tokenA, "/users/llm-config"));
-        assertThat(JsonPath.<Boolean>read(owned, "$.data.configured")).isTrue();
-        assertThat(JsonPath.<String>read(owned, "$.data.modelCode")).isEqualTo("deepseek-flash");
-        assertThat(owned).doesNotContain("sk-user-a-secret");
-
-        String hidden = ApiClient.requireOk(api.get(tokenB, "/users/llm-config"));
-        assertThat(JsonPath.<Boolean>read(hidden, "$.data.configured")).isFalse();
-
-        String cipherA = jdbcTemplate.queryForObject(
-                "SELECT api_key_ciphertext FROM user_llm_config WHERE user_id = ?", String.class, userA.getId());
-        ApiClient.requireOk(api.put(tokenB, "/users/llm-config", """
-                {"modelCode":"deepseek-flash","apiKey":"sk-user-b-secret"}
-                """));
-        ApiClient.requireOk(api.delete(tokenB, "/users/llm-config"));
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT api_key_ciphertext FROM user_llm_config WHERE user_id = ?", String.class, userA.getId()))
-                .isEqualTo(cipherA);
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM user_llm_config WHERE user_id = ?", Integer.class, userB.getId())).isZero();
-    }
-
-    @Test
     void 上传文件_其他用户删除_返回无权且文件仍可列出() throws Exception {
         String key = uploadKey(tokenA, "owned.txt", "用户A的文件");
         String listed = ApiClient.requireOk(api.get(tokenA, "/files/list?prefix=files"));

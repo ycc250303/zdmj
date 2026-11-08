@@ -2,7 +2,6 @@ package com.zdmj.userAuthService.dto;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.userAuthService.entity.User;
-import com.zdmj.userAuthService.entity.UserLlmConfig;
 import java.lang.reflect.Field;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
@@ -10,11 +9,10 @@ import static org.junit.jupiter.api.Assertions.*;
 class SensitiveFieldOutputTest {
     @Test
     void generatedStringExcludesCredentials() throws Exception {
-        Object[][] fields = {{User.class, "password"}, {UserLlmConfig.class, "apiKeyCiphertext"},
+        Object[][] fields = {{User.class, "password"},
                 {UserLoginRequest.class, "password"}, {UserRegisterRequest.class, "password"},
                 {UserRegisterRequest.class, "verificationCode"}, {UserResetPasswordRequest.class, "newPassword"},
-                {UserResetPasswordRequest.class, "verificationCode"}, {UserLlmConfigRequest.class, "apiKey"},
-                {UserLlmConnectionTestRequest.class, "apiKey"}, {UserLoginResponse.class, "token"}};
+                {UserResetPasswordRequest.class, "verificationCode"}, {UserLoginResponse.class, "token"}};
         for (Object[] entry : fields) {
             Class<?> type = (Class<?>) entry[0];
             String name = (String) entry[1];

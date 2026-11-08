@@ -3,7 +3,7 @@ package com.zdmj.aiService.provider;
 import com.zdmj.common.context.CurrentActor;
 
 /**
- * 查询用户已保存的模型配置。实现位于用户认证模块，模型网关不访问用户表和配置表。
+ * AI 模块内部查询用户已保存的模型配置，供模型网关解析调用所需的模型与密钥。
  */
 public interface UserModelConfigurationProvider {
 

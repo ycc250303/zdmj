@@ -1,32 +1,40 @@
-package com.zdmj.userAuthService.service.impl;
+package com.zdmj.aiService.service;
 
 import java.util.Arrays;
 import java.util.List;
 
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.zdmj.aiService.api.ModelAdministration;
+import com.zdmj.aiService.config.ModelClientConfiguration;
 import com.zdmj.aiService.enums.ModelCode;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.context.UserHolder;
-import com.zdmj.userAuthService.llm.UserApiKeyCipher;
-import com.zdmj.userAuthService.dto.LlmModelOptionResponse;
-import com.zdmj.userAuthService.dto.UserLlmConfigResponse;
-import com.zdmj.userAuthService.dto.UserLlmConfigRequest;
-import com.zdmj.userAuthService.dto.UserLlmConnectionTestRequest;
-import com.zdmj.userAuthService.entity.UserLlmConfig;
-import com.zdmj.userAuthService.mapper.UserLlmConfigMapper;
-import com.zdmj.userAuthService.service.UserLlmConfigService;
+import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.aiService.support.UserApiKeyCipher;
+import com.zdmj.aiService.dto.LlmModelOptionResponse;
+import com.zdmj.aiService.dto.UserLlmConfigResponse;
+import com.zdmj.aiService.dto.UserLlmConfigRequest;
+import com.zdmj.aiService.dto.UserLlmConnectionTestRequest;
+import com.zdmj.aiService.entity.UserLlmConfig;
+import com.zdmj.aiService.mapper.UserLlmConfigMapper;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+/**
+ * 管理当前用户的模型配置、密钥存储与连通性检查。
+ */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserLlmConfigServiceImpl implements UserLlmConfigService {
     private final UserLlmConfigMapper userLlmConfigMapper;
-    private final ModelAdministration modelAdministration;
+    private final ModelGatewayImpl modelGateway;
     private final UserApiKeyCipher userApiKeyCipher;
+    private final ModelClientConfiguration clients;
 
     @Override
     public UserLlmConfigResponse getMyConfig(){
@@ -79,7 +87,7 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
             existingConfig.setApiKeyCiphertext(ciphertext);
             userLlmConfigMapper.updateById(existingConfig);
         }
-        modelAdministration.evict(CurrentActor.of(userId));
+        modelGateway.evict(CurrentActor.of(userId));
     }
 
     @Override
@@ -87,11 +95,30 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
     public void deleteMyConfig(){
         Long userId = UserHolder.requireUserId();
         userLlmConfigMapper.deleteById(userId);
-        modelAdministration.evict(CurrentActor.of(userId));
+        modelGateway.evict(CurrentActor.of(userId));
     }
 
     @Override
     public void testConnection(UserLlmConnectionTestRequest request) {
-        modelAdministration.testConnection(request.getModelCode(), request.getApiKey().trim());
+        String modelCode = request.getModelCode();
+        String apiKey = request.getApiKey().trim();
+        long startedAt = System.currentTimeMillis();
+        try {
+            ModelCode model = ModelCode.fromCode(modelCode);
+            ChatClient.builder(clients.buildProbe(modelCode, apiKey))
+                    .build()
+                    .prompt()
+                    .user("ping")
+                    .call()
+                    .content();
+            log.info("[UserLlmConfig] testConnection ok modelCode={} apiModel={} elapsedMs={}",
+                    modelCode, model.apiModelName(), System.currentTimeMillis() - startedAt);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("[UserLlmConfig] testConnection failed modelCode={} elapsedMs={}",
+                    modelCode, System.currentTimeMillis() - startedAt, e);
+            throw new BusinessException(ErrorCode.USER_LLM_CONNECTION_TEST_FAILED, e);
+        }
     }
 }

@@ -1,4 +1,4 @@
-package com.zdmj.userAuthService.service.impl;
+package com.zdmj.aiService.service.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -20,9 +20,9 @@ import com.zdmj.aiService.provider.ResolvedModelConfiguration;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.userAuthService.entity.UserLlmConfig;
-import com.zdmj.userAuthService.llm.UserApiKeyCipher;
-import com.zdmj.userAuthService.mapper.UserLlmConfigMapper;
+import com.zdmj.aiService.entity.UserLlmConfig;
+import com.zdmj.aiService.support.UserApiKeyCipher;
+import com.zdmj.aiService.mapper.UserLlmConfigMapper;
 
 @ExtendWith(MockitoExtension.class)
 class UserModelConfigurationProviderImplTest {

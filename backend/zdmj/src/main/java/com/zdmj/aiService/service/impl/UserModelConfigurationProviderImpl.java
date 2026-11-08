@@ -1,4 +1,4 @@
-package com.zdmj.userAuthService.service.impl;
+package com.zdmj.aiService.service.impl;
 
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -9,9 +9,9 @@ import com.zdmj.aiService.provider.UserModelConfigurationProvider;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.userAuthService.entity.UserLlmConfig;
-import com.zdmj.userAuthService.llm.UserApiKeyCipher;
-import com.zdmj.userAuthService.mapper.UserLlmConfigMapper;
+import com.zdmj.aiService.entity.UserLlmConfig;
+import com.zdmj.aiService.support.UserApiKeyCipher;
+import com.zdmj.aiService.mapper.UserLlmConfigMapper;
 
 /**
  * 从用户模型配置表解析已保存的模型与密钥。供应商客户端不在本类处理。

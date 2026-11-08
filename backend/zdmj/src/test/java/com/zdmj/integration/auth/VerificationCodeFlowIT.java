@@ -209,6 +209,7 @@ class VerificationCodeFlowIT extends IntegrationTestBase {
 
     @Test
     void 注册接口_正确验证码只可使用一次_错误验证码不改变记录() throws Exception {
+        verification.sendVerificationCode(EMAIL, "register");
         String code = code(KEY);
         String record = redis.opsForValue().get(KEY);
         String request = "{\"username\":\"verification-user\",\"email\":\"" + EMAIL

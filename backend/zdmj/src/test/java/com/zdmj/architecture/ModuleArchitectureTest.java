@@ -37,6 +37,22 @@ class ModuleArchitectureTest {
     };
 
     @ArchTest
+    static final ArchRule user_auth_does_not_depend_on_ai = noClasses()
+            .that().resideInAPackage("com.zdmj.userAuthService..")
+            .should().dependOnClassesThat().resideInAPackage("com.zdmj.aiService..");
+
+    @ArchTest
+    static final ArchRule ai_does_not_depend_on_user_auth = noClasses()
+            .that().resideInAPackage("com.zdmj.aiService..")
+            .should().dependOnClassesThat().resideInAPackage("com.zdmj.userAuthService..");
+
+    @ArchTest
+    static final ArchRule ai_mappers_stay_inside_module = classes()
+            .that().resideInAPackage("com.zdmj.aiService.mapper..")
+            .should().onlyBeAccessed().byAnyPackage("com.zdmj.aiService.mapper..",
+                    "com.zdmj.aiService.service..", "com.zdmj.aiService.support..");
+
+    @ArchTest
     static final ArchRule ai_does_not_depend_on_job_types = noClasses()
             .that().resideInAPackage("com.zdmj.aiService..")
             .should().dependOnClassesThat().resideInAPackage("com.zdmj.jobService..");

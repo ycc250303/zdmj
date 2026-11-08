@@ -1,4 +1,4 @@
-package com.zdmj.userAuthService.controller;
+package com.zdmj.aiService.controller;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -13,11 +13,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.zdmj.common.annotation.RateLimit;
 import com.zdmj.common.model.Result;
-import com.zdmj.userAuthService.dto.LlmModelOptionResponse;
-import com.zdmj.userAuthService.dto.UserLlmConfigResponse;
-import com.zdmj.userAuthService.dto.UserLlmConfigRequest;
-import com.zdmj.userAuthService.dto.UserLlmConnectionTestRequest;
-import com.zdmj.userAuthService.service.UserLlmConfigService;
+import com.zdmj.aiService.dto.LlmModelOptionResponse;
+import com.zdmj.aiService.dto.UserLlmConfigResponse;
+import com.zdmj.aiService.dto.UserLlmConfigRequest;
+import com.zdmj.aiService.dto.UserLlmConnectionTestRequest;
+import com.zdmj.aiService.service.UserLlmConfigService;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -32,8 +32,9 @@ public class UserLlmConfigController {
     private final UserLlmConfigService userLlmConfigService;
 
     /**
-     * 获取用户当前配置
-     * @return
+     * 获取当前用户的模型配置。
+     *
+     * @return 配置与密钥掩码，没有配置时 configured 为 false
      */     
     @GetMapping
     public Result<UserLlmConfigResponse> getMyConfig() {
@@ -41,8 +42,9 @@ public class UserLlmConfigController {
     }
 
     /**
-     * 获取模型列表
-     * @return
+     * 获取可供用户选择的模型目录。
+     *
+     * @return 模型编号与展示名称
      */
     @GetMapping("/models")
     public Result<List<LlmModelOptionResponse>> listModels() {
@@ -50,9 +52,10 @@ public class UserLlmConfigController {
     }
 
     /**
-     * 保存用户当前配置
-     * @param request
-     * @return
+     * 保存当前用户的模型与供应商密钥。
+     *
+     * @param request 模型编号与明文密钥
+     * @return 保存成功响应
      */
     @PutMapping
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 20, interval = 1, timeUnit = TimeUnit.MINUTES)
@@ -62,8 +65,9 @@ public class UserLlmConfigController {
     }
 
     /**
-     * 删除用户当前配置
-     * @return
+     * 删除当前用户的模型配置。
+     *
+     * @return 删除成功响应
      */
     @DeleteMapping
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
@@ -73,7 +77,10 @@ public class UserLlmConfigController {
     }
 
     /**
-     * 使用请求体中的模型与 API Key 测试连通性（不读库）
+     * 使用请求体中的模型与 API Key 检查连通性。
+     *
+     * @param request 模型编号与探测密钥
+     * @return 连通性检查成功响应
      */
     @PostMapping("/test")
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)

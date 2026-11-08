@@ -1,4 +1,4 @@
-package com.zdmj.userAuthService.llm;
+package com.zdmj.aiService.support;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.encrypt.Encryptors;
