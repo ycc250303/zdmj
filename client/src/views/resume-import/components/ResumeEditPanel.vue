@@ -19,12 +19,6 @@ const degreeOptions = computed(() => [
   { label: $t('page.profile.education.degrees.other'), value: 6 }
 ]);
 
-const awardTypeOptions = computed(() => [
-  { label: $t('page.resume.awardTypeScholarship'), value: 1 },
-  { label: $t('page.resume.awardTypeCompetition'), value: 2 },
-  { label: $t('page.resume.awardTypeOther'), value: 3 }
-]);
-
 function dateStrToTs(str: string | undefined): number | null {
   if (!str) return null;
   const d = new Date(str);
@@ -368,11 +362,6 @@ function awardDateBind(item: DraftAward) {
               </NPopconfirm>
             </div>
             <NGrid :cols="2" :x-gap="12">
-              <NGridItem>
-                <NFormItem :label="$t('page.resume.awardType')">
-                  <NSelect v-model:value="award.awardType" :options="awardTypeOptions" />
-                </NFormItem>
-              </NGridItem>
               <NGridItem>
                 <NFormItem :label="$t('page.resume.awardName')">
                   <NInput v-model:value="award.name" />

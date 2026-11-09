@@ -25,7 +25,6 @@ import com.zdmj.resumeService.service.EducationService;
 import com.zdmj.resumeService.service.ProjectExperienceService;
 import com.zdmj.resumeService.service.ResumeService;
 import com.zdmj.resumeService.service.SkillService;
-import com.zdmj.resumeService.support.AwardImportSupport;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
@@ -566,7 +565,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         result.setProjects(projects);
 
         List<ResumeImportParseResponse.AwardItem> awards = new ArrayList<>();
-        Set<String> seenAwardKeys = new HashSet<>();
         for (ResumeImportParseResponse.AwardItem item : result.getAwards()) {
             if (item == null) {
                 continue;
@@ -578,13 +576,8 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
             if (!StringUtils.hasText(item.getName())) {
                 continue;
             }
-            item.setAwardType(AwardImportSupport.resolveAwardType(item.getAwardType(), item.getName()));
+            item.setName(item.getName().trim());
             LocalDate awardDate = parseAwardDate(item, warnings);
-            item.setName(AwardImportSupport.cleanAwardName(item.getName()));
-            String key = AwardImportSupport.normalizeAwardNameKey(item.getName());
-            if (!seenAwardKeys.add(key)) {
-                continue;
-            }
             item.setAwardDate(formatDateString(awardDate));
             awards.add(item);
         }

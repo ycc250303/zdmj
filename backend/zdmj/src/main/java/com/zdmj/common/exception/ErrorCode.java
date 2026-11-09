@@ -84,7 +84,6 @@ public enum ErrorCode {
     AWARD_UPDATE_FAILED(6502, "更新获奖信息失败", HttpStatus.BAD_REQUEST),
     AWARD_DELETE_FAILED(6503, "删除获奖信息失败", HttpStatus.BAD_REQUEST),
     AWARD_NOT_FOUND(6504, "获奖信息不存在", HttpStatus.NOT_FOUND),
-    AWARD_TYPE_INVALID(6505, "奖项类型无效", HttpStatus.BAD_REQUEST),
 
     // ========== 技能 7xxx ==========
     SKILL_ADD_FAILED(7001, "添加技能失败", HttpStatus.BAD_REQUEST),

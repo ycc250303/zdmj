@@ -647,10 +647,6 @@ const local: App.I18n.Schema = {
       "detailsLabel": "工作内容",
       "descLabel": "项目描述",
       "contributionLabel": "个人贡献",
-      "awardType": "奖项类型",
-      "awardTypeScholarship": "奖学金",
-      "awardTypeCompetition": "竞赛获奖",
-      "awardTypeOther": "其他类型",
       "awardName": "奖项名称",
       "awardDate": "获奖时间",
       "awardDescription": "奖项说明"

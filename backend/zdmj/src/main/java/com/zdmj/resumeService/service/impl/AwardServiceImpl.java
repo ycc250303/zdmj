@@ -7,7 +7,6 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.resumeService.dto.AwardRequest;
 import com.zdmj.resumeService.dto.AwardResponse;
 import com.zdmj.resumeService.entity.Award;
-import com.zdmj.resumeService.enums.AwardTypeEnum;
 import com.zdmj.resumeService.mapper.AwardMapper;
 import com.zdmj.resumeService.mapper.AwardStructMapper;
 import com.zdmj.resumeService.service.AwardService;
@@ -28,11 +27,9 @@ public class AwardServiceImpl extends ServiceImpl<AwardMapper, Award> implements
     @Override
     public AwardResponse create(AwardRequest awardRequest) {
         Long userId = UserHolder.requireUserId();
-        validateAwardType(awardRequest.getAwardType());
 
         Award award = new Award();
         award.setUserId(userId);
-        award.setAwardType(awardRequest.getAwardType());
         award.setName(awardRequest.getName());
         award.setAwardDate(awardRequest.getAwardDate());
         award.setDescription(awardRequest.getDescription());
@@ -60,9 +57,6 @@ public class AwardServiceImpl extends ServiceImpl<AwardMapper, Award> implements
     public AwardResponse update(AwardRequest awardRequest) {
         Long userId = UserHolder.requireUserId();
         Award award = requireAwardAndCheckOwnership(awardRequest.getId(), userId, "修改");
-        if (awardRequest.getAwardType() != null) {
-            validateAwardType(awardRequest.getAwardType());
-        }
 
         awardPatchMapper.updateEntityFromDto(awardRequest, award);
 
@@ -89,12 +83,6 @@ public class AwardServiceImpl extends ServiceImpl<AwardMapper, Award> implements
         AwardResponse response = new AwardResponse();
         BeanUtils.copyProperties(award, response);
         return response;
-    }
-
-    private void validateAwardType(Integer awardType) {
-        if (AwardTypeEnum.fromCode(awardType) == null) {
-            throw new BusinessException(ErrorCode.AWARD_TYPE_INVALID);
-        }
     }
 
     private Award requireAward(Long id) {

@@ -40,14 +40,6 @@ function degreeLabel(degree: number) {
   }
 }
 
-function awardTypeLabel(type: number) {
-  switch (type) {
-    case 1: return $t('page.resume.awardTypeScholarship');
-    case 2: return $t('page.resume.awardTypeCompetition');
-    default: return $t('page.resume.awardTypeOther');
-  }
-}
-
 function formatAwardDate(dateStr?: string) {
   if (!dateStr) return '—';
   return dateStr.length >= 7 ? dateStr.slice(0, 7) : dateStr;
@@ -200,7 +192,7 @@ function displayValue(value?: string) {
           >
             <div class="font-medium text-slate-800">{{ award.name }}</div>
             <div class="text-sm text-slate-600 mt-1">
-              {{ awardTypeLabel(award.awardType) }} · {{ formatAwardDate(award.awardDate) }}
+              {{ formatAwardDate(award.awardDate) }}
             </div>
             <p v-if="award.description" class="text-sm text-slate-600 mt-2 whitespace-pre-wrap">
               {{ award.description }}

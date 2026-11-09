@@ -3,7 +3,7 @@
 <mapper namespace="com.zdmj.resumeService.mapper.AwardMapper">
 
     <select id="selectByUserId" resultType="com.zdmj.resumeService.entity.Award">
-        SELECT id, user_id, award_type, name, award_date, description, created_at, updated_at
+        SELECT id, user_id, name, award_date, description, created_at, updated_at
         FROM awards
         WHERE user_id = #{userId}
         ORDER BY award_date DESC

@@ -407,7 +407,7 @@ class ResumeServiceImplTest {
 
         assertEquals(1, out.getAwards().size());
         assertEquals("2024-01-01", out.getAwards().get(0).getAwardDate());
-        assertEquals(1, out.getAwards().get(0).getAwardType());
+        assertEquals("2024年同济大学本科生奖学金", out.getAwards().get(0).getName());
         verify(modelGateway, times(1)).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest));
     }
 
@@ -423,15 +423,12 @@ class ResumeServiceImplTest {
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
         ResumeImportParseResponse.AwardItem scholarship = new ResumeImportParseResponse.AwardItem();
         scholarship.setName("同济大学本科优秀学生奖学金二等奖");
-        scholarship.setAwardType(1);
         scholarship.setAwardDate("2025-01-01");
         ResumeImportParseResponse.AwardItem first = new ResumeImportParseResponse.AwardItem();
         first.setName("2025年中国高校计算机大赛智能交互创新赛全国一等奖");
-        first.setAwardType(2);
         first.setAwardDate("2025-01-01");
         ResumeImportParseResponse.AwardItem second = new ResumeImportParseResponse.AwardItem();
         second.setName("AIGC创新赛全国三等奖");
-        second.setAwardType(2);
         second.setAwardDate("2025-01-01");
         llmResult.setAwards(List.of(scholarship, first, second));
 
@@ -462,7 +459,6 @@ class ResumeServiceImplTest {
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
         ResumeImportParseResponse.AwardItem competition = new ResumeImportParseResponse.AwardItem();
         competition.setName("全国大学生数学建模竞赛省一等奖");
-        competition.setAwardType(2);
         competition.setAwardDate("2023-11-01");
         llmResult.setAwards(List.of(competition));
 

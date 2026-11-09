@@ -884,10 +884,6 @@ declare namespace App {
           "detailsLabel": string;
           "descLabel": string;
           "contributionLabel": string;
-          "awardType": string;
-          "awardTypeScholarship": string;
-          "awardTypeCompetition": string;
-          "awardTypeOther": string;
           "awardName": string;
           "awardDate": string;
           "awardDescription": string;

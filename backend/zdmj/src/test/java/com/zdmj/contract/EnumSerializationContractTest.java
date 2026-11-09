@@ -18,7 +18,6 @@ import com.zdmj.common.config.WebMvcConfig;
 import com.zdmj.common.exception.GlobalExceptionHandler;
 import com.zdmj.contract.support.ContractProbeController;
 import com.zdmj.conversationService.enums.MessageRoleEnum;
-import com.zdmj.resumeService.enums.AwardTypeEnum;
 import com.zdmj.resumeService.enums.EducationDegreeEnum;
 
 @WebMvcTest(controllers = ContractProbeController.class, useDefaultFilters = false)
@@ -35,9 +34,6 @@ class EnumSerializationContractTest {
         assertThat(EducationDegreeEnum.fromCode(3)).isEqualTo(EducationDegreeEnum.BACHELOR);
         assertThat(EducationDegreeEnum.fromCode(null)).isNull();
         assertThat(EducationDegreeEnum.fromCode(99)).isNull();
-        assertThat(AwardTypeEnum.fromCode(2)).isEqualTo(AwardTypeEnum.COMPETITION);
-        assertThat(AwardTypeEnum.fromCode(null)).isNull();
-        assertThat(AwardTypeEnum.fromCode(9)).isNull();
         assertThat(MessageRoleEnum.fromCode(1)).isEqualTo(MessageRoleEnum.USER);
         assertThat(MessageRoleEnum.fromCode(null)).isNull();
 

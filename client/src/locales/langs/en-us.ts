@@ -650,10 +650,6 @@ const local: App.I18n.Schema = {
           "detailsLabel": "Job Details",
           "descLabel": "Description",
           "contributionLabel": "Contribution",
-          "awardType": "Award Type",
-          "awardTypeScholarship": "Scholarship",
-          "awardTypeCompetition": "Competition",
-          "awardTypeOther": "Other",
           "awardName": "Award Name",
           "awardDate": "Award Date",
           "awardDescription": "Description"

@@ -106,15 +106,12 @@ CREATE TABLE IF NOT EXISTS awards (
     -- 获奖ID
     user_id BIGINT NOT NULL,
     -- 用户ID（逻辑外键：users.id）
-    award_type SMALLINT NOT NULL,
-    -- 奖项类型：1=奖学金, 2=竞赛获奖, 3=其他类型
     name VARCHAR(255) NOT NULL,
-    -- 奖项名称
+    -- 奖项名称（奖学金、竞赛和其他荣誉都写在名称中）
     award_date DATE NOT NULL,
     -- 获奖时间
     description TEXT,
     -- 奖项说明（可选）
-    CONSTRAINT chk_awards_type CHECK (award_type IN (1, 2, 3)),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间

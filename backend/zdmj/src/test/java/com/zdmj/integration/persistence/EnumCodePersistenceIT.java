@@ -10,7 +10,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.zdmj.resumeService.enums.AwardTypeEnum;
 import com.zdmj.resumeService.enums.EducationDegreeEnum;
 import com.zdmj.testsupport.ApiClient;
 import com.zdmj.testsupport.IntegrationTestBase;
@@ -42,20 +41,20 @@ class EnumCodePersistenceIT extends IntegrationTestBase {
                 {"school":"测试大学","major":"计算机","degree":3,"startDate":"2020-09-01"}
                 """));
         long awardId = ApiClient.dataId(api.post(token, "/awards", """
-                {"awardType":2,"name":"竞赛奖","awardDate":"2024-05-01"}
+                {"name":"竞赛奖","awardDate":"2024-05-01"}
                 """));
 
         assertThat(jdbcTemplate.queryForObject("SELECT degree FROM educations WHERE id = ?", Integer.class,
                 educationId)).isEqualTo(EducationDegreeEnum.BACHELOR.getCode());
-        assertThat(jdbcTemplate.queryForObject("SELECT award_type FROM awards WHERE id = ?", Integer.class, awardId))
-                .isEqualTo(AwardTypeEnum.COMPETITION.getCode());
+        assertThat(jdbcTemplate.queryForObject("SELECT name FROM awards WHERE id = ?", String.class, awardId))
+                .isEqualTo("竞赛奖");
 
         expectGet(token, "/educations/" + educationId)
                 .andExpect(jsonPath("$.data.degree").value(3))
                 .andExpect(jsonPath("$.data.degreeEnum").value("BACHELOR"));
         expectGet(token, "/awards/" + awardId)
-                .andExpect(jsonPath("$.data.awardType").value(2))
-                .andExpect(jsonPath("$.data.awardTypeEnum").doesNotExist());
+                .andExpect(jsonPath("$.data.name").value("竞赛奖"))
+                .andExpect(jsonPath("$.data.awardType").doesNotExist());
 
         jdbcTemplate.update("UPDATE educations SET degree = 99 WHERE id = ?", educationId);
         assertThat(jdbcTemplate.queryForObject("SELECT degree FROM educations WHERE id = ?", Integer.class,
@@ -81,10 +80,7 @@ class EnumCodePersistenceIT extends IntegrationTestBase {
                 {"school":"测试大学","major":"计算机","degree":9,"startDate":"2020-09-01"}
                 """), 400, 1001);
         ApiClient.assertProblem(api.post(token, "/awards", """
-                {"name":"竞赛奖","awardDate":"2024-05-01"}
-                """), 400, 1001);
-        ApiClient.assertProblem(api.post(token, "/awards", """
-                {"awardType":9,"name":"竞赛奖","awardDate":"2024-05-01"}
+                {"awardDate":"2024-05-01"}
                 """), 400, 1001);
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM educations", Integer.class)).isZero();
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM awards", Integer.class)).isZero();

@@ -250,9 +250,6 @@ public final class ConversationContextSupport {
             sb.append("- ");
             appendPart(sb, award.getName());
             appendPart(sb, formatDate(award.getAwardDate()));
-            if (award.getAwardType() != null) {
-                sb.append("（类型=").append(award.getAwardType()).append("）");
-            }
             if (StringUtils.hasText(award.getDescription())) {
                 sb.append("：").append(award.getDescription().trim());
             }

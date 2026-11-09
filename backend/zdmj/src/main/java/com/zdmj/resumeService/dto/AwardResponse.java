@@ -15,8 +15,6 @@ public class AwardResponse {
 
     private Long userId;
 
-    private Integer awardType;
-
     private String name;
 
     @JsonFormat(pattern = "yyyy-MM-dd")

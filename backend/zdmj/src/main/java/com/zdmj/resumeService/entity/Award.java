@@ -21,15 +21,24 @@ public class Award extends BaseEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /**
+     * 用户 ID，对应 {@code awards.user_id}。
+     */
     private Long userId;
 
-    /** 1=奖学金, 2=竞赛获奖, 3=其他类型 */
-    private Integer awardType;
-
+    /**
+     * 奖项名称，对应 {@code awards.name}。奖学金、竞赛和其他荣誉都写在名称中。
+     */
     private String name;
 
+    /**
+     * 获奖日期，对应 {@code awards.award_date}，不能为空。
+     */
     @TableField("award_date")
     private LocalDate awardDate;
 
+    /**
+     * 奖项说明，对应 {@code awards.description}，可空。
+     */
     private String description;
 }

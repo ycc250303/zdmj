@@ -64,8 +64,6 @@ export namespace ResumeApi {
 
   // --- 获奖信息模块 ---
   export interface AwardCreate {
-    /** 1=奖学金, 2=竞赛获奖, 3=其他类型 */
-    awardType: number;
     name: string;
     awardDate: string;
     description?: string;
@@ -125,7 +123,6 @@ export namespace ResumeApi {
 
   export interface AwardDTO {
     id: number;
-    awardType: number;
     name: string;
     awardDate: string;
     description?: string;
@@ -200,7 +197,6 @@ export namespace ResumeApi {
   }
 
   export interface ResumeImportAwardItem {
-    awardType?: number;
     name?: string;
     awardDate?: string;
     description?: string;

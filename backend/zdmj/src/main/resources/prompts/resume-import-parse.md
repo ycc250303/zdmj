@@ -61,7 +61,6 @@
 
 | 字段        | 说明                                   |
 | ----------- | -------------------------------------- |
-| awardType   | 1 奖学金/助学金；2 竞赛/比赛/大赛/杯/挑战赛/Contest；3 其他荣誉 |
 | name        | 奖项完整名称（含「二等奖」等等级）     |
 | awardDate   | 获奖时间，格式 YYYY-MM-DD              |
 | description | 可选说明（如项目负责人）               |
@@ -129,19 +128,16 @@
   ],
   "awards": [
     {
-      "awardType": 1,
       "name": "同济大学本科优秀学生奖学金二等奖",
       "awardDate": null,
       "description": null
     },
     {
-      "awardType": 2,
       "name": "2025年中国高校计算机大赛智能交互创新赛全国一等奖",
       "awardDate": "2025-01-01",
       "description": "项目负责人"
     },
     {
-      "awardType": 2,
       "name": "AIGC创新赛全国三等奖",
       "awardDate": "2025-01-01",
       "description": "项目负责人"

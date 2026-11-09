@@ -89,7 +89,7 @@ class ResumeFlowIT extends IntegrationTestBase {
                   "educations": [{%s"school": "%s", "major": "计算机", "degree": 3, "startDate": "2020-09-01", "endDate": "2024-06-30", "gpa": "3.8"}],
                   "careers": [{"company": "测试公司", "position": "后端实习生", "startDate": "2023-07-01"}],
                   "projects": [{"name": "测试项目", "startDate": "2023-01-01", "role": "开发", "description": "实现接口", "contribution": "完成后端"}],
-                  "awards": [{"awardType": 2, "name": "测试奖项", "awardDate": "2024-05-01"}]
+                  "awards": [{"name": "测试奖项", "awardDate": "2024-05-01"}]
                 }
                 """.formatted(skillItem, educationIdField, school);
     }

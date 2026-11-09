@@ -139,7 +139,7 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
     @Test
     void 获奖信息_其他用户修改或删除_返回无权且奖项名称保持不变() throws Exception {
         long id = ApiClient.dataId(api.post(tokenA, "/awards", """
-                {"awardType":2,"name":"测试奖项","awardDate":"2024-05-01"}
+                {"name":"测试奖项","awardDate":"2024-05-01"}
                 """));
         assertAbsentFromList(tokenB, "/awards");
         ApiClient.assertProblem(api.put(tokenB, "/awards", """

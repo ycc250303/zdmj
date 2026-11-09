@@ -65,8 +65,7 @@
 | -------------- | ---------------- | ---------- | ----------------------------------- | ------------------------------------------ |
 | `id`         | `BIGSERIAL`    | 获奖ID     | `PK`                              | -                                          |
 | `user_id`    | `BIGINT`       | 用户ID     | `NOT NULL`，逻辑外键 `users.id` | -                                          |
-| `award_type` | `SMALLINT`     | 奖项类型   | `NOT NULL, CHECK 1-3`             | `1=奖学金, 2=竞赛获奖, 3=其他类型`         |
-| `name`       | `VARCHAR(255)` | 奖项名称   | `NOT NULL`                        | -                                          |
+| `name`       | `VARCHAR(255)` | 奖项名称   | `NOT NULL`                        | 奖学金、竞赛和其他荣誉都写在名称中         |
 | `award_date` | `DATE`         | 获奖时间   | `NOT NULL`                        | -                                          |
 | `description`| `TEXT`         | 奖项说明   | 可空                                | -                                          |
 | `created_at` | `TIMESTAMP`    | 创建时间   | `DEFAULT CURRENT_TIMESTAMP`       | -                                          |

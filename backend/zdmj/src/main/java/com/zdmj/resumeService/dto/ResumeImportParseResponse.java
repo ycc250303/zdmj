@@ -83,9 +83,6 @@ public class ResumeImportParseResponse {
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class AwardItem {
-        /** 1=奖学金, 2=竞赛获奖, 3=其他类型 */
-        @JsonAlias({ "type", "award_type" })
-        private Integer awardType;
         @JsonAlias({ "awardName", "title", "honor" })
         private String name;
         @JsonAlias({ "date", "award_date" })

@@ -3,8 +3,6 @@ package com.zdmj.resumeService.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.zdmj.common.model.CreateGroup;
 import com.zdmj.common.model.UpdateGroup;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -20,12 +18,9 @@ public class AwardRequest {
     @NotNull(message = "获奖信息ID不能为空", groups = UpdateGroup.class)
     private Long id;
 
-    /** 1=奖学金, 2=竞赛获奖, 3=其他类型 */
-    @NotNull(message = "奖项类型不能为空", groups = CreateGroup.class)
-    @Min(value = 1, message = "奖项类型不能小于1", groups = { CreateGroup.class, UpdateGroup.class })
-    @Max(value = 3, message = "奖项类型不能大于3", groups = { CreateGroup.class, UpdateGroup.class })
-    private Integer awardType;
-
+    /**
+     * 奖项名称。创建时不能为空；更新时省略或为 null 保持原值。
+     */
     @NotBlank(message = "奖项名称不能为空", groups = CreateGroup.class)
     private String name;
 

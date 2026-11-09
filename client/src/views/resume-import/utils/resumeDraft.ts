@@ -50,37 +50,16 @@ function defaultSkill(): ResumeApi.SkillDTO {
   };
 }
 
-type ImportAwardLike = ResumeApi.ResumeImportAwardItem & Record<string, unknown>;
-
-function inferAwardTypeFromName(name: string): number {
-  if (/奖学金|助学金/.test(name)) return 1;
-  if (/竞赛|比赛|大赛|杯|挑战赛|Contest/i.test(name)) return 2;
-  return 3;
-}
-
-function resolveImportAwardType(rawType: unknown, name: string): number {
-  const fromName = inferAwardTypeFromName(name);
-  if (fromName === 1 || fromName === 2) return fromName;
-  if (typeof rawType === 'number' && rawType >= 1 && rawType <= 3) return rawType;
-  return 3;
-}
-
-function normalizeImportAwardItem(raw: ImportAwardLike) {
-  const name = trimOrEmpty(
-    raw.name ?? (raw.awardName as string | undefined) ?? (raw.title as string | undefined) ?? (raw.honor as string | undefined)
-  );
-  const awardDate = trimOrEmpty(
-    raw.awardDate ?? (raw.date as string | undefined) ?? (raw.award_date as string | undefined)
-  );
-  const rawType = raw.awardType ?? raw.award_type ?? raw.type;
+function normalizeImportAwardItem(raw: ResumeApi.ResumeImportAwardItem) {
+  const name = trimOrEmpty(raw.name);
+  const awardDate = trimOrEmpty(raw.awardDate);
   if (!name || !awardDate) {
     return null;
   }
   return {
-    awardType: resolveImportAwardType(rawType, name),
     name,
     awardDate,
-    description: trimOrEmpty(raw.description as string | undefined) || undefined
+    description: trimOrEmpty(raw.description) || undefined
   };
 }
 
@@ -139,11 +118,10 @@ export function buildDraftFromImportResult(
   const awards: DraftAward[] = [];
   const parsedAwards = parsed.awards ?? [];
   for (const award of parsedAwards) {
-    const normalized = normalizeImportAwardItem(award as ImportAwardLike);
+    const normalized = normalizeImportAwardItem(award);
     if (!normalized) continue;
     awards.push({
       _key: newKey('import-award'),
-      awardType: normalized.awardType,
       name: normalized.name,
       awardDate: normalized.awardDate,
       description: normalized.description
@@ -228,7 +206,6 @@ export function draftToPreview(draft: ResumeContentDraft): ResumeApi.ResumeConte
     })),
     awards: draft.awards.map((item, index) => ({
       id: previewId(item.id, index),
-      awardType: item.awardType,
       name: item.name,
       awardDate: item.awardDate,
       description: item.description
@@ -314,7 +291,6 @@ export function createEmptyProject(): DraftProject {
 export function createEmptyAward(): DraftAward {
   return {
     _key: newKey('award'),
-    awardType: 3,
     name: '',
     awardDate: '',
     description: ''
@@ -395,7 +371,7 @@ function isBlankDraftAward(award: DraftAward): boolean {
 }
 
 function isCompleteAward(award: DraftAward): boolean {
-  return Boolean(award.awardType && trimOrEmpty(award.name) && trimOrEmpty(award.awardDate));
+  return Boolean(trimOrEmpty(award.name) && trimOrEmpty(award.awardDate));
 }
 
 function mapEducation(edu: DraftEducation): ResumeApi.EducationCreate | ResumeApi.EducationUpdate {
@@ -451,7 +427,6 @@ function mapAward(award: DraftAward): ResumeApi.AwardCreate | ResumeApi.AwardUpd
   }
   return {
     ...(award.id ? { id: award.id } : {}),
-    awardType: award.awardType,
     name: trimOrEmpty(award.name),
     awardDate: trimOrEmpty(award.awardDate),
     ...(trimOrEmpty(award.description) ? { description: trimOrEmpty(award.description) } : {})
