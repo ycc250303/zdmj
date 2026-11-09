@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
+import com.jayway.jsonpath.JsonPath;
 import com.zdmj.testsupport.ApiClient;
 import com.zdmj.testsupport.IntegrationTestBase;
 import com.zdmj.testsupport.TestJwt;
@@ -42,7 +43,16 @@ class LogicalReferenceIntegrityIT extends IntegrationTestBase {
         TestUsers.Pair pair = testUsers.createPair();
         String tokenA = testJwt.authorize(pair.userA());
         String tokenB = testJwt.authorize(pair.userB());
-        long foreignEducationId = ApiClient.dataId(api.post(tokenB, "/educations", educationJson("用户B大学")));
+        String created = ApiClient.requireOk(api.put(tokenB, "/resumes/me/content", """
+                {
+                  "skill": {"content": [{"type": "编程语言", "content": ["Java"]}]},
+                  "educations": [{"school": "用户B大学", "major": "计算机", "degree": 3, "startDate": "2020-09-01", "endDate": "2024-06-30"}],
+                  "careers": [],
+                  "projects": [],
+                  "awards": []
+                }
+                """));
+        long foreignEducationId = JsonPath.<Number>read(created, "$.data.educations[0].id").longValue();
 
         MvcResult missingConversation = mockMvc.perform(MockMvcRequestBuilders.post(ApiClient.PREFIX + "/messages/chat")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenA)
@@ -84,12 +94,6 @@ class LogicalReferenceIntegrityIT extends IntegrationTestBase {
         assertThat(LogicalReferenceChecks.find(jdbcTemplate))
                 .filteredOn(orphan -> "jobs".equals(orphan.sourceTable()))
                 .hasSize(1);
-    }
-
-    private static String educationJson(String school) {
-        return """
-                {"school":"%s","major":"计算机","degree":3,"startDate":"2020-09-01","endDate":"2024-06-30"}
-                """.formatted(school);
     }
 
     private static String contentJson(long educationId) {

@@ -80,35 +80,6 @@ class CareerServiceImplTest {
     }
 
     @Test
-    void getById_notFound_shouldThrow() {
-        doReturn(null).when(careerMapper).selectById(9L);
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.getById(9L));
-
-        assertEquals(ErrorCode.CAREER_NOT_FOUND.getCode(), ex.getCode());
-    }
-
-    @Test
-    void getByUserId_shouldCallMapper() {
-        doReturn(List.of(new Career())).when(careerMapper).selectByUserId(1L);
-
-        List<CareerResponse> out = service.getByUserId();
-
-        assertEquals(1, out.size());
-        verify(careerMapper).selectByUserId(1L);
-    }
-
-    @Test
-    void getByUserId_userNotLogin_shouldThrowAndSkipMapperCall() {
-        UserHolder.clear();
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.getByUserId());
-
-        assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
-        verify(careerMapper, never()).selectByUserId(any());
-    }
-
-    @Test
     void update_noPermission_shouldThrow() {
         CareerRequest dto = new CareerRequest();
         dto.setId(10L);

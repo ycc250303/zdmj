@@ -51,17 +51,6 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
     }
 
     @Override
-    public ProjectExperienceResponse getById(Long id) {
-        return convertToResponse(requireProjectExperience(id));
-    }
-
-    @Override
-    public List<ProjectExperienceResponse> getByUserId() {
-        Long userId = UserHolder.requireUserId();
-        return baseMapper.selectByUserId(userId).stream().map(this::convertToResponse).toList();
-    }
-
-    @Override
     public ProjectExperienceResponse update(ProjectExperienceRequest projectExperienceRequest) {
         Long userId = UserHolder.requireUserId();
         Long id = projectExperienceRequest.getId();

@@ -108,25 +108,6 @@ class SkillServiceImplTest {
     }
 
     @Test
-    void getById_notFound_shouldThrow() {
-        doReturn(null).when(skillMapper).selectById(9L);
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.getById(9L));
-
-        assertEquals(ErrorCode.SKILL_NOT_FOUND.getCode(), ex.getCode());
-    }
-
-    @Test
-    void getByUserId_shouldCallMapper() {
-        doReturn(List.of(new Skill())).when(skillMapper).selectByUserId(1L);
-
-        List<SkillResponse> out = service.getByUserId();
-
-        assertEquals(1, out.size());
-        verify(skillMapper).selectByUserId(1L);
-    }
-
-    @Test
     void update_notOwner_shouldThrowAndSkipUpdateById() {
         SkillRequest dto = new SkillRequest();
         dto.setId(10L);

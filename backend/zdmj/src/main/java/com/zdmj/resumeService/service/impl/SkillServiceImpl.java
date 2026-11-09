@@ -55,17 +55,6 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
     }
 
     @Override
-    public SkillResponse getById(Long id) {
-        return toResponse(requireSkill(id));
-    }
-
-    @Override
-    public List<SkillResponse> getByUserId() {
-        Long userId = requireUserId();
-        return baseMapper.selectByUserId(userId).stream().map(this::toResponse).toList();
-    }
-
-    @Override
     public SkillResponse update(SkillRequest skillRequest) {
         Long userId = requireUserId();
 

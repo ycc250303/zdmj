@@ -88,25 +88,6 @@ class ProjectExperienceServiceImplTest {
     }
 
     @Test
-    void getById_notFound_shouldThrow() {
-        doReturn(null).when(projectExperienceMapper).selectById(7L);
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.getById(7L));
-
-        assertEquals(ErrorCode.PROJECT_EXPERIENCE_NOT_FOUND.getCode(), ex.getCode());
-    }
-
-    @Test
-    void getByUserId_shouldCallMapper() {
-        doReturn(List.of(new ProjectExperience())).when(projectExperienceMapper).selectByUserId(1L);
-
-        List<ProjectExperienceResponse> out = service.getByUserId();
-
-        assertEquals(1, out.size());
-        verify(projectExperienceMapper).selectByUserId(1L);
-    }
-
-    @Test
     void update_notOwner_shouldThrowNoPermission() {
         ProjectExperienceRequest dto = new ProjectExperienceRequest();
         dto.setId(10L);

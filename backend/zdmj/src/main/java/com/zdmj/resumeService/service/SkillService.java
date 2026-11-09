@@ -4,18 +4,12 @@ import com.zdmj.resumeService.dto.SkillRequest;
 import com.zdmj.resumeService.dto.SkillResponse;
 import com.zdmj.resumeService.entity.Skill;
 
-import java.util.List;
-
 /**
  * 技能服务接口
  */
 public interface SkillService {
 
     SkillResponse create(SkillRequest skillRequest);
-
-    SkillResponse getById(Long id);
-
-    List<SkillResponse> getByUserId();
 
     SkillResponse update(SkillRequest skillRequest);
 

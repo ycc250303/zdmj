@@ -43,17 +43,6 @@ public class AwardServiceImpl extends ServiceImpl<AwardMapper, Award> implements
     }
 
     @Override
-    public AwardResponse getById(Long id) {
-        return convertToResponse(requireAward(id));
-    }
-
-    @Override
-    public List<AwardResponse> getByUserId() {
-        Long userId = UserHolder.requireUserId();
-        return baseMapper.selectByUserId(userId).stream().map(this::convertToResponse).toList();
-    }
-
-    @Override
     public AwardResponse update(AwardRequest awardRequest) {
         Long userId = UserHolder.requireUserId();
         Award award = requireAwardAndCheckOwnership(awardRequest.getId(), userId, "修改");

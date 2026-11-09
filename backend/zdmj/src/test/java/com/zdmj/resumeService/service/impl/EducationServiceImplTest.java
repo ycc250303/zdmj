@@ -94,26 +94,6 @@ class EducationServiceImplTest {
     }
 
     @Test
-    void getById_notFound_shouldThrow() {
-        doReturn(null).when(educationMapper).selectById(9L);
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.getById(9L));
-
-        assertEquals(ErrorCode.EDUCATION_NOT_FOUND.getCode(), ex.getCode());
-        verify(educationMapper).selectById(9L);
-    }
-
-    @Test
-    void getByUserId_shouldCallMapper() {
-        doReturn(List.of(new Education())).when(educationMapper).selectByUserId(1L);
-
-        List<EducationResponse> out = service.getByUserId();
-
-        assertEquals(1, out.size());
-        verify(educationMapper).selectByUserId(1L);
-    }
-
-    @Test
     void update_success_shouldPatchAndUpdateById() {
         EducationRequest dto = new EducationRequest();
         dto.setId(10L);

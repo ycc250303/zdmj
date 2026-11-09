@@ -19,6 +19,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import com.jayway.jsonpath.JsonPath;
 import com.zdmj.testsupport.ApiClient;
 import com.zdmj.testsupport.ExternalAiStubConfig;
 import com.zdmj.testsupport.IntegrationTestBase;
@@ -48,8 +49,8 @@ class TransactionBoundaryIT extends IntegrationTestBase {
     @Test
     void 简历保存_中途业务失败_已写入的技能与教育经历回滚() throws Exception {
         String token = testJwt.authorize(testUsers.createPair().userA());
-        long skillId = ApiClient.dataId(api.post(token, "/skills", skillJson("Java")));
-        ApiClient.requireOk(api.put(token, "/resumes/me/content", contentJson(null, "Java", "测试大学")));
+        String saved = ApiClient.requireOk(api.put(token, "/resumes/me/content", contentJson(null, "Java", "测试大学")));
+        long skillId = JsonPath.<Number>read(saved, "$.data.skill.id").longValue();
 
         MvcResult rejected = api.put(token, "/resumes/me/content", contentJson(9_999_999_999L, "Python", "回滚大学"));
         ApiClient.assertProblem(rejected, 404, 6005);
@@ -91,10 +92,6 @@ class TransactionBoundaryIT extends IntegrationTestBase {
                 "SELECT created_at FROM messages WHERE conversation_id = ? AND role = 1", Timestamp.class,
                 conversationId);
         assertThat(created).isNotNull();
-    }
-
-    private static String skillJson(String item) {
-        return "{\"content\":[{\"type\":\"编程语言\",\"content\":[\"" + item + "\"]}]}";
     }
 
     private static String contentJson(Long educationId, String skillItem, String school) {

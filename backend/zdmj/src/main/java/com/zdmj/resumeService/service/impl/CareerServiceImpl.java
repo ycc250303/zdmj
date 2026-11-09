@@ -43,17 +43,6 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
     }
 
     @Override
-    public CareerResponse getById(Long id) {
-        return convertToResponse(requireCareer(id));
-    }
-
-    @Override
-    public List<CareerResponse> getByUserId() {
-        Long userId = UserHolder.requireUserId();
-        return baseMapper.selectByUserId(userId).stream().map(this::convertToResponse).toList();
-    }
-
-    @Override
     public CareerResponse update(CareerRequest careerRequest) {
         Long userId = UserHolder.requireUserId();
         Long id = careerRequest.getId();

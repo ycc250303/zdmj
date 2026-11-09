@@ -219,11 +219,7 @@ export namespace ResumeApi {
  * =====================================================================
  */
 
-export function fetchGetProjectList() {
-  return request<ResumeApi.ProjectDTO[]>({ url: '/projects', method: 'get' });
-}
-
-/** 当前用户简历列表。单用户只有一份简历，结果为 0 或 1 条。 */
+/** 当前用户简历列表。没有技能和经历时为空，有内容时为一条。 */
 export function fetchGetResumeFullContentList() {
   return request<ResumeApi.ResumeContentDTO[]>({ url: '/resumes/content', method: 'get' });
 }

@@ -85,17 +85,6 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
         log.info("用户 {} 删除教育经历成功: id={}", userId, id);
     }
 
-    @Override
-    public EducationResponse getById(Long id) {
-        return convertToResponse(requireEducation(id));
-    }
-
-    @Override
-    public List<EducationResponse> getByUserId() {
-        Long userId = UserHolder.requireUserId();
-        return baseMapper.selectByUserId(userId).stream().map(this::convertToResponse).toList();
-    }
-
     private EducationResponse convertToResponse(Education education) {
         EducationResponse response = new EducationResponse();
         BeanUtils.copyProperties(education, response);
