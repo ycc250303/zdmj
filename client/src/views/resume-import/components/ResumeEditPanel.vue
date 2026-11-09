@@ -343,6 +343,9 @@ function awardDateBind(item: DraftAward) {
             <NFormItem :label="$t('page.profile.project.techStack')">
               <NDynamicTags v-model:value="project.techStack" />
             </NFormItem>
+            <NFormItem :label="$t('page.profile.project.highlights')">
+              <NDynamicTags v-model:value="project.highlights" />
+            </NFormItem>
           </div>
           <NButton dashed block @click="addProject">+ {{ $t('page.resume.addProject') }}</NButton>
         </NCollapseItem>

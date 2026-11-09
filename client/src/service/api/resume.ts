@@ -54,7 +54,7 @@ export namespace ResumeApi {
     description: string;
     contribution: string;
     techStack?: string[];
-    highlights?: string;
+    highlights?: string[];
     url?: string;
     visible?: boolean;
   }
@@ -118,7 +118,7 @@ export namespace ResumeApi {
     description: string;
     contribution: string;
     techStack?: string[];
-    highlights?: string;
+    highlights?: string[];
     url?: string;
     visible: boolean;
   }
@@ -194,7 +194,7 @@ export namespace ResumeApi {
     description?: string;
     contribution?: string;
     techStack?: string[];
-    highlights?: string;
+    highlights?: string[];
     url?: string;
     visible?: boolean;
   }

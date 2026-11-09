@@ -228,9 +228,10 @@ public final class ConversationContextSupport {
             if (!CollectionUtils.isEmpty(project.getTechStack())) {
                 sb.append(" | 技术栈：").append(String.join("、", project.getTechStack()));
             }
-            if (StringUtils.hasText(project.getHighlights())) {
-                sb.append("：").append(project.getHighlights().trim());
-            } else if (StringUtils.hasText(project.getDescription())) {
+            if (!CollectionUtils.isEmpty(project.getHighlights())) {
+                sb.append(" | 亮点：").append(String.join("、", project.getHighlights()));
+            }
+            if (StringUtils.hasText(project.getDescription())) {
                 sb.append("：").append(project.getDescription().trim());
             }
             sb.append('\n');

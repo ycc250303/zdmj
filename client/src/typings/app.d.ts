@@ -646,7 +646,6 @@ declare namespace App {
             contriPlaceholder: string;
             techStack: string;
             highlights: string;
-            hlPlaceholder: string;
             url: string;
             urlPlaceholder: string;
             addSuccess: string;

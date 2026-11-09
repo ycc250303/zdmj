@@ -409,7 +409,6 @@ const local: App.I18n.Schema = {
         "contriPlaceholder": "列出你的具体工作内容和技术难点突破",
         "techStack": "技术栈",
         "highlights": "项目亮点",
-        "hlPlaceholder": "选填，列出项目的突出成果或核心难点",
         "url": "项目链接",
         "urlPlaceholder": "选填，例如 GitHub 或线上地址",
         "addSuccess": "项目添加成功",

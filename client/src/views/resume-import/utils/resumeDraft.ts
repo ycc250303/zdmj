@@ -130,7 +130,7 @@ export function buildDraftFromImportResult(
       description: project.description || '',
       contribution: project.contribution || '',
       techStack: project.techStack ?? [],
-      highlights: typeof project.highlights === 'string' ? project.highlights : undefined,
+      highlights: project.highlights ?? [],
       url: project.url,
       visible: project.visible ?? true
     });
@@ -260,6 +260,7 @@ export function cloneResumeForEdit(source: ResumeApi.ResumeContentDTO): ResumeCo
     projects: (source.projects ?? []).map(project => ({
       ...project,
       techStack: project.techStack ?? [],
+      highlights: project.highlights ?? [],
       _key: String(project.id)
     })),
     awards: (source.awards ?? []).map(award => ({
@@ -304,6 +305,7 @@ export function createEmptyProject(): DraftProject {
     description: '',
     contribution: '',
     techStack: [],
+    highlights: [],
     visible: true,
     url: ''
   };
@@ -373,7 +375,8 @@ function isBlankDraftProject(project: DraftProject): boolean {
     && !trimOrEmpty(project.description)
     && !trimOrEmpty(project.contribution)
     && !trimOrEmpty(project.url)
-    && !(project.techStack?.length);
+    && !(project.techStack?.length)
+    && !(project.highlights?.length);
 }
 
 function isCompleteProject(project: DraftProject): boolean {
@@ -437,8 +440,8 @@ function mapProject(project: DraftProject): ResumeApi.ProjectCreate | ResumeApi.
     contribution: trimOrEmpty(project.contribution),
     ...(trimOrEmpty(project.endDate) ? { endDate: trimOrEmpty(project.endDate) } : {}),
     ...(project.techStack?.length ? { techStack: project.techStack } : {}),
-    ...(trimOrEmpty(project.url) ? { url: trimOrEmpty(project.url) } : {}),
-    ...(project.highlights ? { highlights: project.highlights } : {})
+    ...(project.highlights?.length ? { highlights: project.highlights } : {}),
+    ...(trimOrEmpty(project.url) ? { url: trimOrEmpty(project.url) } : {})
   });
 }
 

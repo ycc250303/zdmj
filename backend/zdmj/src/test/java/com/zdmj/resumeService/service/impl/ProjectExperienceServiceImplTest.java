@@ -14,6 +14,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -61,14 +62,18 @@ class ProjectExperienceServiceImplTest {
         dto.setRole("Backend");
         dto.setDescription("desc");
         dto.setContribution("contrib");
+        dto.setHighlights(List.of("实现分布式锁"));
         doReturn(true).when(service).save(any(ProjectExperience.class));
 
         ProjectExperienceResponse out = service.create(dto);
 
         assertEquals(1L, out.getUserId());
+        assertEquals(List.of("实现分布式锁"), out.getHighlights());
         assertEquals(ProjectStatusEnum.COMMITTED.getCode(), out.getStatus());
         assertNull(out.getLookupResult());
-        verify(service).save(any(ProjectExperience.class));
+        ArgumentCaptor<ProjectExperience> saved = ArgumentCaptor.forClass(ProjectExperience.class);
+        verify(service).save(saved.capture());
+        assertEquals(List.of("实现分布式锁"), saved.getValue().getHighlights());
     }
 
     @Test

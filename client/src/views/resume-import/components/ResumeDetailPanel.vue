@@ -180,6 +180,9 @@ function displayValue(value?: string) {
             <div v-if="proj.techStack?.length" class="flex flex-wrap gap-1 mt-2">
               <NTag v-for="t in proj.techStack" :key="t" size="small">{{ t }}</NTag>
             </div>
+            <ul v-if="proj.highlights?.length" class="mt-2 list-disc pl-4 text-sm text-slate-600">
+              <li v-for="(item, index) in proj.highlights" :key="index">{{ item }}</li>
+            </ul>
           </div>
         </div>
       </section>

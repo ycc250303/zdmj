@@ -75,8 +75,8 @@ public class ResumeImportParseResponse {
         private String description;
         private String contribution;
         private List<String> techStack;
-        /** 模型可返回字符串或字符串数组，归一化后统一为 JSON 数组字符串 */
-        private Object highlights;
+        /** 字符串数组，每项一条亮点；没有则省略或空列表 */
+        private List<String> highlights;
         private String url;
     }
 

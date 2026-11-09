@@ -48,7 +48,7 @@
 | description         | 项目描述                               |
 | contribution        | 个人贡献                               |
 | techStack           | 字符串数组，如 ["Java", "Spring Boot"] |
-| highlights          | 亮点数组或字符串                       |
+| highlights          | 字符串数组，每项一条亮点；没有则 []    |
 | url                 | 项目链接                               |
 
 ### skill（对应 skills 表）
@@ -69,7 +69,7 @@
 - 线索（奖学金、助学金、xx等奖、第 x 名、冠亚季军）各抽一条；同句混有 GPA/课程/项目角色时仍要抽，不要整句丢弃
 - 顿号/逗号/「和」连写的多奖必须拆成多条独立 `name`（如「A比赛全国一等奖、B比赛全国三等奖」）；组织名前缀只属于紧邻的那一个奖
 - 标题、纯课程、无关描述不要生成奖项；同一奖项只一条，不要同时输出简称和全称
-- 奖项必须写入 `awards[]`；项目 `highlights` 可以提及获奖，但不能替代 `awards[]`
+- 奖项必须写入 `awards[]`。项目 `highlights` 可以提及获奖，但不能替代 `awards[]`
 
 # Rules
 

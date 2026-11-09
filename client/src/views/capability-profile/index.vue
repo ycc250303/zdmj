@@ -137,7 +137,7 @@ function buildResumeText(resumes: ResumeApi.ResumeContentDTO[]): string {
       parts.push(`描述：${project.description}`);
       parts.push(`贡献：${project.contribution}`);
       if (project.techStack) parts.push(`技术栈：${project.techStack.join('、')}`);
-      if (project.highlights) parts.push(`亮点：${project.highlights}`);
+      if (project.highlights?.length) parts.push(`亮点：${project.highlights.join('、')}`);
       parts.push('');
     });
   }

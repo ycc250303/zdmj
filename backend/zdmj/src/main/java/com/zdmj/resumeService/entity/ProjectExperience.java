@@ -69,11 +69,11 @@ public class ProjectExperience extends BaseEntity {
     private List<String> techStack;
 
     /**
-     * 项目亮点 JSON 原文（JSONB 字符串数组）
-     * 示例：["实现了分布式锁","提升了50%的性能"]
+     * 项目亮点（JSONB 字符串数组，每项一条，如 ["实现了分布式锁", "提升了 50% 的性能"]）。
+     * 空列表表示没有亮点。
      */
-    @TableField(typeHandler = JsonbStringTypeHandler.class)
-    private String highlights;
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private List<String> highlights;
 
     /**
      * 项目链接

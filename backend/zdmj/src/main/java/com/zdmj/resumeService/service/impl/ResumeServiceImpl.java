@@ -26,7 +26,6 @@ import com.zdmj.resumeService.service.ProjectExperienceService;
 import com.zdmj.resumeService.service.ResumeService;
 import com.zdmj.resumeService.service.SkillService;
 import com.zdmj.resumeService.support.AwardImportSupport;
-import com.zdmj.resumeService.support.ProjectHighlightsSupport;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
@@ -562,7 +561,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
             }
             item.setStartDate(formatDateString(parseFlexibleDate(item.getStartDate())));
             item.setEndDate(formatDateString(parseFlexibleDate(item.getEndDate())));
-            item.setHighlights(normalizeHighlights(item.getHighlights()));
             projects.add(item);
         }
         result.setProjects(projects);
@@ -736,22 +734,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
     private String formatDateString(LocalDate date) {
         return date == null ? null : date.format(DateTimeFormatter.ISO_LOCAL_DATE);
-    }
-
-    /**
-     * highlights 归一化为 JSON 数组字符串（与 project_experiences.highlights 存储一致）。
-     */
-    private Object normalizeHighlights(Object highlights) {
-        if (highlights == null) {
-            return null;
-        }
-        if (highlights instanceof List<?> list) {
-            return ProjectHighlightsSupport.normalizeForStorage(list);
-        }
-        if (highlights instanceof String s) {
-            return ProjectHighlightsSupport.normalizeForStorage(s);
-        }
-        return ProjectHighlightsSupport.normalizeForStorage(String.valueOf(highlights));
     }
 
     /**

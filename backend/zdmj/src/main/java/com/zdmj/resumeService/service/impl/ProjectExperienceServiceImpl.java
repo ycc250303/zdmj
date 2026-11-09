@@ -11,7 +11,6 @@ import com.zdmj.resumeService.enums.ProjectStatusEnum;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
 import com.zdmj.resumeService.mapper.ProjectExperienceStructMapper;
 import com.zdmj.resumeService.service.ProjectExperienceService;
-import com.zdmj.resumeService.support.ProjectHighlightsSupport;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -39,8 +38,7 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
         projectExperience.setDescription(projectExperienceRequest.getDescription());
         projectExperience.setContribution(projectExperienceRequest.getContribution());
         projectExperience.setTechStack(projectExperienceRequest.getTechStack());
-        projectExperience.setHighlights(
-                ProjectHighlightsSupport.normalizeForStorage(projectExperienceRequest.getHighlights()));
+        projectExperience.setHighlights(projectExperienceRequest.getHighlights());
         projectExperience.setUrl(projectExperienceRequest.getUrl());
         projectExperience.setStatus(ProjectStatusEnum.COMMITTED.getCode());
         projectExperience.setLookupResult(null);
@@ -70,8 +68,6 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
         ProjectExperience projectExperience = requireProjectExperienceAndCheckOwnership(id, userId, "修改");
 
         projectExperiencePatchMapper.updateEntityFromDto(projectExperienceRequest, projectExperience);
-        projectExperience.setHighlights(
-                ProjectHighlightsSupport.normalizeForStorage(projectExperience.getHighlights()));
 
         if (projectExperience.getStartDate() != null && projectExperience.getEndDate() != null) {
             if (projectExperience.getEndDate().isBefore(projectExperience.getStartDate())) {
