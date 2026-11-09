@@ -21,7 +21,6 @@ export type DraftAward = Omit<ResumeApi.AwardDTO, 'id'> & {
 };
 
 export interface ResumeContentDraft {
-  id: number;
   personalInfo: ResumeApi.ResumePersonalInfo;
   skill: ResumeApi.SkillDTO;
   educations: DraftEducation[];
@@ -136,7 +135,6 @@ export function buildDraftFromImportResult(
     : [{ type: '专业技能', content: ['待补充'] }];
 
   const draft: ResumeContentDraft = {
-    id: base.id,
     personalInfo: defaultPersonalInfo({
       name: parsed.personalInfo?.name ?? base.personalInfo?.name,
       phone: parsed.personalInfo?.phone ?? base.personalInfo?.phone,
@@ -163,7 +161,6 @@ function previewId(id: number | undefined, index: number) {
 /** 把编辑草稿转成模板预览使用的简历内容。未保存条目使用负数编号，避免列表键重复。 */
 export function draftToPreview(draft: ResumeContentDraft): ResumeApi.ResumeContentDTO {
   return {
-    id: draft.id,
     personalInfo: { ...draft.personalInfo },
     skill: {
       id: draft.skill.id,
@@ -215,7 +212,6 @@ export function draftToPreview(draft: ResumeContentDraft): ResumeApi.ResumeConte
 
 export function cloneResumeForEdit(source: ResumeApi.ResumeContentDTO): ResumeContentDraft {
   return {
-    id: source.id,
     personalInfo: defaultPersonalInfo(source.personalInfo),
     skill: source.skill
       ? {

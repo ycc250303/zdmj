@@ -10,7 +10,7 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
-import com.zdmj.aiService.api.StructuredModelRequest;
+import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.jobService.api.JobRole;
 import com.zdmj.common.model.PageDTO;
@@ -142,7 +142,7 @@ public class JobStudentMatchServiceImpl
         JobStudentMatchResponse aiResult;
         try {
             aiResult = modelGateway.generateStructured(CurrentActor.of(userId),
-                    StructuredModelRequest.of(userMessage, promptName, null, JobStudentMatchResponse.class));
+                    new ModelRequest(userMessage, promptName, null), JobStudentMatchResponse.class);
         } catch (IllegalStateException e) {
             log.error("人岗匹配结构化输出解析失败 jobId={} userId={}", jobId, userId, e);
             throw new BusinessException(ErrorCode.MATCH_GENERATION_FAILED);

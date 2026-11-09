@@ -16,7 +16,7 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
-import com.zdmj.aiService.api.StructuredModelRequest;
+import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.service.JobCapabilityProfileService;
@@ -145,11 +145,11 @@ class CareerDevelopmentReportServiceImplTest {
         stubInsertNewVersion(999L);
 
         doAnswer(invocation -> {
-            StructuredModelRequest<?> request = invocation.getArgument(1, StructuredModelRequest.class);
+            ModelRequest request = invocation.getArgument(1, ModelRequest.class);
             assertThat(request.message()).doesNotContain("## 岗位图谱");
             assertThat(request.message()).contains("## 岗位画像");
             assertThat(request.message()).contains("## 人岗匹配");
-            Class<?> outputClass = request.outputType();
+            Class<?> outputClass = invocation.getArgument(2);
             Object payload = outputClass.getDeclaredConstructor().newInstance();
             Field f = outputClass.getDeclaredField("reportContent");
             f.setAccessible(true);
@@ -165,7 +165,7 @@ class CareerDevelopmentReportServiceImplTest {
             content.put("evidence", List.of("匹配短板A"));
             f.set(payload, content);
             return payload;
-        }).when(modelGateway).generateStructured(any(), any());
+        }).when(modelGateway).generateStructured(any(), any(), any());
 
         CareerReportResponse dto = service.generate(jobId, new CareerReportGenerateRequest());
 
@@ -188,7 +188,7 @@ class CareerDevelopmentReportServiceImplTest {
 
         assertEquals(ErrorCode.CAREER_REPORT_GENERATION_FAILED.getCode(), ex.getCode());
         assertEquals("embed fail", ex.getCause().getMessage());
-        verify(modelGateway, never()).generateStructured(any(), any());
+        verify(modelGateway, never()).generateStructured(any(), any(), any());
         verify(reportMapper, never()).insert(any(CareerDevelopmentReport.class));
         verify(jdbcTemplate, never()).execute(any(ConnectionCallback.class));
     }
@@ -211,14 +211,13 @@ class CareerDevelopmentReportServiceImplTest {
             }
         });
         doAnswer(invocation -> {
-            StructuredModelRequest<?> request = invocation.getArgument(1, StructuredModelRequest.class);
-            Class<?> outputClass = request.outputType();
+            Class<?> outputClass = invocation.getArgument(2);
             Object payload = outputClass.getDeclaredConstructor().newInstance();
             Field reportContent = outputClass.getDeclaredField("reportContent");
             reportContent.setAccessible(true);
             reportContent.set(payload, Map.of("careerExploration", "匹配分析"));
             return payload;
-        }).when(modelGateway).generateStructured(any(), any());
+        }).when(modelGateway).generateStructured(any(), any(), any());
 
         IllegalStateException ex = assertThrows(IllegalStateException.class,
                 () -> service.generate(jobId, new CareerReportGenerateRequest()));
@@ -253,8 +252,7 @@ class CareerDevelopmentReportServiceImplTest {
         stubInsertNewVersion(1000L);
 
         doAnswer(invocation -> {
-            StructuredModelRequest<?> request = invocation.getArgument(1, StructuredModelRequest.class);
-            Class<?> outputClass = request.outputType();
+            Class<?> outputClass = invocation.getArgument(2);
             Object payload = outputClass.getDeclaredConstructor().newInstance();
             Field f = outputClass.getDeclaredField("reportContent");
             f.setAccessible(true);
@@ -270,7 +268,7 @@ class CareerDevelopmentReportServiceImplTest {
             content.put("evidence", List.of("证据A"));
             f.set(payload, content);
             return payload;
-        }).when(modelGateway).generateStructured(any(), any());
+        }).when(modelGateway).generateStructured(any(), any(), any());
 
         service.generate(jobId, new CareerReportGenerateRequest());
 
@@ -352,7 +350,7 @@ class CareerDevelopmentReportServiceImplTest {
         modelCheck.setMissingSections(List.of());
         modelCheck.setNonActionableItems(List.of());
         modelCheck.setWeakEvidenceItems(List.of());
-        doReturn(modelCheck).when(modelGateway).generateStructured(any(), any());
+        doReturn(modelCheck).when(modelGateway).generateStructured(any(), any(), any());
 
         CareerReportCheckResponse check = service.checkIntegrity(20L);
 
@@ -367,7 +365,7 @@ class CareerDevelopmentReportServiceImplTest {
     void checkIntegrity_whenModelFails_shouldPropagateAndSkipSave() {
         stubOwnedReport();
         RuntimeException failure = new IllegalStateException("模型检查失败");
-        doThrow(failure).when(modelGateway).generateStructured(any(), any());
+        doThrow(failure).when(modelGateway).generateStructured(any(), any(), any());
 
         assertThat(assertThrows(RuntimeException.class, () -> service.checkIntegrity(31L))).isSameAs(failure);
         verify(reportMapper, never()).update(isNull(), any());
@@ -393,15 +391,15 @@ class CareerDevelopmentReportServiceImplTest {
             if (scenario.equals("nullPayload")) {
                 return null;
             }
-            StructuredModelRequest<?> request = invocation.getArgument(1);
-            Object payload = request.outputType().getDeclaredConstructor().newInstance();
+            Class<?> outputClass = invocation.getArgument(2);
+            Object payload = outputClass.getDeclaredConstructor().newInstance();
             if (scenario.equals("emptyContent")) {
-                Field field = request.outputType().getDeclaredField("reportContent");
+                Field field = outputClass.getDeclaredField("reportContent");
                 field.setAccessible(true);
                 field.set(payload, Map.of());
             }
             return payload;
-        }).when(modelGateway).generateStructured(any(), any());
+        }).when(modelGateway).generateStructured(any(), any(), any());
 
         BusinessException failure = assertThrows(BusinessException.class, () -> service.polish(31L, null));
 

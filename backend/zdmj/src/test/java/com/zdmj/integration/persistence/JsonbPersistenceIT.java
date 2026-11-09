@@ -18,9 +18,7 @@ import com.zdmj.jobService.entity.Company;
 import com.zdmj.jobService.entity.Job;
 import com.zdmj.jobService.mapper.CompanyMapper;
 import com.zdmj.jobService.mapper.JobMapper;
-import com.zdmj.resumeService.entity.Resume;
 import com.zdmj.resumeService.entity.Skill;
-import com.zdmj.resumeService.mapper.ResumeMapper;
 import com.zdmj.resumeService.mapper.SkillMapper;
 import com.zdmj.resumeService.service.SkillService;
 import com.zdmj.testsupport.IntegrationTestBase;
@@ -33,21 +31,19 @@ class JsonbPersistenceIT extends IntegrationTestBase {
     private final JdbcTemplate jdbcTemplate;
     private final JobMapper jobMapper;
     private final CompanyMapper companyMapper;
-    private final ResumeMapper resumeMapper;
     private final SkillMapper skillMapper;
     private final ConversationMapper conversationMapper;
     private final SkillService skillService;
 
     @Autowired
     JsonbPersistenceIT(com.zdmj.testsupport.DatabaseCleaner databaseCleaner, TestUsers testUsers,
-            JdbcTemplate jdbcTemplate, JobMapper jobMapper, CompanyMapper companyMapper, ResumeMapper resumeMapper,
+            JdbcTemplate jdbcTemplate, JobMapper jobMapper, CompanyMapper companyMapper,
             SkillMapper skillMapper, ConversationMapper conversationMapper, SkillService skillService) {
         super(databaseCleaner);
         this.testUsers = testUsers;
         this.jdbcTemplate = jdbcTemplate;
         this.jobMapper = jobMapper;
         this.companyMapper = companyMapper;
-        this.resumeMapper = resumeMapper;
         this.skillMapper = skillMapper;
         this.conversationMapper = conversationMapper;
         this.skillService = skillService;
@@ -89,19 +85,6 @@ class JsonbPersistenceIT extends IntegrationTestBase {
 
         Company loadedCompany = companyMapper.selectById(company.getId());
         assertThat(loadedCompany.getIndustries()).containsExactly("互联网", "企业服务");
-
-        Resume resume = new Resume();
-        resume.setUserId(user.getId());
-        resume.setProjects(List.of(3_000_000_000L, 2L));
-        resume.setEducations(List.of());
-        resumeMapper.insert(resume);
-        Resume loadedResume = resumeMapper.selectById(resume.getId());
-        assertThat(loadedResume.getProjects()).containsExactly(3_000_000_000L, 2L);
-        assertThat(loadedResume.getProjects().get(0)).isInstanceOf(Long.class);
-        assertThat(loadedResume.getEducations()).isEmpty();
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT projects::text FROM resumes WHERE id = ?", String.class, resume.getId()))
-                .contains("3000000000");
 
         Skill skill = new Skill();
         skill.setUserId(user.getId());

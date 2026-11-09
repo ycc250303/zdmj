@@ -1,4 +1,4 @@
-package com.zdmj.aiService.service;
+package com.zdmj.aiService.service.impl;
 
 import java.util.List;
 

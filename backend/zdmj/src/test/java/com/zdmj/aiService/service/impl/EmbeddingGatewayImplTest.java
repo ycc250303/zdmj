@@ -1,4 +1,4 @@
-package com.zdmj.aiService.service;
+package com.zdmj.aiService.service.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;

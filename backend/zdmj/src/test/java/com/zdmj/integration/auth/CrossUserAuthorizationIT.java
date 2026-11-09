@@ -70,28 +70,6 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
     }
 
     @Test
-    void 简历_其他用户修改或删除_返回无权且数据库未变化() throws Exception {
-        long skillId = ApiClient.dataId(api.post(tokenA, "/skills", skillJson("Java")));
-        long resumeId = ApiClient.dataId(api.post(tokenA, "/resumes", "{\"skillId\":" + skillId + "}"));
-        String owned = ApiClient.requireOk(api.get(tokenA, "/resumes"));
-        assertThat(JsonPath.<Integer>read(owned, "$.data.length()")).isEqualTo(1);
-
-        String hidden = ApiClient.requireOk(api.get(tokenB, "/resumes"));
-        assertThat(JsonPath.<Integer>read(hidden, "$.data.length()")).isZero();
-        ApiClient.assertProblem(api.put(tokenB, "/resumes",
-                "{\"id\":" + resumeId + ",\"skillId\":" + skillId + "}"), 403, 1003);
-        ApiClient.assertProblem(api.delete(tokenB, "/resumes/" + resumeId), 403, 1003);
-        assertThat(jdbcTemplate.queryForObject("SELECT skill_id FROM resumes WHERE id = ?", Long.class, resumeId))
-                .isEqualTo(skillId);
-        assertThat(jdbcTemplate.queryForObject("SELECT user_id FROM resumes WHERE id = ?", Long.class, resumeId))
-                .isEqualTo(userA.getId());
-
-        ApiClient.requireOk(api.delete(tokenA, "/resumes/" + resumeId));
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM resumes WHERE id = ?", Integer.class, resumeId))
-                .isZero();
-    }
-
-    @Test
     void 教育经历_其他用户修改或删除_返回无权且学校名称保持不变() throws Exception {
         long id = ApiClient.dataId(api.post(tokenA, "/educations", """
                 {"school":"测试大学","major":"计算机","degree":3,"startDate":"2020-09-01","endDate":"2024-06-30"}

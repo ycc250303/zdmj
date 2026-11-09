@@ -8,13 +8,9 @@ import lombok.Data;
  */
 @Data
 public class ResumeContentResponse {
-    /**
-     * 简历ID
-     */
-    private Long id;
 
     /**
-     * 技能清单
+     * 技能清单。没有技能时为空。
      */
     private SkillResponse skill;
 

@@ -10,7 +10,7 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
-import com.zdmj.aiService.api.StructuredModelRequest;
+import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
@@ -106,11 +106,8 @@ class JobStudentMatchServiceImplTest {
 
         matchService.generate(jobId, null);
 
-        verify(modelGateway).generateStructured(
-                eq(CurrentActor.of(USER_ID)),
-                argThat((StructuredModelRequest<?> req) -> req.promptVars() == null
-                        && "job-student-match/default".equals(req.promptName())
-                        && req.outputType() == JobStudentMatchResponse.class));
+        verify(modelGateway).generateStructured(eq(CurrentActor.of(USER_ID)), argThat((ModelRequest req) -> req.promptVars() == null
+                        && "job-student-match/default".equals(req.promptName())), eq(JobStudentMatchResponse.class));
         verify(matchMapper).insert(argThat(match -> USER_ID.equals(match.getUserId()) && jobId.equals(match.getJobId())));
     }
 
@@ -121,13 +118,11 @@ class JobStudentMatchServiceImplTest {
 
         matchService.generate(jobId, null);
 
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<StructuredModelRequest<JobStudentMatchResponse>> userMessageCaptor =
-                ArgumentCaptor.forClass(StructuredModelRequest.class);
-        verify(modelGateway).generateStructured(eq(CurrentActor.of(USER_ID)), userMessageCaptor.capture());
+        ArgumentCaptor<ModelRequest> userMessageCaptor =
+                ArgumentCaptor.forClass(ModelRequest.class);
+        verify(modelGateway).generateStructured(eq(CurrentActor.of(USER_ID)), userMessageCaptor.capture(), eq(JobStudentMatchResponse.class));
         assertNull(userMessageCaptor.getValue().promptVars());
         assertEquals("job-student-match/java-backend", userMessageCaptor.getValue().promptName());
-        assertEquals(JobStudentMatchResponse.class, userMessageCaptor.getValue().outputType());
 
         String userMessage = userMessageCaptor.getValue().message();
         assertTrue(userMessage.contains("权重配置"),
@@ -145,7 +140,7 @@ class JobStudentMatchServiceImplTest {
         Long jobId = 21L;
         prepareJobAndProfiles(jobId, "java-backend");
         doThrow(new RuntimeException("llm down")).when(modelGateway)
-                .generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobStudentMatchResponse.class));
+                .generateStructured(any(), argThat((ModelRequest req) -> req.promptVars() == null), eq(JobStudentMatchResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> matchService.generate(jobId, null));
@@ -157,7 +152,7 @@ class JobStudentMatchServiceImplTest {
     void generate_modelGatewayReturnsNull_shouldThrow11001_matchGenerationFailed() {
         Long jobId = 22L;
         prepareJobAndProfiles(jobId, "java-backend");
-        doReturn(null).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobStudentMatchResponse.class));
+        doReturn(null).when(modelGateway).generateStructured(any(), argThat((ModelRequest req) -> req.promptVars() == null), eq(JobStudentMatchResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> matchService.generate(jobId, null));
@@ -176,7 +171,7 @@ class JobStudentMatchServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> matchService.generate(jobId, null));
         assertEquals(ErrorCode.MATCH_PRECONDITION_MISSING.getCode(), ex.getCode());
-        verify(modelGateway, never()).generateStructured(any(), any(StructuredModelRequest.class));
+        verify(modelGateway, never()).generateStructured(any(), any(ModelRequest.class), any());
         verify(matchMapper, never()).insert(any(JobStudentMatch.class));
     }
 
@@ -199,7 +194,7 @@ class JobStudentMatchServiceImplTest {
                 .getJobCapabilityProfileOrNull(jobId);
         doReturn(buildStudentProfile()).when(studentCapabilityProfileService)
                 .getCurrentUserProfileOrNull();
-        doReturn(buildAiResult()).when(modelGateway).generateStructured(any(), any(StructuredModelRequest.class));
+        doReturn(buildAiResult()).when(modelGateway).generateStructured(any(), any(ModelRequest.class), any());
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> matchService.generate(jobId, null));
@@ -251,7 +246,7 @@ class JobStudentMatchServiceImplTest {
     void generate_whenDimensionSerializationFails_shouldThrowAndSkipSave() {
         Long jobId = 24L;
         prepareJobAndProfiles(jobId, "java-backend");
-        doReturn(buildAiResult()).when(modelGateway).generateStructured(any(), any(StructuredModelRequest.class));
+        doReturn(buildAiResult()).when(modelGateway).generateStructured(any(), any(ModelRequest.class), any());
         ReflectionTestUtils.setField(matchService, "objectMapper", new ObjectMapper() {
             @Override
             public String writeValueAsString(Object value) throws JsonProcessingException {
@@ -382,7 +377,7 @@ class JobStudentMatchServiceImplTest {
      */
     private void wireHappyPath(Long jobId, String roleType, JobStudentMatchResponse aiResult) {
         prepareJobAndProfiles(jobId, roleType);
-        doReturn(aiResult).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobStudentMatchResponse.class));
+        doReturn(aiResult).when(modelGateway).generateStructured(any(), argThat((ModelRequest req) -> req.promptVars() == null), eq(JobStudentMatchResponse.class));
         doReturn(null).when(matchMapper).selectOne(any());
         doReturn(1).when(matchMapper).insert(any(JobStudentMatch.class));
     }

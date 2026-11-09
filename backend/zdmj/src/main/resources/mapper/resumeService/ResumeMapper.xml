@@ -1,22 +1,74 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.zdmj.resumeService.mapper.ResumeMapper">
-    <!-- 复用 MP autoResultMap（含 List<Long> 的 JacksonTypeHandler Field 构造器） -->
-    <select id="selectByUserId" resultMap="mybatis-plus_Resume">
-        SELECT id, user_id, skill_id, projects, careers, educations, awards, resume_matched_ids,
-               created_at, updated_at
-        FROM resumes WHERE user_id = #{userId} ORDER BY created_at DESC
-    </select>
 
-    <select id="selectOneByUserId" resultMap="mybatis-plus_Resume">
-        SELECT id, user_id, skill_id, projects, careers, educations, awards, resume_matched_ids,
-               created_at, updated_at
-        FROM resumes
-        WHERE user_id = #{userId}
-        LIMIT 1
-    </select>
-
-    <select id="existsByUserId" resultType="boolean">
-        SELECT COUNT(*) > 0 FROM resumes WHERE user_id = #{userId}
+    <select id="selectContentByUserId" resultType="com.zdmj.resumeService.mapper.ResumeContentRow">
+        SELECT
+            s.id AS skill_id,
+            CAST(s.content AS text) AS skill_content,
+            u.name AS personal_name,
+            u.phone AS personal_phone,
+            u.website AS personal_website,
+            u.preferred_work_city,
+            CAST(COALESCE((
+                SELECT json_agg(json_build_object(
+                    'id', e.id,
+                    'school', e.school,
+                    'major', e.major,
+                    'degree', e.degree,
+                    'startDate', e.start_date,
+                    'endDate', e.end_date,
+                    'gpa', e.gpa
+                ) ORDER BY e.start_date ASC)
+                FROM educations e
+                WHERE e.user_id = u.id
+            ), CAST('[]' AS json)) AS text) AS educations,
+            CAST(COALESCE((
+                SELECT json_agg(json_build_object(
+                    'id', c.id,
+                    'company', c.company,
+                    'position', c.position,
+                    'startDate', c.start_date,
+                    'endDate', c.end_date,
+                    'details', c.details
+                ) ORDER BY c.start_date DESC)
+                FROM careers c
+                WHERE c.user_id = u.id
+            ), CAST('[]' AS json)) AS text) AS careers,
+            CAST(COALESCE((
+                SELECT json_agg(json_build_object(
+                    'id', p.id,
+                    'name', p.name,
+                    'startDate', p.start_date,
+                    'endDate', p.end_date,
+                    'role', p.role,
+                    'description', p.description,
+                    'contribution', p.contribution,
+                    'techStack', p.tech_stack,
+                    'highlights', p.highlights,
+                    'url', p.url
+                ) ORDER BY p.start_date DESC)
+                FROM project_experiences p
+                WHERE p.user_id = u.id
+            ), CAST('[]' AS json)) AS text) AS projects,
+            CAST(COALESCE((
+                SELECT json_agg(json_build_object(
+                    'id', a.id,
+                    'name', a.name,
+                    'awardDate', a.award_date,
+                    'description', a.description
+                ) ORDER BY a.award_date DESC)
+                FROM awards a
+                WHERE a.user_id = u.id
+            ), CAST('[]' AS json)) AS text) AS awards
+        FROM users u
+        LEFT JOIN LATERAL (
+            SELECT id, content
+            FROM skills
+            WHERE user_id = u.id
+            ORDER BY updated_at DESC, id DESC
+            LIMIT 1
+        ) s ON TRUE
+        WHERE u.id = #{userId}
     </select>
 </mapper>

@@ -786,12 +786,10 @@ declare namespace App {
           apiKeyRequired: string;
           apiKeyHint: string;
           save: string;
-          test: string;
           clearConfig: string;
           deleteConfirm: string;
           saveSuccess: string;
           deleteSuccess: string;
-          testSuccess: string;
           statusConfigured: string;
           statusNotConfigured: string;
           currentModel: string;

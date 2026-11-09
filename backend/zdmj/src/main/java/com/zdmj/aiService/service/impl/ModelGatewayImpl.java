@@ -1,11 +1,11 @@
-package com.zdmj.aiService.service;
+package com.zdmj.aiService.service.impl;
 
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
@@ -18,17 +18,16 @@ import org.springframework.util.StringUtils;
 
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
-import com.zdmj.aiService.api.StreamingModelRequest;
-import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.aiService.config.ModelClientConfiguration;
-import com.zdmj.aiService.provider.ResolvedModelConfiguration;
-import com.zdmj.aiService.provider.UserModelConfigurationProvider;
-import com.zdmj.common.prompt.PromptLoader;
+import com.zdmj.aiService.support.ResolvedModelConfiguration;
+import com.zdmj.aiService.support.UserModelConfigurationReader;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.common.prompt.PromptLoader;
 
 import lombok.extern.slf4j.Slf4j;
+
 import reactor.core.publisher.Flux;
 
 /**
@@ -48,7 +47,7 @@ public class ModelGatewayImpl implements ModelGateway {
             .build();
 
     private final PromptLoader promptLoader;
-    private final UserModelConfigurationProvider configurationProvider;
+    private final UserModelConfigurationReader configurationReader;
     private final ModelClientConfiguration clients;
     private final ChatMemory chatMemory;
     private final Map<String, ChatClient> clientCache = new ConcurrentHashMap<>();
@@ -57,18 +56,25 @@ public class ModelGatewayImpl implements ModelGateway {
      * 装配提示词、用户配置查询、供应商客户端和会话记忆。
      *
      * @param promptLoader            提示词加载
-     * @param configurationProvider   用户模型配置查询
+     * @param configurationReader     用户模型配置读取与解密
      * @param clients                 供应商客户端参数
      * @param chatMemory              会话记忆，由会话模块提供存储与窗口
      */
-    public ModelGatewayImpl(PromptLoader promptLoader, UserModelConfigurationProvider configurationProvider,
+    public ModelGatewayImpl(PromptLoader promptLoader, UserModelConfigurationReader configurationReader,
             ModelClientConfiguration clients, ChatMemory chatMemory) {
         this.promptLoader = promptLoader;
-        this.configurationProvider = configurationProvider;
+        this.configurationReader = configurationReader;
         this.clients = clients;
         this.chatMemory = chatMemory;
     }
 
+    /**
+     * 生成文本。
+     *
+     * @param actor 当前操作者
+     * @param request 模型请求
+     * @return 文本
+     */
     @Override
     public String generate(CurrentActor actor, ModelRequest request) {
         requireUserId(actor);
@@ -78,26 +84,45 @@ public class ModelGatewayImpl implements ModelGateway {
                 .content();
     }
 
+    /**
+     * 生成结构化输出。
+     *
+     * @param actor 当前操作者
+     * @param request 模型请求
+     * @param outputType 非空的结构化结果类型
+     * @return 结构化输出
+     */
     @Override
-    public <T> T generateStructured(CurrentActor actor, StructuredModelRequest<T> request) {
+    public <T> T generateStructured(CurrentActor actor, ModelRequest request, Class<T> outputType) {
         requireUserId(actor);
+        if (outputType == null) {
+            throw new IllegalArgumentException("结构化结果类型不能为空");
+        }
         ChatClientRequestSpec spec = userChatClient(actor, false).prompt();
         return invokeStructured(
                 applySystemPrompt(spec, request.promptName(), request.promptVars()),
                 request.message(),
-                request.outputType());
+                outputType);
     }
 
+    /**
+     * 流式生成文本。
+     *
+     * @param actor 当前操作者
+     * @param conversationId 非空的会话主键
+     * @param request 模型请求
+     * @return 文本流
+     */
     @Override
-    public Flux<String> stream(CurrentActor actor, StreamingModelRequest request) {
-        if (request.conversationId() == null) {
-            throw new IllegalArgumentException("Conversation ID cannot be null");
+    public Flux<String> stream(CurrentActor actor, Long conversationId, ModelRequest request) {
+        if (conversationId == null) {
+            throw new IllegalArgumentException("会话主键不能为空");
         }
         requireUserId(actor);
         return applySystemPrompt(
                 userChatClient(actor, true).prompt()
                         .advisors(advisor -> advisor.param(ChatMemory.CONVERSATION_ID,
-                                String.valueOf(request.conversationId()))),
+                                String.valueOf(conversationId))),
                 request.promptName(),
                 request.promptVars())
                 .user(request.message())
@@ -139,10 +164,8 @@ public class ModelGatewayImpl implements ModelGateway {
      * @throws BusinessException 用户未配置模型或密钥时抛出 {@link ErrorCode#USER_LLM_NOT_CONFIGURED}
      */
     private ChatClient createUserClient(Long userId, boolean withMemory) {
-        ResolvedModelConfiguration resolved = configurationProvider.resolve(CurrentActor.of(userId));
-        if (!resolved.configured()) {
-            throw new BusinessException(ErrorCode.USER_LLM_NOT_CONFIGURED);
-        }
+        ResolvedModelConfiguration resolved = configurationReader.find(CurrentActor.of(userId))
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_LLM_NOT_CONFIGURED));
         ChatModel chatModel = clients.buildUserModel(resolved.model(), resolved.apiKey());
         ChatClient.Builder builder = ChatClient.builder(chatModel);
         if (withMemory) {

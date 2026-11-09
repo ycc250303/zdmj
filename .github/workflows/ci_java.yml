@@ -8,7 +8,17 @@ on:
     paths:
       - 'backend/zdmj/**'
       - 'sql/**'
+      - 'deploy/deploy_backend.sh'
+      - 'deploy/sync_server_code.sh'
+      - 'deploy/release.sh'
+      - 'deploy/runtime.sh'
+      - 'deploy/health.sh'
+      - 'deploy/docker-compose.yml'
       - '.github/workflows/ci_java.yml'
+      - '.github/workflows/cd.yml'
+      - '.github/scripts/ssh_run.sh'
+      - '.github/scripts/deploy_targets.sh'
+      - '.github/scripts/render_remote_release.sh'
   pull_request:
     branches:
       - backend
@@ -16,7 +26,17 @@ on:
     paths:
       - 'backend/zdmj/**'
       - 'sql/**'
+      - 'deploy/deploy_backend.sh'
+      - 'deploy/sync_server_code.sh'
+      - 'deploy/release.sh'
+      - 'deploy/runtime.sh'
+      - 'deploy/health.sh'
+      - 'deploy/docker-compose.yml'
       - '.github/workflows/ci_java.yml'
+      - '.github/workflows/cd.yml'
+      - '.github/scripts/ssh_run.sh'
+      - '.github/scripts/deploy_targets.sh'
+      - '.github/scripts/render_remote_release.sh'
 
 jobs:
   test:

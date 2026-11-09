@@ -1,5 +1,7 @@
 package com.zdmj.aiService.enums;
 
+import java.util.Map;
+
 import org.springframework.util.StringUtils;
 
 import com.zdmj.common.exception.BusinessException;
@@ -23,7 +25,7 @@ public enum ModelCode {
     private final String code;
     /** 展示名称 */
     private final String displayName;
-    /** OpenAI 兼容接口的 base URL */
+    /** OpenAI 兼容接口根地址；不包含版本后缀或末尾斜线，对话统一追加 /v1/chat/completions。 */
     private final String baseUrl;
     /** 发给供应商的模型名 */
     private final String apiModelName;
@@ -49,6 +51,14 @@ public enum ModelCode {
 
     public String apiModelName() {
         return apiModelName;
+    }
+
+    /** 返回该目录项关闭思考模式所需的供应商请求参数。 */
+    public Map<String, Object> thinkingDisabledExtraBody() {
+        return switch (this) {
+            case QWEN_PLUS, QWEN_MAX -> Map.of("enable_thinking", false);
+            case DEEPSEEK_FLASH, DEEPSEEK_PRO -> Map.of("thinking", Map.of("type", "disabled"));
+        };
     }
 
     /**

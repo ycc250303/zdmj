@@ -31,11 +31,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.client.ResourceAccessException;
 
 import com.jayway.jsonpath.JsonPath;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
-import com.zdmj.aiService.api.StreamingModelRequest;
 import com.zdmj.aiService.config.ModelClientConfiguration;
 import com.zdmj.aiService.enums.ModelCode;
 import com.zdmj.aiService.service.impl.ModelGatewayImpl;
@@ -80,6 +81,7 @@ class UserLlmConfigFlowIT extends IntegrationTestBase {
     private String token;
     private String tokenB;
     private Long otherUserId;
+    private ChatModel probe;
 
     @Autowired
     UserLlmConfigFlowIT(DatabaseCleaner cleaner, MockMvc mockMvc, TestUsers testUsers,
@@ -99,14 +101,22 @@ class UserLlmConfigFlowIT extends IntegrationTestBase {
         tokenB = testJwt.authorize(pair.userB());
         actor = CurrentActor.of(user.getId());
         token = testJwt.authorize(user);
+        probe = mock(ChatModel.class);
+        when(clients.buildProbe(any(), any())).thenAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return probe;
+        });
+        when(probe.call(any(Prompt.class))).thenAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return new ChatResponse(List.of(new Generation(new AssistantMessage("pong"))));
+        });
     }
 
     @Test
     void 配置保存更新删除_接口与两类客户端保持一致() throws Exception {
         String absent = ApiClient.requireOk(api.get(token, "/users/llm-config"));
         assertThat(JsonPath.<Boolean>read(absent, "$.data.configured")).isFalse();
-        String models = ApiClient.requireOk(api.get(token, "/users/llm-config/models"));
-        assertThat(JsonPath.<List<String>>read(models, "$.data[*].code"))
+        assertThat(JsonPath.<List<String>>read(absent, "$.data.models[*].code"))
                 .containsExactly(java.util.Arrays.stream(ModelCode.values()).map(ModelCode::code).toArray(String[]::new));
 
         ChatModel original = modelReplying("原配置回复");
@@ -119,6 +129,11 @@ class UserLlmConfigFlowIT extends IntegrationTestBase {
         assertThat(JsonPath.<String>read(saved, "$.data.modelCode")).isEqualTo("deepseek-flash");
         assertThat(JsonPath.<String>read(saved, "$.data.apiKeyMasked")).isEqualTo("sk-****cret");
         assertThat(saved).doesNotContain("sk-original-secret", "apiKeyCiphertext");
+        assertThat(JsonPath.<List<String>>read(saved, "$.data.models[*].displayName"))
+                .containsExactly(java.util.Arrays.stream(ModelCode.values()).map(ModelCode::displayName).toArray(String[]::new));
+        verify(clients).buildProbe(ModelCode.DEEPSEEK_FLASH, "sk-original-secret");
+        verify(probe).call(org.mockito.ArgumentMatchers.argThat(
+                (Prompt prompt) -> "ping".equals(prompt.getUserMessage().getText())));
         assertThat(jdbcTemplate.queryForObject("SELECT api_key_ciphertext FROM user_llm_config WHERE user_id = ?",
                 String.class, actor.userId())).isNotBlank().isNotEqualTo("sk-original-secret");
         assertReplies("原配置回复");
@@ -130,6 +145,7 @@ class UserLlmConfigFlowIT extends IntegrationTestBase {
         verify(clients, times(2)).buildUserModel(ModelCode.QWEN_PLUS, "sk-updated-secret");
 
         ApiClient.requireOk(api.delete(token, "/users/llm-config"));
+        ApiClient.requireOk(api.delete(token, "/users/llm-config"));
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM user_llm_config WHERE user_id = ?",
                 Integer.class, actor.userId())).isZero();
         assertThat(JsonPath.<Boolean>read(ApiClient.requireOk(api.get(token, "/users/llm-config")),
@@ -137,28 +153,65 @@ class UserLlmConfigFlowIT extends IntegrationTestBase {
         assertThatThrownBy(() -> gateway.generate(actor, new ModelRequest("hi", null, null)))
                 .isInstanceOfSatisfying(BusinessException.class,
                         failure -> assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.USER_LLM_NOT_CONFIGURED));
-        assertThatThrownBy(() -> gateway.stream(actor, new StreamingModelRequest(11L, "hi", null, null)))
+        assertThatThrownBy(() -> gateway.stream(actor, 11L, new ModelRequest("hi", null, null)))
                 .isInstanceOfSatisfying(BusinessException.class,
                         failure -> assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.USER_LLM_NOT_CONFIGURED));
     }
 
     @Test
-    void 连通性检查_使用请求密钥且不保存配置() throws Exception {
-        ChatModel probe = modelReplying("pong");
-        when(clients.buildProbe("deepseek-flash", "probe-secret")).thenReturn(probe);
+    void 首次保存探测失败_不建立配置() throws Exception {
+        when(probe.call(any(Prompt.class))).thenThrow(new ResourceAccessException("供应商连接超时"));
 
-        ApiClient.requireOk(api.post(token, "/users/llm-config/test", config("deepseek-flash", "  probe-secret  ")));
-        ApiClient.assertProblem(api.post(token, "/users/llm-config/test", config("invalid", "probe-secret")), 400, 2011);
+        ApiClient.assertProblem(api.put(token, "/users/llm-config", config("deepseek-flash", "  probe-secret  ")),
+                400, 2014);
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM user_llm_config", Integer.class)).isZero();
-        verify(clients).buildProbe("deepseek-flash", "probe-secret");
+        verify(clients).buildProbe(ModelCode.DEEPSEEK_FLASH, "probe-secret");
+    }
+
+    @Test
+    void 替换配置探测失败_保留原配置与两类客户端() throws Exception {
+        ChatModel original = modelReplying("原配置回复");
+        when(clients.buildUserModel(ModelCode.DEEPSEEK_FLASH, "original")).thenReturn(original);
+        putConfig("deepseek-flash", "original");
+        assertReplies("原配置回复");
+        var saved = jdbcTemplate.queryForMap("SELECT * FROM user_llm_config WHERE user_id = ?", actor.userId());
+        when(probe.call(any(Prompt.class))).thenThrow(new ResourceAccessException("供应商连接超时"));
+
+        ApiClient.assertProblem(api.put(token, "/users/llm-config", config("qwen3.8-flash", "updated")), 400, 2014);
+
+        assertThat(jdbcTemplate.queryForMap("SELECT * FROM user_llm_config WHERE user_id = ?", actor.userId()))
+                .isEqualTo(saved);
+        assertReplies("原配置回复");
+        verify(clients, times(2)).buildUserModel(ModelCode.DEEPSEEK_FLASH, "original");
     }
 
     @Test
     void 配置接口_缺少身份或输入非法_返回既有错误() throws Exception {
         ApiClient.assertProblem(api.get("", "/users/llm-config"), 401, 1002);
+        ApiClient.assertProblem(api.put("", "/users/llm-config", config("deepseek-flash", "secret")), 401, 1002);
+        ApiClient.assertProblem(api.delete("", "/users/llm-config"), 401, 1002);
         ApiClient.assertProblem(api.put(token, "/users/llm-config", config("invalid", "secret")), 400, 2011);
         ApiClient.assertProblem(api.put(token, "/users/llm-config", config("deepseek-flash", " ")), 400, 1001);
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM user_llm_config", Integer.class)).isZero();
+    }
+
+    @Test
+    void 配置接口_移除独立目录与探测入口() throws Exception {
+        assertThat(api.get(token, "/users/llm-config/models").getResponse().getStatus()).isEqualTo(404);
+        assertThat(api.post(token, "/users/llm-config/test", config("deepseek-flash", "secret"))
+                .getResponse().getStatus()).isEqualTo(404);
+        org.mockito.Mockito.verifyNoInteractions(clients);
+    }
+
+    @Test
+    void 校验并保存_每用户每分钟最多十次探测() throws Exception {
+        for (int index = 0; index < 10; index++) {
+            ApiClient.requireOk(api.put(token, "/users/llm-config", config("deepseek-flash", "secret")));
+        }
+        ApiClient.assertProblem(api.put(token, "/users/llm-config", config("deepseek-flash", "secret")), 429, 1011);
+        verify(clients, times(10)).buildProbe(ModelCode.DEEPSEEK_FLASH, "secret");
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM user_llm_config WHERE user_id = ?",
+                Integer.class, actor.userId())).isEqualTo(1);
     }
 
     @Test
@@ -287,6 +340,9 @@ class UserLlmConfigFlowIT extends IntegrationTestBase {
                 Integer.class, actor.userId())).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("SELECT model_code FROM user_llm_config WHERE user_id = ?",
                 String.class, actor.userId())).isEqualTo("qwen3.8-flash");
+        ChatModel updated = modelReplying("并发保存后的配置回复");
+        when(clients.buildUserModel(ModelCode.QWEN_PLUS, "second")).thenReturn(updated);
+        assertReplies("并发保存后的配置回复");
     }
 
     private void putConfig(String modelCode, String apiKey) {
@@ -300,7 +356,7 @@ class UserLlmConfigFlowIT extends IntegrationTestBase {
     private void assertReplies(String expected) {
         assertThat(gateway.generate(actor, new ModelRequest("hi", null, null))).isEqualTo(expected);
         chatMemory.clear("11");
-        assertThat(gateway.stream(actor, new StreamingModelRequest(11L, "hi", null, null))
+        assertThat(gateway.stream(actor, 11L, new ModelRequest("hi", null, null))
                 .collectList().block(Duration.ofSeconds(10))).containsExactly(expected);
     }
 

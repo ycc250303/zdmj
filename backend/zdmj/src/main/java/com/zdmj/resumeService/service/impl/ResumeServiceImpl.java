@@ -1,8 +1,9 @@
 package com.zdmj.resumeService.service.impl;
 
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.aiService.api.ModelGateway;
-import com.zdmj.aiService.api.StructuredModelRequest;
+import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
@@ -15,11 +16,12 @@ import com.zdmj.resumeService.mapper.AwardMapper;
 import com.zdmj.resumeService.mapper.CareerMapper;
 import com.zdmj.resumeService.mapper.EducationMapper;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
+import com.zdmj.resumeService.mapper.ResumeContentRow;
 import com.zdmj.resumeService.mapper.ResumeMapper;
 import com.zdmj.resumeService.mapper.SkillMapper;
 import com.zdmj.resumeService.service.AwardService;
-import com.zdmj.userAuthService.entity.User;
-import com.zdmj.userAuthService.mapper.UserMapper;
+import com.zdmj.userAuthService.dto.UserUpdateRequest;
+import com.zdmj.userAuthService.service.UserLoginService;
 import com.zdmj.resumeService.service.CareerService;
 import com.zdmj.resumeService.service.EducationService;
 import com.zdmj.resumeService.service.ProjectExperienceService;
@@ -29,7 +31,6 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -51,7 +52,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 @Service
-public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> implements ResumeService {
+public class ResumeServiceImpl implements ResumeService {
 
     private static final String IMPORT_PROMPT = "resume-import-parse";
 
@@ -63,7 +64,8 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     private final CareerMapper careerMapper;
     private final AwardMapper awardMapper;
     private final SkillMapper skillMapper;
-    private final UserMapper userMapper;
+    private final ResumeMapper resumeMapper;
+    private final UserLoginService userService;
     private final ModelGateway modelGateway;
     private final EducationService educationService;
     private final CareerService careerService;
@@ -72,190 +74,119 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     private final SkillService skillService;
     private final Validator validator;
     private final PdfParserUtil pdfParserUtil;
-
-    @Override
-    public ResumeResponse create(ResumeRequest resumeRequest) {
-        Long userId = UserHolder.requireUserId();
-
-        if (baseMapper.existsByUserId(userId)) {
-            throw new BusinessException(ErrorCode.RESUME_ALREADY_EXISTS);
-        }
-
-        Resume resume = new Resume();
-        resume.setUserId(userId);
-        resume.setSkillId(resumeRequest.getSkillId());
-
-        boolean saved = save(resume);
-        if (!saved) {
-            throw new BusinessException(ErrorCode.RESUME_CREATE_FAILED);
-        }
-        log.info("创建简历成功: userId={}", userId);
-        return convertToResponse(resume);
-    }
-
-    @Override
-    public List<ResumeResponse> getByUserId() {
-        Long userId = UserHolder.requireUserId();
-        return baseMapper.selectByUserId(userId).stream().map(this::convertToResponse).toList();
-    }
-
-    @Override
-    public ResumeResponse update(ResumeRequest resumeRequest) {
-        Long userId = UserHolder.requireUserId();
-        Long id = resumeRequest.getId();
-
-        Resume resume = requireResumeAndCheckOwnership(id, userId, "修改");
-
-        resume.setSkillId(resumeRequest.getSkillId());
-        boolean updated = updateById(resume);
-        if (!updated) {
-            throw new BusinessException(ErrorCode.RESUME_UPDATE_FAILED);
-        }
-        log.info("更新简历成功: resumeId={}", resume.getId());
-
-        // 注意：不再清除缓存，因为简历基础信息和列表已不使用缓存
-
-        return convertToResponse(resume);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void delete(Long id) {
-        Long userId = UserHolder.requireUserId();
-        Resume resume = requireResumeAndCheckOwnership(id, userId, "删除");
-        boolean removed = removeById(id);
-        if (!removed) {
-            throw new BusinessException(ErrorCode.RESUME_DELETE_FAILED);
-        }
-        log.info("删除简历成功: resumeId={}", resume.getId());
-
-        // 注意：不再清除缓存，因为简历基础信息和列表已不使用缓存
-    }
+    private final ObjectMapper objectMapper;
 
     @Override
     public List<ResumeContentResponse> getResumeContentList() {
         Long userId = UserHolder.requireUserId();
-        Resume resume = baseMapper.selectOneByUserId(userId);
-        if (resume == null) {
+        ResumeContentRow row = resumeMapper.selectContentByUserId(userId);
+        if (row == null || !hasStoredContent(row)) {
             return List.of();
         }
-        return List.of(buildResumeContent(resume));
+        return List.of(toContentResponse(row));
     }
 
     @Override
     public ResumeContentResponse getMyResumeContent() {
         Long userId = UserHolder.requireUserId();
-        Resume resume = ensureResumeForUser(userId);
-        return buildResumeContent(resume);
+        ResumeContentRow row = requireUserContent(userId);
+        if (row.getSkillId() == null) {
+            ensureDefaultSkillId(userId);
+            row = requireUserContent(userId);
+        }
+        return toContentResponse(row);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ResumeContentResponse saveMyResumeContent(ResumeContentSaveRequest request) {
         Long userId = UserHolder.requireUserId();
-        Resume resume = ensureResumeForUser(userId);
-
-        Long skillId = syncSkill(userId, resume.getSkillId(), request.getSkill());
-        resume.setSkillId(skillId);
-
+        requireUserContent(userId);
+        syncSkill(userId, request.getSkill());
         syncEducations(userId, request.getEducations());
         syncCareers(userId, request.getCareers());
         syncProjects(userId, request.getProjects());
         syncAwards(userId, request.getAwards());
         syncPersonalInfo(userId, request.getPersonalInfo());
-
-        List<Award> savedAwards = awardMapper.selectByUserId(userId);
-        resume.setAwards(savedAwards.stream().map(Award::getId).collect(Collectors.toList()));
-
-        boolean updated = updateById(resume);
-        if (!updated) {
-            throw new BusinessException(ErrorCode.RESUME_UPDATE_FAILED);
-        }
-        log.info("全量保存简历成功: userId={}, resumeId={}", userId, resume.getId());
-        return buildResumeContent(resume);
+        log.info("全量保存简历成功: userId={}", userId);
+        return toContentResponse(requireUserContent(userId));
     }
 
-    private ResumeContentResponse buildResumeContent(Resume resume) {
-        ResumeContentResponse resumeContentDTO = new ResumeContentResponse();
-        resumeContentDTO.setId(resume.getId());
-
-        Skill skill = resume.getSkillId() != null ? skillMapper.selectById(resume.getSkillId()) : null;
-        List<Education> educations = educationMapper.selectByUserId(resume.getUserId());
-        List<Career> careers = careerMapper.selectByUserId(resume.getUserId());
-        List<ProjectExperience> projects = projectExperienceMapper.selectByUserId(resume.getUserId());
-        List<Award> awards = awardMapper.selectByUserId(resume.getUserId());
-
-        resumeContentDTO.setSkill(skill != null ? skillService.toResponse(skill) : null);
-        resumeContentDTO.setEducations(educations.stream()
-                .map(education -> convertSimpleEntityToDTO(education, EducationRequest.class))
-                .collect(Collectors.toList()));
-        resumeContentDTO.setCareers(careers.stream()
-                .map(career -> convertSimpleEntityToDTO(career, CareerRequest.class))
-                .collect(Collectors.toList()));
-        resumeContentDTO.setProjects(projects.stream()
-                .map(project -> convertSimpleEntityToDTO(project, ProjectExperienceRequest.class))
-                .collect(Collectors.toList()));
-        resumeContentDTO.setAwards(awards.stream()
-                .map(award -> convertSimpleEntityToDTO(award, AwardRequest.class))
-                .collect(Collectors.toList()));
-        resumeContentDTO.setPersonalInfo(buildPersonalInfo(resume.getUserId()));
-        return resumeContentDTO;
+    /**
+     * 读取当前用户的整份简历行。用户不存在时立即终止。
+     *
+     * @param userId 用户编号
+     * @return 查询行
+     */
+    private ResumeContentRow requireUserContent(Long userId) {
+        ResumeContentRow row = resumeMapper.selectContentByUserId(userId);
+        if (row == null) {
+            throw new IllegalStateException("当前用户不存在，无法读取简历");
+        }
+        return row;
     }
 
-    private ResumePersonalInfoDTO buildPersonalInfo(Long userId) {
-        User user = userMapper.selectById(userId);
-        if (user == null) {
-            return new ResumePersonalInfoDTO();
+    private boolean hasStoredContent(ResumeContentRow row) {
+        return row.getSkillId() != null
+                || hasItems(row.getEducations())
+                || hasItems(row.getCareers())
+                || hasItems(row.getProjects())
+                || hasItems(row.getAwards());
+    }
+
+    private boolean hasItems(String json) {
+        return StringUtils.hasText(json) && !"[]".equals(json.trim());
+    }
+
+    /**
+     * 把一次查询结果组装成整份简历响应。
+     *
+     * @param row 查询行，不能为空
+     * @return 整份简历
+     */
+    private ResumeContentResponse toContentResponse(ResumeContentRow row) {
+        ResumeContentResponse response = new ResumeContentResponse();
+        if (row.getSkillId() != null && row.getSkillContent() != null) {
+            Skill skill = new Skill();
+            skill.setId(row.getSkillId());
+            skill.setContent(row.getSkillContent());
+            response.setSkill(skillService.toResponse(skill));
         }
+        response.setEducations(readSection(row.getEducations(), EducationRequest.class));
+        response.setCareers(readSection(row.getCareers(), CareerRequest.class));
+        response.setProjects(readSection(row.getProjects(), ProjectExperienceRequest.class));
+        response.setAwards(readSection(row.getAwards(), AwardRequest.class));
         ResumePersonalInfoDTO info = new ResumePersonalInfoDTO();
-        info.setName(user.getName());
-        info.setPhone(user.getPhone());
-        info.setHomepageUrl(user.getWebsite());
-        info.setPreferredWorkCity(user.getPreferredWorkCity());
-        return info;
+        info.setName(row.getPersonalName());
+        info.setPhone(row.getPersonalPhone());
+        info.setHomepageUrl(row.getPersonalWebsite());
+        info.setPreferredWorkCity(row.getPreferredWorkCity());
+        response.setPersonalInfo(info);
+        return response;
+    }
+
+    private <T> List<T> readSection(String json, Class<T> type) {
+        if (!StringUtils.hasText(json)) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(json,
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, type));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("简历内容解析失败", e);
+        }
     }
 
     private void syncPersonalInfo(Long userId, ResumePersonalInfoDTO info) {
         if (info == null) {
             return;
         }
-        User user = userMapper.selectById(userId);
-        if (user == null) {
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-        }
-        if (info.getName() != null) {
-            user.setName(info.getName().trim());
-        }
-        if (info.getPhone() != null) {
-            user.setPhone(info.getPhone().trim());
-        }
-        if (info.getHomepageUrl() != null) {
-            user.setWebsite(info.getHomepageUrl().trim());
-        }
-        if (info.getPreferredWorkCity() != null) {
-            user.setPreferredWorkCity(info.getPreferredWorkCity().trim());
-        }
-        if (userMapper.updateById(user) <= 0) {
-            throw new BusinessException(ErrorCode.USER_REGISTER_FAILED);
-        }
-    }
-
-    private Resume ensureResumeForUser(Long userId) {
-        Resume resume = baseMapper.selectOneByUserId(userId);
-        if (resume != null) {
-            return resume;
-        }
-
-        Long skillId = ensureDefaultSkillId(userId);
-        Resume newResume = new Resume();
-        newResume.setUserId(userId);
-        newResume.setSkillId(skillId);
-        boolean saved = save(newResume);
-        if (!saved) {
-            throw new BusinessException(ErrorCode.RESUME_CREATE_FAILED);
-        }
-        log.info("自动创建默认简历: userId={}", userId);
-        return newResume;
+        UserUpdateRequest update = new UserUpdateRequest();
+        update.setName(info.getName());
+        update.setPhone(info.getPhone());
+        update.setWebsite(info.getHomepageUrl());
+        update.setPreferredWorkCity(info.getPreferredWorkCity());
+        userService.updateProfile(userId, update);
     }
 
     private Long ensureDefaultSkillId(Long userId) {
@@ -271,17 +202,32 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         return skillService.create(skillDTO).getId();
     }
 
-    private Long syncSkill(Long userId, Long currentSkillId, SkillRequest skillDto) {
+    private Long syncSkill(Long userId, SkillRequest skillDto) {
         if (skillDto.getId() != null) {
             skillService.update(skillDto);
             return skillDto.getId();
         }
-        if (currentSkillId != null) {
-            skillDto.setId(currentSkillId);
+        Skill current = findCurrentSkill(userId);
+        if (current != null) {
+            skillDto.setId(current.getId());
             skillService.update(skillDto);
-            return currentSkillId;
+            return current.getId();
         }
         return skillService.create(skillDto).getId();
+    }
+
+    /**
+     * 取当前用户最新的一条技能。没有技能时返回 null。
+     *
+     * @param userId 用户编号
+     * @return 技能行或 null
+     */
+    private Skill findCurrentSkill(Long userId) {
+        List<Skill> skills = skillMapper.selectByUserId(userId);
+        if (skills.isEmpty()) {
+            return null;
+        }
+        return skills.get(0);
     }
 
     private void syncEducations(Long userId, List<EducationRequest> incoming) {
@@ -456,11 +402,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         try {
             parsed = modelGateway.generateStructured(
                     CurrentActor.of(userId),
-                    StructuredModelRequest.of(
-                            sourceText,
-                            IMPORT_PROMPT,
-                            null,
-                            ResumeImportParseResponse.class));
+                    new ModelRequest(sourceText, IMPORT_PROMPT, null), ResumeImportParseResponse.class);
         } catch (BusinessException e) {
             throw e;
         } catch (IllegalStateException e) {
@@ -727,61 +669,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
     private String formatDateString(LocalDate date) {
         return date == null ? null : date.format(DateTimeFormatter.ISO_LOCAL_DATE);
-    }
-
-    /**
-     * 校验简历是否存在，返回简历实体
-     *
-     * @param id 简历ID
-     * @return 简历实体
-     * @throws BusinessException 如果简历不存在
-     */
-    private Resume requireResume(Long id) {
-        Resume resume = baseMapper.selectById(id);
-        if (resume == null) {
-            throw new BusinessException(ErrorCode.RESUME_NOT_FOUND);
-        }
-        return resume;
-    }
-
-    /**
-     * 校验简历是否存在且用户有权限操作，返回简历实体
-     *
-     * @param id     简历ID
-     * @param userId 用户ID
-     * @param action 操作类型（用于错误提示）
-     * @return 简历实体
-     * @throws BusinessException 如果简历不存在或用户无权限
-     */
-    private Resume requireResumeAndCheckOwnership(Long id, Long userId, String action) {
-        Resume resume = requireResume(id);
-        if (!resume.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION,
-                    ErrorCode.NO_PERMISSION.getMessage() + action + "他人简历");
-        }
-        return resume;
-    }
-
-    /**
-     * 轻量通用转换：用于字段名一致且无需复杂转换的实体->DTO映射
-     */
-    private <S, T> T convertSimpleEntityToDTO(S source, Class<T> targetClass) {
-        if (source == null) {
-            return null;
-        }
-        try {
-            T target = targetClass.getDeclaredConstructor().newInstance();
-            BeanUtils.copyProperties(source, target);
-            return target;
-        } catch (Exception e) {
-            throw new RuntimeException("对象转换失败: " + targetClass.getSimpleName(), e);
-        }
-    }
-
-    private ResumeResponse convertToResponse(Resume resume) {
-        ResumeResponse response = new ResumeResponse();
-        BeanUtils.copyProperties(resume, response);
-        return response;
     }
 
 }

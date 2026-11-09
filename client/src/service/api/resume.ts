@@ -72,14 +72,6 @@ export namespace ResumeApi {
     id: number;
   }
 
-  // --- 简历模块 ---
-  export interface ResumeCreate {
-    skillId: number;
-  }
-  export interface ResumeUpdate extends ResumeCreate {
-    id: number;
-  }
-
   //展示层
   export interface SkillDTO {
     id: number;
@@ -136,7 +128,6 @@ export namespace ResumeApi {
   }
 
   export interface ResumeContentDTO {
-    id: number;
     skill: SkillDTO;
     educations: EducationDTO[];
     careers: CareerDTO[];

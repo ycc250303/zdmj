@@ -1,7 +1,7 @@
 package com.zdmj.jobService.service.impl;
 
 import com.zdmj.aiService.api.ModelGateway;
-import com.zdmj.aiService.api.StructuredModelRequest;
+import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.jobService.api.JobRole;
 import org.junit.jupiter.api.Test;
@@ -44,9 +44,8 @@ class JobRoleDetectionServiceImplTest {
         response.setRoleCode(code);
         response.setConfidence(confidence);
         response.setReason("识别依据");
-        doReturn(response).when(gateway).generateStructured(eq(actor), argThat((StructuredModelRequest<?> request) ->
-                request.promptName().equals("job-detect") && request.promptVars() == null
-                && request.outputType() == JobRoleDetectionServiceImpl.RoleDetectLLMResult.class));
+        doReturn(response).when(gateway).generateStructured(eq(actor), argThat((ModelRequest request) ->
+                request.promptName().equals("job-detect") && request.promptVars() == null), eq(JobRoleDetectionServiceImpl.RoleDetectLLMResult.class));
     }
 
     @Test
@@ -66,7 +65,7 @@ class JobRoleDetectionServiceImplTest {
     @Test
     void modelFailurePropagates() {
         var failure = new IllegalStateException("模型不可用");
-        doThrow(failure).when(gateway).generateStructured(any(), any());
+        doThrow(failure).when(gateway).generateStructured(any(), any(), any());
         assertSame(failure, assertThrows(IllegalStateException.class,
                 () -> new JobRoleDetectionServiceImpl(gateway).detect(actor, "java")));
     }

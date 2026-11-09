@@ -27,8 +27,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.config.ModelClientConfiguration;
-import com.zdmj.aiService.provider.UserModelConfigurationProvider;
-import com.zdmj.aiService.service.ModelGatewayImpl;
+import com.zdmj.aiService.support.UserModelConfigurationReader;
+import com.zdmj.aiService.service.impl.ModelGatewayImpl;
 import com.zdmj.common.prompt.PromptLoader;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.security.JwtTokenService;
@@ -135,9 +135,9 @@ public class ExternalAiStubConfig {
      */
     @Bean
     @Primary
-    ModelGateway testModelGateway(PromptLoader promptLoader, UserModelConfigurationProvider configurationProvider,
+    ModelGateway testModelGateway(PromptLoader promptLoader, UserModelConfigurationReader configurationReader,
             ModelClientConfiguration clients, ChatMemory chatMemory, ChatModel chatModel) {
-        return new StubModelGateway(promptLoader, configurationProvider, clients, chatMemory, chatModel);
+        return new StubModelGateway(promptLoader, configurationReader, clients, chatMemory, chatModel);
     }
 
     @Bean
@@ -266,9 +266,9 @@ public class ExternalAiStubConfig {
         private final ChatClient plain;
         private final ChatClient withMemory;
 
-        StubModelGateway(PromptLoader promptLoader, UserModelConfigurationProvider configurationProvider,
+        StubModelGateway(PromptLoader promptLoader, UserModelConfigurationReader configurationReader,
                 ModelClientConfiguration clients, ChatMemory chatMemory, ChatModel chatModel) {
-            super(promptLoader, configurationProvider, clients, chatMemory);
+            super(promptLoader, configurationReader, clients, chatMemory);
             this.plain = ChatClient.builder(chatModel).build();
             this.withMemory = ChatClient.builder(chatModel)
                     .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())

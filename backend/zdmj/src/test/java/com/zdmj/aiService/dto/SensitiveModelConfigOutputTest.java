@@ -13,7 +13,7 @@ class SensitiveModelConfigOutputTest {
     @Test
     void generatedStringExcludesModelCredentials() throws Exception {
         Object[][] fields = {{UserLlmConfig.class, "apiKeyCiphertext"},
-                {UserLlmConfigRequest.class, "apiKey"}, {UserLlmConnectionTestRequest.class, "apiKey"}};
+                {UserLlmConfigRequest.class, "apiKey"}};
         for (Object[] entry : fields) {
             Class<?> type = (Class<?>) entry[0];
             String name = (String) entry[1];

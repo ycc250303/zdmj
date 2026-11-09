@@ -1,6 +1,9 @@
 package com.zdmj.integration.career;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,7 +19,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
+import com.zdmj.aiService.api.ModelGateway;
 import com.jayway.jsonpath.JsonPath;
 import com.zdmj.testsupport.ApiClient;
 import com.zdmj.testsupport.ExternalAiStubConfig;
@@ -30,6 +35,9 @@ import com.zdmj.userAuthService.entity.User;
  */
 @AutoConfigureMockMvc
 class CareerReportFlowIT extends IntegrationTestBase {
+
+    @MockitoSpyBean(name = "testModelGateway")
+    private ModelGateway modelGateway;
 
     private static final String MANUAL_BODY = """
             {
@@ -122,6 +130,52 @@ class CareerReportFlowIT extends IntegrationTestBase {
             jdbcTemplate.execute(
                     "ALTER TABLE career_development_reports DROP CONSTRAINT IF EXISTS career_reports_reject_overwrite");
         }
+    }
+
+    @Test
+    void 润色返回空结果_接口返回业务错误且原报告不变() throws Exception {
+        User owner = testUsers.createPair().userA();
+        String token = testJwt.authorize(owner);
+        long jobId = createJob(token);
+        long reportId = seedReport(owner.getId(), jobId, "旧正文");
+        doReturn(null).when(modelGateway).generateStructured(any(), any(), any());
+
+        ApiClient.assertProblem(api.post(token, "/career-reports/" + reportId + "/polish", "{}"), 400, 12004);
+
+        assertReport(reportId, owner.getId(), jobId, "career-report/generate", "旧正文", 40, 1);
+        assertThat(countReports(owner.getId(), jobId)).isEqualTo(1);
+    }
+
+    @Test
+    void 完整性检查失败_接口返回错误且不更新质量状态() throws Exception {
+        User owner = testUsers.createPair().userA();
+        String token = testJwt.authorize(owner);
+        long jobId = createJob(token);
+        long reportId = seedReport(owner.getId(), jobId, "旧正文");
+        String flags = jdbcTemplate.queryForObject(
+                "SELECT quality_flags::text FROM career_development_reports WHERE id = ?", String.class, reportId);
+        doThrow(new IllegalStateException("模型检查失败"))
+                .when(modelGateway).generateStructured(any(), any(), any());
+
+        ApiClient.assertProblem(api.post(token, "/career-reports/" + reportId + "/integrity-check", "{}"), 500, 1008);
+
+        assertReport(reportId, owner.getId(), jobId, "career-report/generate", "旧正文", 40, 1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT quality_flags::text FROM career_development_reports WHERE id = ?", String.class, reportId))
+                .isEqualTo(flags);
+    }
+
+    @Test
+    void 完整性检查返回空结果_接口返回业务错误且原报告不变() throws Exception {
+        User owner = testUsers.createPair().userA();
+        String token = testJwt.authorize(owner);
+        long jobId = createJob(token);
+        long reportId = seedReport(owner.getId(), jobId, "旧正文");
+        doReturn(null).when(modelGateway).generateStructured(any(), any(), any());
+
+        ApiClient.assertProblem(api.post(token, "/career-reports/" + reportId + "/integrity-check", "{}"), 400, 12004);
+
+        assertReport(reportId, owner.getId(), jobId, "career-report/generate", "旧正文", 40, 1);
     }
 
     @Test

@@ -2,7 +2,6 @@ package com.zdmj.common.typehandler;
 
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.zdmj.jobService.entity.Job;
-import com.zdmj.resumeService.entity.Resume;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -13,10 +12,15 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 class JacksonTypeHandlerGenericTest {
 
+    @SuppressWarnings("unused")
+    private static final class LongListHolder {
+        private List<Long> values;
+    }
+
     @Test
     @SuppressWarnings("unchecked")
     void parse_listLong_shouldKeepLongElements() throws Exception {
-        Field field = Resume.class.getDeclaredField("projects");
+        Field field = LongListHolder.class.getDeclaredField("values");
         JacksonTypeHandler handler = new JacksonTypeHandler(List.class, field);
 
         List<Long> parsed = (List<Long>) handler.parse("[1,2,3]");

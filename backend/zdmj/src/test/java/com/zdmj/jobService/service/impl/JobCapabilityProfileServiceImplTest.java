@@ -1,12 +1,14 @@
 package com.zdmj.jobService.service.impl;
 
+import static org.mockito.ArgumentMatchers.eq;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zdmj.common.context.UserContext;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
-import com.zdmj.aiService.api.StructuredModelRequest;
+import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.jobService.service.impl.JobRoleDetectionServiceImpl;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
@@ -64,13 +66,13 @@ class JobCapabilityProfileServiceImplTest {
         Long jobId = 11L;
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
         doThrow(new RuntimeException("llm down")).when(modelGateway)
-                .generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobCapabilityProfileResponse.class));
+                .generateStructured(any(), argThat((ModelRequest req) -> req.promptVars() == null), eq(JobCapabilityProfileResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> profileService.getJobCapabilityProfile(jobId));
 
         assertEquals(ErrorCode.JOB_CAPABILITY_PROFILE_GENERATION_FAILED.getCode(), ex.getCode());
         verify(jobService).getDetail(jobId);
-        verify(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobCapabilityProfileResponse.class));
+        verify(modelGateway).generateStructured(any(), argThat((ModelRequest req) -> req.promptVars() == null), eq(JobCapabilityProfileResponse.class));
         verify(profileService, never()).save(any(JobCapabilityProfile.class));
     }
 
@@ -86,7 +88,7 @@ class JobCapabilityProfileServiceImplTest {
         existing.setId(900L);
 
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(aiResult).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobCapabilityProfileResponse.class));
+        doReturn(aiResult).when(modelGateway).generateStructured(any(), argThat((ModelRequest req) -> req.promptVars() == null), eq(JobCapabilityProfileResponse.class));
         doReturn(existing).when(profileService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(profileService).updateById(any(JobCapabilityProfile.class));
 
@@ -112,7 +114,7 @@ class JobCapabilityProfileServiceImplTest {
         aiResult.setMissingSkills(List.of("分布式"));
 
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(aiResult).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobCapabilityProfileResponse.class));
+        doReturn(aiResult).when(modelGateway).generateStructured(any(), argThat((ModelRequest req) -> req.promptVars() == null), eq(JobCapabilityProfileResponse.class));
         doReturn(null).when(profileService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(profileService).save(any(JobCapabilityProfile.class));
 
@@ -216,16 +218,15 @@ class JobCapabilityProfileServiceImplTest {
         JobCapabilityProfileResponse aiResult = new JobCapabilityProfileResponse();
         aiResult.setSummary("ok");
         doReturn(dto).when(jobService).getDetail(jobId);
-        doReturn(aiResult).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobCapabilityProfileResponse.class));
+        doReturn(aiResult).when(modelGateway).generateStructured(any(), argThat((ModelRequest req) -> req.promptVars() == null), eq(JobCapabilityProfileResponse.class));
         doReturn(null).when(profileService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(profileService).save(any(JobCapabilityProfile.class));
 
         profileService.getJobCapabilityProfile(jobId);
 
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<StructuredModelRequest<JobCapabilityProfileResponse>> context =
-                ArgumentCaptor.forClass(StructuredModelRequest.class);
-        verify(modelGateway).generateStructured(any(), context.capture());
+        ArgumentCaptor<ModelRequest> context =
+                ArgumentCaptor.forClass(ModelRequest.class);
+        verify(modelGateway).generateStructured(any(), context.capture(), eq(JobCapabilityProfileResponse.class));
         assertNull(context.getValue().promptVars());
         assertTrue(context.getValue().message().contains("岗位名称：Java开发"));
         assertTrue(context.getValue().message().contains("公司名称：未提供"));
@@ -246,16 +247,15 @@ class JobCapabilityProfileServiceImplTest {
         JobCapabilityProfileResponse aiResult = new JobCapabilityProfileResponse();
         aiResult.setSummary("ok");
         doReturn(dto).when(jobService).getDetail(jobId);
-        doReturn(aiResult).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> req) -> req.promptVars() == null && req.outputType() == JobCapabilityProfileResponse.class));
+        doReturn(aiResult).when(modelGateway).generateStructured(any(), argThat((ModelRequest req) -> req.promptVars() == null), eq(JobCapabilityProfileResponse.class));
         doReturn(null).when(profileService).getOne(any(LambdaQueryWrapper.class));
         doReturn(true).when(profileService).save(any(JobCapabilityProfile.class));
 
         profileService.getJobCapabilityProfile(jobId);
 
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<StructuredModelRequest<JobCapabilityProfileResponse>> context =
-                ArgumentCaptor.forClass(StructuredModelRequest.class);
-        verify(modelGateway).generateStructured(any(), context.capture());
+        ArgumentCaptor<ModelRequest> context =
+                ArgumentCaptor.forClass(ModelRequest.class);
+        verify(modelGateway).generateStructured(any(), context.capture(), eq(JobCapabilityProfileResponse.class));
         assertNull(context.getValue().promptVars());
         assertTrue(context.getValue().message().contains("岗位职责：未提供"));
         assertTrue(context.getValue().message().contains("岗位要求：未提供"));

@@ -31,12 +31,6 @@ public final class LogicalReferenceChecks {
                 ORDER BY d.id
                 """, "knowledge_documents", "knowledge_id", "knowledge_bases"));
         orphans.addAll(query(jdbcTemplate, """
-                SELECT r.id FROM resumes r
-                LEFT JOIN skills s ON s.id = r.skill_id
-                WHERE r.skill_id IS NOT NULL AND s.id IS NULL
-                ORDER BY r.id
-                """, "resumes", "skill_id", "skills"));
-        orphans.addAll(query(jdbcTemplate, """
                 SELECT j.id FROM jobs j
                 LEFT JOIN companies c ON c.id = j.company_id
                 WHERE c.id IS NULL

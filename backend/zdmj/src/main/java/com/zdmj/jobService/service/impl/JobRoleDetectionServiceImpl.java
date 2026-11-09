@@ -2,7 +2,7 @@ package com.zdmj.jobService.service.impl;
 
 import com.zdmj.jobService.api.JobRole;
 import com.zdmj.aiService.api.ModelGateway;
-import com.zdmj.aiService.api.StructuredModelRequest;
+import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.context.CurrentActor;
 import lombok.Data;
 import org.springframework.stereotype.Service;
@@ -43,7 +43,7 @@ public final class JobRoleDetectionServiceImpl implements JobRoleDetectionServic
         }
 
         RoleDetectLLMResult result = modelGateway.generateStructured(actor,
-                StructuredModelRequest.of(text, DETECT_PROMPT, null, RoleDetectLLMResult.class));
+                new ModelRequest(text, DETECT_PROMPT, null), RoleDetectLLMResult.class);
         if (result == null || !StringUtils.hasText(result.getRoleCode())) {
             throw new IllegalStateException("模型未返回岗位方向");
         }

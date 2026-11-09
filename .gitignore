@@ -16,3 +16,5 @@ agents.md
 /.cursor
 尹诚成-简历.tex
 /sql/rag-eval
+/backend/zdmj/src/test/resources/archunit_store
+/.pnpm-store

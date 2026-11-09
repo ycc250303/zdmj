@@ -1,23 +1,22 @@
-package com.zdmj.aiService.service.impl;
+package com.zdmj.aiService.support;
 
-import org.springframework.stereotype.Service;
+import java.util.Optional;
+
+import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import com.zdmj.aiService.entity.UserLlmConfig;
 import com.zdmj.aiService.enums.ModelCode;
-import com.zdmj.aiService.provider.ResolvedModelConfiguration;
-import com.zdmj.aiService.provider.UserModelConfigurationProvider;
+import com.zdmj.aiService.mapper.UserLlmConfigMapper;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.aiService.entity.UserLlmConfig;
-import com.zdmj.aiService.support.UserApiKeyCipher;
-import com.zdmj.aiService.mapper.UserLlmConfigMapper;
 
 /**
- * 从用户模型配置表解析已保存的模型与密钥。供应商客户端不在本类处理。
+ * 从用户模型配置表读取、解析并解密配置，供配置展示与模型调用共同使用。
  */
-@Service
-public class UserModelConfigurationProviderImpl implements UserModelConfigurationProvider {
+@Component
+public class UserModelConfigurationReader {
 
     private final UserLlmConfigMapper userLlmConfigMapper;
     private final UserApiKeyCipher userApiKeyCipher;
@@ -26,7 +25,7 @@ public class UserModelConfigurationProviderImpl implements UserModelConfiguratio
      * @param userLlmConfigMapper 用户模型配置表
      * @param userApiKeyCipher    用户密钥加解密
      */
-    public UserModelConfigurationProviderImpl(UserLlmConfigMapper userLlmConfigMapper,
+    public UserModelConfigurationReader(UserLlmConfigMapper userLlmConfigMapper,
             UserApiKeyCipher userApiKeyCipher) {
         this.userLlmConfigMapper = userLlmConfigMapper;
         this.userApiKeyCipher = userApiKeyCipher;
@@ -36,23 +35,22 @@ public class UserModelConfigurationProviderImpl implements UserModelConfiguratio
      * 读取当前用户配置并解密密钥。
      *
      * @param actor 当前操作者
-     * @return 用户配置；操作者或配置记录不存在时返回空配置
-     * @throws BusinessException 密文无法解密出有效密钥时抛出 {@link ErrorCode#USER_LLM_CONFIG_INVALID}
+     * @return 已解析的配置；仅没有记录时返回 empty
+     * @throws BusinessException 身份缺失、模型非法或密钥无法解密出有效内容
      */
-    @Override
-    public ResolvedModelConfiguration resolve(CurrentActor actor) {
+    public Optional<ResolvedModelConfiguration> find(CurrentActor actor) {
         if (actor == null || actor.userId() == null) {
-            return ResolvedModelConfiguration.absent();
+            throw new BusinessException(ErrorCode.USER_NOT_LOGIN);
         }
         UserLlmConfig config = userLlmConfigMapper.selectById(actor.userId());
         if (config == null) {
-            return ResolvedModelConfiguration.absent();
+            return Optional.empty();
         }
         ModelCode model = ModelCode.fromCode(config.getModelCode());
         String apiKey = userApiKeyCipher.decrypt(config.getApiKeyCiphertext());
         if (!StringUtils.hasText(apiKey)) {
             throw new BusinessException(ErrorCode.USER_LLM_CONFIG_INVALID);
         }
-        return new ResolvedModelConfiguration(model, apiKey.trim());
+        return Optional.of(new ResolvedModelConfiguration(model, apiKey));
     }
 }

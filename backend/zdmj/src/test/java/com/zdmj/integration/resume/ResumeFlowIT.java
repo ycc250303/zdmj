@@ -34,51 +34,27 @@ class ResumeFlowIT extends IntegrationTestBase {
     }
 
     @Test
-    void 简历全流程_创建保存查询更新删除_JSONB与用户归属一致() throws Exception {
+    void 简历全流程_保存后按用户读取经历和技能() throws Exception {
         User user = testUsers.createPair().userA();
         String token = testJwt.authorize(user);
-
-        long skillId = ApiClient.dataId(api.post(token, "/skills", skillJson("Java")));
-        long resumeId = ApiClient.dataId(api.post(token, "/resumes", "{\"skillId\":" + skillId + "}"));
 
         String saved = ApiClient.requireOk(api.put(token, "/resumes/me/content", contentJson(null, "Java", "测试大学")));
         assertThat(JsonPath.<String>read(saved, "$.data.skill.content[0].type")).isEqualTo("编程语言");
         assertThat(JsonPath.<String>read(saved, "$.data.skill.content[0].content[0]")).isEqualTo("Java");
         assertThat(JsonPath.<String>read(saved, "$.data.educations[0].school")).isEqualTo("测试大学");
+        assertThat(JsonPath.<String>read(saved, "$.data.educations[0].startDate")).isEqualTo("2020-09-01");
+        assertThat(JsonPath.<Integer>read(saved, "$.data.educations[0].degree")).isEqualTo(3);
         assertThat(JsonPath.<String>read(saved, "$.data.careers[0].company")).isEqualTo("测试公司");
         assertThat(JsonPath.<String>read(saved, "$.data.projects[0].name")).isEqualTo("测试项目");
         assertThat(JsonPath.<String>read(saved, "$.data.awards[0].name")).isEqualTo("测试奖项");
 
-        String listed = ApiClient.requireOk(api.get(token, "/resumes"));
-        assertThat(JsonPath.<Number>read(listed, "$.data[0].id").longValue()).isEqualTo(resumeId);
-        assertThat(JsonPath.<Number>read(listed, "$.data[0].skillId").longValue()).isEqualTo(skillId);
-
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT user_id FROM resumes WHERE id = ?", Long.class, resumeId)).isEqualTo(user.getId());
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT jsonb_typeof(content) FROM skills WHERE id = ?", String.class, skillId)).isEqualTo("array");
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT content::text FROM skills WHERE id = ?", String.class, skillId)).contains("Java");
+        String loaded = ApiClient.requireOk(api.get(token, "/resumes/me/content"));
+        assertThat(JsonPath.<String>read(loaded, "$.data.educations[0].school")).isEqualTo("测试大学");
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM educations WHERE user_id = ? AND school = '测试大学'", Integer.class, user.getId()))
                 .isEqualTo(1);
-
-        long replacementSkillId = ApiClient.dataId(api.post(token, "/skills", skillJson("Go")));
-        String updated = ApiClient.requireOk(api.put(token, "/resumes",
-                "{\"id\":" + resumeId + ",\"skillId\":" + replacementSkillId + "}"));
-        assertThat(JsonPath.<Number>read(updated, "$.data.skillId").longValue()).isEqualTo(replacementSkillId);
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT skill_id FROM resumes WHERE id = ?", Long.class, resumeId)).isEqualTo(replacementSkillId);
-
-        ApiClient.requireOk(api.delete(token, "/resumes/" + resumeId));
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM resumes WHERE id = ?", Integer.class, resumeId)).isZero();
-        String afterDelete = ApiClient.requireOk(api.get(token, "/resumes"));
-        assertThat(JsonPath.<Integer>read(afterDelete, "$.data.length()")).isZero();
-    }
-
-    private static String skillJson(String item) {
-        return "{\"content\":[{\"type\":\"编程语言\",\"content\":[\"" + item + "\"]}]}";
+                "SELECT count(*) FROM skills WHERE user_id = ?", Integer.class, user.getId())).isEqualTo(1);
     }
 
     private static String contentJson(Long educationId, String skillItem, String school) {

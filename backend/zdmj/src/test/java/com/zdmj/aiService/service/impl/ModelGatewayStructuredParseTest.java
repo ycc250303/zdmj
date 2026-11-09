@@ -1,4 +1,4 @@
-package com.zdmj.aiService.service;
+package com.zdmj.aiService.service.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -27,9 +27,8 @@ import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.ResponseFormat;
 
 import com.zdmj.aiService.api.ModelRequest;
-import com.zdmj.aiService.api.StructuredModelRequest;
 import com.zdmj.aiService.config.ModelClientConfiguration;
-import com.zdmj.aiService.provider.UserModelConfigurationProvider;
+import com.zdmj.aiService.support.UserModelConfigurationReader;
 import com.zdmj.common.prompt.PromptLoader;
 import com.zdmj.common.context.CurrentActor;
 
@@ -66,7 +65,7 @@ class ModelGatewayStructuredParseTest {
         stubEntityConvert("```json {\"name\":\"Dee\",\"score\":4} ```");
 
         SampleOut parsed = gateway.generateStructured(
-                CurrentActor.of(1L), StructuredModelRequest.of("msg", null, null, SampleOut.class));
+                CurrentActor.of(1L), new ModelRequest("msg", null, null), SampleOut.class);
 
         assertEquals("Dee", parsed.getName());
         assertEquals(4, parsed.getScore());
@@ -77,7 +76,7 @@ class ModelGatewayStructuredParseTest {
         stubEntityConvert("{\"name\":\"Cara\",\"score\":1}");
 
         SampleOut parsed = gateway.generateStructured(
-                CurrentActor.of(1L), StructuredModelRequest.of("简历原文", null, null, SampleOut.class));
+                CurrentActor.of(1L), new ModelRequest("简历原文", null, null), SampleOut.class);
 
         assertEquals("Cara", parsed.getName());
         assertEquals(1, parsed.getScore());
@@ -99,7 +98,7 @@ class ModelGatewayStructuredParseTest {
 
         assertThrows(IllegalStateException.class,
                 () -> gateway.generateStructured(
-                        CurrentActor.of(1L), StructuredModelRequest.of("msg", null, null, SampleOut.class)));
+                        CurrentActor.of(1L), new ModelRequest("msg", null, null), SampleOut.class));
     }
 
     @Test
@@ -125,7 +124,7 @@ class ModelGatewayStructuredParseTest {
         private final ChatClient fixedClient;
 
         private FixedClientGateway(PromptLoader promptLoader, ChatClient fixedClient) {
-            super(promptLoader, mock(UserModelConfigurationProvider.class), mock(ModelClientConfiguration.class),
+            super(promptLoader, mock(UserModelConfigurationReader.class), mock(ModelClientConfiguration.class),
                     mock(ChatMemory.class));
             this.fixedClient = fixedClient;
         }
