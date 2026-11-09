@@ -1,10 +1,8 @@
 package com.zdmj.jobService.service;
 
-import com.baomidou.mybatisplus.extension.service.IService;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
-import com.zdmj.jobService.entity.JobCapabilityProfile;
 
-public interface JobCapabilityProfileService extends IService<JobCapabilityProfile> {
+public interface JobCapabilityProfileService {
     /**
      * 为当前用户生成岗位能力画像（已有则覆盖本人旧行）
      *

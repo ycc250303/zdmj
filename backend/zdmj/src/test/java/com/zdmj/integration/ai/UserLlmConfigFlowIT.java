@@ -2,6 +2,7 @@ package com.zdmj.integration.ai;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -10,6 +11,9 @@ import static org.mockito.Mockito.when;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,6 +29,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.jayway.jsonpath.JsonPath;
 import com.zdmj.aiService.api.ModelGateway;
@@ -32,7 +38,7 @@ import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.aiService.api.StreamingModelRequest;
 import com.zdmj.aiService.config.ModelClientConfiguration;
 import com.zdmj.aiService.enums.ModelCode;
-import com.zdmj.aiService.service.ModelGatewayImpl;
+import com.zdmj.aiService.service.impl.ModelGatewayImpl;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -61,6 +67,9 @@ class UserLlmConfigFlowIT extends IntegrationTestBase {
 
     @Autowired
     private ChatMemory chatMemory;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     private final ApiClient api;
     private final TestUsers testUsers;
@@ -171,6 +180,121 @@ class UserLlmConfigFlowIT extends IntegrationTestBase {
                 .isEqualTo(cipherA);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM user_llm_config WHERE user_id = ?", Integer.class, otherUserId)).isZero();
+    }
+
+    @Test
+    void 配置保存_规范化模型编号并保留创建时间() throws Exception {
+        ApiClient.requireOk(api.put(token, "/users/llm-config", config(" DEEPSEEK-V4-FLASH ", "  secret  ")));
+        assertThat(jdbcTemplate.queryForObject("SELECT model_code FROM user_llm_config WHERE user_id = ?",
+                String.class, actor.userId())).isEqualTo("deepseek-flash");
+        jdbcTemplate.update("UPDATE user_llm_config SET created_at = '2020-01-01', updated_at = '2020-01-01' WHERE user_id = ?",
+                actor.userId());
+
+        ApiClient.requireOk(api.put(token, "/users/llm-config", config("qwen3.8-flash", "updated")));
+
+        var times = jdbcTemplate.queryForMap("SELECT created_at, updated_at FROM user_llm_config WHERE user_id = ?",
+                actor.userId());
+        assertThat(times.get("created_at").toString()).startsWith("2020-01-01");
+        assertThat(times.get("updated_at").toString()).doesNotStartWith("2020-01-01");
+    }
+
+    @Test
+    void 配置提交前发生模型调用_提交后两类客户端使用新配置() throws Exception {
+        ChatModel original = modelReplying("原配置回复");
+        ChatModel updated = modelReplying("更新配置回复");
+        when(clients.buildUserModel(ModelCode.DEEPSEEK_FLASH, "original")).thenReturn(original);
+        when(clients.buildUserModel(ModelCode.QWEN_PLUS, "updated")).thenReturn(updated);
+        putConfig("deepseek-flash", "original");
+        assertReplies("原配置回复");
+
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                putConfig("qwen3.8-flash", "updated");
+                try {
+                    executor.submit(() -> assertReplies("原配置回复")).get(10, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    throw new AssertionError("提交前的独立调用未能完成", e);
+                }
+            });
+        }
+
+        assertReplies("更新配置回复");
+        verify(clients, times(2)).buildUserModel(ModelCode.QWEN_PLUS, "updated");
+    }
+
+    @Test
+    void 配置保存或删除回滚_保留原配置与两类客户端() throws Exception {
+        ChatModel original = modelReplying("原配置回复");
+        when(clients.buildUserModel(ModelCode.DEEPSEEK_FLASH, "original")).thenReturn(original);
+        putConfig("deepseek-flash", "original");
+        assertReplies("原配置回复");
+        String ciphertext = jdbcTemplate.queryForObject(
+                "SELECT api_key_ciphertext FROM user_llm_config WHERE user_id = ?", String.class, actor.userId());
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            putConfig("qwen3.8-flash", "updated");
+            status.setRollbackOnly();
+        });
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT api_key_ciphertext FROM user_llm_config WHERE user_id = ?", String.class, actor.userId()))
+                .isEqualTo(ciphertext);
+        assertReplies("原配置回复");
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            try {
+                ApiClient.requireOk(api.delete(token, "/users/llm-config"));
+            } catch (Exception e) {
+                throw new AssertionError("删除配置请求失败", e);
+            }
+            status.setRollbackOnly();
+        });
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT api_key_ciphertext FROM user_llm_config WHERE user_id = ?", String.class, actor.userId()))
+                .isEqualTo(ciphertext);
+        assertReplies("原配置回复");
+        verify(clients, times(2)).buildUserModel(ModelCode.DEEPSEEK_FLASH, "original");
+    }
+
+    @Test
+    void 同用户并发首次保存_均成功并按数据库写入顺序覆盖() throws Exception {
+        CountDownLatch firstWritten = new CountDownLatch(1);
+        CountDownLatch commitFirst = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                putConfig("deepseek-flash", "first");
+                firstWritten.countDown();
+                try {
+                    assertThat(commitFirst.await(10, TimeUnit.SECONDS)).isTrue();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(e);
+                }
+            }));
+            try {
+                assertThat(firstWritten.await(10, TimeUnit.SECONDS)).isTrue();
+                var second = executor.submit(() -> putConfig("qwen3.8-flash", "second"));
+                await().atMost(Duration.ofSeconds(10)).until(() -> Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+                        "SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname = current_database() "
+                                + "AND wait_event_type = 'Lock' AND query ILIKE '%user_llm_config%')", Boolean.class)));
+                commitFirst.countDown();
+                first.get(10, TimeUnit.SECONDS);
+                second.get(10, TimeUnit.SECONDS);
+            } finally {
+                commitFirst.countDown();
+            }
+        }
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM user_llm_config WHERE user_id = ?",
+                Integer.class, actor.userId())).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT model_code FROM user_llm_config WHERE user_id = ?",
+                String.class, actor.userId())).isEqualTo("qwen3.8-flash");
+    }
+
+    private void putConfig(String modelCode, String apiKey) {
+        try {
+            ApiClient.requireOk(api.put(token, "/users/llm-config", config(modelCode, apiKey)));
+        } catch (Exception e) {
+            throw new AssertionError("保存配置请求失败", e);
+        }
     }
 
     private void assertReplies(String expected) {

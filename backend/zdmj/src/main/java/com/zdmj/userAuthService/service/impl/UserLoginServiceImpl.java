@@ -245,7 +245,7 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
     private User requireOwnedUser(Long userId) {
         Long currentUserId = UserHolder.requireUserId();
         if (userId == null || !userId.equals(currentUserId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION, "无权操作他人用户资料");
+            throw new BusinessException(ErrorCode.NO_PERMISSION);
         }
         User user = getById(userId);
         if (user == null) {
