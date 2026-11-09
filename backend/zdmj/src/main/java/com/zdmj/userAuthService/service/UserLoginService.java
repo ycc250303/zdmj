@@ -29,10 +29,11 @@ public interface UserLoginService {
     UserLoginResponse login(UserLoginRequest loginDTO);
 
     /**
-     * 根据ID查询用户
-     * 
-     * @param id 用户ID
+     * 查询当前登录用户的资料。路径编号必须与认证身份一致。
+     *
+     * @param id 用户编号
      * @return 用户信息
+     * @throws BusinessException 未登录、编号不属于当前用户或用户不存在
      */
     UserResponse getUserById(Long id);
 
@@ -61,12 +62,13 @@ public interface UserLoginService {
 
     /**
      * 按用户编号更新姓名、电话、主页和意向工作城市。
-     * 字段为 null 时保持原值；非 null 时写入去掉首尾空白后的文本，空白截断后为空字符串。
+     * 字段为 null 时保持原值且不写入该列；非 null 时写入去掉首尾空白后的文本，空白截断后为空字符串。
+     * 本次写入限于已提供的资料字段和更新时间。四个资料字段都未提供时不写数据库。
      *
      * @param userId    用户编号
      * @param updateDTO 待更新字段
      * @return 更新后的用户信息
-     * @throws BusinessException 用户不存在或写入失败
+     * @throws BusinessException 未登录、编号不属于当前用户、用户不存在或写入失败
      */
     UserResponse updateProfile(Long userId, UserUpdateRequest updateDTO);
 }

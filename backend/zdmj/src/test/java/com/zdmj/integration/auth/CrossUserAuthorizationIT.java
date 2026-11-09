@@ -62,6 +62,14 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
     }
 
     @Test
+    void 用户资料_其他用户查询_返回无权且本人仍可查询() throws Exception {
+        ApiClient.assertProblem(api.get(tokenB, "/users/" + userA.getId()), 403, 1003);
+        String own = ApiClient.requireOk(api.get(tokenA, "/users/" + userA.getId()));
+        assertThat(JsonPath.<Number>read(own, "$.data.id").longValue()).isEqualTo(userA.getId());
+        assertThat(JsonPath.<String>read(own, "$.data.email")).isEqualTo(userA.getEmail());
+    }
+
+    @Test
     void 简历_其他用户修改或删除_返回无权且数据库未变化() throws Exception {
         long skillId = ApiClient.dataId(api.post(tokenA, "/skills", skillJson("Java")));
         long resumeId = ApiClient.dataId(api.post(tokenA, "/resumes", "{\"skillId\":" + skillId + "}"));
