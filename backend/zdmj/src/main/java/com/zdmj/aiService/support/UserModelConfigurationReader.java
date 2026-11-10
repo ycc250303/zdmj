@@ -1,5 +1,6 @@
 package com.zdmj.aiService.support;
 
+import java.util.Objects;
 import java.util.Optional;
 
 import org.springframework.stereotype.Component;
@@ -38,7 +39,7 @@ public class UserModelConfigurationReader {
      * @return 已解析的配置；仅没有记录时返回 empty
      * @throws BusinessException 身份缺失、模型非法或密钥无法解密出有效内容
      */
-    public Optional<ResolvedModelConfiguration> find(CurrentActor actor) {
+    public Optional<ResolvedConfiguration> find(CurrentActor actor) {
         if (actor == null || actor.userId() == null) {
             throw new BusinessException(ErrorCode.USER_NOT_LOGIN);
         }
@@ -51,6 +52,28 @@ public class UserModelConfigurationReader {
         if (!StringUtils.hasText(apiKey)) {
             throw new BusinessException(ErrorCode.USER_LLM_CONFIG_INVALID);
         }
-        return Optional.of(new ResolvedModelConfiguration(model, apiKey));
+        return Optional.of(new ResolvedConfiguration(model, apiKey));
+    }
+
+    /**
+     * 已解析的用户配置。密钥用于构建客户端或生成展示掩码，明文禁止写入日志、响应或缓存。
+     *
+     * @param model 用户选择的模型，不能为空
+     * @param apiKey 解密后的非空白密钥，构造时去除首尾空白
+     */
+    public record ResolvedConfiguration(ModelCode model, String apiKey) {
+
+        public ResolvedConfiguration {
+            Objects.requireNonNull(model, "模型不能为空");
+            if (apiKey == null || apiKey.isBlank()) {
+                throw new IllegalArgumentException("模型密钥不能为空");
+            }
+            apiKey = apiKey.trim();
+        }
+
+        @Override
+        public String toString() {
+            return "ResolvedConfiguration[model=" + model + "]";
+        }
     }
 }

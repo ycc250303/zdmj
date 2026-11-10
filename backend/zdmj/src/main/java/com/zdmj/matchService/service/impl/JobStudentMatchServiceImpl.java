@@ -108,21 +108,21 @@ public class JobStudentMatchServiceImpl
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "jobId不能为空");
         }
 
-        // 1. 岗位详情 + 岗位画像（缺失则自动生成）
+        // 1. 校验岗位和学生画像，前置条件满足后才调用模型。
         JobListItemResponse jobDetail = jobService.getDetail(jobId);
         if (jobDetail == null) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
+        StudentCapabilityProfileResponse studentProfile = studentCapabilityProfileService.getCurrentUserProfileOrNull();
+        if (studentProfile == null) {
+            throw new BusinessException(ErrorCode.MATCH_PRECONDITION_MISSING);
+        }
+
+        // 2. 岗位画像缺失时自动生成。
         JobCapabilityProfileResponse jobProfile = jobCapabilityProfileService.getJobCapabilityProfileOrNull(jobId);
         if (jobProfile == null) {
             log.info("岗位画像缺失，自动生成: jobId={}", jobId);
             jobProfile = jobCapabilityProfileService.getJobCapabilityProfile(jobId);
-        }
-
-        // 2. 学生画像（必须存在）
-        StudentCapabilityProfileResponse studentProfile = studentCapabilityProfileService.getCurrentUserProfileOrNull();
-        if (studentProfile == null) {
-            throw new BusinessException(ErrorCode.MATCH_PRECONDITION_MISSING);
         }
 
         // 3. 解析权重（默认 + 覆盖 → 归一化）

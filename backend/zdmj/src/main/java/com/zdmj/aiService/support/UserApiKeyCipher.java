@@ -53,6 +53,12 @@ public class UserApiKeyCipher {
         }
     }
 
+    /**
+     * 掩码用户 API Key。
+     *
+     * @param apiKey 明文密钥
+     * @return 掩码后的密文
+     */
     public static String mask(String apiKey) {
         if (!StringUtils.hasText(apiKey)) {
             return "";

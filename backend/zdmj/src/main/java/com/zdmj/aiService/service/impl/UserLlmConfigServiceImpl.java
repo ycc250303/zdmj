@@ -5,20 +5,21 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.retry.NonTransientAiException;
+import org.springframework.ai.retry.TransientAiException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.client.RestClientException;
 
-import com.zdmj.aiService.config.ModelClientConfiguration;
 import com.zdmj.aiService.dto.UserLlmConfigRequest;
 import com.zdmj.aiService.dto.UserLlmConfigResponse;
 import com.zdmj.aiService.entity.UserLlmConfig;
 import com.zdmj.aiService.enums.ModelCode;
 import com.zdmj.aiService.mapper.UserLlmConfigMapper;
 import com.zdmj.aiService.service.UserLlmConfigService;
+import com.zdmj.aiService.support.ModelClientFactory;
 import com.zdmj.aiService.support.UserApiKeyCipher;
 import com.zdmj.aiService.support.UserModelConfigurationReader;
 import com.zdmj.common.context.CurrentActor;
@@ -36,13 +37,18 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class UserLlmConfigServiceImpl implements UserLlmConfigService {
     private final UserLlmConfigMapper userLlmConfigMapper;
-    private final ModelGatewayImpl modelGateway;
     private final UserApiKeyCipher userApiKeyCipher;
-    private final ModelClientConfiguration clients;
+    private final ModelClientFactory clients;
     private final UserModelConfigurationReader configurationReader;
     private final Clock clock;
     private final TransactionTemplate transactionTemplate;
 
+    /**
+     * 获取当前用户的模型配置。
+     *
+     * @param actor 当前操作者
+     * @return 模型配置
+     */
     @Override
     public UserLlmConfigResponse getMyConfig(CurrentActor actor) {
         UserLlmConfigResponse dto = new UserLlmConfigResponse();
@@ -57,6 +63,12 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
         return dto;
     }
 
+    /**
+     * 保存当前用户的模型配置。
+     *
+     * @param actor 当前操作者
+     * @param request 模型配置请求
+     */
     @Override
     public void saveMyConfig(CurrentActor actor, UserLlmConfigRequest request) {
         Long userId = requireUserId(actor);
@@ -78,10 +90,14 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
             if (userLlmConfigMapper.upsert(config) != 1) {
                 throw new IllegalStateException("保存模型配置必须影响一条记录");
             }
-            evictAfterCommit(actor);
         });
     }
 
+    /**
+     * 删除当前用户的模型配置。
+     *
+     * @param actor 当前操作者
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteMyConfig(CurrentActor actor) {
@@ -90,41 +106,29 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
         if (deleted < 0 || deleted > 1) {
             throw new IllegalStateException("删除模型配置最多影响一条记录");
         }
-        evictAfterCommit(actor);
     }
 
-    /** 使用已校验的请求凭据探测供应商，失败立即终止保存，保留原因与既有 2014 错误码。 */
+    /**
+     * 使用已校验的请求凭据探测供应商，失败立即终止保存
+     *
+     * @param model 模型目录项
+     * @param apiKey 明文密钥
+     */
     private void testConnection(ModelCode model, String apiKey) {
         long startedAt = System.currentTimeMillis();
+        ChatClient client = ChatClient.builder(clients.buildProbe(model, apiKey)).build();
         try {
-            ChatClient.builder(clients.buildProbe(model, apiKey))
-                    .build()
-                    .prompt()
+            client.prompt()
                     .user("ping")
                     .call()
                     .content();
             log.info("[UserLlmConfig] testConnection ok modelCode={} apiModel={} elapsedMs={}",
                     model.code(), model.apiModelName(), System.currentTimeMillis() - startedAt);
-        } catch (BusinessException e) {
-            throw e;
-        } catch (Exception e) {
+        } catch (RestClientException | TransientAiException | NonTransientAiException e) {
             log.warn("[UserLlmConfig] testConnection failed modelCode={} elapsedMs={}",
                     model.code(), System.currentTimeMillis() - startedAt, e);
             throw new BusinessException(ErrorCode.USER_LLM_CONNECTION_TEST_FAILED, e);
         }
-    }
-
-    /**
-     * 数据库提交后同步清除两类客户端；回滚不清除。清除异常传播给调用方，已提交数据保留。
-     * 注册时要求事务同步已经启用，避免写入在缺少事务代理时被误认为成功。
-     */
-    private void evictAfterCommit(CurrentActor actor) {
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                modelGateway.evict(actor);
-            }
-        });
     }
 
     private static Long requireUserId(CurrentActor actor) {

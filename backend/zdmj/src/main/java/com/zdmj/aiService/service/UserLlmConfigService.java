@@ -13,7 +13,7 @@ public interface UserLlmConfigService {
     /**
      * 在数据库事务外探测模型与密钥，成功后加密并完整替换当前用户配置。
      * 探测失败时保留原配置；并发写入按数据库执行顺序覆盖。
-     * 创建时间保持不变，更新时间来自应用时钟，事务提交后清除两类客户端缓存。
+     * 创建时间保持不变，更新时间来自应用时钟，新调用在事务提交后读取新配置。
      *
      * @param actor 当前操作者
      * @param request 模型编号与供应商密钥
@@ -21,6 +21,6 @@ public interface UserLlmConfigService {
      */
     void saveMyConfig(CurrentActor actor, UserLlmConfigRequest request);
 
-    /** 删除当前用户配置，事务提交后清除两类客户端缓存；没有配置时仍然成功。 */
+    /** 删除当前用户配置，提交后的新调用返回未配置；没有配置时仍然成功。 */
     void deleteMyConfig(CurrentActor actor);
 }
