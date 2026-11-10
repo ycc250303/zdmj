@@ -15,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.zdmj.aiService.support.UserModelConfigurationReader.ResolvedConfiguration;
 import com.zdmj.aiService.entity.UserLlmConfig;
 import com.zdmj.aiService.enums.ModelCode;
 import com.zdmj.aiService.mapper.UserLlmConfigMapper;
@@ -61,7 +62,7 @@ class UserModelConfigurationReaderTest {
         when(userLlmConfigMapper.selectById(7L)).thenReturn(config);
         when(userApiKeyCipher.decrypt("ciphertext")).thenReturn("  secret-key  ");
 
-        ResolvedModelConfiguration resolved = reader.find(CurrentActor.of(7L)).orElseThrow();
+        ResolvedConfiguration resolved = reader.find(CurrentActor.of(7L)).orElseThrow();
         assertEquals(ModelCode.QWEN_PLUS, resolved.model());
         assertEquals("secret-key", resolved.apiKey());
         assertFalse(resolved.toString().contains("secret-key"));
@@ -90,12 +91,12 @@ class UserModelConfigurationReaderTest {
 
     @Test
     void resolvedConfiguration_shouldRejectIncompleteValuesAndHideKey() {
-        assertThrows(NullPointerException.class, () -> new ResolvedModelConfiguration(null, "secret"));
+        assertThrows(NullPointerException.class, () -> new ResolvedConfiguration(null, "secret"));
         assertThrows(IllegalArgumentException.class,
-                () -> new ResolvedModelConfiguration(ModelCode.DEEPSEEK_FLASH, null));
+                () -> new ResolvedConfiguration(ModelCode.DEEPSEEK_FLASH, null));
         assertThrows(IllegalArgumentException.class,
-                () -> new ResolvedModelConfiguration(ModelCode.DEEPSEEK_FLASH, "  "));
-        ResolvedModelConfiguration config = new ResolvedModelConfiguration(ModelCode.DEEPSEEK_FLASH, "  secret  ");
+                () -> new ResolvedConfiguration(ModelCode.DEEPSEEK_FLASH, "  "));
+        ResolvedConfiguration config = new ResolvedConfiguration(ModelCode.DEEPSEEK_FLASH, "  secret  ");
         assertEquals("secret", config.apiKey());
         assertFalse(config.toString().contains("secret"));
     }

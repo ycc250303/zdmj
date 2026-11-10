@@ -27,7 +27,7 @@ import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.ResponseFormat;
 
 import com.zdmj.aiService.api.ModelRequest;
-import com.zdmj.aiService.config.ModelClientConfiguration;
+import com.zdmj.aiService.support.ModelClientFactory;
 import com.zdmj.aiService.support.UserModelConfigurationReader;
 import com.zdmj.common.prompt.PromptLoader;
 import com.zdmj.common.context.CurrentActor;
@@ -124,13 +124,13 @@ class ModelGatewayStructuredParseTest {
         private final ChatClient fixedClient;
 
         private FixedClientGateway(PromptLoader promptLoader, ChatClient fixedClient) {
-            super(promptLoader, mock(UserModelConfigurationReader.class), mock(ModelClientConfiguration.class),
+            super(promptLoader, mock(UserModelConfigurationReader.class), mock(ModelClientFactory.class),
                     mock(ChatMemory.class));
             this.fixedClient = fixedClient;
         }
 
         @Override
-        protected ChatClient userChatClient(CurrentActor actor, boolean withMemory) {
+        protected ChatClient userChatClient(CurrentActor actor) {
             return fixedClient;
         }
     }

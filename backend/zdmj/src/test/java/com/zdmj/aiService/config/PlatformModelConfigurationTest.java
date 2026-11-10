@@ -2,8 +2,7 @@ package com.zdmj.aiService.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration;
@@ -14,17 +13,16 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
-/** 验证正式配置及示例只自动装配平台嵌入能力，构建过程不发送供应商请求。 */
+/** 验证正式配置只自动装配平台嵌入能力，构建过程不发送供应商请求。 */
 class PlatformModelConfigurationTest {
 
-    @ParameterizedTest
-    @ValueSource(strings = {"application.yml", "application-example.yml"})
-    void platformConfiguration_shouldOnlyCreateEmbeddingModel(String resource) {
+    @Test
+    void platformConfiguration_shouldOnlyCreateEmbeddingModel() {
         new ApplicationContextRunner()
                 .withInitializer(new ConfigDataApplicationContextInitializer())
                 .withConfiguration(AutoConfigurations.of(SpringAiRetryAutoConfiguration.class,
                         OpenAiChatAutoConfiguration.class, OpenAiEmbeddingAutoConfiguration.class))
-                .withPropertyValues("spring.config.location=classpath:/" + resource,
+                .withPropertyValues("spring.config.location=classpath:/application.yml",
                         "spring.config.import=classpath:/empty.env[.properties]",
                         "SPRING_AI_OPENAI_API_KEY=test-platform-key",
                         "SPRING_AI_OPENAI_BASE_URL=http://127.0.0.1:9")

@@ -1,19 +1,32 @@
-package com.zdmj.aiService.config;
+package com.zdmj.aiService.support;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
-import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.retry.TransientAiException;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -23,7 +36,13 @@ import org.springframework.web.client.RestClient;
 
 import com.zdmj.aiService.enums.ModelCode;
 
-class ModelClientConfigurationTest {
+import io.netty.buffer.Unpooled;
+import reactor.core.Disposable;
+import reactor.core.publisher.Flux;
+import reactor.netty.DisposableServer;
+import reactor.netty.http.server.HttpServer;
+
+class ModelClientFactoryTest {
 
     @ParameterizedTest
     @EnumSource(ModelCode.class)
@@ -37,10 +56,10 @@ class ModelClientConfigurationTest {
         verifyRequest(model, false);
     }
 
-    @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(booleans = {true, false})
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
     void synchronousRequest_whenProviderFails_shouldStopWithoutRetry(boolean probe) {
-        ModelClientConfiguration configuration = new ModelClientConfiguration();
+        ModelClientFactory configuration = new ModelClientFactory();
         OpenAiChatModel client = (OpenAiChatModel) (probe
                 ? configuration.buildProbe(ModelCode.DEEPSEEK_FLASH, "sk-test")
                 : configuration.buildUserModel(ModelCode.DEEPSEEK_FLASH, "sk-test"));
@@ -49,15 +68,82 @@ class ModelClientConfigurationTest {
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         ReflectionTestUtils.setField(api, "restClient", builder.build());
         server.expect(requestTo(ModelCode.DEEPSEEK_FLASH.baseUrl() + "/v1/chat/completions"))
-                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withServerError());
+                .andRespond(withServerError());
         // 后续请求一旦发生即违反期望；所有请求均由本地替身处理。
-        org.junit.jupiter.api.Assertions.assertThrows(org.springframework.ai.retry.TransientAiException.class,
+        assertThrows(TransientAiException.class,
                 () -> client.call(new Prompt("ping")));
         server.verify();
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void stream_whenResponseStops_shouldTimeoutAndCloseConnection(boolean sendFirstChunk) throws Exception {
+        CountDownLatch closed = new CountDownLatch(1);
+        AtomicBoolean received = new AtomicBoolean();
+        DisposableServer server = HttpServer.create()
+                .host("127.0.0.1").port(0)
+                .doOnConnection(connection -> connection.channel().closeFuture()
+                        .addListener(future -> closed.countDown()))
+                .handle((request, response) -> request.receive().then(response.header("Content-Type", "text/event-stream").send(
+                            (sendFirstChunk ? Flux.just(chunk(), chunk())
+                                    : Flux.<String>empty())
+                                    .concatWith(Flux.never())
+                                    .map(text -> Unpooled.copiedBuffer(
+                                            text, StandardCharsets.UTF_8)), buffer -> true).then())).bindNow();
+        try {
+            var client = localClient(server.port(), 500);
+            assertThatThrownBy(() -> client.stream(new Prompt("hi"))
+                    .doOnNext(response -> received.set(true)).blockLast(Duration.ofSeconds(5)))
+                    .hasRootCauseInstanceOf(io.netty.handler.timeout.ReadTimeoutException.class);
+            assertEquals(sendFirstChunk, received.get());
+            assertTrue(closed.await(5, TimeUnit.SECONDS));
+        } finally {
+            server.disposeNow();
+        }
+    }
+
+    @Test
+    void stream_whenCancelled_shouldCloseProviderConnection() throws Exception {
+        CountDownLatch received = new CountDownLatch(1);
+        CountDownLatch closed = new CountDownLatch(1);
+        DisposableServer server = HttpServer.create()
+                .host("127.0.0.1").port(0)
+                .doOnConnection(connection -> connection.channel().closeFuture()
+                        .addListener(future -> closed.countDown()))
+                .handle((request, response) -> request.receive().then(response.header("Content-Type", "text/event-stream").send(
+                            Flux.interval(Duration.ofMillis(50)).map(index -> chunk())
+                                    .map(text -> Unpooled.copiedBuffer(
+                                            text, StandardCharsets.UTF_8)), buffer -> true).then())).bindNow();
+        Disposable subscription = null;
+        try {
+            subscription = localClient(server.port(), 30_000).stream(new Prompt("hi"))
+                    .subscribe(response -> received.countDown());
+            assertTrue(received.await(5, TimeUnit.SECONDS));
+            subscription.dispose();
+            assertTrue(closed.await(5, TimeUnit.SECONDS));
+        } finally {
+            if (subscription != null) {
+                subscription.dispose();
+            }
+            server.disposeNow();
+        }
+    }
+
+    private static OpenAiChatModel localClient(int port, int readTimeoutMs) {
+        OpenAiApi api = ReflectionTestUtils.invokeMethod(new ModelClientFactory(), "buildOpenAiApi",
+                "http://127.0.0.1:" + port, "sk-test", 1000, readTimeoutMs);
+        return OpenAiChatModel.builder().openAiApi(api)
+                .defaultOptions(OpenAiChatOptions.builder().model("test-model").build()).build();
+    }
+
+    private static String chunk() {
+        return "data: {\"id\":\"test\",\"object\":\"chat.completion.chunk\",\"created\":1,"
+                + "\"model\":\"test-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\","
+                + "\"content\":\"hello\"},\"finish_reason\":null}]}\n\n";
+    }
+
     private static void verifyRequest(ModelCode model, boolean probe) {
-        ModelClientConfiguration configuration = new ModelClientConfiguration();
+        ModelClientFactory configuration = new ModelClientFactory();
         OpenAiChatModel client = (OpenAiChatModel) (probe
                 ? configuration.buildProbe(model, "sk-test") : configuration.buildUserModel(model, "sk-test"));
         OpenAiChatOptions options = (OpenAiChatOptions) client.getDefaultOptions();

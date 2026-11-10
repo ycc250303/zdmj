@@ -37,7 +37,7 @@ import org.springframework.web.client.ResourceAccessException;
 import com.jayway.jsonpath.JsonPath;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
-import com.zdmj.aiService.config.ModelClientConfiguration;
+import com.zdmj.aiService.support.ModelClientFactory;
 import com.zdmj.aiService.enums.ModelCode;
 import com.zdmj.aiService.service.impl.ModelGatewayImpl;
 import com.zdmj.common.context.CurrentActor;
@@ -51,14 +51,14 @@ import com.zdmj.testsupport.TestUsers;
 
 import reactor.core.publisher.Flux;
 
-/** 模型配置接口使用真实持久化、解密和客户端缓存，供应商客户端由确定性替身提供。 */
+/** 模型配置接口使用真实持久化、解密和按次读取配置，供应商客户端由确定性替身提供。 */
 @AutoConfigureMockMvc
 class UserLlmConfigFlowIT extends IntegrationTestBase {
 
     @MockitoBean
-    private ModelClientConfiguration clients;
+    private ModelClientFactory clients;
 
-    /** 替换公共测试配置中的网关替身，使配置管理使用生产网关执行缓存操作。 */
+    /** 替换公共测试配置中的网关替身，使模型调用使用生产网关读取当前配置。 */
     @MockitoBean(name = "testModelGateway")
     private ModelGateway testModelGateway;
 
@@ -113,7 +113,7 @@ class UserLlmConfigFlowIT extends IntegrationTestBase {
     }
 
     @Test
-    void 配置保存更新删除_接口与两类客户端保持一致() throws Exception {
+    void 配置保存更新删除_接口与模型调用保持一致() throws Exception {
         String absent = ApiClient.requireOk(api.get(token, "/users/llm-config"));
         assertThat(JsonPath.<Boolean>read(absent, "$.data.configured")).isFalse();
         assertThat(JsonPath.<List<String>>read(absent, "$.data.models[*].code"))
@@ -138,11 +138,9 @@ class UserLlmConfigFlowIT extends IntegrationTestBase {
                 String.class, actor.userId())).isNotBlank().isNotEqualTo("sk-original-secret");
         assertReplies("原配置回复");
         assertReplies("原配置回复");
-        verify(clients, times(2)).buildUserModel(ModelCode.DEEPSEEK_FLASH, "sk-original-secret");
 
         ApiClient.requireOk(api.put(token, "/users/llm-config", config("qwen3.8-flash", "sk-updated-secret")));
         assertReplies("更新配置回复");
-        verify(clients, times(2)).buildUserModel(ModelCode.QWEN_PLUS, "sk-updated-secret");
 
         ApiClient.requireOk(api.delete(token, "/users/llm-config"));
         ApiClient.requireOk(api.delete(token, "/users/llm-config"));
@@ -169,7 +167,7 @@ class UserLlmConfigFlowIT extends IntegrationTestBase {
     }
 
     @Test
-    void 替换配置探测失败_保留原配置与两类客户端() throws Exception {
+    void 替换配置探测失败_保留原配置和模型调用结果() throws Exception {
         ChatModel original = modelReplying("原配置回复");
         when(clients.buildUserModel(ModelCode.DEEPSEEK_FLASH, "original")).thenReturn(original);
         putConfig("deepseek-flash", "original");
@@ -182,7 +180,6 @@ class UserLlmConfigFlowIT extends IntegrationTestBase {
         assertThat(jdbcTemplate.queryForMap("SELECT * FROM user_llm_config WHERE user_id = ?", actor.userId()))
                 .isEqualTo(saved);
         assertReplies("原配置回复");
-        verify(clients, times(2)).buildUserModel(ModelCode.DEEPSEEK_FLASH, "original");
     }
 
     @Test
@@ -252,7 +249,7 @@ class UserLlmConfigFlowIT extends IntegrationTestBase {
     }
 
     @Test
-    void 配置提交前发生模型调用_提交后两类客户端使用新配置() throws Exception {
+    void 配置提交前发生模型调用_提交后模型调用使用新配置() throws Exception {
         ChatModel original = modelReplying("原配置回复");
         ChatModel updated = modelReplying("更新配置回复");
         when(clients.buildUserModel(ModelCode.DEEPSEEK_FLASH, "original")).thenReturn(original);
@@ -272,11 +269,10 @@ class UserLlmConfigFlowIT extends IntegrationTestBase {
         }
 
         assertReplies("更新配置回复");
-        verify(clients, times(2)).buildUserModel(ModelCode.QWEN_PLUS, "updated");
     }
 
     @Test
-    void 配置保存或删除回滚_保留原配置与两类客户端() throws Exception {
+    void 配置保存或删除回滚_保留原配置和模型调用结果() throws Exception {
         ChatModel original = modelReplying("原配置回复");
         when(clients.buildUserModel(ModelCode.DEEPSEEK_FLASH, "original")).thenReturn(original);
         putConfig("deepseek-flash", "original");
@@ -305,7 +301,6 @@ class UserLlmConfigFlowIT extends IntegrationTestBase {
                 "SELECT api_key_ciphertext FROM user_llm_config WHERE user_id = ?", String.class, actor.userId()))
                 .isEqualTo(ciphertext);
         assertReplies("原配置回复");
-        verify(clients, times(2)).buildUserModel(ModelCode.DEEPSEEK_FLASH, "original");
     }
 
     @Test

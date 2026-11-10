@@ -30,11 +30,11 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.zdmj.aiService.config.ModelClientConfiguration;
+import com.zdmj.aiService.support.ModelClientFactory;
 import com.zdmj.aiService.dto.UserLlmConfigRequest;
 import com.zdmj.aiService.enums.ModelCode;
 import com.zdmj.aiService.mapper.UserLlmConfigMapper;
-import com.zdmj.aiService.support.ResolvedModelConfiguration;
+import com.zdmj.aiService.support.UserModelConfigurationReader.ResolvedConfiguration;
 import com.zdmj.aiService.support.UserApiKeyCipher;
 import com.zdmj.aiService.support.UserModelConfigurationReader;
 import com.zdmj.common.context.CurrentActor;
@@ -47,11 +47,9 @@ class UserLlmConfigServiceImplTest {
     @Mock
     private UserLlmConfigMapper mapper;
     @Mock
-    private ModelGatewayImpl gateway;
-    @Mock
     private UserApiKeyCipher cipher;
     @Mock
-    private ModelClientConfiguration clients;
+    private ModelClientFactory clients;
     @Mock
     private ChatModel probe;
     @Mock
@@ -61,7 +59,7 @@ class UserLlmConfigServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new UserLlmConfigServiceImpl(mapper, gateway, cipher, clients, reader,
+        service = new UserLlmConfigServiceImpl(mapper, cipher, clients, reader,
                 Clock.fixed(Instant.parse("2026-11-09T00:00:00Z"), ZoneOffset.UTC),
                 new TransactionTemplate(mock(PlatformTransactionManager.class)));
     }
@@ -70,7 +68,7 @@ class UserLlmConfigServiceImplTest {
     void getMyConfig_shouldUseSharedReaderAndOnlyExposeMaskedKey() {
         CurrentActor actor = CurrentActor.of(7L);
         when(reader.find(actor)).thenReturn(Optional.of(
-                new ResolvedModelConfiguration(ModelCode.DEEPSEEK_FLASH, "sk-secret-key")));
+                new ResolvedConfiguration(ModelCode.DEEPSEEK_FLASH, "sk-secret-key")));
 
         var response = service.getMyConfig(actor);
 
@@ -80,7 +78,7 @@ class UserLlmConfigServiceImplTest {
         assertEquals(UserApiKeyCipher.mask("sk-secret-key"), response.getApiKeyMasked());
         assertEquals(java.util.Arrays.stream(ModelCode.values()).map(ModelCode::code).toList(),
                 response.getModels().stream().map(option -> option.code()).toList());
-        verifyNoInteractions(mapper, gateway, cipher);
+        verifyNoInteractions(mapper, cipher);
     }
 
     @Test
@@ -93,7 +91,7 @@ class UserLlmConfigServiceImplTest {
         assertEquals(ModelCode.values().length, response.getModels().size());
         org.junit.jupiter.api.Assertions.assertNull(response.getApiKeyMasked());
         org.junit.jupiter.api.Assertions.assertNull(response.getModelCode());
-        verifyNoInteractions(mapper, gateway, cipher);
+        verifyNoInteractions(mapper, cipher);
     }
 
     @Test
@@ -104,11 +102,11 @@ class UserLlmConfigServiceImplTest {
             assertEquals(ErrorCode.USER_NOT_LOGIN, assertThrows(BusinessException.class,
                     () -> service.deleteMyConfig(actor)).getErrorCode());
         }
-        verifyNoInteractions(mapper, gateway, cipher);
+        verifyNoInteractions(mapper, cipher);
     }
 
     @Test
-    void save_whenWriteCountInvalid_shouldExposeImplementationFailureAndNotEvict() {
+    void save_whenWriteCountInvalid_shouldExposeImplementationFailure() {
         when(clients.buildProbe(ModelCode.DEEPSEEK_FLASH, "secret")).thenReturn(probe);
         when(probe.call(any(Prompt.class)))
                 .thenReturn(new ChatResponse(List.of(new Generation(new AssistantMessage("pong")))));
@@ -123,7 +121,6 @@ class UserLlmConfigServiceImplTest {
                         && config.getApiKeyCiphertext().equals("ciphertext")
                         && config.getCreatedAt().equals(LocalDateTime.of(2026, 11, 9, 0, 0))
                         && config.getUpdatedAt().equals(config.getCreatedAt())));
-        verifyNoInteractions(gateway);
     }
 
     @Test
@@ -133,12 +130,13 @@ class UserLlmConfigServiceImplTest {
 
         assertEquals(ErrorCode.USER_LLM_CONFIG_INVALID, exception.getErrorCode());
         verify(clients, never()).buildProbe(any(), any());
-        verifyNoInteractions(mapper, gateway, cipher);
+        verifyNoInteractions(mapper, cipher);
     }
 
     @Test
     void save_whenProbeFails_shouldPreserveCauseAndReturnExistingError() {
-        IllegalStateException failure = new IllegalStateException("probe unavailable");
+        org.springframework.web.client.ResourceAccessException failure =
+                new org.springframework.web.client.ResourceAccessException("probe unavailable");
         when(clients.buildProbe(ModelCode.DEEPSEEK_FLASH, "key")).thenReturn(probe);
         when(probe.call(any(Prompt.class))).thenThrow(failure);
 
@@ -147,7 +145,7 @@ class UserLlmConfigServiceImplTest {
 
         assertEquals(ErrorCode.USER_LLM_CONNECTION_TEST_FAILED, exception.getErrorCode());
         assertSame(failure, exception.getCause());
-        verifyNoInteractions(mapper, gateway, cipher);
+        verifyNoInteractions(mapper, cipher);
     }
 
     @Test
@@ -157,7 +155,17 @@ class UserLlmConfigServiceImplTest {
 
         assertSame(failure, assertThrows(BusinessException.class,
                 () -> service.saveMyConfig(CurrentActor.of(7L), request("deepseek-flash", "key"))));
-        verifyNoInteractions(mapper, gateway, cipher);
+        verifyNoInteractions(mapper, cipher);
+    }
+
+    @Test
+    void save_whenClientConstructionFails_shouldExposeImplementationFailure() {
+        IllegalStateException failure = new IllegalStateException("invalid client setup");
+        when(clients.buildProbe(ModelCode.DEEPSEEK_FLASH, "key")).thenThrow(failure);
+
+        assertSame(failure, assertThrows(IllegalStateException.class,
+                () -> service.saveMyConfig(CurrentActor.of(7L), request("deepseek-flash", "key"))));
+        verifyNoInteractions(mapper, cipher);
     }
 
     private static UserLlmConfigRequest request(String modelCode, String apiKey) {
