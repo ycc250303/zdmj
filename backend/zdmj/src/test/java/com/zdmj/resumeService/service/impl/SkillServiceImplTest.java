@@ -5,9 +5,8 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.resumeService.dto.SkillRequest;
-import com.zdmj.resumeService.dto.SkillItemDTO;
-import com.zdmj.resumeService.entity.Skill;
 import com.zdmj.resumeService.dto.SkillResponse;
+import com.zdmj.resumeService.entity.Skill;
 import com.zdmj.resumeService.mapper.SkillMapper;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -20,10 +19,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.List;
 import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -39,12 +38,11 @@ class SkillServiceImplTest {
     private SkillMapper skillMapper;
 
     private SkillServiceImpl service;
-    private Validator validator;
 
     @BeforeEach
     void setUp() {
-        validator = Validation.buildDefaultValidatorFactory().getValidator();
-        service = spy(new SkillServiceImpl(validator, new com.fasterxml.jackson.databind.ObjectMapper()));
+        Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+        service = spy(new SkillServiceImpl(validator));
         ReflectionTestUtils.setField(Objects.requireNonNull(service), "baseMapper", skillMapper);
         UserHolder.set(UserContext.of(1L, "u1"));
     }
@@ -55,25 +53,27 @@ class SkillServiceImplTest {
     }
 
     @Test
-    void create_success_shouldValidateAndSave() {
+    void create_success_shouldTrimNameAndClearBlankDescription() {
         SkillRequest dto = new SkillRequest();
-        dto.setContent(validContent());
+        dto.setName("  Java  ");
+        dto.setDescription("  ");
         doReturn(true).when(service).save(any(Skill.class));
 
         SkillResponse out = service.create(dto);
 
-        assertEquals(1, out.getContent().size());
+        assertEquals("Java", out.getName());
+        assertNull(out.getDescription());
         ArgumentCaptor<Skill> captor = ArgumentCaptor.forClass(Skill.class);
         verify(service).save(captor.capture());
         assertEquals(1L, captor.getValue().getUserId());
-        assertTrue(captor.getValue().getContent().contains("Java"));
+        assertEquals("Java", captor.getValue().getName());
+        assertNull(captor.getValue().getDescription());
     }
 
     @Test
     void create_userNotLogin_shouldThrowAndSkipSave() {
         UserHolder.clear();
-        SkillRequest dto = new SkillRequest();
-        dto.setContent(validContent());
+        SkillRequest dto = validRequest();
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
 
@@ -82,34 +82,42 @@ class SkillServiceImplTest {
     }
 
     @Test
-    void create_invalidContent_shouldThrowAndSkipSave() {
+    void create_blankName_shouldThrowAndSkipSave() {
         SkillRequest dto = new SkillRequest();
-        SkillItemDTO invalid = new SkillItemDTO();
-        invalid.setType(" ");
-        invalid.setContent(List.of("Java"));
-        dto.setContent(List.of(invalid));
+        dto.setName(" ");
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
 
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
-        assertTrue(ex.getMessage().contains("技能类型不能为空"));
+        assertTrue(ex.getMessage().contains("技能名称不能为空"));
+        verify(service, never()).save(any(Skill.class));
+    }
+
+    @Test
+    void create_descriptionTooLong_shouldThrowAndSkipSave() {
+        SkillRequest dto = new SkillRequest();
+        dto.setName("Java");
+        dto.setDescription("说".repeat(501));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
+
+        assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
+        assertTrue(ex.getMessage().contains("技能说明长度不能超过500个字符"));
         verify(service, never()).save(any(Skill.class));
     }
 
     @Test
     void create_saveFailed_shouldThrowAddFailed() {
-        SkillRequest dto = new SkillRequest();
-        dto.setContent(validContent());
         doReturn(false).when(service).save(any(Skill.class));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(validRequest()));
 
         assertEquals(ErrorCode.SKILL_ADD_FAILED.getCode(), ex.getCode());
     }
 
     @Test
     void update_notOwner_shouldThrowAndSkipUpdateById() {
-        SkillRequest dto = new SkillRequest();
+        SkillRequest dto = validRequest();
         dto.setId(10L);
         Skill existing = new Skill();
         existing.setId(10L);
@@ -123,47 +131,30 @@ class SkillServiceImplTest {
     }
 
     @Test
-    void update_success_shouldUpdateContent() {
+    void update_success_shouldReplaceNameAndClearDescription() {
         SkillRequest dto = new SkillRequest();
         dto.setId(10L);
-        dto.setContent(validContent());
+        dto.setName("Spring");
+        dto.setDescription("");
         Skill existing = new Skill();
         existing.setId(10L);
         existing.setUserId(1L);
+        existing.setName("Java");
+        existing.setDescription("旧说明");
         doReturn(existing).when(skillMapper).selectById(10L);
         doReturn(true).when(service).updateById(any(Skill.class));
 
         SkillResponse out = service.update(dto);
 
-        assertEquals(1, out.getContent().size());
+        assertEquals("Spring", out.getName());
+        assertNull(out.getDescription());
         verify(service).updateById(existing);
     }
 
     @Test
-    void update_invalidContent_shouldThrowAndSkipUpdateById() {
-        SkillRequest dto = new SkillRequest();
-        dto.setId(10L);
-        SkillItemDTO invalid = new SkillItemDTO();
-        invalid.setType("后端");
-        invalid.setContent(List.of(" "));
-        dto.setContent(List.of(invalid));
-        Skill existing = new Skill();
-        existing.setId(10L);
-        existing.setUserId(1L);
-        doReturn(existing).when(skillMapper).selectById(10L);
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(dto));
-
-        assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
-        assertTrue(ex.getMessage().contains("技能内容项不能为空"));
-        verify(service, never()).updateById(any(Skill.class));
-    }
-
-    @Test
     void update_updateFailed_shouldThrowUpdateFailed() {
-        SkillRequest dto = new SkillRequest();
+        SkillRequest dto = validRequest();
         dto.setId(10L);
-        dto.setContent(validContent());
         Skill existing = new Skill();
         existing.setId(10L);
         existing.setUserId(1L);
@@ -202,10 +193,10 @@ class SkillServiceImplTest {
         verify(service, never()).removeById(11L);
     }
 
-    private List<SkillItemDTO> validContent() {
-        SkillItemDTO item = new SkillItemDTO();
-        item.setType("后端");
-        item.setContent(List.of("Java", "Spring Boot"));
-        return List.of(item);
+    private static SkillRequest validRequest() {
+        SkillRequest dto = new SkillRequest();
+        dto.setName("Java");
+        dto.setDescription("熟悉 Spring");
+        return dto;
     }
 }

@@ -902,8 +902,9 @@ declare namespace App {
           careerIncomplete: string;
           projectIncomplete: string;
           awardIncomplete: string;
-          skillTypePlaceholder: string;
-          addSkillGroup: string;
+          skillNamePlaceholder: string;
+          skillDescriptionPlaceholder: string;
+          addSkill: string;
           nameRequired: string;
           renamePlaceholder: string;
           uploadSection: string;

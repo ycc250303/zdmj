@@ -93,11 +93,13 @@ function buildResumeText(resumes: ResumeApi.ResumeContentDTO[]): string {
   parts.push('# 个人简历\n');
 
   // 技能
-  if (resume.skill) {
+  if (resume.skills?.length) {
     parts.push('## 专业技能');
-    resume.skill.content.forEach((group: any) => {
-      parts.push(`### ${group.type}`);
-      parts.push(group.content.join('、'));
+    resume.skills.forEach(skill => {
+      parts.push(`### ${skill.name}`);
+      if (skill.description) {
+        parts.push(skill.description);
+      }
     });
     parts.push('');
   }

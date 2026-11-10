@@ -7,12 +7,9 @@ import { request } from '../request';
  */
 export namespace ResumeApi {
   // --- 技能模块 ---
-  export interface SkillItem {
-    type: string;
-    content: string[];
-  }
   export interface SkillCreate {
-    content: SkillItem[];
+    name: string;
+    description?: string;
   }
   export interface SkillUpdate extends SkillCreate {
     id: number;
@@ -75,7 +72,8 @@ export namespace ResumeApi {
   //展示层
   export interface SkillDTO {
     id: number;
-    content: SkillItem[];
+    name: string;
+    description?: string;
   }
 
   export interface EducationDTO {
@@ -128,7 +126,7 @@ export namespace ResumeApi {
   }
 
   export interface ResumeContentDTO {
-    skill: SkillDTO;
+    skills: SkillDTO[];
     educations: EducationDTO[];
     careers: CareerDTO[];
     projects: ProjectDTO[];
@@ -137,7 +135,7 @@ export namespace ResumeApi {
   }
 
   export interface ResumeContentSaveRequest {
-    skill: SkillCreate | SkillUpdate;
+    skills: Array<SkillCreate | SkillUpdate>;
     educations: Array<EducationCreate | EducationUpdate>;
     careers: Array<CareerCreate | CareerUpdate>;
     projects: Array<ProjectCreate | ProjectUpdate>;
@@ -194,7 +192,8 @@ export namespace ResumeApi {
   }
 
   export interface ResumeImportSkillItem {
-    content?: SkillItem[];
+    name?: string;
+    description?: string;
   }
 
   export interface ResumeImportParseResult {
@@ -203,7 +202,7 @@ export namespace ResumeApi {
     careers?: ResumeImportCareerItem[];
     projects?: ResumeImportProjectItem[];
     awards?: ResumeImportAwardItem[];
-    skill?: ResumeImportSkillItem;
+    skills?: ResumeImportSkillItem[];
     warnings?: string[];
   }
 

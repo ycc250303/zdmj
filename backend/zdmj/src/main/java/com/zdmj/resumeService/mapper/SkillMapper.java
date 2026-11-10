@@ -22,13 +22,4 @@ public interface SkillMapper extends BaseMapper<Skill> {
      * @return 技能列表
      */
     List<Skill> selectByUserId(@Param("userId") Long userId);
-
-    /**
-     * 根据用户ID查询技能ID列表
-     * 自定义方法，使用 MyBatis XML 实现
-     *
-     * @param userId 用户ID
-     * @return 技能ID列表
-     */
-    List<Long> selectSkillIds(@Param("userId") Long userId);
 }

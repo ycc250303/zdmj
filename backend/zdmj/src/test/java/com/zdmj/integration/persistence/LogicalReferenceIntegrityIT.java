@@ -45,7 +45,7 @@ class LogicalReferenceIntegrityIT extends IntegrationTestBase {
         String tokenB = testJwt.authorize(pair.userB());
         String created = ApiClient.requireOk(api.put(tokenB, "/resumes/me/content", """
                 {
-                  "skill": {"content": [{"type": "编程语言", "content": ["Java"]}]},
+                  "skills": [{"name": "Java"}],
                   "educations": [{"school": "用户B大学", "major": "计算机", "degree": 3, "startDate": "2020-09-01", "endDate": "2024-06-30"}],
                   "careers": [],
                   "projects": [],
@@ -99,7 +99,7 @@ class LogicalReferenceIntegrityIT extends IntegrationTestBase {
     private static String contentJson(long educationId) {
         return """
                 {
-                  "skill": {"content": [{"type": "编程语言", "content": ["Java"]}]},
+                  "skills": [{"name": "Java"}],
                   "educations": [{"id": %d, "school": "用户B大学", "major": "计算机", "degree": 3, "startDate": "2020-09-01"}],
                   "careers": [],
                   "projects": [],

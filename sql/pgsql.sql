@@ -116,26 +116,16 @@ CREATE TABLE IF NOT EXISTS awards (
 );
 CREATE INDEX IF NOT EXISTS idx_awards_user_id ON awards(user_id);
 CREATE INDEX IF NOT EXISTS idx_awards_user_id_award_date ON awards(user_id, award_date);
--- 2.3 技能表
+-- 2.3 技能表（一行一项）
 CREATE TABLE IF NOT EXISTS skills (
     id BIGSERIAL PRIMARY KEY,
     -- 技能ID
     user_id BIGINT NOT NULL,
     -- 用户ID（逻辑外键：users.id）
-    content JSONB NOT NULL DEFAULT '[]'::jsonb,
-    -- 职业技能描述（数组对象，包含type和content字段）
-    -- content 示例
-    -- [
-    --   {
-    --     "type": "前端框架",
-    --     "content": ["React", "Vue.js"]
-    --   },
-    --   {
-    --     "type": "开发语言",
-    --     "content": ["TypeScript", "JavaScript"]
-    --   }
-    -- ],
-    CONSTRAINT chk_skills_content_is_array CHECK (jsonb_typeof(content) = 'array'),
+    name VARCHAR(255) NOT NULL,
+    -- 技能名称
+    description VARCHAR(500),
+    -- 技能说明，由用户自由填写，可空
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间

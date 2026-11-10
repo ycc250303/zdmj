@@ -14,7 +14,6 @@ import com.zdmj.resumeService.dto.ResumeImportParseRequest;
 import com.zdmj.resumeService.dto.ResumeImportParseResponse;
 import com.zdmj.resumeService.dto.SkillRequest;
 import com.zdmj.resumeService.entity.Skill;
-import com.zdmj.resumeService.dto.SkillResponse;
 import com.zdmj.resumeService.mapper.AwardMapper;
 import com.zdmj.resumeService.mapper.CareerMapper;
 import com.zdmj.resumeService.mapper.EducationMapper;
@@ -107,17 +106,14 @@ class ResumeServiceImplTest {
     void getResumeContentList_shouldReturnSingleItemWhenResumeExists() {
         UserHolder.set(UserContext.of(1L, "u1"));
         ResumeContentRow row = emptyContent();
-        row.setSkillId(9L);
-        row.setSkillContent("[]");
+        row.setSkills("[{\"id\":9,\"name\":\"Java\"}]");
         doReturn(row).when(resumeMapper).selectContentByUserId(1L);
-        SkillResponse skill = new SkillResponse();
-        skill.setId(9L);
-        doReturn(skill).when(skillService).toResponse(any(Skill.class));
 
         List<ResumeContentResponse> out = resumeService.getResumeContentList();
 
         assertEquals(1, out.size());
-        assertEquals(9L, out.get(0).getSkill().getId());
+        assertEquals(9L, out.get(0).getSkills().get(0).getId());
+        assertEquals("Java", out.get(0).getSkills().get(0).getName());
         verify(educationMapper, never()).selectByUserId(any());
     }
 
@@ -135,8 +131,7 @@ class ResumeServiceImplTest {
     void getMyResumeContent_shouldMapSingleQueryRow() {
         UserHolder.set(UserContext.of(1L, "u1"));
         ResumeContentRow row = emptyContent();
-        row.setSkillId(9L);
-        row.setSkillContent("[{\"type\":\"编程语言\",\"content\":[\"Java\"]}]");
+        row.setSkills("[{\"id\":9,\"name\":\"Java\",\"description\":\"熟悉 Spring\"}]");
         row.setPersonalName("张三");
         row.setPersonalPhone("13800000000");
         row.setPersonalWebsite("https://example.com");
@@ -148,13 +143,12 @@ class ResumeServiceImplTest {
         row.setAwards("""
                 [{"id":3,"name":"测试奖项","awardDate":"2024-05-01"}]""");
         doReturn(row).when(resumeMapper).selectContentByUserId(1L);
-        SkillResponse skill = new SkillResponse();
-        skill.setId(9L);
-        doReturn(skill).when(skillService).toResponse(any(Skill.class));
 
         ResumeContentResponse out = resumeService.getMyResumeContent();
 
-        assertEquals(9L, out.getSkill().getId());
+        assertEquals(9L, out.getSkills().get(0).getId());
+        assertEquals("Java", out.getSkills().get(0).getName());
+        assertEquals("熟悉 Spring", out.getSkills().get(0).getDescription());
         assertEquals("测试大学", out.getEducations().get(0).getSchool());
         assertEquals(LocalDate.of(2020, 9, 1), out.getEducations().get(0).getStartDate());
         assertEquals(3, out.getEducations().get(0).getDegree());
@@ -424,13 +418,19 @@ class ResumeServiceImplTest {
         doReturn(List.of()).when(careerMapper).selectByUserId(1L);
         doReturn(List.of()).when(projectExperienceMapper).selectByUserId(1L);
         doReturn(List.of()).when(awardMapper).selectByUserId(1L);
+        Skill existingSkill = new Skill();
+        existingSkill.setId(9L);
+        existingSkill.setUserId(1L);
+        doReturn(List.of(existingSkill)).when(skillMapper).selectByUserId(1L);
+        doReturn(existingSkill).when(skillMapper).selectById(9L);
+        doReturn(java.util.Set.of()).when(validator).validate(any(), any(Class[].class));
         doReturn(emptyContent()).when(resumeMapper).selectContentByUserId(1L);
 
         var request = new com.zdmj.resumeService.dto.ResumeContentSaveRequest();
         var skill = new com.zdmj.resumeService.dto.SkillRequest();
         skill.setId(9L);
-        skill.setContent(List.of());
-        request.setSkill(skill);
+        skill.setName("Java");
+        request.setSkills(List.of(skill));
         request.setEducations(List.of());
         request.setCareers(List.of());
         request.setProjects(List.of());
@@ -449,6 +449,12 @@ class ResumeServiceImplTest {
         doReturn(List.of()).when(careerMapper).selectByUserId(1L);
         doReturn(List.of()).when(projectExperienceMapper).selectByUserId(1L);
         doReturn(List.of()).when(awardMapper).selectByUserId(1L);
+        Skill existingSkill = new Skill();
+        existingSkill.setId(9L);
+        existingSkill.setUserId(1L);
+        doReturn(List.of(existingSkill)).when(skillMapper).selectByUserId(1L);
+        doReturn(existingSkill).when(skillMapper).selectById(9L);
+        doReturn(java.util.Set.of()).when(validator).validate(any(), any(Class[].class));
         doReturn(emptyContent()).when(resumeMapper).selectContentByUserId(1L);
 
         ResumePersonalInfoDTO personalInfo = new ResumePersonalInfoDTO();
@@ -459,8 +465,8 @@ class ResumeServiceImplTest {
         ResumeContentSaveRequest request = new ResumeContentSaveRequest();
         SkillRequest skill = new SkillRequest();
         skill.setId(9L);
-        skill.setContent(List.of());
-        request.setSkill(skill);
+        skill.setName("Java");
+        request.setSkills(List.of(skill));
         request.setEducations(List.of());
         request.setCareers(List.of());
         request.setProjects(List.of());
@@ -479,6 +485,7 @@ class ResumeServiceImplTest {
 
     private static ResumeContentRow emptyContent() {
         ResumeContentRow row = new ResumeContentRow();
+        row.setSkills("[]");
         row.setEducations("[]");
         row.setCareers("[]");
         row.setProjects("[]");

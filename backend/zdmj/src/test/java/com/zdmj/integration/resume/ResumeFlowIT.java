@@ -39,8 +39,7 @@ class ResumeFlowIT extends IntegrationTestBase {
         String token = testJwt.authorize(user);
 
         String saved = ApiClient.requireOk(api.put(token, "/resumes/me/content", contentJson(null, "Java", "测试大学")));
-        assertThat(JsonPath.<String>read(saved, "$.data.skill.content[0].type")).isEqualTo("编程语言");
-        assertThat(JsonPath.<String>read(saved, "$.data.skill.content[0].content[0]")).isEqualTo("Java");
+        assertThat(JsonPath.<String>read(saved, "$.data.skills[0].name")).isEqualTo("Java");
         assertThat(JsonPath.<String>read(saved, "$.data.educations[0].school")).isEqualTo("测试大学");
         assertThat(JsonPath.<String>read(saved, "$.data.educations[0].startDate")).isEqualTo("2020-09-01");
         assertThat(JsonPath.<Integer>read(saved, "$.data.educations[0].degree")).isEqualTo(3);
@@ -61,7 +60,7 @@ class ResumeFlowIT extends IntegrationTestBase {
         String educationIdField = educationId == null ? "" : "\"id\":" + educationId + ",";
         return """
                 {
-                  "skill": {"content": [{"type": "编程语言", "content": ["%s"]}]},
+                  "skills": [{"name": "%s"}],
                   "educations": [{%s"school": "%s", "major": "计算机", "degree": 3, "startDate": "2020-09-01", "endDate": "2024-06-30", "gpa": "3.8"}],
                   "careers": [{"company": "测试公司", "position": "后端实习生", "startDate": "2023-07-01"}],
                   "projects": [{"name": "测试项目", "startDate": "2023-01-01", "role": "开发", "description": "实现接口", "contribution": "完成后端"}],

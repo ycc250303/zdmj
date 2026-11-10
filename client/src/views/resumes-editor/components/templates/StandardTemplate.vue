@@ -49,20 +49,12 @@ const props = defineProps<Props>();
         </div>
       </section>
 
-      <section v-if="props.data.skill && props.data.skill.content && props.data.skill.content.length">
+      <section v-if="props.data.skills?.length">
         <h2 class="theme-section-title">{{ $t('page.resume.skills', 'Skills') }}</h2>
         <div class="flex flex-col gap-3">
-          <div v-for="(item, index) in props.data.skill.content" :key="index">
-            <h3 class="mb-1 text-sm text-slate-800 font-bold">{{ item.type }}</h3>
-            <div class="mt-1 flex flex-wrap gap-1.5">
-              <span
-                v-for="skill in item.content"
-                :key="skill"
-                class="theme-pill rounded-md px-2 py-0.5 text-xs font-semibold"
-              >
-                {{ skill }}
-              </span>
-            </div>
+          <div v-for="skill in props.data.skills" :key="skill.id">
+            <h3 class="text-sm text-slate-800 font-bold">{{ skill.name }}</h3>
+            <p v-if="skill.description" class="mt-1 text-xs text-slate-600">{{ skill.description }}</p>
           </div>
         </div>
       </section>

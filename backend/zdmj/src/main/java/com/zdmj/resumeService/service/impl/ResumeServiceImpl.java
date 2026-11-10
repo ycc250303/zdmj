@@ -89,12 +89,7 @@ public class ResumeServiceImpl implements ResumeService {
     @Override
     public ResumeContentResponse getMyResumeContent() {
         Long userId = UserHolder.requireUserId();
-        ResumeContentRow row = requireUserContent(userId);
-        if (row.getSkillId() == null) {
-            ensureDefaultSkillId(userId);
-            row = requireUserContent(userId);
-        }
-        return toContentResponse(row);
+        return toContentResponse(requireUserContent(userId));
     }
 
     @Override
@@ -102,7 +97,7 @@ public class ResumeServiceImpl implements ResumeService {
     public ResumeContentResponse saveMyResumeContent(ResumeContentSaveRequest request) {
         Long userId = UserHolder.requireUserId();
         requireUserContent(userId);
-        syncSkill(userId, request.getSkill());
+        syncSkills(userId, request.getSkills());
         syncEducations(userId, request.getEducations());
         syncCareers(userId, request.getCareers());
         syncProjects(userId, request.getProjects());
@@ -127,7 +122,7 @@ public class ResumeServiceImpl implements ResumeService {
     }
 
     private boolean hasStoredContent(ResumeContentRow row) {
-        return row.getSkillId() != null
+        return hasItems(row.getSkills())
                 || hasItems(row.getEducations())
                 || hasItems(row.getCareers())
                 || hasItems(row.getProjects())
@@ -146,12 +141,7 @@ public class ResumeServiceImpl implements ResumeService {
      */
     private ResumeContentResponse toContentResponse(ResumeContentRow row) {
         ResumeContentResponse response = new ResumeContentResponse();
-        if (row.getSkillId() != null && row.getSkillContent() != null) {
-            Skill skill = new Skill();
-            skill.setId(row.getSkillId());
-            skill.setContent(row.getSkillContent());
-            response.setSkill(skillService.toResponse(skill));
-        }
+        response.setSkills(readSection(row.getSkills(), SkillResponse.class));
         response.setEducations(readSection(row.getEducations(), EducationRequest.class));
         response.setCareers(readSection(row.getCareers(), CareerRequest.class));
         response.setProjects(readSection(row.getProjects(), ProjectExperienceRequest.class));
@@ -189,45 +179,32 @@ public class ResumeServiceImpl implements ResumeService {
         userService.updateProfile(userId, update);
     }
 
-    private Long ensureDefaultSkillId(Long userId) {
-        List<Skill> skills = skillMapper.selectByUserId(userId);
-        if (!skills.isEmpty()) {
-            return skills.get(0).getId();
-        }
-        SkillRequest skillDTO = new SkillRequest();
-        SkillItemDTO item = new SkillItemDTO();
-        item.setType("专业技能");
-        item.setContent(List.of("待补充"));
-        skillDTO.setContent(List.of(item));
-        return skillService.create(skillDTO).getId();
-    }
-
-    private Long syncSkill(Long userId, SkillRequest skillDto) {
-        if (skillDto.getId() != null) {
-            skillService.update(skillDto);
-            return skillDto.getId();
-        }
-        Skill current = findCurrentSkill(userId);
-        if (current != null) {
-            skillDto.setId(current.getId());
-            skillService.update(skillDto);
-            return current.getId();
-        }
-        return skillService.create(skillDto).getId();
-    }
-
     /**
-     * 取当前用户最新的一条技能。没有技能时返回 null。
+     * 按提交列表替换当前用户的技能。列表不能为空，至少包含一项有效名称。
      *
      * @param userId 用户编号
-     * @return 技能行或 null
+     * @param incoming 技能请求，不能为 null
      */
-    private Skill findCurrentSkill(Long userId) {
-        List<Skill> skills = skillMapper.selectByUserId(userId);
-        if (skills.isEmpty()) {
-            return null;
+    private void syncSkills(Long userId, List<SkillRequest> incoming) {
+        if (incoming == null || incoming.stream().noneMatch(item -> item != null && StringUtils.hasText(item.getName()))) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "请至少填写一项技能");
         }
-        return skills.get(0);
+        List<Skill> existing = skillMapper.selectByUserId(userId);
+        Set<Long> incomingIds = collectIncomingIds(incoming);
+        for (Skill item : existing) {
+            if (!incomingIds.contains(item.getId())) {
+                skillService.delete(item.getId());
+            }
+        }
+        for (SkillRequest dto : incoming) {
+            validateForSave(dto, CreateGroup.class);
+            if (dto.getId() == null) {
+                skillService.create(dto);
+            } else {
+                requireOwnedSkill(dto.getId(), userId);
+                skillService.update(dto);
+            }
+        }
     }
 
     /**
@@ -338,6 +315,9 @@ public class ResumeServiceImpl implements ResumeService {
         if (dto instanceof AwardRequest awardDTO) {
             return awardDTO.getId();
         }
+        if (dto instanceof SkillRequest skillDTO) {
+            return skillDTO.getId();
+        }
         return null;
     }
 
@@ -377,6 +357,16 @@ public class ResumeServiceImpl implements ResumeService {
             throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_NOT_FOUND);
         }
         if (!project.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.NO_PERMISSION);
+        }
+    }
+
+    private void requireOwnedSkill(Long id, Long userId) {
+        Skill skill = skillMapper.selectById(id);
+        if (skill == null) {
+            throw new BusinessException(ErrorCode.SKILL_NOT_FOUND);
+        }
+        if (!skill.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.NO_PERMISSION);
         }
     }
@@ -530,9 +520,19 @@ public class ResumeServiceImpl implements ResumeService {
         }
         result.setAwards(awards);
 
-        if (result.getSkill() != null && result.getSkill().getContent() == null) {
-            result.getSkill().setContent(new ArrayList<>());
+        if (result.getSkills() == null) {
+            result.setSkills(new ArrayList<>());
         }
+        List<ResumeImportParseResponse.SkillImportItem> skills = new ArrayList<>();
+        for (ResumeImportParseResponse.SkillImportItem item : result.getSkills()) {
+            if (item == null || !StringUtils.hasText(item.getName())) {
+                continue;
+            }
+            item.setName(item.getName().trim());
+            item.setDescription(StringUtils.hasText(item.getDescription()) ? item.getDescription().trim() : null);
+            skills.add(item);
+        }
+        result.setSkills(skills);
     }
 
     private Integer normalizeDegree(Integer degree) {

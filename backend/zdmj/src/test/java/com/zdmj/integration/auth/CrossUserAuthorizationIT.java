@@ -73,7 +73,7 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
     void 整份简历_其他用户提交经历或技能编号_返回无权且原数据保持不变() throws Exception {
         String saved = ApiClient.requireOk(api.put(tokenA, "/resumes/me/content", """
                 {
-                  "skill": {"content": [{"type": "编程语言", "content": ["Java"]}]},
+                  "skills": [{"name": "Java"}],
                   "educations": [{"school": "测试大学", "major": "计算机", "degree": 3, "startDate": "2020-09-01", "endDate": "2024-06-30"}],
                   "careers": [{"company": "测试公司", "position": "实习生", "startDate": "2023-07-01"}],
                   "projects": [{"name": "测试项目", "startDate": "2023-01-01", "role": "开发", "description": "实现接口", "contribution": "完成后端"}],
@@ -84,7 +84,7 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
         long careerId = JsonPath.<Number>read(saved, "$.data.careers[0].id").longValue();
         long projectId = JsonPath.<Number>read(saved, "$.data.projects[0].id").longValue();
         long awardId = JsonPath.<Number>read(saved, "$.data.awards[0].id").longValue();
-        long skillId = JsonPath.<Number>read(saved, "$.data.skill.id").longValue();
+        long skillId = JsonPath.<Number>read(saved, "$.data.skills[0].id").longValue();
 
         String hidden = ApiClient.requireOk(api.get(tokenB, "/resumes/content"));
         assertThat(JsonPath.<Integer>read(hidden, "$.data.length()")).isZero();
@@ -96,7 +96,7 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
         ApiClient.assertProblem(api.put(tokenB, "/resumes/me/content", contentWithAward(awardId)), 403, 1003);
         ApiClient.assertProblem(api.put(tokenB, "/resumes/me/content", """
                 {
-                  "skill": {"id": %d, "content": [{"type": "编程语言", "content": ["Python"]}]},
+                  "skills": [{"id": %d, "name": "Python"}],
                   "educations": [],
                   "careers": [],
                   "projects": [],
@@ -112,14 +112,14 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
                 .isEqualTo("测试项目");
         assertThat(jdbcTemplate.queryForObject("SELECT name FROM awards WHERE id = ?", String.class, awardId))
                 .isEqualTo("测试奖项");
-        assertThat(jdbcTemplate.queryForObject("SELECT content::text FROM skills WHERE id = ?", String.class, skillId))
-                .contains("Java");
+        assertThat(jdbcTemplate.queryForObject("SELECT name FROM skills WHERE id = ?", String.class, skillId))
+                .isEqualTo("Java");
     }
 
     private static String contentWithEducation(long id, String school) {
         return """
                 {
-                  "skill": {"content": [{"type": "编程语言", "content": ["Java"]}]},
+                  "skills": [{"name": "Java"}],
                   "educations": [{"id": %d, "school": "%s", "major": "计算机", "degree": 3, "startDate": "2020-09-01"}],
                   "careers": [],
                   "projects": [],
@@ -131,7 +131,7 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
     private static String contentWithCareer(long id) {
         return """
                 {
-                  "skill": {"content": [{"type": "编程语言", "content": ["Java"]}]},
+                  "skills": [{"name": "Java"}],
                   "educations": [],
                   "careers": [{"id": %d, "company": "篡改公司", "position": "实习生", "startDate": "2023-07-01"}],
                   "projects": [],
@@ -143,7 +143,7 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
     private static String contentWithProject(long id) {
         return """
                 {
-                  "skill": {"content": [{"type": "编程语言", "content": ["Java"]}]},
+                  "skills": [{"name": "Java"}],
                   "educations": [],
                   "careers": [],
                   "projects": [{"id": %d, "name": "篡改项目", "startDate": "2023-01-01", "role": "开发", "description": "实现接口", "contribution": "完成后端"}],
@@ -155,7 +155,7 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
     private static String contentWithAward(long id) {
         return """
                 {
-                  "skill": {"content": [{"type": "编程语言", "content": ["Java"]}]},
+                  "skills": [{"name": "Java"}],
                   "educations": [],
                   "careers": [],
                   "projects": [],

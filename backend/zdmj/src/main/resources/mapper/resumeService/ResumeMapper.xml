@@ -4,8 +4,6 @@
 
     <select id="selectContentByUserId" resultType="com.zdmj.resumeService.mapper.ResumeContentRow">
         SELECT
-            s.id AS skill_id,
-            CAST(s.content AS text) AS skill_content,
             u.name AS personal_name,
             u.phone AS personal_phone,
             u.website AS personal_website,
@@ -60,15 +58,17 @@
                 ) ORDER BY a.award_date DESC)
                 FROM awards a
                 WHERE a.user_id = u.id
-            ), CAST('[]' AS json)) AS text) AS awards
+            ), CAST('[]' AS json)) AS text) AS awards,
+            CAST(COALESCE((
+                SELECT json_agg(json_build_object(
+                    'id', sk.id,
+                    'name', sk.name,
+                    'description', sk.description
+                ) ORDER BY sk.id ASC)
+                FROM skills sk
+                WHERE sk.user_id = u.id
+            ), CAST('[]' AS json)) AS text) AS skills
         FROM users u
-        LEFT JOIN LATERAL (
-            SELECT id, content
-            FROM skills
-            WHERE user_id = u.id
-            ORDER BY updated_at DESC, id DESC
-            LIMIT 1
-        ) s ON TRUE
         WHERE u.id = #{userId}
     </select>
 </mapper>

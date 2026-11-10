@@ -45,7 +45,7 @@ function formatAwardDate(dateStr?: string) {
   return dateStr.length >= 7 ? dateStr.slice(0, 7) : dateStr;
 }
 
-const skillGroups = computed(() => props.resume.skill?.content ?? []);
+const skills = computed(() => props.resume.skills ?? []);
 
 const personalInfo = computed(() => props.resume.personalInfo ?? {});
 
@@ -205,13 +205,13 @@ function displayValue(value?: string) {
         <h3 class="text-base font-semibold text-slate-800 border-l-4 border-amber-500 pl-3 mb-3">
           {{ $t('page.resume.skills') }}
         </h3>
-        <NEmpty v-if="!skillGroups.length" size="small" :description="$t('page.resumeImport.noSection')" />
+        <NEmpty v-if="!skills.length" size="small" :description="$t('page.resumeImport.noSection')" />
         <div v-else class="space-y-3">
-          <div v-for="(group, idx) in skillGroups" :key="idx">
-            <div class="text-sm font-medium text-slate-700">{{ group.type }}</div>
-            <div class="flex flex-wrap gap-1 mt-1">
-              <NTag v-for="s in group.content" :key="s" size="small" type="info">{{ s }}</NTag>
-            </div>
+          <div v-for="skill in skills" :key="skill.id" class="rounded-lg bg-slate-50 p-4 border border-slate-100">
+            <div class="font-medium text-slate-800">{{ skill.name }}</div>
+            <p v-if="skill.description" class="text-sm text-slate-600 mt-2 whitespace-pre-wrap">
+              {{ skill.description }}
+            </p>
           </div>
         </div>
       </section>

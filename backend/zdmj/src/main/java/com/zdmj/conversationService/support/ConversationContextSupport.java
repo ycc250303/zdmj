@@ -8,7 +8,6 @@ import com.zdmj.resumeService.dto.ProjectExperienceRequest;
 import com.zdmj.resumeService.dto.ResumeContentResponse;
 import com.zdmj.resumeService.dto.ResumePersonalInfoDTO;
 import com.zdmj.resumeService.dto.SkillResponse;
-import com.zdmj.resumeService.dto.SkillItemDTO;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
@@ -148,16 +147,15 @@ public final class ConversationContextSupport {
             appendLine(sb, "意向工作城市", personal.getPreferredWorkCity());
         }
 
-        SkillResponse skill = resume.getSkill();
-        if (skill != null && skill.getContent() != null && !skill.getContent().isEmpty()) {
+        if (!CollectionUtils.isEmpty(resume.getSkills())) {
             sb.append("\n## 技能\n");
-            for (SkillItemDTO item : skill.getContent()) {
-                if (item == null || !StringUtils.hasText(item.getType())) {
+            for (SkillResponse skill : resume.getSkills()) {
+                if (skill == null || !StringUtils.hasText(skill.getName())) {
                     continue;
                 }
-                sb.append("- ").append(item.getType().trim());
-                if (!CollectionUtils.isEmpty(item.getContent())) {
-                    sb.append("：").append(String.join("、", item.getContent()));
+                sb.append("- ").append(skill.getName().trim());
+                if (StringUtils.hasText(skill.getDescription())) {
+                    sb.append("：").append(skill.getDescription().trim());
                 }
                 sb.append('\n');
             }

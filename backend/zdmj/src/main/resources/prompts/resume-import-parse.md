@@ -51,11 +51,12 @@
 | highlights          | 字符串数组，每项一条亮点；没有则 []    |
 | url                 | 项目链接                               |
 
-### skill（对应 skills 表）
+### skills[]（对应 skills 表，一项技能一行）
 
-| 字段    | 说明                                                               |
-| ------- | ------------------------------------------------------------------ |
-| content | 数组，每项 `{ "type": "分类名", "content": ["技能1", "技能2"] }`；常见 type：编程语言、框架、数据库、开发工具、语言证书等，无法分类时放入「专业技能」 |
+| 字段        | 说明                                              |
+| ----------- | ------------------------------------------------- |
+| name        | 技能名称，如 Java、Spring Boot、英语六级          |
+| description | 可选说明，原文没有则 null；不要把分类名写进说明 |
 
 ### awards[]（对应 awards 表）
 
@@ -143,13 +144,10 @@
       "description": "项目负责人"
     }
   ],
-  "skill": {
-    "content": [
-      { "type": "编程语言", "content": ["Java", "Python", "TypeScript"] },
-      { "type": "框架", "content": ["Spring Boot", "MyBatis-Plus", "Vue 3"] },
-      { "type": "数据库", "content": ["PostgreSQL", "Redis"] },
-      { "type": "开发工具", "content": ["Git", "Docker", "Linux"] }
-    ]
-  }
+  "skills": [
+    { "name": "Java", "description": null },
+    { "name": "Spring Boot", "description": "用于后端接口开发" },
+    { "name": "PostgreSQL", "description": null }
+  ]
 }
 ```

@@ -9,14 +9,9 @@ import lombok.Data;
 public class ResumeContentRow {
 
     /**
-     * 技能清单编号，对应 {@code skills.id}。该用户没有技能时为空。
+     * 技能 JSON 数组。没有技能时为 {@code []}。
      */
-    private Long skillId;
-
-    /**
-     * 技能内容 JSON 原文，对应 {@code skills.content}。技能行不存在时为空。
-     */
-    private String skillContent;
+    private String skills;
 
     /**
      * 姓名，对应 {@code users.name}。

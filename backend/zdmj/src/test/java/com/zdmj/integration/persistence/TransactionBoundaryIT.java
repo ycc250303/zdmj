@@ -50,12 +50,12 @@ class TransactionBoundaryIT extends IntegrationTestBase {
     void 简历保存_中途业务失败_已写入的技能与教育经历回滚() throws Exception {
         String token = testJwt.authorize(testUsers.createPair().userA());
         String saved = ApiClient.requireOk(api.put(token, "/resumes/me/content", contentJson(null, "Java", "测试大学")));
-        long skillId = JsonPath.<Number>read(saved, "$.data.skill.id").longValue();
+        long skillId = JsonPath.<Number>read(saved, "$.data.skills[0].id").longValue();
 
         MvcResult rejected = api.put(token, "/resumes/me/content", contentJson(9_999_999_999L, "Python", "回滚大学"));
         ApiClient.assertProblem(rejected, 404, 6005);
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT content::text FROM skills WHERE id = ?", String.class, skillId)).contains("Java");
+                "SELECT name FROM skills WHERE id = ?", String.class, skillId)).isEqualTo("Java");
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM educations WHERE school = '回滚大学'", Integer.class)).isZero();
         assertThat(jdbcTemplate.queryForObject(
@@ -125,7 +125,7 @@ class TransactionBoundaryIT extends IntegrationTestBase {
         String educationIdField = educationId == null ? "" : "\"id\":" + educationId + ",";
         return """
                 {
-                  "skill": {"content": [{"type": "编程语言", "content": ["%s"]}]},
+                  "skills": [{"name": "%s"}],
                   "educations": [{%s"school": "%s", "major": "计算机", "degree": 3, "startDate": "2020-09-01", "endDate": "2024-06-30", "gpa": "3.8"}],
                   "careers": [{"company": "测试公司", "position": "后端实习生", "startDate": "2023-07-01"}],
                   "projects": [{"name": "测试项目", "startDate": "2023-01-01", "role": "开发", "description": "实现接口", "contribution": "完成后端"}],

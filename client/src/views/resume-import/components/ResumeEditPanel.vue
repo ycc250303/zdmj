@@ -2,7 +2,13 @@
 import { computed } from 'vue';
 import { $t } from '@/locales';
 import type { DraftAward, DraftCareer, DraftEducation, DraftProject, ResumeContentDraft } from '../utils/resumeDraft';
-import { createEmptyAward, createEmptyCareer, createEmptyEducation, createEmptyProject } from '../utils/resumeDraft';
+import {
+  createEmptyAward,
+  createEmptyCareer,
+  createEmptyEducation,
+  createEmptyProject,
+  createEmptySkill
+} from '../utils/resumeDraft';
 
 defineOptions({ name: 'ResumeEditPanel' });
 
@@ -72,12 +78,12 @@ function addAward() {
   draft.value.awards.push(createEmptyAward());
 }
 
-function addSkillGroup() {
-  draft.value.skill.content.push({ type: '', content: [] });
+function addSkill() {
+  draft.value.skills.push(createEmptySkill());
 }
 
-function removeSkillGroup(index: number) {
-  draft.value.skill.content.splice(index, 1);
+function removeSkill(index: number) {
+  draft.value.skills.splice(index, 1);
 }
 
 function eduStart(item: DraftEducation) {
@@ -388,19 +394,29 @@ function awardDateBind(item: DraftAward) {
 
         <NCollapseItem :title="$t('page.resume.skills')" name="skill">
           <div
-            v-for="(group, index) in draft.skill.content"
-            :key="`${group.type}-${index}`"
+            v-for="(skill, index) in draft.skills"
+            :key="skill._key"
             class="mb-4 border border-slate-100 rounded-lg bg-slate-50 p-3"
           >
-            <div class="mb-2 flex items-center justify-between">
-              <NInput v-model:value="group.type" :placeholder="$t('page.resumeImport.skillTypePlaceholder')" />
-              <NButton size="tiny" quaternary type="error" @click="removeSkillGroup(index)">
+            <div class="mb-2 flex items-center justify-between gap-2">
+              <NInput
+                v-model:value="skill.name"
+                maxlength="255"
+                :placeholder="$t('page.resumeImport.skillNamePlaceholder')"
+              />
+              <NButton size="tiny" quaternary type="error" @click="removeSkill(index)">
                 {{ $t('page.resume.delete') }}
               </NButton>
             </div>
-            <NDynamicTags v-model:value="group.content" />
+            <NInput
+              v-model:value="skill.description"
+              type="textarea"
+              maxlength="500"
+              :autosize="{ minRows: 2 }"
+              :placeholder="$t('page.resumeImport.skillDescriptionPlaceholder')"
+            />
           </div>
-          <NButton dashed block @click="addSkillGroup">+ {{ $t('page.resumeImport.addSkillGroup') }}</NButton>
+          <NButton dashed block @click="addSkill">+ {{ $t('page.resumeImport.addSkill') }}</NButton>
         </NCollapseItem>
       </NCollapse>
     </NCard>

@@ -77,11 +77,12 @@
 
 | 字段名称       | 字段类型         | 字段含义     | 约束                                                                   | 枚举/JSON字段含义                                                |
 | -------------- | ---------------- | ------------ | ---------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `id`         | `BIGSERIAL`    | 技能清单ID   | `PK`                                                                 | -                                                                |
-| `user_id`    | `BIGINT`       | 用户ID       | `NOT NULL`，逻辑外键 `users.id`                                    | -                                                                |
-| `content`    | `JSONB`        | 技能内容数组 | `NOT NULL, DEFAULT '[]'::jsonb, CHECK jsonb_typeof(content)='array'` | 数组项结构：`{"type":"前端框架","content":["React","Vue.js"]}` |
-| `created_at` | `TIMESTAMP`    | 创建时间     | `DEFAULT CURRENT_TIMESTAMP`                                          | -                                                                |
-| `updated_at` | `TIMESTAMP`    | 更新时间     | `DEFAULT CURRENT_TIMESTAMP`                                          | -                                                                |
+| `id`          | `BIGSERIAL`    | 技能ID   | `PK`                          | -   |
+| `user_id`     | `BIGINT`       | 用户ID   | `NOT NULL`，逻辑外键 `users.id` | -   |
+| `name`        | `VARCHAR(255)` | 技能名称 | `NOT NULL`                    | -   |
+| `description` | `VARCHAR(500)` | 技能说明 | 可空                          | 用户自由填写 |
+| `created_at`  | `TIMESTAMP`    | 创建时间 | `DEFAULT CURRENT_TIMESTAMP`   | -   |
+| `updated_at`  | `TIMESTAMP`    | 更新时间 | `DEFAULT CURRENT_TIMESTAMP`   | -   |
 
 ### 2.4 表 `careers`
 

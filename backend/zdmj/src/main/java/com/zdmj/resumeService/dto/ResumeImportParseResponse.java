@@ -25,7 +25,7 @@ public class ResumeImportParseResponse {
     @JsonAlias({ "honors", "honorsAndAwards", "honors_and_awards" })
     private List<AwardItem> awards = new ArrayList<>();
 
-    private SkillItem skill;
+    private List<SkillImportItem> skills = new ArrayList<>();
 
     private List<String> warnings = new ArrayList<>();
 
@@ -92,7 +92,8 @@ public class ResumeImportParseResponse {
 
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class SkillItem {
-        private List<SkillItemDTO> content = new ArrayList<>();
+    public static class SkillImportItem {
+        private String name;
+        private String description;
     }
 }

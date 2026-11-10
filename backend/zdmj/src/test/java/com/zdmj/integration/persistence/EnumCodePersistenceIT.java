@@ -66,7 +66,7 @@ class EnumCodePersistenceIT extends IntegrationTestBase {
                 : "{\"name\": \"" + awardName + "\", \"awardDate\": \"2024-05-01\"}";
         return """
                 {
-                  "skill": {"content": [{"type": "编程语言", "content": ["Java"]}]},
+                  "skills": [{"name": "Java"}],
                   "educations": [{"school": "测试大学", "major": "计算机", %s"startDate": "2020-09-01"}],
                   "careers": [],
                   "projects": [],

@@ -10,9 +10,9 @@ import lombok.Data;
 public class ResumeContentResponse {
 
     /**
-     * 技能清单。没有技能时为空。
+     * 技能列表。没有技能时为空列表。
      */
-    private SkillResponse skill;
+    private List<SkillResponse> skills;
 
     /**
      * 教育经历列表

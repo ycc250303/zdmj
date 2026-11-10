@@ -20,7 +20,6 @@ import com.zdmj.jobService.mapper.CompanyMapper;
 import com.zdmj.jobService.mapper.JobMapper;
 import com.zdmj.resumeService.entity.Skill;
 import com.zdmj.resumeService.mapper.SkillMapper;
-import com.zdmj.resumeService.service.SkillService;
 import com.zdmj.testsupport.IntegrationTestBase;
 import com.zdmj.testsupport.TestUsers;
 import com.zdmj.userAuthService.entity.User;
@@ -33,12 +32,11 @@ class JsonbPersistenceIT extends IntegrationTestBase {
     private final CompanyMapper companyMapper;
     private final SkillMapper skillMapper;
     private final ConversationMapper conversationMapper;
-    private final SkillService skillService;
 
     @Autowired
     JsonbPersistenceIT(com.zdmj.testsupport.DatabaseCleaner databaseCleaner, TestUsers testUsers,
             JdbcTemplate jdbcTemplate, JobMapper jobMapper, CompanyMapper companyMapper,
-            SkillMapper skillMapper, ConversationMapper conversationMapper, SkillService skillService) {
+            SkillMapper skillMapper, ConversationMapper conversationMapper) {
         super(databaseCleaner);
         this.testUsers = testUsers;
         this.jdbcTemplate = jdbcTemplate;
@@ -46,7 +44,6 @@ class JsonbPersistenceIT extends IntegrationTestBase {
         this.companyMapper = companyMapper;
         this.skillMapper = skillMapper;
         this.conversationMapper = conversationMapper;
-        this.skillService = skillService;
     }
 
     @Test
@@ -88,17 +85,12 @@ class JsonbPersistenceIT extends IntegrationTestBase {
 
         Skill skill = new Skill();
         skill.setUserId(user.getId());
-        skill.setContent("[{\"type\":\"开发语言\",\"content\":[\"Java\"]}]");
+        skill.setName("Java");
+        skill.setDescription("熟悉 Spring");
         skillMapper.insert(skill);
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT jsonb_typeof(content) FROM skills WHERE id = ?", String.class, skill.getId()))
-                .isEqualTo("array");
-        assertThat(skillService.toResponse(skillMapper.selectById(skill.getId())).getContent())
-                .singleElement()
-                .satisfies(item -> {
-                    assertThat(item.getType()).isEqualTo("开发语言");
-                    assertThat(item.getContent()).containsExactly("Java");
-                });
+        Skill loadedSkill = skillMapper.selectById(skill.getId());
+        assertThat(loadedSkill.getName()).isEqualTo("Java");
+        assertThat(loadedSkill.getDescription()).isEqualTo("熟悉 Spring");
 
         Conversation conversation = new Conversation();
         conversation.setUserId(user.getId());
@@ -119,21 +111,14 @@ class JsonbPersistenceIT extends IntegrationTestBase {
     }
 
     @Test
-    void JSONB写入_非法文本对象和错误数组_数据库拒绝或读取为空列表() {
+    void 技能名称必填且说明最长五百字() {
         User user = testUsers.createPair().userA();
         assertThatThrownBy(() -> jdbcTemplate.update(
-                "INSERT INTO skills (user_id, content) VALUES (?, CAST(? AS jsonb))", user.getId(), "{"))
+                "INSERT INTO skills (user_id, description) VALUES (?, ?)", user.getId(), "说明"))
                 .isInstanceOf(DataAccessException.class);
         assertThatThrownBy(() -> jdbcTemplate.update(
-                "INSERT INTO skills (user_id, content) VALUES (?, CAST(? AS jsonb))",
-                user.getId(), "{\"type\":\"x\"}"))
+                "INSERT INTO skills (user_id, name, description) VALUES (?, ?, ?)",
+                user.getId(), "Java", "说".repeat(501)))
                 .isInstanceOf(DataAccessException.class);
-
-        jdbcTemplate.update(
-                "INSERT INTO skills (user_id, content) VALUES (?, CAST(? AS jsonb))",
-                user.getId(), "[1,2]");
-        Long skillId = jdbcTemplate.queryForObject(
-                "SELECT id FROM skills WHERE user_id = ?", Long.class, user.getId());
-        assertThat(skillService.toResponse(skillMapper.selectById(skillId)).getContent()).isEmpty();
     }
 }

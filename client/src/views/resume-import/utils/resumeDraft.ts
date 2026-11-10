@@ -20,9 +20,14 @@ export type DraftAward = Omit<ResumeApi.AwardDTO, 'id'> & {
   _key: string;
 };
 
+export type DraftSkill = Omit<ResumeApi.SkillDTO, 'id'> & {
+  id?: number;
+  _key: string;
+};
+
 export interface ResumeContentDraft {
   personalInfo: ResumeApi.ResumePersonalInfo;
-  skill: ResumeApi.SkillDTO;
+  skills: DraftSkill[];
   educations: DraftEducation[];
   careers: DraftCareer[];
   projects: DraftProject[];
@@ -40,13 +45,6 @@ function defaultPersonalInfo(source?: ResumeApi.ResumePersonalInfo): ResumeApi.R
 
 function newKey(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function defaultSkill(): ResumeApi.SkillDTO {
-  return {
-    id: 0,
-    content: [{ type: '专业技能', content: ['待补充'] }]
-  };
 }
 
 function normalizeImportAwardItem(raw: ResumeApi.ResumeImportAwardItem) {
@@ -127,12 +125,19 @@ export function buildDraftFromImportResult(
     });
   }
 
-  const parsedSkillContent = parsed.skill?.content?.length
-    ? parsed.skill.content.map(item => ({
-        type: item.type?.trim() || '专业技能',
-        content: [...(item.content ?? [])]
-      }))
-    : [{ type: '专业技能', content: ['待补充'] }];
+  const skills: DraftSkill[] = (parsed.skills ?? []).flatMap(skill => {
+    const name = trimOrEmpty(skill.name);
+    if (!name) {
+      return [];
+    }
+    return [
+      {
+        _key: newKey('import-skill'),
+        name,
+        description: trimOrEmpty(skill.description)
+      }
+    ];
+  });
 
   const draft: ResumeContentDraft = {
     personalInfo: defaultPersonalInfo({
@@ -141,10 +146,7 @@ export function buildDraftFromImportResult(
       homepageUrl: parsed.personalInfo?.homepageUrl ?? base.personalInfo?.homepageUrl,
       preferredWorkCity: parsed.personalInfo?.preferredWorkCity ?? base.personalInfo?.preferredWorkCity
     }),
-    skill: {
-      id: base.skill?.id ?? 0,
-      content: parsedSkillContent
-    },
+    skills,
     educations,
     careers,
     projects,
@@ -162,13 +164,11 @@ function previewId(id: number | undefined, index: number) {
 export function draftToPreview(draft: ResumeContentDraft): ResumeApi.ResumeContentDTO {
   return {
     personalInfo: { ...draft.personalInfo },
-    skill: {
-      id: draft.skill.id,
-      content: draft.skill.content.map(item => ({
-        type: item.type,
-        content: [...(item.content ?? [])]
-      }))
-    },
+    skills: draft.skills.map((item, index) => ({
+      id: previewId(item.id, index),
+      name: item.name,
+      description: item.description
+    })),
     educations: draft.educations.map((item, index) => ({
       id: previewId(item.id, index),
       school: item.school,
@@ -213,15 +213,12 @@ export function draftToPreview(draft: ResumeContentDraft): ResumeApi.ResumeConte
 export function cloneResumeForEdit(source: ResumeApi.ResumeContentDTO): ResumeContentDraft {
   return {
     personalInfo: defaultPersonalInfo(source.personalInfo),
-    skill: source.skill
-      ? {
-          id: source.skill.id,
-          content: source.skill.content?.map(item => ({
-            type: item.type,
-            content: [...(item.content ?? [])]
-          })) ?? [{ type: '专业技能', content: ['待补充'] }]
-        }
-      : defaultSkill(),
+    skills: (source.skills ?? []).map(skill => ({
+      id: skill.id,
+      name: skill.name,
+      description: skill.description ?? '',
+      _key: String(skill.id)
+    })),
     educations: (source.educations ?? []).map(edu => ({
       ...edu,
       _key: String(edu.id)
@@ -429,27 +426,29 @@ function mapAward(award: DraftAward): ResumeApi.AwardCreate | ResumeApi.AwardUpd
   };
 }
 
+export function createEmptySkill(): DraftSkill {
+  return {
+    _key: newKey('skill'),
+    name: '',
+    description: ''
+  };
+}
+
 export function buildSaveRequest(draft: ResumeContentDraft): ResumeApi.ResumeContentSaveRequest {
-  if (!draft.skill?.content?.length) {
-    throw new Error('skillRequired');
-  }
-
-  const skillContent = draft.skill.content
+  const skills = draft.skills
     .map(item => ({
-      type: item.type?.trim() || '专业技能',
-      content: (item.content ?? []).map(s => s.trim()).filter(Boolean)
+      ...(item.id ? { id: item.id } : {}),
+      name: trimOrEmpty(item.name),
+      ...(trimOrEmpty(item.description) ? { description: trimOrEmpty(item.description) } : {})
     }))
-    .filter(item => item.content.length > 0);
+    .filter(item => item.name);
 
-  if (!skillContent.length) {
+  if (!skills.length) {
     throw new Error('skillRequired');
   }
 
   return {
-    skill: {
-      ...(draft.skill.id ? { id: draft.skill.id } : {}),
-      content: skillContent
-    },
+    skills,
     personalInfo: {
       name: trimOrEmpty(draft.personalInfo.name),
       phone: trimOrEmpty(draft.personalInfo.phone),
