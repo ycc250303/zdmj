@@ -10,12 +10,11 @@ import com.zdmj.resumeService.entity.Career;
 import com.zdmj.resumeService.mapper.CareerMapper;
 import com.zdmj.resumeService.mapper.CareerStructMapper;
 import com.zdmj.resumeService.service.CareerService;
+import com.zdmj.resumeService.utils.DateRangeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
-
-import java.time.LocalDate;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -27,7 +26,10 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
     @Override
     public CareerResponse create(CareerRequest careerRequest) {
         Long userId = UserHolder.requireUserId();
-        rejectIfEndBeforeStart(careerRequest.getStartDate(), careerRequest.getEndDate());
+        DateRangeUtil.rejectIfEndBeforeStart(
+                careerRequest.getStartDate(),
+                careerRequest.getEndDate(),
+                ErrorCode.CAREER_LEAVE_TIME_INVALID);
 
         Career career = new Career();
         career.setUserId(userId);
@@ -51,7 +53,8 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
         Career career = requireCareerAndCheckOwnership(id, userId, "修改");
 
         careerPatchMapper.updateEntityFromDto(careerRequest, career);
-        rejectIfEndBeforeStart(career.getStartDate(), career.getEndDate());
+        DateRangeUtil.rejectIfEndBeforeStart(
+                career.getStartDate(), career.getEndDate(), ErrorCode.CAREER_LEAVE_TIME_INVALID);
 
         boolean updated = updateById(career);
         if (!updated) {
@@ -72,19 +75,6 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
         }
 
         log.info("用户 {} 删除工作经历成功: id={}", userId, id);
-    }
-
-    /**
-     * 结束日期早于开始日期时拒绝写入。任一端为空时跳过，在职记录可以没有离职日期。
-     *
-     * @param startDate 入职日期
-     * @param endDate 离职日期
-     * @throws BusinessException 离职日期早于入职日期时抛出 {@link ErrorCode#CAREER_LEAVE_TIME_INVALID}
-     */
-    private void rejectIfEndBeforeStart(LocalDate startDate, LocalDate endDate) {
-        if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
-            throw new BusinessException(ErrorCode.CAREER_LEAVE_TIME_INVALID);
-        }
     }
 
     private CareerResponse convertToResponse(Career career) {

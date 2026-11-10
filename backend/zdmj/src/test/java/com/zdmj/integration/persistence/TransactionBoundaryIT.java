@@ -63,6 +63,33 @@ class TransactionBoundaryIT extends IntegrationTestBase {
     }
 
     @Test
+    void 首次会话_标题写入失败_消息与会话计数回滚() throws Exception {
+        String token = testJwt.authorize(testUsers.createPair().userA());
+        long conversationId = ApiClient.dataId(api.post(token, "/conversations", """
+                {"config":{"useSystemKnowledge":false,"ragDocumentIds":[]}}
+                """));
+        String originalTitle = jdbcTemplate.queryForObject(
+                "SELECT title FROM conversations WHERE id = ?", String.class, conversationId);
+        jdbcTemplate.execute("ALTER TABLE conversations ADD CONSTRAINT test_reject_title CHECK (title <> '失败标题')");
+        try {
+            ApiClient.assertProblem(api.post(token, "/messages/chat", """
+                    {"conversationId":%d,"message":"失败标题"}
+                    """.formatted(conversationId)), 500, 1008);
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT count(*) FROM messages WHERE conversation_id = ?", Integer.class, conversationId))
+                    .isZero();
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT message_count FROM conversations WHERE id = ?", Integer.class, conversationId))
+                    .isZero();
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT title FROM conversations WHERE id = ?", String.class, conversationId))
+                    .isEqualTo(originalTitle);
+        } finally {
+            jdbcTemplate.execute("ALTER TABLE conversations DROP CONSTRAINT test_reject_title");
+        }
+    }
+
+    @Test
     void 会话发送_模型调用与事件流期间_不持有写入事务() throws Exception {
         String token = testJwt.authorize(testUsers.createPair().userA());
         long conversationId = ApiClient.dataId(api.post(token, "/conversations", """

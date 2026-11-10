@@ -11,12 +11,11 @@ import com.zdmj.resumeService.enums.ProjectStatusEnum;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
 import com.zdmj.resumeService.mapper.ProjectExperienceStructMapper;
 import com.zdmj.resumeService.service.ProjectExperienceService;
+import com.zdmj.resumeService.utils.DateRangeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
-
-import java.time.LocalDate;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -29,7 +28,10 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
     @Override
     public ProjectExperienceResponse create(ProjectExperienceRequest projectExperienceRequest) {
         Long userId = UserHolder.requireUserId();
-        rejectIfEndBeforeStart(projectExperienceRequest.getStartDate(), projectExperienceRequest.getEndDate());
+        DateRangeUtil.rejectIfEndBeforeStart(
+                projectExperienceRequest.getStartDate(),
+                projectExperienceRequest.getEndDate(),
+                ErrorCode.PROJECT_END_TIME_INVALID);
 
         ProjectExperience projectExperience = new ProjectExperience();
         projectExperience.setUserId(userId);
@@ -59,7 +61,10 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
         ProjectExperience projectExperience = requireProjectExperienceAndCheckOwnership(id, userId, "修改");
 
         projectExperiencePatchMapper.updateEntityFromDto(projectExperienceRequest, projectExperience);
-        rejectIfEndBeforeStart(projectExperience.getStartDate(), projectExperience.getEndDate());
+        DateRangeUtil.rejectIfEndBeforeStart(
+                projectExperience.getStartDate(),
+                projectExperience.getEndDate(),
+                ErrorCode.PROJECT_END_TIME_INVALID);
 
         boolean updated = updateById(projectExperience);
         if (!updated) {
@@ -80,19 +85,6 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
         }
 
         log.info("用户 {} 删除项目经历成功: id={}", userId, id);
-    }
-
-    /**
-     * 结束日期早于开始日期时拒绝写入。任一端为空时跳过，进行中的项目可以没有结束日期。
-     *
-     * @param startDate 项目开始日期
-     * @param endDate 项目结束日期
-     * @throws BusinessException 结束日期早于开始日期时抛出 {@link ErrorCode#PROJECT_END_TIME_INVALID}
-     */
-    private void rejectIfEndBeforeStart(LocalDate startDate, LocalDate endDate) {
-        if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
-            throw new BusinessException(ErrorCode.PROJECT_END_TIME_INVALID);
-        }
     }
 
     private ProjectExperienceResponse convertToResponse(ProjectExperience projectExperience) {

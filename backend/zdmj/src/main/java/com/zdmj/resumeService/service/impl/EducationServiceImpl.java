@@ -10,12 +10,11 @@ import com.zdmj.resumeService.entity.Education;
 import com.zdmj.resumeService.mapper.EducationMapper;
 import com.zdmj.resumeService.mapper.EducationStructMapper;
 import com.zdmj.resumeService.service.EducationService;
+import com.zdmj.resumeService.utils.DateRangeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
-
-import java.time.LocalDate;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -27,7 +26,10 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
     @Override
     public EducationResponse create(EducationRequest educationRequest) {
         Long userId = UserHolder.requireUserId();
-        rejectIfEndBeforeStart(educationRequest.getStartDate(), educationRequest.getEndDate());
+        DateRangeUtil.rejectIfEndBeforeStart(
+                educationRequest.getStartDate(),
+                educationRequest.getEndDate(),
+                ErrorCode.EDUCATION_GRADUATE_TIME_INVALID);
 
         Education education = new Education();
         education.setUserId(userId);
@@ -52,7 +54,10 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
         Education existingEducation = requireEducationAndCheckOwnership(id, userId, "修改");
 
         educationPatchMapper.updateEntityFromDto(educationRequest, existingEducation);
-        rejectIfEndBeforeStart(existingEducation.getStartDate(), existingEducation.getEndDate());
+        DateRangeUtil.rejectIfEndBeforeStart(
+                existingEducation.getStartDate(),
+                existingEducation.getEndDate(),
+                ErrorCode.EDUCATION_GRADUATE_TIME_INVALID);
 
         boolean updated = updateById(existingEducation);
         if (!updated) {
@@ -74,19 +79,6 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
         }
 
         log.info("用户 {} 删除教育经历成功: id={}", userId, id);
-    }
-
-    /**
-     * 毕业日期早于入学日期时拒绝写入。任一端为空时跳过，在读记录可以没有毕业日期。
-     *
-     * @param startDate 入学日期
-     * @param endDate 毕业日期
-     * @throws BusinessException 毕业日期早于入学日期时抛出 {@link ErrorCode#EDUCATION_GRADUATE_TIME_INVALID}
-     */
-    private void rejectIfEndBeforeStart(LocalDate startDate, LocalDate endDate) {
-        if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
-            throw new BusinessException(ErrorCode.EDUCATION_GRADUATE_TIME_INVALID);
-        }
     }
 
     private EducationResponse convertToResponse(Education education) {

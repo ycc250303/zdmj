@@ -57,6 +57,23 @@ class ProfilePromptFlowIT extends IntegrationTestBase {
     }
 
     @Test
+    void 人岗匹配_学生画像缺失_不生成岗位画像或调用模型() throws Exception {
+        String token = testJwt.authorize(testUsers.createPair().userA());
+        long jobId = ApiClient.dataId(api.post(token, "/jobs", """
+                {"jobName":"后端工程师","companyName":"测试企业","description":"Java 开发",
+                 "location":"上海","salaryType":2,"salaryMin":10000,"salaryMax":20000}
+                """));
+        com.zdmj.testsupport.ExternalAiStubConfig.clearModelTransactionObservations();
+
+        ApiClient.assertProblem(api.post(token, "/matches/jobs/" + jobId, "{}"), 400, 11002);
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM job_capability_profiles WHERE job_id = ?", Integer.class, jobId)).isZero();
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM job_student_matches", Integer.class)).isZero();
+        assertThat(com.zdmj.testsupport.ExternalAiStubConfig.modelTransactionObservations()).isEmpty();
+    }
+
+    @Test
     void 简历画像_关键词识别后_保存规范方向与专属提示词() throws Exception {
         User owner = testUsers.createPair().userA();
         String token = testJwt.authorize(owner);
