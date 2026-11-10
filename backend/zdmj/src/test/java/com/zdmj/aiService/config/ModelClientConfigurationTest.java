@@ -37,6 +37,25 @@ class ModelClientConfigurationTest {
         verifyRequest(model, false);
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {true, false})
+    void synchronousRequest_whenProviderFails_shouldStopWithoutRetry(boolean probe) {
+        ModelClientConfiguration configuration = new ModelClientConfiguration();
+        OpenAiChatModel client = (OpenAiChatModel) (probe
+                ? configuration.buildProbe(ModelCode.DEEPSEEK_FLASH, "sk-test")
+                : configuration.buildUserModel(ModelCode.DEEPSEEK_FLASH, "sk-test"));
+        OpenAiApi api = (OpenAiApi) ReflectionTestUtils.getField(client, "openAiApi");
+        RestClient.Builder builder = ((RestClient) ReflectionTestUtils.getField(api, "restClient")).mutate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        ReflectionTestUtils.setField(api, "restClient", builder.build());
+        server.expect(requestTo(ModelCode.DEEPSEEK_FLASH.baseUrl() + "/v1/chat/completions"))
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withServerError());
+        // 后续请求一旦发生即违反期望；所有请求均由本地替身处理。
+        org.junit.jupiter.api.Assertions.assertThrows(org.springframework.ai.retry.TransientAiException.class,
+                () -> client.call(new Prompt("ping")));
+        server.verify();
+    }
+
     private static void verifyRequest(ModelCode model, boolean probe) {
         ModelClientConfiguration configuration = new ModelClientConfiguration();
         OpenAiChatModel client = (OpenAiChatModel) (probe

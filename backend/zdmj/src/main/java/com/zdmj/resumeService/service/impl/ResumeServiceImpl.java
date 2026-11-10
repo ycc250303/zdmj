@@ -230,6 +230,12 @@ public class ResumeServiceImpl implements ResumeService {
         return skills.get(0);
     }
 
+    /**
+     * 同步教育经历
+     * 
+     * @param userId 用户编号
+     * @param incoming 教育经历请求
+     */
     private void syncEducations(Long userId, List<EducationRequest> incoming) {
         List<Education> existing = educationMapper.selectByUserId(userId);
         Set<Long> incomingIds = collectIncomingIds(incoming);
@@ -395,7 +401,6 @@ public class ResumeServiceImpl implements ResumeService {
     public ResumeImportParseResponse parseImport(ResumeImportParseRequest request) {
         log.info("开始识别简历结构化字段");
         Long userId = UserHolder.requireUserId();
-        List<String> warnings = new ArrayList<>();
         String sourceText = PdfParserUtil.normalizeExtractedText(resolveImportSourceText(request));
 
         ResumeImportParseResponse parsed;
@@ -413,7 +418,7 @@ public class ResumeServiceImpl implements ResumeService {
             throw new BusinessException(ErrorCode.RESUME_IMPORT_PARSE_FAILED);
         }
 
-        normalizeImportResult(parsed, warnings);
+        normalizeImportResult(parsed);
         return parsed;
     }
 
@@ -450,14 +455,15 @@ public class ResumeServiceImpl implements ResumeService {
         throw new BusinessException(ErrorCode.VALIDATION_ERROR, "必须提供 pdfUrl 或 rawText");
     }
 
-    private void normalizeImportResult(ResumeImportParseResponse result, List<String> warnings) {
+    /**
+     * 整理模型返回的简历。能解析到月份的日期写成 YYYY-MM-DD；奖项缺少月份时补成该年 1 月 1 日。
+     *
+     * @param result 导入结果
+     */
+    private void normalizeImportResult(ResumeImportParseResponse result) {
         if (result == null) {
             throw new BusinessException(ErrorCode.RESUME_IMPORT_PARSE_FAILED);
         }
-        if (result.getWarnings() == null) {
-            result.setWarnings(new ArrayList<>());
-        }
-        result.getWarnings().addAll(0, warnings);
 
         if (result.getEducations() == null) {
             result.setEducations(new ArrayList<>());
@@ -519,8 +525,7 @@ public class ResumeServiceImpl implements ResumeService {
                 continue;
             }
             item.setName(item.getName().trim());
-            LocalDate awardDate = parseAwardDate(item, warnings);
-            item.setAwardDate(formatDateString(awardDate));
+            item.setAwardDate(formatDateString(parseAwardDate(item)));
             awards.add(item);
         }
         result.setAwards(awards);
@@ -537,7 +542,13 @@ public class ResumeServiceImpl implements ResumeService {
         return degree;
     }
 
-    private LocalDate parseAwardDate(ResumeImportParseResponse.AwardItem item, List<String> warnings) {
+    /**
+     * 解析奖项日期。字段本身能解析到月份时直接采用；否则从名称、说明中取完整日期，仍没有月份时取出现的年份并补成 1 月 1 日。
+     *
+     * @param item 奖项
+     * @return 解析后的日期，无法识别时返回 null
+     */
+    private LocalDate parseAwardDate(ResumeImportParseResponse.AwardItem item) {
         LocalDate date = parseFlexibleDate(item.getAwardDate());
         if (date != null) {
             return date;
@@ -550,24 +561,26 @@ public class ResumeServiceImpl implements ResumeService {
         if (date != null) {
             return date;
         }
-        date = extractYearAsJanFirst(item.getName(), warnings, item.getName());
+        date = extractYearAsJanFirst(item.getName());
         if (date != null) {
             return date;
         }
-        return extractYearAsJanFirst(item.getDescription(), warnings, item.getName());
+        return extractYearAsJanFirst(item.getDescription());
     }
 
-    private LocalDate extractYearAsJanFirst(String text, List<String> warnings, String awardName) {
+    /**
+     * 从文本中提取年份并补成该年 1 月 1 日。年份区间取起始年。
+     *
+     * @param text 奖项名称或说明
+     * @return 补全后的日期，没有年份时返回 null
+     */
+    private LocalDate extractYearAsJanFirst(String text) {
         if (!StringUtils.hasText(text)) {
             return null;
         }
         var range = Pattern.compile("(\\d{4})\\s*[-~至到—]\\s*(\\d{4})").matcher(text);
         if (range.find()) {
-            int year = Integer.parseInt(range.group(1));
-            if (StringUtils.hasText(awardName)) {
-                warnings.add("奖项「" + awardName + "」日期为区间，已取起始年 " + year + "-01-01");
-            }
-            return LocalDate.of(year, 1, 1);
+            return LocalDate.of(Integer.parseInt(range.group(1)), 1, 1);
         }
         LocalDate chineseDate = parseChineseDate(text);
         if (chineseDate != null) {
@@ -576,28 +589,16 @@ public class ResumeServiceImpl implements ResumeService {
         if (isChineseYearOnly(text)) {
             var yearOnly = Pattern.compile("^(\\d{4})年$").matcher(text.trim());
             if (yearOnly.matches()) {
-                int year = Integer.parseInt(yearOnly.group(1));
-                if (StringUtils.hasText(awardName)) {
-                    warnings.add("奖项「" + awardName + "」仅有年份，已设为 " + year + "-01-01");
-                }
-                return LocalDate.of(year, 1, 1);
+                return LocalDate.of(Integer.parseInt(yearOnly.group(1)), 1, 1);
             }
         }
         var yearInText = Pattern.compile("(\\d{4})\\s*年").matcher(text);
         if (yearInText.find()) {
-            int year = Integer.parseInt(yearInText.group(1));
-            if (StringUtils.hasText(awardName)) {
-                warnings.add("奖项「" + awardName + "」仅有年份，已设为 " + year + "-01-01");
-            }
-            return LocalDate.of(year, 1, 1);
+            return LocalDate.of(Integer.parseInt(yearInText.group(1)), 1, 1);
         }
         var bareYear = Pattern.compile("(?:^|\\D)(19\\d{2}|20\\d{2})(?:\\D|$)").matcher(text);
         if (bareYear.find()) {
-            int year = Integer.parseInt(bareYear.group(1));
-            if (StringUtils.hasText(awardName)) {
-                warnings.add("奖项「" + awardName + "」仅有年份，已设为 " + year + "-01-01");
-            }
-            return LocalDate.of(year, 1, 1);
+            return LocalDate.of(Integer.parseInt(bareYear.group(1)), 1, 1);
         }
         return null;
     }

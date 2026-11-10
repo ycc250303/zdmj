@@ -164,13 +164,12 @@ class JobStudentMatchServiceImplTest {
     void generate_studentProfileMissing_shouldThrow11002_preconditionMissing() {
         Long jobId = 23L;
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(buildJobProfile("java-backend")).when(jobCapabilityProfileService)
-                .getJobCapabilityProfileOrNull(jobId);
         doReturn(null).when(studentCapabilityProfileService).getCurrentUserProfileOrNull();
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> matchService.generate(jobId, null));
         assertEquals(ErrorCode.MATCH_PRECONDITION_MISSING.getCode(), ex.getCode());
+        org.mockito.Mockito.verifyNoInteractions(jobCapabilityProfileService);
         verify(modelGateway, never()).generateStructured(any(), any(ModelRequest.class), any());
         verify(matchMapper, never()).insert(any(JobStudentMatch.class));
     }
