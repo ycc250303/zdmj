@@ -16,7 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
+import java.time.LocalDate;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -29,6 +29,8 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
     @Override
     public ProjectExperienceResponse create(ProjectExperienceRequest projectExperienceRequest) {
         Long userId = UserHolder.requireUserId();
+        rejectIfEndBeforeStart(projectExperienceRequest.getStartDate(), projectExperienceRequest.getEndDate());
+
         ProjectExperience projectExperience = new ProjectExperience();
         projectExperience.setUserId(userId);
         projectExperience.setName(projectExperienceRequest.getName());
@@ -46,7 +48,7 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
         if (!saved) {
             throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_ADD_FAILED);
         }
-        log.info("添加项目经历成功: {}", projectExperience.getName());
+        log.info("用户 {} 添加项目经历成功: id={}", userId, projectExperience.getId());
         return convertToResponse(projectExperience);
     }
 
@@ -57,32 +59,40 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
         ProjectExperience projectExperience = requireProjectExperienceAndCheckOwnership(id, userId, "修改");
 
         projectExperiencePatchMapper.updateEntityFromDto(projectExperienceRequest, projectExperience);
-
-        if (projectExperience.getStartDate() != null && projectExperience.getEndDate() != null) {
-            if (projectExperience.getEndDate().isBefore(projectExperience.getStartDate())) {
-                throw new BusinessException(ErrorCode.PROJECT_END_TIME_INVALID);
-            }
-        }
+        rejectIfEndBeforeStart(projectExperience.getStartDate(), projectExperience.getEndDate());
 
         boolean updated = updateById(projectExperience);
         if (!updated) {
             throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_UPDATE_FAILED);
         }
 
-        log.info("更新项目经历成功: {}", projectExperience.getName());
+        log.info("用户 {} 更新项目经历成功: id={}", userId, id);
         return convertToResponse(projectExperience);
     }
 
     @Override
     public void delete(Long id) {
         Long userId = UserHolder.requireUserId();
-        ProjectExperience projectExperience = requireProjectExperienceAndCheckOwnership(id, userId, "删除");
+        requireProjectExperienceAndCheckOwnership(id, userId, "删除");
         boolean removed = removeById(id);
         if (!removed) {
             throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_DELETE_FAILED);
         }
 
-        log.info("删除项目经历成功: {}", projectExperience.getName());
+        log.info("用户 {} 删除项目经历成功: id={}", userId, id);
+    }
+
+    /**
+     * 结束日期早于开始日期时拒绝写入。任一端为空时跳过，进行中的项目可以没有结束日期。
+     *
+     * @param startDate 项目开始日期
+     * @param endDate 项目结束日期
+     * @throws BusinessException 结束日期早于开始日期时抛出 {@link ErrorCode#PROJECT_END_TIME_INVALID}
+     */
+    private void rejectIfEndBeforeStart(LocalDate startDate, LocalDate endDate) {
+        if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
+            throw new BusinessException(ErrorCode.PROJECT_END_TIME_INVALID);
+        }
     }
 
     private ProjectExperienceResponse convertToResponse(ProjectExperience projectExperience) {

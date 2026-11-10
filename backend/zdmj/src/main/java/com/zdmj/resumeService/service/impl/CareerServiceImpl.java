@@ -15,7 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
+import java.time.LocalDate;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -27,6 +27,8 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
     @Override
     public CareerResponse create(CareerRequest careerRequest) {
         Long userId = UserHolder.requireUserId();
+        rejectIfEndBeforeStart(careerRequest.getStartDate(), careerRequest.getEndDate());
+
         Career career = new Career();
         career.setUserId(userId);
         career.setCompany(careerRequest.getCompany());
@@ -38,7 +40,7 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
         if (!saved) {
             throw new BusinessException(ErrorCode.CAREER_ADD_FAILED);
         }
-        log.info("添加工作经历成功: {}", career.getCompany());
+        log.info("用户 {} 添加工作经历成功: id={}", userId, career.getId());
         return convertToResponse(career);
     }
 
@@ -49,32 +51,40 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
         Career career = requireCareerAndCheckOwnership(id, userId, "修改");
 
         careerPatchMapper.updateEntityFromDto(careerRequest, career);
-
-        if (career.getStartDate() != null && career.getEndDate() != null) {
-            if (career.getEndDate().isBefore(career.getStartDate())) {
-                throw new BusinessException(ErrorCode.CAREER_LEAVE_TIME_INVALID);
-            }
-        }
+        rejectIfEndBeforeStart(career.getStartDate(), career.getEndDate());
 
         boolean updated = updateById(career);
         if (!updated) {
             throw new BusinessException(ErrorCode.CAREER_UPDATE_FAILED);
         }
 
-        log.info("更新工作经历成功: {}", career.getCompany());
+        log.info("用户 {} 更新工作经历成功: id={}", userId, id);
         return convertToResponse(career);
     }
 
     @Override
     public void delete(Long id) {
         Long userId = UserHolder.requireUserId();
-        Career career = requireCareerAndCheckOwnership(id, userId, "删除");
+        requireCareerAndCheckOwnership(id, userId, "删除");
         boolean removed = removeById(id);
         if (!removed) {
             throw new BusinessException(ErrorCode.CAREER_DELETE_FAILED);
         }
 
-        log.info("删除工作经历成功: {}", career.getCompany());
+        log.info("用户 {} 删除工作经历成功: id={}", userId, id);
+    }
+
+    /**
+     * 结束日期早于开始日期时拒绝写入。任一端为空时跳过，在职记录可以没有离职日期。
+     *
+     * @param startDate 入职日期
+     * @param endDate 离职日期
+     * @throws BusinessException 离职日期早于入职日期时抛出 {@link ErrorCode#CAREER_LEAVE_TIME_INVALID}
+     */
+    private void rejectIfEndBeforeStart(LocalDate startDate, LocalDate endDate) {
+        if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
+            throw new BusinessException(ErrorCode.CAREER_LEAVE_TIME_INVALID);
+        }
     }
 
     private CareerResponse convertToResponse(Career career) {

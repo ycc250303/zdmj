@@ -69,6 +69,18 @@ class CareerServiceImplTest {
     }
 
     @Test
+    void create_invalidDate_shouldThrowAndSkipSave() {
+        CareerRequest dto = new CareerRequest();
+        dto.setStartDate(LocalDate.of(2024, 1, 1));
+        dto.setEndDate(LocalDate.of(2023, 1, 1));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
+
+        assertEquals(ErrorCode.CAREER_LEAVE_TIME_INVALID.getCode(), ex.getCode());
+        verify(service, never()).save(any(Career.class));
+    }
+
+    @Test
     void create_saveFailed_shouldThrowAddFailed() {
         CareerRequest dto = new CareerRequest();
         dto.setCompany("ZDMJ");

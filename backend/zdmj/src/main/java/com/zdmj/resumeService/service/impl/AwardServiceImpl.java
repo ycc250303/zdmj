@@ -15,8 +15,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-
 @Slf4j
 @RequiredArgsConstructor
 @Service
@@ -38,14 +36,15 @@ public class AwardServiceImpl extends ServiceImpl<AwardMapper, Award> implements
         if (!saved) {
             throw new BusinessException(ErrorCode.AWARD_ADD_FAILED);
         }
-        log.info("添加获奖信息成功: {}", award.getName());
+        log.info("用户 {} 添加获奖信息成功: id={}", userId, award.getId());
         return convertToResponse(award);
     }
 
     @Override
     public AwardResponse update(AwardRequest awardRequest) {
         Long userId = UserHolder.requireUserId();
-        Award award = requireAwardAndCheckOwnership(awardRequest.getId(), userId, "修改");
+        Long id = awardRequest.getId();
+        Award award = requireAwardAndCheckOwnership(id, userId, "修改");
 
         awardPatchMapper.updateEntityFromDto(awardRequest, award);
 
@@ -53,19 +52,19 @@ public class AwardServiceImpl extends ServiceImpl<AwardMapper, Award> implements
         if (!updated) {
             throw new BusinessException(ErrorCode.AWARD_UPDATE_FAILED);
         }
-        log.info("更新获奖信息成功: {}", award.getName());
+        log.info("用户 {} 更新获奖信息成功: id={}", userId, id);
         return convertToResponse(award);
     }
 
     @Override
     public void delete(Long id) {
         Long userId = UserHolder.requireUserId();
-        Award award = requireAwardAndCheckOwnership(id, userId, "删除");
+        requireAwardAndCheckOwnership(id, userId, "删除");
         boolean removed = removeById(id);
         if (!removed) {
             throw new BusinessException(ErrorCode.AWARD_DELETE_FAILED);
         }
-        log.info("删除获奖信息成功: {}", award.getName());
+        log.info("用户 {} 删除获奖信息成功: id={}", userId, id);
     }
 
     private AwardResponse convertToResponse(Award award) {

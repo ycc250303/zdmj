@@ -77,6 +77,18 @@ class ProjectExperienceServiceImplTest {
     }
 
     @Test
+    void create_invalidDate_shouldThrowAndSkipSave() {
+        ProjectExperienceRequest dto = new ProjectExperienceRequest();
+        dto.setStartDate(LocalDate.of(2024, 1, 1));
+        dto.setEndDate(LocalDate.of(2023, 1, 1));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
+
+        assertEquals(ErrorCode.PROJECT_END_TIME_INVALID.getCode(), ex.getCode());
+        verify(service, never()).save(any(ProjectExperience.class));
+    }
+
+    @Test
     void create_saveFailed_shouldThrowAddFailed() {
         ProjectExperienceRequest dto = new ProjectExperienceRequest();
         dto.setName("Resume Parser");
