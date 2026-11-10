@@ -48,6 +48,7 @@ class ConversationFlowIT extends IntegrationTestBase {
                 {"config":{"useSystemKnowledge":false,"ragDocumentIds":[]}}
                 """));
 
+        ExternalAiStubConfig.clearModelTransactionObservations();
         MvcResult async = mockMvc.perform(post(ApiClient.PREFIX + "/messages/chat")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -75,7 +76,9 @@ class ConversationFlowIT extends IntegrationTestBase {
         assertThat(JsonPath.<String>read(messages, "$.data.list[1].content"))
                 .isEqualTo(ExternalAiStubConfig.FIXED_REPLY);
 
+        assertThat(ExternalAiStubConfig.modelTransactionObservations()).hasSize(1);
+
         String conversation = ApiClient.requireOk(api.get(token, "/conversations/" + conversationId));
-        assertThat(JsonPath.<String>read(conversation, "$.data.title")).isEqualTo(ExternalAiStubConfig.FIXED_REPLY);
+        assertThat(JsonPath.<String>read(conversation, "$.data.title")).isEqualTo("你好");
     }
 }
