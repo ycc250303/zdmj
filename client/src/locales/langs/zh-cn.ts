@@ -660,7 +660,7 @@ const local: App.I18n.Schema = {
       saveSuccess: '简历已保存',
       saveFail: '保存失败，请检查必填项后重试',
       applyFail: '导入失败，请稍后重试',
-      skillRequired: '请至少填写一项技能内容',
+      skillIncomplete: '请完善技能必填项，或删除未填写的条目',
       educationIncomplete: '请完善教育经历必填项，或删除未填写的条目',
       careerIncomplete: '请完善工作/实习经历必填项，或删除未填写的条目',
       projectIncomplete: '请完善项目经历必填项，或删除未填写的条目',

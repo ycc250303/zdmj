@@ -31,10 +31,10 @@ ssh-copy-id -i ~/.ssh/zdmj_github_actions.pub root@服务器地址
 把 `服务器地址` 换成实际 IP 或域名：
 
 ```bash
-ssh -i ~/.ssh/zdmj_github_actions -o BatchMode=yes -p 22 root@服务器地址 'echo connected'
+ssh -F /dev/null -i ~/.ssh/zdmj_github_actions -o IdentitiesOnly=yes -o BatchMode=yes -p 22 root@服务器地址 'echo connected'
 ```
 
-输出 `connected` 后继续。出现 `Permission denied (publickey)` 时，检查公钥是否写在 root 的 `authorized_keys`，以及目录权限是否为 `700`、文件权限是否为 `600`。
+`-F /dev/null` 用来忽略 `~/.ssh/config` 里为该地址指定的其他密钥。输出 `connected` 后继续。出现 `Permission denied (publickey)` 时，检查 `zdmj_github_actions.pub` 这一行是否在 root 的 `authorized_keys` 中，以及目录权限是否为 `700`、文件权限是否为 `600`。
 
 ## 4. 更新 GitHub 密钥
 

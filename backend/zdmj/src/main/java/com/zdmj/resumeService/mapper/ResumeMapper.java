@@ -14,7 +14,7 @@ public interface ResumeMapper {
      * 技能取该用户更新时间最新的一行。教育按入学时间升序，工作、项目按开始时间降序，获奖按获奖日期降序。
      *
      * @param userId 用户编号
-     * @return 整份内容；用户不存在时返回 null
+     * @return 整份内容
      */
     ResumeContentRow selectContentByUserId(@Param("userId") Long userId);
 }

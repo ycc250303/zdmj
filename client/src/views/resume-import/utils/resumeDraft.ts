@@ -307,6 +307,27 @@ function stripEmptyOptionalDates<T extends { startDate?: string; endDate?: strin
   return next;
 }
 
+function isBlankDraftSkill(skill: DraftSkill): boolean {
+  return !skill.id
+    && !trimOrEmpty(skill.name)
+    && !trimOrEmpty(skill.description);
+}
+
+function isCompleteSkill(skill: DraftSkill): boolean {
+  return Boolean(trimOrEmpty(skill.name));
+}
+
+function mapSkill(skill: DraftSkill): ResumeApi.SkillCreate | ResumeApi.SkillUpdate {
+  if (!isCompleteSkill(skill)) {
+    throw new Error('skillIncomplete');
+  }
+  return {
+    ...(skill.id ? { id: skill.id } : {}),
+    name: trimOrEmpty(skill.name),
+    ...(trimOrEmpty(skill.description) ? { description: trimOrEmpty(skill.description) } : {})
+  };
+}
+
 function isBlankDraftEducation(edu: DraftEducation): boolean {
   return !edu.id
     && !trimOrEmpty(edu.school)
@@ -435,20 +456,10 @@ export function createEmptySkill(): DraftSkill {
 }
 
 export function buildSaveRequest(draft: ResumeContentDraft): ResumeApi.ResumeContentSaveRequest {
-  const skills = draft.skills
-    .map(item => ({
-      ...(item.id ? { id: item.id } : {}),
-      name: trimOrEmpty(item.name),
-      ...(trimOrEmpty(item.description) ? { description: trimOrEmpty(item.description) } : {})
-    }))
-    .filter(item => item.name);
-
-  if (!skills.length) {
-    throw new Error('skillRequired');
-  }
-
   return {
-    skills,
+    skills: draft.skills
+      .filter(skill => !isBlankDraftSkill(skill))
+      .map(mapSkill),
     personalInfo: {
       name: trimOrEmpty(draft.personalInfo.name),
       phone: trimOrEmpty(draft.personalInfo.phone),

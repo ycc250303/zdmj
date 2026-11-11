@@ -897,7 +897,7 @@ declare namespace App {
           saveSuccess: string;
           saveFail: string;
           applyFail: string;
-          skillRequired: string;
+          skillIncomplete: string;
           educationIncomplete: string;
           careerIncomplete: string;
           projectIncomplete: string;

@@ -46,7 +46,7 @@ export const useResumeStore = defineStore('resume', () => {
   function notifyInvalidDraft(err: unknown) {
     const code = err instanceof Error ? err.message : '';
     const messages: Record<string, string> = {
-      skillRequired: $t('page.resumeImport.skillRequired'),
+      skillIncomplete: $t('page.resumeImport.skillIncomplete'),
       educationIncomplete: $t('page.resumeImport.educationIncomplete'),
       careerIncomplete: $t('page.resumeImport.careerIncomplete'),
       projectIncomplete: $t('page.resumeImport.projectIncomplete'),

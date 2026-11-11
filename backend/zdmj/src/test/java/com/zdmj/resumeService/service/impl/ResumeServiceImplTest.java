@@ -120,7 +120,7 @@ class ResumeServiceImplTest {
     @Test
     void getResumeContentList_noResume_shouldReturnEmpty() {
         UserHolder.set(UserContext.of(1L, "u1"));
-        doReturn(null).when(resumeMapper).selectContentByUserId(1L);
+        doReturn(emptyContent()).when(resumeMapper).selectContentByUserId(1L);
 
         List<ResumeContentResponse> out = resumeService.getResumeContentList();
 
@@ -440,6 +440,67 @@ class ResumeServiceImplTest {
 
         verify(skillService).update(any());
         verify(userService, never()).updateProfile(any(), any());
+    }
+
+    @Test
+    void saveMyResumeContent_duplicateSkillId_shouldUpdateEachSubmission() {
+        UserHolder.set(UserContext.of(1L, "u1"));
+        doReturn(List.of()).when(educationMapper).selectByUserId(1L);
+        doReturn(List.of()).when(careerMapper).selectByUserId(1L);
+        doReturn(List.of()).when(projectExperienceMapper).selectByUserId(1L);
+        doReturn(List.of()).when(awardMapper).selectByUserId(1L);
+        Skill existingSkill = new Skill();
+        existingSkill.setId(9L);
+        existingSkill.setUserId(1L);
+        doReturn(List.of(existingSkill)).when(skillMapper).selectByUserId(1L);
+        doReturn(existingSkill).when(skillMapper).selectById(9L);
+        doReturn(java.util.Set.of()).when(validator).validate(any(), any(Class[].class));
+        doReturn(emptyContent()).when(resumeMapper).selectContentByUserId(1L);
+
+        SkillRequest first = new SkillRequest();
+        first.setId(9L);
+        first.setName("Java");
+        SkillRequest second = new SkillRequest();
+        second.setId(9L);
+        second.setName("Python");
+        ResumeContentSaveRequest request = new ResumeContentSaveRequest();
+        request.setSkills(List.of(first, second));
+        request.setEducations(List.of());
+        request.setCareers(List.of());
+        request.setProjects(List.of());
+        request.setAwards(List.of());
+
+        resumeService.saveMyResumeContent(request);
+
+        verify(skillService, times(2)).update(any());
+        verify(skillService, never()).delete(any());
+    }
+
+    @Test
+    void saveMyResumeContent_emptySkills_shouldDeleteExisting() {
+        UserHolder.set(UserContext.of(1L, "u1"));
+        doReturn(List.of()).when(educationMapper).selectByUserId(1L);
+        doReturn(List.of()).when(careerMapper).selectByUserId(1L);
+        doReturn(List.of()).when(projectExperienceMapper).selectByUserId(1L);
+        doReturn(List.of()).when(awardMapper).selectByUserId(1L);
+        Skill existingSkill = new Skill();
+        existingSkill.setId(9L);
+        existingSkill.setUserId(1L);
+        doReturn(List.of(existingSkill)).when(skillMapper).selectByUserId(1L);
+        doReturn(emptyContent()).when(resumeMapper).selectContentByUserId(1L);
+
+        ResumeContentSaveRequest request = new ResumeContentSaveRequest();
+        request.setSkills(List.of());
+        request.setEducations(List.of());
+        request.setCareers(List.of());
+        request.setProjects(List.of());
+        request.setAwards(List.of());
+
+        resumeService.saveMyResumeContent(request);
+
+        verify(skillService).delete(9L);
+        verify(skillService, never()).create(any());
+        verify(skillService, never()).update(any());
     }
 
     @Test

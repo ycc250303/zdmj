@@ -663,7 +663,7 @@ const local: App.I18n.Schema = {
       saveSuccess: 'Resume saved',
       saveFail: 'Save failed. Please check required fields',
       applyFail: 'Import failed. Please try again',
-      skillRequired: 'Please add at least one skill entry',
+      skillIncomplete: 'Complete required skill fields or remove empty entries',
       educationIncomplete: 'Complete required education fields or remove empty entries',
       careerIncomplete: 'Complete required experience fields or remove empty entries',
       projectIncomplete: 'Complete required project fields or remove empty entries',
