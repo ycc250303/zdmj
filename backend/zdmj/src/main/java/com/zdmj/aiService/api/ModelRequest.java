@@ -3,7 +3,7 @@ package com.zdmj.aiService.api;
 import java.util.Map;
 
 /**
- * 单次文本生成请求。
+ * 文本、结构化和流式调用共用的模型输入。
  *
  * @param message    用户消息
  * @param promptName classpath 提示词名称，空则不附加系统提示词

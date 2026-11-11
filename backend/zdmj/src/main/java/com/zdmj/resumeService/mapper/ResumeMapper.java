@@ -1,35 +1,20 @@
 package com.zdmj.resumeService.mapper;
 
-import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.zdmj.resumeService.entity.Resume;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
-import java.util.List;
-
 /**
- * 简历Mapper接口
- * 继承 MyBatis-Plus 的 BaseMapper，自动拥有基础的 CRUD 方法
+ * 整份简历查询。一名用户的技能、经历和资料在一次查询中返回。
  */
 @Mapper
-public interface ResumeMapper extends BaseMapper<Resume> {
+public interface ResumeMapper {
 
     /**
-     * 根据用户ID查询所有简历
-     * 自定义方法，使用 MyBatis XML 实现
+     * 按用户编号读取整份简历。
+     * 技能取该用户更新时间最新的一行。教育按入学时间升序，工作、项目按开始时间降序，获奖按获奖日期降序。
      *
-     * @param userId 用户ID
-     * @return 简历列表
+     * @param userId 用户编号
+     * @return 整份内容；用户不存在时返回 null
      */
-    List<Resume> selectByUserId(@Param("userId") Long userId);
-
-    /**
-     * 根据用户 ID 查询简历（一用户一份）
-     */
-    Resume selectOneByUserId(@Param("userId") Long userId);
-
-    /**
-     * 检查用户是否已有简历
-     */
-    boolean existsByUserId(@Param("userId") Long userId);
+    ResumeContentRow selectContentByUserId(@Param("userId") Long userId);
 }

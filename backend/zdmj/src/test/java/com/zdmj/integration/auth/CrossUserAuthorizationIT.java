@@ -62,98 +62,106 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
     }
 
     @Test
-    void 简历_其他用户修改或删除_返回无权且数据库未变化() throws Exception {
-        long skillId = ApiClient.dataId(api.post(tokenA, "/skills", skillJson("Java")));
-        long resumeId = ApiClient.dataId(api.post(tokenA, "/resumes", "{\"skillId\":" + skillId + "}"));
-        String owned = ApiClient.requireOk(api.get(tokenA, "/resumes"));
-        assertThat(JsonPath.<Integer>read(owned, "$.data.length()")).isEqualTo(1);
+    void 用户资料_其他用户查询_返回无权且本人仍可查询() throws Exception {
+        ApiClient.assertProblem(api.get(tokenB, "/users/" + userA.getId()), 403, 1003);
+        String own = ApiClient.requireOk(api.get(tokenA, "/users/" + userA.getId()));
+        assertThat(JsonPath.<Number>read(own, "$.data.id").longValue()).isEqualTo(userA.getId());
+        assertThat(JsonPath.<String>read(own, "$.data.email")).isEqualTo(userA.getEmail());
+    }
 
-        String hidden = ApiClient.requireOk(api.get(tokenB, "/resumes"));
+    @Test
+    void 整份简历_其他用户提交经历或技能编号_返回无权且原数据保持不变() throws Exception {
+        String saved = ApiClient.requireOk(api.put(tokenA, "/resumes/me/content", """
+                {
+                  "skills": [{"name": "Java"}],
+                  "educations": [{"school": "测试大学", "major": "计算机", "degree": 3, "startDate": "2020-09-01", "endDate": "2024-06-30"}],
+                  "careers": [{"company": "测试公司", "position": "实习生", "startDate": "2023-07-01"}],
+                  "projects": [{"name": "测试项目", "startDate": "2023-01-01", "role": "开发", "description": "实现接口", "contribution": "完成后端"}],
+                  "awards": [{"name": "测试奖项", "awardDate": "2024-05-01"}]
+                }
+                """));
+        long educationId = JsonPath.<Number>read(saved, "$.data.educations[0].id").longValue();
+        long careerId = JsonPath.<Number>read(saved, "$.data.careers[0].id").longValue();
+        long projectId = JsonPath.<Number>read(saved, "$.data.projects[0].id").longValue();
+        long awardId = JsonPath.<Number>read(saved, "$.data.awards[0].id").longValue();
+        long skillId = JsonPath.<Number>read(saved, "$.data.skills[0].id").longValue();
+
+        String hidden = ApiClient.requireOk(api.get(tokenB, "/resumes/content"));
         assertThat(JsonPath.<Integer>read(hidden, "$.data.length()")).isZero();
-        ApiClient.assertProblem(api.put(tokenB, "/resumes",
-                "{\"id\":" + resumeId + ",\"skillId\":" + skillId + "}"), 403, 1003);
-        ApiClient.assertProblem(api.delete(tokenB, "/resumes/" + resumeId), 403, 1003);
-        assertThat(jdbcTemplate.queryForObject("SELECT skill_id FROM resumes WHERE id = ?", Long.class, resumeId))
-                .isEqualTo(skillId);
-        assertThat(jdbcTemplate.queryForObject("SELECT user_id FROM resumes WHERE id = ?", Long.class, resumeId))
-                .isEqualTo(userA.getId());
 
-        ApiClient.requireOk(api.delete(tokenA, "/resumes/" + resumeId));
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM resumes WHERE id = ?", Integer.class, resumeId))
-                .isZero();
-    }
+        ApiClient.assertProblem(api.put(tokenB, "/resumes/me/content", contentWithEducation(educationId, "篡改大学")),
+                403, 1003);
+        ApiClient.assertProblem(api.put(tokenB, "/resumes/me/content", contentWithCareer(careerId)), 403, 1003);
+        ApiClient.assertProblem(api.put(tokenB, "/resumes/me/content", contentWithProject(projectId)), 403, 1003);
+        ApiClient.assertProblem(api.put(tokenB, "/resumes/me/content", contentWithAward(awardId)), 403, 1003);
+        ApiClient.assertProblem(api.put(tokenB, "/resumes/me/content", """
+                {
+                  "skills": [{"id": %d, "name": "Python"}],
+                  "educations": [],
+                  "careers": [],
+                  "projects": [],
+                  "awards": []
+                }
+                """.formatted(skillId)), 403, 1003);
 
-    @Test
-    void 教育经历_其他用户修改或删除_返回无权且学校名称保持不变() throws Exception {
-        long id = ApiClient.dataId(api.post(tokenA, "/educations", """
-                {"school":"测试大学","major":"计算机","degree":3,"startDate":"2020-09-01","endDate":"2024-06-30"}
-                """));
-        assertAbsentFromList(tokenB, "/educations");
-        ApiClient.assertProblem(api.put(tokenB, "/educations", """
-                {"id":%d,"school":"篡改大学"}
-                """.formatted(id)), 403, 1003);
-        ApiClient.assertProblem(api.delete(tokenB, "/educations/" + id), 403, 1003);
-        assertThat(jdbcTemplate.queryForObject("SELECT school FROM educations WHERE id = ?", String.class, id))
+        assertThat(jdbcTemplate.queryForObject("SELECT school FROM educations WHERE id = ?", String.class, educationId))
                 .isEqualTo("测试大学");
-        ApiClient.requireOk(api.delete(tokenA, "/educations/" + id));
-    }
-
-    @Test
-    void 工作经历_其他用户修改或删除_返回无权且公司名称保持不变() throws Exception {
-        long id = ApiClient.dataId(api.post(tokenA, "/career", """
-                {"company":"测试公司","position":"实习生","startDate":"2023-07-01"}
-                """));
-        assertAbsentFromList(tokenB, "/career");
-        ApiClient.assertProblem(api.put(tokenB, "/career", """
-                {"id":%d,"company":"篡改公司"}
-                """.formatted(id)), 403, 1003);
-        ApiClient.assertProblem(api.delete(tokenB, "/career/" + id), 403, 1003);
-        assertThat(jdbcTemplate.queryForObject("SELECT company FROM careers WHERE id = ?", String.class, id))
+        assertThat(jdbcTemplate.queryForObject("SELECT company FROM careers WHERE id = ?", String.class, careerId))
                 .isEqualTo("测试公司");
-        ApiClient.requireOk(api.delete(tokenA, "/career/" + id));
-    }
-
-    @Test
-    void 项目经历_其他用户修改或删除_返回无权且项目名称保持不变() throws Exception {
-        long id = ApiClient.dataId(api.post(tokenA, "/projects", """
-                {"name":"测试项目","startDate":"2023-01-01","role":"开发","description":"实现接口","contribution":"完成后端"}
-                """));
-        assertAbsentFromList(tokenB, "/projects");
-        ApiClient.assertProblem(api.put(tokenB, "/projects", """
-                {"id":%d,"name":"篡改项目"}
-                """.formatted(id)), 403, 1003);
-        ApiClient.assertProblem(api.delete(tokenB, "/projects/" + id), 403, 1003);
-        assertThat(jdbcTemplate.queryForObject("SELECT name FROM project_experiences WHERE id = ?", String.class, id))
+        assertThat(jdbcTemplate.queryForObject("SELECT name FROM project_experiences WHERE id = ?", String.class, projectId))
                 .isEqualTo("测试项目");
-        ApiClient.requireOk(api.delete(tokenA, "/projects/" + id));
-    }
-
-    @Test
-    void 获奖信息_其他用户修改或删除_返回无权且奖项名称保持不变() throws Exception {
-        long id = ApiClient.dataId(api.post(tokenA, "/awards", """
-                {"awardType":2,"name":"测试奖项","awardDate":"2024-05-01"}
-                """));
-        assertAbsentFromList(tokenB, "/awards");
-        ApiClient.assertProblem(api.put(tokenB, "/awards", """
-                {"id":%d,"name":"篡改奖项"}
-                """.formatted(id)), 403, 1003);
-        ApiClient.assertProblem(api.delete(tokenB, "/awards/" + id), 403, 1003);
-        assertThat(jdbcTemplate.queryForObject("SELECT name FROM awards WHERE id = ?", String.class, id))
+        assertThat(jdbcTemplate.queryForObject("SELECT name FROM awards WHERE id = ?", String.class, awardId))
                 .isEqualTo("测试奖项");
-        ApiClient.requireOk(api.delete(tokenA, "/awards/" + id));
+        assertThat(jdbcTemplate.queryForObject("SELECT name FROM skills WHERE id = ?", String.class, skillId))
+                .isEqualTo("Java");
     }
 
-    @Test
-    void 技能_其他用户修改或删除_返回无权且技能内容保持不变() throws Exception {
-        long id = ApiClient.dataId(api.post(tokenA, "/skills", skillJson("Java")));
-        assertAbsentFromList(tokenB, "/skills");
-        ApiClient.assertProblem(api.put(tokenB, "/skills", """
-                {"id":%d,"content":[{"type":"编程语言","content":["Python"]}]}
-                """.formatted(id)), 403, 1003);
-        ApiClient.assertProblem(api.delete(tokenB, "/skills/" + id), 403, 1003);
-        assertThat(jdbcTemplate.queryForObject("SELECT content::text FROM skills WHERE id = ?", String.class, id))
-                .contains("Java");
-        ApiClient.requireOk(api.delete(tokenA, "/skills/" + id));
+    private static String contentWithEducation(long id, String school) {
+        return """
+                {
+                  "skills": [{"name": "Java"}],
+                  "educations": [{"id": %d, "school": "%s", "major": "计算机", "degree": 3, "startDate": "2020-09-01"}],
+                  "careers": [],
+                  "projects": [],
+                  "awards": []
+                }
+                """.formatted(id, school);
+    }
+
+    private static String contentWithCareer(long id) {
+        return """
+                {
+                  "skills": [{"name": "Java"}],
+                  "educations": [],
+                  "careers": [{"id": %d, "company": "篡改公司", "position": "实习生", "startDate": "2023-07-01"}],
+                  "projects": [],
+                  "awards": []
+                }
+                """.formatted(id);
+    }
+
+    private static String contentWithProject(long id) {
+        return """
+                {
+                  "skills": [{"name": "Java"}],
+                  "educations": [],
+                  "careers": [],
+                  "projects": [{"id": %d, "name": "篡改项目", "startDate": "2023-01-01", "role": "开发", "description": "实现接口", "contribution": "完成后端"}],
+                  "awards": []
+                }
+                """.formatted(id);
+    }
+
+    private static String contentWithAward(long id) {
+        return """
+                {
+                  "skills": [{"name": "Java"}],
+                  "educations": [],
+                  "careers": [],
+                  "projects": [],
+                  "awards": [{"id": %d, "name": "篡改奖项", "awardDate": "2024-05-01"}]
+                }
+                """.formatted(id);
     }
 
     @Test
@@ -290,9 +298,5 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
                         .file(file)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andReturn();
-    }
-
-    private static String skillJson(String item) {
-        return "{\"content\":[{\"type\":\"编程语言\",\"content\":[\"" + item + "\"]}]}";
     }
 }

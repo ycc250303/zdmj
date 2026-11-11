@@ -25,7 +25,7 @@ public class ResumeImportParseResponse {
     @JsonAlias({ "honors", "honorsAndAwards", "honors_and_awards" })
     private List<AwardItem> awards = new ArrayList<>();
 
-    private SkillItem skill;
+    private List<SkillImportItem> skills = new ArrayList<>();
 
     private List<String> warnings = new ArrayList<>();
 
@@ -75,17 +75,14 @@ public class ResumeImportParseResponse {
         private String description;
         private String contribution;
         private List<String> techStack;
-        /** 模型可返回字符串或字符串数组，归一化后统一为 JSON 数组字符串 */
-        private Object highlights;
+        /** 字符串数组，每项一条亮点；没有则省略或空列表 */
+        private List<String> highlights;
         private String url;
     }
 
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class AwardItem {
-        /** 1=奖学金, 2=竞赛获奖, 3=其他类型 */
-        @JsonAlias({ "type", "award_type" })
-        private Integer awardType;
         @JsonAlias({ "awardName", "title", "honor" })
         private String name;
         @JsonAlias({ "date", "award_date" })
@@ -95,7 +92,8 @@ public class ResumeImportParseResponse {
 
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class SkillItem {
-        private List<SkillItemDTO> content = new ArrayList<>();
+    public static class SkillImportItem {
+        private String name;
+        private String description;
     }
 }

@@ -1,17 +1,15 @@
 package com.zdmj.careerReportService.service;
 
-import com.baomidou.mybatisplus.extension.service.IService;
 import com.zdmj.careerReportService.dto.CareerReportCheckResponse;
 import com.zdmj.careerReportService.dto.CareerReportResponse;
 import com.zdmj.careerReportService.dto.CareerReportGenerateRequest;
 import com.zdmj.careerReportService.dto.CareerReportPolishRequest;
 import com.zdmj.careerReportService.dto.CareerReportUpdateRequest;
-import com.zdmj.careerReportService.entity.CareerDevelopmentReport;
 
 /**
  * 职业发展报告服务接口
  */
-public interface CareerDevelopmentReportService extends IService<CareerDevelopmentReport> {
+public interface CareerDevelopmentReportService {
 
     /**
      * 查询当前用户针对某岗位的报告（不触发生成）。

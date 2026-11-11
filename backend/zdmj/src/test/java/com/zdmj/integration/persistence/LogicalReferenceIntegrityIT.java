@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
+import com.jayway.jsonpath.JsonPath;
 import com.zdmj.testsupport.ApiClient;
 import com.zdmj.testsupport.IntegrationTestBase;
 import com.zdmj.testsupport.TestJwt;
@@ -42,7 +43,16 @@ class LogicalReferenceIntegrityIT extends IntegrationTestBase {
         TestUsers.Pair pair = testUsers.createPair();
         String tokenA = testJwt.authorize(pair.userA());
         String tokenB = testJwt.authorize(pair.userB());
-        long foreignEducationId = ApiClient.dataId(api.post(tokenB, "/educations", educationJson("用户B大学")));
+        String created = ApiClient.requireOk(api.put(tokenB, "/resumes/me/content", """
+                {
+                  "skills": [{"name": "Java"}],
+                  "educations": [{"school": "用户B大学", "major": "计算机", "degree": 3, "startDate": "2020-09-01", "endDate": "2024-06-30"}],
+                  "careers": [],
+                  "projects": [],
+                  "awards": []
+                }
+                """));
+        long foreignEducationId = JsonPath.<Number>read(created, "$.data.educations[0].id").longValue();
 
         MvcResult missingConversation = mockMvc.perform(MockMvcRequestBuilders.post(ApiClient.PREFIX + "/messages/chat")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenA)
@@ -55,7 +65,9 @@ class LogicalReferenceIntegrityIT extends IntegrationTestBase {
         MvcResult foreignEducation = api.put(tokenA, "/resumes/me/content", contentJson(foreignEducationId));
         ApiClient.assertProblem(foreignEducation, 403, 1003);
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM resumes WHERE user_id = ?", Integer.class, pair.userA().getId())).isZero();
+                "SELECT count(*) FROM skills WHERE user_id = ?", Integer.class, pair.userA().getId())).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM educations WHERE user_id = ?", Integer.class, pair.userA().getId())).isZero();
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM educations WHERE id = ?", Integer.class, foreignEducationId)).isEqualTo(1);
     }
@@ -63,9 +75,6 @@ class LogicalReferenceIntegrityIT extends IntegrationTestBase {
     @Test
     void 一致性检查_预先构造的孤立记录_能够被发现且合法引用不在结果中() {
         TestUsers.Pair pair = testUsers.createPair();
-        long skillId = insertSkill(pair.userA().getId());
-        jdbcTemplate.update("INSERT INTO resumes (user_id, skill_id) VALUES (?, ?)", pair.userA().getId(), skillId);
-        jdbcTemplate.update("INSERT INTO resumes (user_id, skill_id) VALUES (?, 888888888)", pair.userB().getId());
         jdbcTemplate.update("""
                 INSERT INTO jobs (job_name, company_id, company_name, description, location, salary_min, salary_max, salary_type, link)
                 VALUES ('孤立岗位', 888888888, '不存在的公司', '描述', '上海', 1, 2, 2, '')
@@ -81,29 +90,16 @@ class LogicalReferenceIntegrityIT extends IntegrationTestBase {
 
         assertThat(LogicalReferenceChecks.find(jdbcTemplate))
                 .extracting(LogicalReferenceChecks.Orphan::sourceTable)
-                .containsExactly("messages", "knowledge_documents", "resumes", "jobs");
+                .containsExactly("messages", "knowledge_documents", "jobs");
         assertThat(LogicalReferenceChecks.find(jdbcTemplate))
-                .filteredOn(orphan -> "resumes".equals(orphan.sourceTable()))
+                .filteredOn(orphan -> "jobs".equals(orphan.sourceTable()))
                 .hasSize(1);
-    }
-
-    private long insertSkill(long userId) {
-        jdbcTemplate.update(
-                "INSERT INTO skills (user_id, content) VALUES (?, CAST(? AS jsonb))",
-                userId, "[]");
-        return jdbcTemplate.queryForObject("SELECT id FROM skills WHERE user_id = ?", Long.class, userId);
-    }
-
-    private static String educationJson(String school) {
-        return """
-                {"school":"%s","major":"计算机","degree":3,"startDate":"2020-09-01","endDate":"2024-06-30"}
-                """.formatted(school);
     }
 
     private static String contentJson(long educationId) {
         return """
                 {
-                  "skill": {"content": [{"type": "编程语言", "content": ["Java"]}]},
+                  "skills": [{"name": "Java"}],
                   "educations": [{"id": %d, "school": "用户B大学", "major": "计算机", "degree": 3, "startDate": "2020-09-01"}],
                   "careers": [],
                   "projects": [],

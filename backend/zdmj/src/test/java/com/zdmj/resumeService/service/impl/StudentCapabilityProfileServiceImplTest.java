@@ -1,5 +1,7 @@
 package com.zdmj.resumeService.service.impl;
 
+import static org.mockito.ArgumentMatchers.eq;
+
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -9,7 +11,7 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.aiService.api.ModelGateway;
-import com.zdmj.aiService.api.StructuredModelRequest;
+import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.storage.FileUploadService;
 import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.jobService.api.JobRole;
@@ -106,7 +108,7 @@ class StudentCapabilityProfileServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
 
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
-        verify(modelGateway, never()).generateStructured(any(), argThat((StructuredModelRequest<?> request) -> request.outputType() == StudentCapabilityProfileResponse.class));
+        verify(modelGateway, never()).generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
     }
 
     @Test
@@ -114,13 +116,13 @@ class StudentCapabilityProfileServiceImplTest {
         CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setRawText("java spring boot redis mysql");
         doThrow(new IllegalStateException("bad schema")).when(modelGateway)
-                .generateStructured(any(), argThat((StructuredModelRequest<?> request) -> request.outputType() == StudentCapabilityProfileResponse.class));
+                .generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
 
         assertEquals(ErrorCode.CAPABILITY_PROFILE_GENERATION_FAILED.getCode(), ex.getCode());
         assertEquals("能力画像生成失败，请稍后重试", ex.getMessage());
-        verify(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> request) -> request.outputType() == StudentCapabilityProfileResponse.class));
+        verify(modelGateway).generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
     }
 
     @Test
@@ -128,13 +130,13 @@ class StudentCapabilityProfileServiceImplTest {
         CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setRawText("java spring boot redis mysql");
         doThrow(new RuntimeException("timeout")).when(modelGateway)
-                .generateStructured(any(), argThat((StructuredModelRequest<?> request) -> request.outputType() == StudentCapabilityProfileResponse.class));
+                .generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
 
         assertEquals(ErrorCode.CAPABILITY_PROFILE_GENERATION_FAILED.getCode(), ex.getCode());
         assertEquals("大模型生成能力画像失败，请稍后重试", ex.getMessage());
-        verify(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> request) -> request.outputType() == StudentCapabilityProfileResponse.class));
+        verify(modelGateway).generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
     }
 
     @Test
@@ -153,7 +155,7 @@ class StudentCapabilityProfileServiceImplTest {
         suggestion.setIssue("缺少 JVM 调优相关实践");
         suggestion.setRecommendation("补充压测数据");
         ai.setSuggestions(List.of(suggestion));
-        doReturn(ai).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> request) -> request.outputType() == StudentCapabilityProfileResponse.class));
+        doReturn(ai).when(modelGateway).generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
         doReturn(null).when(service).getOne(any());
         doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
 
@@ -181,7 +183,7 @@ class StudentCapabilityProfileServiceImplTest {
         StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
         detail.setProjectExperienceScore(20);
         ai.setScoreDetail(detail);
-        doReturn(ai).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> request) -> request.outputType() == StudentCapabilityProfileResponse.class));
+        doReturn(ai).when(modelGateway).generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
         doReturn(null).when(service).getOne(any());
         doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
 
@@ -204,7 +206,7 @@ class StudentCapabilityProfileServiceImplTest {
         StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
         detail.setSkillMatchScore(10);
         ai.setScoreDetail(detail);
-        doReturn(ai).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> request) -> request.outputType() == StudentCapabilityProfileResponse.class));
+        doReturn(ai).when(modelGateway).generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
         doReturn(null).when(service).getOne(any());
         doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
         doThrow(new RuntimeException("cos delete failed")).when(fileUploadService).deleteOwnedByUrl(pdfUrl, "profile");
@@ -230,7 +232,7 @@ class StudentCapabilityProfileServiceImplTest {
         detail.setExpressionProfessionalismScore(3);
         ai.setScoreDetail(detail);
         ai.setCompetitivenessScore(66);
-        doReturn(ai).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> request) -> request.outputType() == StudentCapabilityProfileResponse.class));
+        doReturn(ai).when(modelGateway).generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
 
         StudentCapabilityProfile existing = new StudentCapabilityProfile();
         existing.setId(88L);
@@ -253,7 +255,7 @@ class StudentCapabilityProfileServiceImplTest {
         assertNotNull(out);
         assertEquals(JobRole.UNKNOWN, out.role());
         assertEquals("简历文本为空", out.reason());
-        verify(modelGateway, never()).generateStructured(any(), any());
+        verify(modelGateway, never()).generateStructured(any(), any(), any());
     }
 
     @Test
@@ -393,7 +395,7 @@ class StudentCapabilityProfileServiceImplTest {
         StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
         detail.setContentCompletenessScore(7);
         ai.setScoreDetail(detail);
-        doReturn(ai).when(modelGateway).generateStructured(any(), argThat((StructuredModelRequest<?> request) -> request.outputType() == StudentCapabilityProfileResponse.class));
+        doReturn(ai).when(modelGateway).generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
         doReturn(null).when(service).getOne(any());
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, () -> service.generateProfile(req));
@@ -412,7 +414,7 @@ class StudentCapabilityProfileServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
 
         assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
-        verify(modelGateway, never()).generateStructured(any(), any());
+        verify(modelGateway, never()).generateStructured(any(), any(), any());
     }
 
     @Test
@@ -426,7 +428,7 @@ class StudentCapabilityProfileServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
 
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
-        verify(modelGateway, never()).generateStructured(any(), any());
+        verify(modelGateway, never()).generateStructured(any(), any(), any());
         verify(fileUploadService, never()).deleteOwnedByUrl(anyString(), anyString());
     }
 
@@ -440,7 +442,7 @@ class StudentCapabilityProfileServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
 
         assertEquals(ErrorCode.URL_FORMAT_ERROR.getCode(), ex.getCode());
-        verify(modelGateway, never()).generateStructured(any(), any());
+        verify(modelGateway, never()).generateStructured(any(), any(), any());
     }
 
     @Test

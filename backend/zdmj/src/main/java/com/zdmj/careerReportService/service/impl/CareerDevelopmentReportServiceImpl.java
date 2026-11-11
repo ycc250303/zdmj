@@ -14,12 +14,13 @@ import com.zdmj.careerReportService.dto.CareerReportUpdateRequest;
 import com.zdmj.careerReportService.entity.CareerDevelopmentReport;
 import com.zdmj.careerReportService.mapper.CareerDevelopmentReportMapper;
 import com.zdmj.careerReportService.service.CareerDevelopmentReportService;
+import com.zdmj.careerReportService.support.ReportIntegrity;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.EmbeddingGateway;
 import com.zdmj.aiService.api.ModelGateway;
-import com.zdmj.aiService.api.StructuredModelRequest;
+import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
@@ -46,7 +47,6 @@ import java.util.regex.Pattern;
 import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -86,8 +86,6 @@ public class CareerDevelopmentReportServiceImpl
 
     /** 报告生成时 RAG 检索 Top-K（合并多库后） */
     private static final int REPORT_RAG_TOP_K = 8;
-    /** 每个知识库单独召回的上限 */
-    private static final int REPORT_RAG_PER_SOURCE_TOP_K = 8;
     /** 报告生成时 RAG 最低相似度阈值 */
     private static final double REPORT_RAG_MIN_SCORE = 0.35;
 
@@ -96,6 +94,9 @@ public class CareerDevelopmentReportServiceImpl
             Set.of("learning_path", "career_planning", "industry_trend");
 
     private static final DateTimeFormatter REPORT_DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
+    private static final TypeReference<List<Map<String, Object>>> SOURCES_TYPE = new TypeReference<>() {};
 
     private static final Pattern MARKDOWN_H1 = Pattern.compile("(?m)^#\\s+(.+?)\\s*$");
     private static final Pattern PLACEHOLDER_DOC_TITLE = Pattern.compile("^文档 #\\d+$");
@@ -147,11 +148,10 @@ public class CareerDevelopmentReportServiceImpl
         JobStudentMatchResponse match = loadOrGenerateMatch(jobId);
         // 3. 知识库 RAG 检索学习路径片段
         List<KnowledgeRetrivalDTO> ragHits = retrieveLearningPathHits(jobDetail, req);
-        // 4. 调用大模型生成结构化报告并做本地完整性校验
+        // 4. 调用大模型生成结构化报告
         Map<String, Object> reportContent = generateStructuredReport(
                 userId, jobDetail, studentProfile, jobProfile, match, ragHits, req);
-        CareerReportCheckResponse check = localIntegrityCheck(reportContent);
-        // 5. 事务外组装待保存报告，再覆盖写入唯一一行
+        // 5. 事务外组装快照并校验正文，再覆盖写入唯一一行
         CareerDevelopmentReport draft = new CareerDevelopmentReport();
         draft.setUserId(userId);
         draft.setJobId(jobId);
@@ -160,15 +160,13 @@ public class CareerDevelopmentReportServiceImpl
         draft.setJobProfileSnapshot(toJson(jobProfile));
         draft.setMatchSnapshot(toJson(match));
         draft.setKnowledgeSources(toJson(toKnowledgeSources(ragHits)));
-        draft.setReportContent(toJson(reportContent));
-        fillCheckResult(draft, check, GENERATE_PROMPT);
-        return toResponse(saveReport(draft));
+        return toResponse(saveReport(draft, reportContent, GENERATE_PROMPT));
     }
 
     @Override
     public CareerReportResponse polish(Long reportId, CareerReportPolishRequest req) {
         CareerDevelopmentReport current = requireOwnedReport(reportId);
-        Map<String, Object> currentContent = readMap(current.getReportContent());
+        Map<String, Object> currentContent = readJson(current.getReportContent(), MAP_TYPE, Map.of());
 
         Map<String, Object> vars = new LinkedHashMap<>();
         vars.put("instruction", req == null ? "" : safe(req.getInstruction()));
@@ -179,51 +177,28 @@ public class CareerDevelopmentReportServiceImpl
                 + "## 当前日期（北京时间）\n" + currentDate + "\n\n"
                 + "若调整 evaluationPlan 中 quantitativeMetrics 的 deadline，具体日期（YYYY-MM-DD）不得早于当前日期。\n\n"
                 + toJson(currentContent);
-        LlmReportPayload payload;
-        try {
-            payload = modelGateway.generateStructured(CurrentActor.of(current.getUserId()),
-                    StructuredModelRequest.of(userMessage, POLISH_PROMPT, vars, LlmReportPayload.class));
-        } catch (Exception e) {
-            log.error("报告润色失败: reportId={}", reportId, e);
-            throw new BusinessException(ErrorCode.CAREER_REPORT_POLISH_FAILED);
-        }
-        Map<String, Object> polished = payload == null || payload.getReportContent() == null
-                ? currentContent : payload.getReportContent();
-        CareerReportCheckResponse check = localIntegrityCheck(polished);
-        return toResponse(saveReport(
-                draftFromCurrent(current, toJson(polished), check, POLISH_PROMPT)));
+        Map<String, Object> polished = requestReportContent(current.getUserId(), userMessage,
+                POLISH_PROMPT, vars, ErrorCode.CAREER_REPORT_POLISH_FAILED);
+        return toResponse(saveReport(draftFromCurrent(current), polished, POLISH_PROMPT));
     }
 
     @Override
     public CareerReportCheckResponse checkIntegrity(Long reportId) {
         CareerDevelopmentReport report = requireOwnedReport(reportId);
-        Map<String, Object> reportContent = readMap(report.getReportContent());
-        CareerReportCheckResponse local = localIntegrityCheck(reportContent);
+        Map<String, Object> reportContent = readJson(report.getReportContent(), MAP_TYPE, Map.of());
+        CareerReportCheckResponse local = ReportIntegrity.check(reportContent);
 
-        try {
-            CareerReportCheckResponse llm = modelGateway.generateStructured(CurrentActor.of(report.getUserId()),
-                    StructuredModelRequest.of(
-                            "请检查这份职业发展报告是否完整且可执行：\n" + toJson(reportContent),
-                            INTEGRITY_CHECK_PROMPT,
-                            null,
-                            CareerReportCheckResponse.class));
-            if (llm != null) {
-                local = mergeChecks(local, llm);
-            }
-        } catch (Exception e) {
-            log.warn("LLM 完整性检查失败，使用本地校验结果: reportId={}, err={}", reportId, e.getMessage());
-        }
-
-        Integer completenessScore = local.getCompletenessScore();
-        if (completenessScore == null) {
-            throw new IllegalStateException("完整性检查缺少完整度");
-        }
-        String qualityFlags = toJson(toQualityFlags(local));
-        Integer status = Boolean.TRUE.equals(local.getPassed()) ? STATUS_CHECKED : STATUS_CHECK_FAILED;
+        CareerReportCheckResponse modelCheck = modelGateway.generateStructured(CurrentActor.of(report.getUserId()),
+                new ModelRequest("请检查这份职业发展报告是否完整且可执行：\n" + toJson(reportContent),
+                        INTEGRITY_CHECK_PROMPT, null), CareerReportCheckResponse.class);
+        CareerReportCheckResponse check = ReportIntegrity.merge(local, modelCheck);
+        Integer completenessScore = check.getCompletenessScore();
+        String qualityFlags = toJson(ReportIntegrity.qualityFlags(check));
+        Integer status = Boolean.TRUE.equals(check.getPassed()) ? STATUS_CHECKED : STATUS_CHECK_FAILED;
         transactionTemplate.executeWithoutResult(tx -> writeIntegrityResult(
                 report.getId(), report.getUserId(), report.getJobId(),
                 completenessScore, qualityFlags, status));
-        return local;
+        return check;
     }
 
     @Override
@@ -232,9 +207,7 @@ public class CareerDevelopmentReportServiceImpl
         if (req == null || req.getReportContent() == null || req.getReportContent().isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "报告内容不能为空");
         }
-        CareerReportCheckResponse check = localIntegrityCheck(req.getReportContent());
-        return toResponse(saveReport(draftFromCurrent(
-                current, toJson(req.getReportContent()), check, current.getPromptName())));
+        return toResponse(saveReport(draftFromCurrent(current), req.getReportContent(), current.getPromptName()));
     }
 
     private JobCapabilityProfileResponse loadOrGenerateJobProfile(Long jobId) {
@@ -254,9 +227,6 @@ public class CareerDevelopmentReportServiceImpl
         Long userId = UserHolder.requireUserId();
         String query = buildKnowledgeQuery(jobDetail, req);
         float[] vector = embedQueryText(userId, query);
-        if (vector == null) {
-            return List.of();
-        }
         String vec = knowledgeEmbeddingService.toPgVector(vector);
 
         List<KnowledgeRetrivalDTO> merged = new ArrayList<>();
@@ -276,16 +246,10 @@ public class CareerDevelopmentReportServiceImpl
         }
 
         List<KnowledgeRetrivalDTO> hits = rankAndLimitHits(merged, REPORT_RAG_TOP_K);
-        List<KnowledgeRetrivalDTO> filtered = hits.stream()
-                .filter(h -> h.getScore() != null && h.getScore() >= REPORT_RAG_MIN_SCORE)
-                .filter(this::isCareerLearningDoc)
-                .collect(Collectors.toList());
-        if (!filtered.isEmpty()) {
-            return filtered;
-        }
-        return hits.stream()
-                .filter(h -> h.getScore() != null && h.getScore() >= REPORT_RAG_MIN_SCORE)
-                .collect(Collectors.toList());
+        List<KnowledgeRetrivalDTO> qualified = hits.stream()
+                .filter(hit -> hit.getScore() >= REPORT_RAG_MIN_SCORE).toList();
+        List<KnowledgeRetrivalDTO> preferred = qualified.stream().filter(this::isCareerLearningDoc).toList();
+        return preferred.isEmpty() ? qualified : preferred;
     }
 
     private List<KnowledgeRetrivalDTO> searchKnowledgeVectors(Long ownerUserId, Long knowledgeId, String queryEmbedding) {
@@ -293,7 +257,7 @@ public class CareerDevelopmentReportServiceImpl
             return List.of();
         }
         List<KnowledgeRetrivalDTO> hits = knowledgeVectorMapper.searchBySimilarity(
-                ownerUserId, knowledgeId, queryEmbedding, REPORT_RAG_PER_SOURCE_TOP_K);
+                ownerUserId, knowledgeId, queryEmbedding, REPORT_RAG_TOP_K);
         return hits == null ? List.of() : hits;
     }
 
@@ -336,13 +300,29 @@ public class CareerDevelopmentReportServiceImpl
         sb.append("## 人岗匹配\n").append(toJson(match)).append("\n\n");
         sb.append("## 学习路径知识上下文\n").append(ragContext).append("\n");
 
+        return requestReportContent(userId, sb.toString(), GENERATE_PROMPT, vars,
+                ErrorCode.CAREER_REPORT_GENERATION_FAILED);
+    }
+
+    /**
+     * 调用报告生成或润色模型，并校验返回正文。调用失败和空正文均终止保存。
+     *
+     * @param userId 当前用户编号
+     * @param message 已组装的业务输入
+     * @param prompt 提示词名称
+     * @param variables 提示词变量
+     * @param failure 模型调用失败对应的业务错误码
+     * @return 非空报告正文
+     * @throws BusinessException 模型调用失败或正文缺失
+     */
+    private Map<String, Object> requestReportContent(Long userId, String message, String prompt,
+            Map<String, Object> variables, ErrorCode failure) {
         LlmReportPayload payload;
         try {
             payload = modelGateway.generateStructured(CurrentActor.of(userId),
-                    StructuredModelRequest.of(sb.toString(), GENERATE_PROMPT, vars, LlmReportPayload.class));
-        } catch (Exception e) {
-            log.error("职业报告生成失败 jobId={}", jobDetail.getId(), e);
-            throw new BusinessException(ErrorCode.CAREER_REPORT_GENERATION_FAILED);
+                    new ModelRequest(message, prompt, variables), LlmReportPayload.class);
+        } catch (RuntimeException exception) {
+            throw new BusinessException(failure, exception);
         }
         if (payload == null || payload.getReportContent() == null || payload.getReportContent().isEmpty()) {
             throw new BusinessException(ErrorCode.CAREER_REPORT_INVALID);
@@ -371,13 +351,9 @@ public class CareerDevelopmentReportServiceImpl
      * 用当前报告的快照复制出待覆盖的报告。编号由覆盖写入保留。
      *
      * @param current 当前用户拥有的报告
-     * @param reportContent 新正文 JSON
-     * @param check 本地完整性结果
-     * @param promptName 本次使用的提示词名称
      * @return 尚未写入的报告
      */
-    private CareerDevelopmentReport draftFromCurrent(CareerDevelopmentReport current, String reportContent,
-                                                     CareerReportCheckResponse check, String promptName) {
+    private CareerDevelopmentReport draftFromCurrent(CareerDevelopmentReport current) {
         CareerDevelopmentReport draft = new CareerDevelopmentReport();
         draft.setUserId(current.getUserId());
         draft.setJobId(current.getJobId());
@@ -386,42 +362,28 @@ public class CareerDevelopmentReportServiceImpl
         draft.setJobProfileSnapshot(current.getJobProfileSnapshot());
         draft.setMatchSnapshot(current.getMatchSnapshot());
         draft.setKnowledgeSources(current.getKnowledgeSources());
-        draft.setReportContent(reportContent);
-        fillCheckResult(draft, check, promptName);
         return draft;
     }
 
     /**
-     * 把完整性结果写入待保存报告。
+     * 报告写入的唯一入口。事务外校验正文、组装质量标记及 JSON，短事务内插入或覆盖同一用户与岗位的唯一一行。
      *
-     * @param draft 待保存报告
-     * @param check 完整性结果
-     * @param promptName 提示词名称
+     * @param draft 待写入报告，包含用户、岗位及已有快照
+     * @param content 报告正文
+     * @param promptName 本次提示词名称
+     * @return 已写入的报告，编号在覆盖时保持不变
      */
-    private void fillCheckResult(CareerDevelopmentReport draft, CareerReportCheckResponse check, String promptName) {
-        draft.setQualityFlags(toJson(toQualityFlags(check)));
+    private CareerDevelopmentReport saveReport(CareerDevelopmentReport draft, Map<String, Object> content,
+            String promptName) {
+        if (draft.getUserId() == null || draft.getJobId() == null || !StringUtils.hasText(promptName)) {
+            throw new IllegalStateException("报告缺少用户、岗位或提示词");
+        }
+        CareerReportCheckResponse check = ReportIntegrity.check(content);
+        draft.setReportContent(toJson(content));
+        draft.setQualityFlags(toJson(ReportIntegrity.qualityFlags(check)));
         draft.setStatus(Boolean.TRUE.equals(check.getPassed()) ? STATUS_CHECKED : STATUS_CHECK_FAILED);
         draft.setCompletenessScore(check.getCompletenessScore());
         draft.setPromptName(promptName);
-    }
-
-    /**
-     * 报告写入的唯一入口。调用方在事务外填好正文和快照，本方法在短事务中插入或覆盖同一用户与岗位的唯一一行。
-     *
-     * @param draft 待写入报告，须包含用户、岗位、正文、状态、完整度和提示词
-     * @return 已写入的报告，编号在覆盖时保持不变
-     */
-    private CareerDevelopmentReport saveReport(CareerDevelopmentReport draft) {
-        if (draft == null || draft.getUserId() == null || draft.getJobId() == null) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "报告缺少用户或岗位");
-        }
-        if (!StringUtils.hasText(draft.getReportContent())) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "报告内容不能为空");
-        }
-        if (draft.getStatus() == null || draft.getCompletenessScore() == null
-                || !StringUtils.hasText(draft.getPromptName())) {
-            throw new IllegalStateException("报告缺少状态、完整度或提示词");
-        }
         CareerDevelopmentReport saved = transactionTemplate.execute(status -> overwriteReport(draft));
         if (saved == null) {
             throw new IllegalStateException("职业发展报告未写入");
@@ -520,23 +482,20 @@ public class CareerDevelopmentReportServiceImpl
         response.setStatus(entity.getStatus());
         response.setCompletenessScore(entity.getCompletenessScore());
         response.setPromptName(entity.getPromptName());
-        response.setReportContent(readMap(entity.getReportContent()));
-        response.setQualityFlags(readMap(entity.getQualityFlags()));
-        response.setKnowledgeSources(enrichKnowledgeSources(readListOfMap(entity.getKnowledgeSources())));
+        response.setReportContent(readJson(entity.getReportContent(), MAP_TYPE, Map.of()));
+        response.setQualityFlags(readJson(entity.getQualityFlags(), MAP_TYPE, Map.of()));
+        response.setKnowledgeSources(enrichKnowledgeSources(readJson(entity.getKnowledgeSources(), SOURCES_TYPE, List.of())));
         return response;
     }
 
     /**
-     * 为报告检索生成查询向量。查询文本为空时返回 null，调用方按无命中处理；嵌入失败时保留原因并终止报告生成。
+     * 为报告检索生成查询向量。嵌入失败时保留原因并终止报告生成。
      *
      * @param userId 当前用户
      * @param queryText 检索文本
-     * @return 查询向量；文本为空时返回 null
+     * @return 有效的查询向量
      */
     private float[] embedQueryText(Long userId, String queryText) {
-        if (!StringUtils.hasText(queryText)) {
-            return null;
-        }
         List<float[]> vectors;
         try {
             vectors = embeddingGateway.embed(CurrentActor.of(userId), List.of(queryText));
@@ -810,175 +769,19 @@ public class CareerDevelopmentReportServiceImpl
     }
 
     /**
-     * 本地规则校验报告必备章节与行动计划可执行性（不调用大模型）。
-     */
-    private CareerReportCheckResponse localIntegrityCheck(Map<String, Object> reportContent) {
-        CareerReportCheckResponse dto = new CareerReportCheckResponse();
-        List<String> missingSections = new ArrayList<>();
-        List<String> nonActionableItems = new ArrayList<>();
-        List<String> weakEvidenceItems = new ArrayList<>();
-        if (reportContent == null) {
-            reportContent = Map.of();
-        }
-        requireSection(reportContent, "careerExploration", "职业探索", missingSections);
-        requireSection(reportContent, "careerGoals", "职业目标", missingSections);
-        requireSection(reportContent, "careerPath", "职业路径", missingSections);
-        requireSection(reportContent, "actionPlan", "行动计划", missingSections);
-        requireSection(reportContent, "evaluationPlan", "评估计划", missingSections);
-
-        Object actionPlan = reportContent.get("actionPlan");
-        if (actionPlan instanceof Map<?, ?> map) {
-            checkActionBucket(map.get("shortTerm"), "shortTerm", nonActionableItems);
-            checkActionBucket(map.get("midTerm"), "midTerm", nonActionableItems);
-        } else {
-            nonActionableItems.add("actionPlan");
-        }
-
-        Object evidence = reportContent.get("evidence");
-        if (!(evidence instanceof Map<?, ?> || evidence instanceof List<?>)) {
-            weakEvidenceItems.add("evidence");
-        }
-
-        int score = 100;
-        score -= missingSections.size() * 12;
-        score -= nonActionableItems.size() * 8;
-        score -= weakEvidenceItems.size() * 6;
-        score = Math.max(0, Math.min(100, score));
-
-        dto.setMissingSections(distinct(missingSections));
-        dto.setNonActionableItems(distinct(nonActionableItems));
-        dto.setWeakEvidenceItems(distinct(weakEvidenceItems));
-        dto.setCompletenessScore(score);
-        dto.setPassed(missingSections.isEmpty() && nonActionableItems.size() <= 1);
-        dto.setRiskLevel(score >= 80 ? "low" : score >= 60 ? "medium" : "high");
-        return dto;
-    }
-
-    private CareerReportCheckResponse mergeChecks(CareerReportCheckResponse local, CareerReportCheckResponse llm) {
-        CareerReportCheckResponse merged = new CareerReportCheckResponse();
-        merged.setMissingSections(distinct(mergeList(local.getMissingSections(), llm.getMissingSections())));
-        merged.setNonActionableItems(distinct(mergeList(local.getNonActionableItems(), llm.getNonActionableItems())));
-        merged.setWeakEvidenceItems(distinct(mergeList(local.getWeakEvidenceItems(), llm.getWeakEvidenceItems())));
-        int l = local.getCompletenessScore() == null ? 0 : local.getCompletenessScore();
-        int r = llm.getCompletenessScore() == null ? l : llm.getCompletenessScore();
-        merged.setCompletenessScore(Math.max(0, Math.min(100, (l + r) / 2)));
-        boolean passed = !Boolean.FALSE.equals(local.getPassed()) && !Boolean.FALSE.equals(llm.getPassed());
-        merged.setPassed(passed);
-        merged.setRiskLevel(merged.getCompletenessScore() >= 80 ? "low"
-                : merged.getCompletenessScore() >= 60 ? "medium" : "high");
-        return merged;
-    }
-
-    private Map<String, Object> toQualityFlags(CareerReportCheckResponse check) {
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put("missingSections", check.getMissingSections() == null ? List.of() : check.getMissingSections());
-        map.put("nonActionableItems", check.getNonActionableItems() == null ? List.of() : check.getNonActionableItems());
-        map.put("weakEvidenceItems", check.getWeakEvidenceItems() == null ? List.of() : check.getWeakEvidenceItems());
-        map.put("riskLevel", check.getRiskLevel());
-        return map;
-    }
-
-    private static void requireSection(Map<String, Object> reportContent, String key,
-                                       String displayName, List<String> missingSections) {
-        Object v = reportContent.get(key);
-        if (v == null) {
-            missingSections.add(displayName);
-            return;
-        }
-        if (v instanceof String s && !StringUtils.hasText(s)) {
-            missingSections.add(displayName);
-        }
-        if (v instanceof List<?> list && list.isEmpty()) {
-            missingSections.add(displayName);
-        }
-        if (v instanceof Map<?, ?> map && map.isEmpty()) {
-            missingSections.add(displayName);
-        }
-    }
-
-    private static void checkActionBucket(Object bucket, String bucketName, List<String> nonActionableItems) {
-        if (bucket == null) {
-            nonActionableItems.add(bucketName);
-            return;
-        }
-        if (bucket instanceof List<?> list) {
-            if (list.isEmpty()) {
-                nonActionableItems.add(bucketName);
-                return;
-            }
-            int idx = 0;
-            for (Object item : list) {
-                idx++;
-                if (!(item instanceof Map<?, ?> map)) {
-                    nonActionableItems.add(bucketName + "#" + idx);
-                    continue;
-                }
-                if (!hasAnyKey(map, "cycle", "period", "timeWindow")) {
-                    nonActionableItems.add(bucketName + "#" + idx + ":missingCycle");
-                }
-                if (!hasAnyKey(map, "deliverable", "milestone", "output")) {
-                    nonActionableItems.add(bucketName + "#" + idx + ":missingDeliverable");
-                }
-            }
-            return;
-        }
-        if (bucket instanceof Map<?, ?> map) {
-            if (!hasAnyKey(map, "tasks", "items")) {
-                nonActionableItems.add(bucketName + ":missingTasks");
-            }
-            return;
-        }
-        nonActionableItems.add(bucketName);
-    }
-
-    private static boolean hasAnyKey(Map<?, ?> map, String... keys) {
-        for (String key : keys) {
-            Object v = map.get(key);
-            if (v == null) {
-                continue;
-            }
-            if (v instanceof String s && StringUtils.hasText(s)) {
-                return true;
-            }
-            if (v instanceof List<?> list && !list.isEmpty()) {
-                return true;
-            }
-            if (v instanceof Map<?, ?> m && !m.isEmpty()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * 读取报告中的对象 JSON。空白列表示内容为空；内容无法解析时保留原因并终止当前操作。
+     * 按字段形状读取报告 JSON；空白列使用对应的空集合，解析失败立即终止。
      *
-     * @param raw 数据库中的 JSON 文本，可以为空
-     * @return 对象内容；空白文本返回空映射
+     * @param raw 数据库 JSON 文本，可为空
+     * @param type 字段的完整泛型类型
+     * @param empty 空白列对应的空集合
+     * @return 解析结果或空集合
      */
-    private Map<String, Object> readMap(String raw) {
+    private <T> T readJson(String raw, TypeReference<T> type, T empty) {
         if (!StringUtils.hasText(raw)) {
-            return new LinkedHashMap<>();
+            return empty;
         }
         try {
-            return objectMapper.readValue(raw, new TypeReference<Map<String, Object>>() {});
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("职业发展报告内容无法读取", exception);
-        }
-    }
-
-    /**
-     * 读取报告中的对象数组 JSON。空白列表示没有来源；内容无法解析时保留原因并终止当前操作。
-     *
-     * @param raw 数据库中的 JSON 文本，可以为空
-     * @return 对象列表；空白文本返回空列表
-     */
-    private List<Map<String, Object>> readListOfMap(String raw) {
-        if (!StringUtils.hasText(raw)) {
-            return List.of();
-        }
-        try {
-            return objectMapper.readValue(raw, new TypeReference<List<Map<String, Object>>>() {});
+            return objectMapper.readValue(raw, type);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("职业发展报告内容无法读取", exception);
         }
@@ -1010,29 +813,10 @@ public class CareerDevelopmentReportServiceImpl
         return LocalDate.now(DateTimeUtil.getDefaultZoneId()).format(REPORT_DATE_FMT);
     }
 
-    private static List<String> mergeList(List<String> left, List<String> right) {
-        List<String> out = new ArrayList<>();
-        if (left != null) {
-            out.addAll(left);
-        }
-        if (right != null) {
-            out.addAll(right);
-        }
-        return out;
-    }
-
-    private static List<String> distinct(List<String> input) {
-        if (input == null || input.isEmpty()) {
-            return List.of();
-        }
-        return new ArrayList<>(new LinkedHashSet<>(input.stream()
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList())));
-    }
-
     /** 大模型结构化输出：报告正文 */
     @Data
     private static class LlmReportPayload {
+        /** 结构化报告正文，生成或润色成功时必须为非空对象。 */
         private Map<String, Object> reportContent;
     }
 }

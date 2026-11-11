@@ -1,17 +1,15 @@
 package com.zdmj.matchService.service;
 
-import com.baomidou.mybatisplus.extension.service.IService;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.matchService.dto.JobStudentMatchResponse;
 import com.zdmj.matchService.dto.JobStudentMatchGenerateRequest;
 import com.zdmj.matchService.dto.JobStudentMatchListItemResponse;
 import com.zdmj.matchService.dto.MatchWeightConfigResponse;
-import com.zdmj.matchService.entity.JobStudentMatch;
 
 /**
  * 人岗匹配分析服务：基于岗位画像与学生画像做四维对比，输出可解释的匹配结果与综合分。
  */
-public interface JobStudentMatchService extends IService<JobStudentMatch> {
+public interface JobStudentMatchService {
 
     /**
      * 分页查询当前用户已匹配过的岗位记录（仅最新一次；岗位已删则不返回）。

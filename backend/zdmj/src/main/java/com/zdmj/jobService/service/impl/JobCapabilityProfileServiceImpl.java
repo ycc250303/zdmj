@@ -6,7 +6,7 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
-import com.zdmj.aiService.api.StructuredModelRequest;
+import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.jobService.api.JobRole;
 import com.zdmj.jobService.api.JobRoleDetectionService;
@@ -56,7 +56,7 @@ public class JobCapabilityProfileServiceImpl extends ServiceImpl<JobCapabilityPr
         JobCapabilityProfileResponse aiResult;
         try {
             aiResult = modelGateway.generateStructured(CurrentActor.of(userId),
-                    StructuredModelRequest.of(jobContext, promptName, null, JobCapabilityProfileResponse.class));
+                    new ModelRequest(jobContext, promptName, null), JobCapabilityProfileResponse.class);
         } catch (Exception e) {
             log.error("岗位要求画像生成失败，role={}, prompt={}", role, promptName, e);
             throw new BusinessException(ErrorCode.JOB_CAPABILITY_PROFILE_GENERATION_FAILED);

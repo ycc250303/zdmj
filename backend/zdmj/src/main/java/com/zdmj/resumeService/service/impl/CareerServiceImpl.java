@@ -10,12 +10,11 @@ import com.zdmj.resumeService.entity.Career;
 import com.zdmj.resumeService.mapper.CareerMapper;
 import com.zdmj.resumeService.mapper.CareerStructMapper;
 import com.zdmj.resumeService.service.CareerService;
+import com.zdmj.resumeService.utils.DateRangeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -27,6 +26,11 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
     @Override
     public CareerResponse create(CareerRequest careerRequest) {
         Long userId = UserHolder.requireUserId();
+        DateRangeUtil.rejectIfEndBeforeStart(
+                careerRequest.getStartDate(),
+                careerRequest.getEndDate(),
+                ErrorCode.CAREER_LEAVE_TIME_INVALID);
+
         Career career = new Career();
         career.setUserId(userId);
         career.setCompany(careerRequest.getCompany());
@@ -38,19 +42,8 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
         if (!saved) {
             throw new BusinessException(ErrorCode.CAREER_ADD_FAILED);
         }
-        log.info("添加工作经历成功: {}", career.getCompany());
+        log.info("用户 {} 添加工作经历成功: id={}", userId, career.getId());
         return convertToResponse(career);
-    }
-
-    @Override
-    public CareerResponse getById(Long id) {
-        return convertToResponse(requireCareer(id));
-    }
-
-    @Override
-    public List<CareerResponse> getByUserId() {
-        Long userId = UserHolder.requireUserId();
-        return baseMapper.selectByUserId(userId).stream().map(this::convertToResponse).toList();
     }
 
     @Override
@@ -60,32 +53,28 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
         Career career = requireCareerAndCheckOwnership(id, userId, "修改");
 
         careerPatchMapper.updateEntityFromDto(careerRequest, career);
-
-        if (career.getStartDate() != null && career.getEndDate() != null) {
-            if (career.getEndDate().isBefore(career.getStartDate())) {
-                throw new BusinessException(ErrorCode.CAREER_LEAVE_TIME_INVALID);
-            }
-        }
+        DateRangeUtil.rejectIfEndBeforeStart(
+                career.getStartDate(), career.getEndDate(), ErrorCode.CAREER_LEAVE_TIME_INVALID);
 
         boolean updated = updateById(career);
         if (!updated) {
             throw new BusinessException(ErrorCode.CAREER_UPDATE_FAILED);
         }
 
-        log.info("更新工作经历成功: {}", career.getCompany());
+        log.info("用户 {} 更新工作经历成功: id={}", userId, id);
         return convertToResponse(career);
     }
 
     @Override
     public void delete(Long id) {
         Long userId = UserHolder.requireUserId();
-        Career career = requireCareerAndCheckOwnership(id, userId, "删除");
+        requireCareerAndCheckOwnership(id, userId, "删除");
         boolean removed = removeById(id);
         if (!removed) {
             throw new BusinessException(ErrorCode.CAREER_DELETE_FAILED);
         }
 
-        log.info("删除工作经历成功: {}", career.getCompany());
+        log.info("用户 {} 删除工作经历成功: id={}", userId, id);
     }
 
     private CareerResponse convertToResponse(Career career) {

@@ -2,7 +2,13 @@
 import { computed } from 'vue';
 import { $t } from '@/locales';
 import type { DraftAward, DraftCareer, DraftEducation, DraftProject, ResumeContentDraft } from '../utils/resumeDraft';
-import { createEmptyAward, createEmptyCareer, createEmptyEducation, createEmptyProject } from '../utils/resumeDraft';
+import {
+  createEmptyAward,
+  createEmptyCareer,
+  createEmptyEducation,
+  createEmptyProject,
+  createEmptySkill
+} from '../utils/resumeDraft';
 
 defineOptions({ name: 'ResumeEditPanel' });
 
@@ -17,12 +23,6 @@ const degreeOptions = computed(() => [
   { label: $t('page.profile.education.degrees.associate'), value: 4 },
   { label: $t('page.profile.education.degrees.highSchool'), value: 5 },
   { label: $t('page.profile.education.degrees.other'), value: 6 }
-]);
-
-const awardTypeOptions = computed(() => [
-  { label: $t('page.resume.awardTypeScholarship'), value: 1 },
-  { label: $t('page.resume.awardTypeCompetition'), value: 2 },
-  { label: $t('page.resume.awardTypeOther'), value: 3 }
 ]);
 
 function dateStrToTs(str: string | undefined): number | null {
@@ -78,12 +78,12 @@ function addAward() {
   draft.value.awards.push(createEmptyAward());
 }
 
-function addSkillGroup() {
-  draft.value.skill.content.push({ type: '', content: [] });
+function addSkill() {
+  draft.value.skills.push(createEmptySkill());
 }
 
-function removeSkillGroup(index: number) {
-  draft.value.skill.content.splice(index, 1);
+function removeSkill(index: number) {
+  draft.value.skills.splice(index, 1);
 }
 
 function eduStart(item: DraftEducation) {
@@ -343,6 +343,9 @@ function awardDateBind(item: DraftAward) {
             <NFormItem :label="$t('page.profile.project.techStack')">
               <NDynamicTags v-model:value="project.techStack" />
             </NFormItem>
+            <NFormItem :label="$t('page.profile.project.highlights')">
+              <NDynamicTags v-model:value="project.highlights" />
+            </NFormItem>
           </div>
           <NButton dashed block @click="addProject">+ {{ $t('page.resume.addProject') }}</NButton>
         </NCollapseItem>
@@ -365,11 +368,6 @@ function awardDateBind(item: DraftAward) {
               </NPopconfirm>
             </div>
             <NGrid :cols="2" :x-gap="12">
-              <NGridItem>
-                <NFormItem :label="$t('page.resume.awardType')">
-                  <NSelect v-model:value="award.awardType" :options="awardTypeOptions" />
-                </NFormItem>
-              </NGridItem>
               <NGridItem>
                 <NFormItem :label="$t('page.resume.awardName')">
                   <NInput v-model:value="award.name" />
@@ -396,19 +394,29 @@ function awardDateBind(item: DraftAward) {
 
         <NCollapseItem :title="$t('page.resume.skills')" name="skill">
           <div
-            v-for="(group, index) in draft.skill.content"
-            :key="`${group.type}-${index}`"
+            v-for="(skill, index) in draft.skills"
+            :key="skill._key"
             class="mb-4 border border-slate-100 rounded-lg bg-slate-50 p-3"
           >
-            <div class="mb-2 flex items-center justify-between">
-              <NInput v-model:value="group.type" :placeholder="$t('page.resumeImport.skillTypePlaceholder')" />
-              <NButton size="tiny" quaternary type="error" @click="removeSkillGroup(index)">
+            <div class="mb-2 flex items-center justify-between gap-2">
+              <NInput
+                v-model:value="skill.name"
+                maxlength="255"
+                :placeholder="$t('page.resumeImport.skillNamePlaceholder')"
+              />
+              <NButton size="tiny" quaternary type="error" @click="removeSkill(index)">
                 {{ $t('page.resume.delete') }}
               </NButton>
             </div>
-            <NDynamicTags v-model:value="group.content" />
+            <NInput
+              v-model:value="skill.description"
+              type="textarea"
+              maxlength="500"
+              :autosize="{ minRows: 2 }"
+              :placeholder="$t('page.resumeImport.skillDescriptionPlaceholder')"
+            />
           </div>
-          <NButton dashed block @click="addSkillGroup">+ {{ $t('page.resumeImport.addSkillGroup') }}</NButton>
+          <NButton dashed block @click="addSkill">+ {{ $t('page.resumeImport.addSkill') }}</NButton>
         </NCollapseItem>
       </NCollapse>
     </NCard>

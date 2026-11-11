@@ -1,14 +1,11 @@
 package com.zdmj.resumeService.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.model.CreateGroup;
 import com.zdmj.common.model.UpdateGroup;
-import com.zdmj.resumeService.dto.SkillItemDTO;
 import com.zdmj.resumeService.dto.SkillRequest;
 import com.zdmj.resumeService.dto.SkillResponse;
 import com.zdmj.resumeService.entity.Skill;
@@ -21,8 +18,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -31,67 +26,51 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements SkillService {
 
-    private static final TypeReference<List<SkillItemDTO>> SKILL_ITEMS = new TypeReference<>() {
-    };
-
     private final Validator validator;
-    private final ObjectMapper objectMapper;
 
     @Override
     public SkillResponse create(SkillRequest skillRequest) {
-        Long userId = requireUserId();
-        validateContent(skillRequest, CreateGroup.class);
+        Long userId = UserHolder.requireUserId();
+        validate(skillRequest, CreateGroup.class);
 
         Skill skill = new Skill();
         skill.setUserId(userId);
-        skill.setContent(writeContent(skillRequest.getContent()));
+        applyFields(skill, skillRequest);
 
         boolean saved = save(skill);
         if (!saved) {
             throw new BusinessException(ErrorCode.SKILL_ADD_FAILED);
         }
-        log.info("添加技能成功: userId={}", userId);
+        log.info("用户 {} 添加技能成功: id={}", userId, skill.getId());
         return toResponse(skill);
     }
 
     @Override
-    public SkillResponse getById(Long id) {
-        return toResponse(requireSkill(id));
-    }
-
-    @Override
-    public List<SkillResponse> getByUserId() {
-        Long userId = requireUserId();
-        return baseMapper.selectByUserId(userId).stream().map(this::toResponse).toList();
-    }
-
-    @Override
     public SkillResponse update(SkillRequest skillRequest) {
-        Long userId = requireUserId();
-
+        Long userId = UserHolder.requireUserId();
         Long id = skillRequest.getId();
         Skill skill = requireSkillAndCheckOwnership(id, userId, "修改");
-        validateContent(skillRequest, UpdateGroup.class);
-        skill.setContent(writeContent(skillRequest.getContent()));
+        validate(skillRequest, UpdateGroup.class);
+        applyFields(skill, skillRequest);
 
         boolean updated = updateById(skill);
         if (!updated) {
             throw new BusinessException(ErrorCode.SKILL_UPDATE_FAILED);
         }
-        log.info("更新技能成功: skillId={}", skill.getId());
+        log.info("用户 {} 更新技能成功: id={}", userId, id);
         return toResponse(skill);
     }
 
     @Override
     public void delete(Long id) {
-        Long userId = requireUserId();
-        Skill skill = requireSkillAndCheckOwnership(id, userId, "删除");
+        Long userId = UserHolder.requireUserId();
+        requireSkillAndCheckOwnership(id, userId, "删除");
 
         boolean removed = removeById(id);
         if (!removed) {
             throw new BusinessException(ErrorCode.SKILL_DELETE_FAILED);
         }
-        log.info("删除技能成功: skillId={}", skill.getId());
+        log.info("用户 {} 删除技能成功: id={}", userId, id);
     }
 
     @Override
@@ -101,32 +80,24 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
         }
         SkillResponse response = new SkillResponse();
         response.setId(skill.getId());
-        response.setContent(readContent(skill.getContent()));
+        response.setName(skill.getName());
+        response.setDescription(skill.getDescription());
         return response;
     }
 
-    private String writeContent(List<SkillItemDTO> items) {
-        try {
-            return objectMapper.writeValueAsString(items == null ? List.of() : items);
-        } catch (Exception e) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "技能内容序列化失败");
-        }
+    /**
+     * 写入名称和说明。名称去掉首尾空白；说明为空白时保存 null。
+     *
+     * @param skill 待写入的技能
+     * @param skillRequest 已通过校验的请求
+     */
+    private void applyFields(Skill skill, SkillRequest skillRequest) {
+        skill.setName(skillRequest.getName().trim());
+        String description = skillRequest.getDescription();
+        skill.setDescription(StringUtils.hasText(description) ? description.trim() : null);
     }
 
-    private List<SkillItemDTO> readContent(String json) {
-        if (!StringUtils.hasText(json) || "null".equals(json.trim())) {
-            return Collections.emptyList();
-        }
-        try {
-            List<SkillItemDTO> items = objectMapper.readValue(json, SKILL_ITEMS);
-            return items == null ? Collections.emptyList() : items;
-        } catch (Exception e) {
-            log.warn("解析 skills.content 失败: {}", e.getMessage());
-            return Collections.emptyList();
-        }
-    }
-
-    private void validateContent(SkillRequest skillRequest, Class<?> group) {
+    private void validate(SkillRequest skillRequest, Class<?> group) {
         Set<ConstraintViolation<SkillRequest>> violations = validator.validate(skillRequest, group);
         if (!violations.isEmpty()) {
             String detail = violations.stream()
@@ -134,14 +105,6 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
                     .collect(Collectors.joining("; "));
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, detail);
         }
-    }
-
-    private Long requireUserId() {
-        Long userId = UserHolder.getUserId();
-        if (userId == null) {
-            throw new BusinessException(ErrorCode.USER_NOT_LOGIN);
-        }
-        return userId;
     }
 
     private Skill requireSkill(Long id) {

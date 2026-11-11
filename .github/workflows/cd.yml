@@ -1,6 +1,5 @@
-# CD 工作流：前后端统一部署，共享 zdmj-server-deploy 并发组，避免 git/SSH 冲突。
-# 实际部署逻辑见 deploy/deploy_backend.sh、deploy/deploy_frontend.sh
-# 前置要求：GitHub Secrets 配置 SSH_PRIVATE_KEY 与 SERVER_HOST，公钥已写入服务器 ~/.ssh/authorized_keys
+# CD：一次发布同步已通过 CI 的固定提交，再构建被改动的后端和前端。
+# 目标判断见 .github/scripts/deploy_targets.sh，远端执行见 deploy/release.sh。
 
 name: CD - Deploy
 
@@ -9,10 +8,22 @@ on:
     branches: [main]
     paths:
       - 'backend/zdmj/**'
-      - 'client/**'
-      - 'deploy/**'
+      - 'sql/**'
+      - 'deploy/deploy_backend.sh'
+      - 'deploy/sync_server_code.sh'
+      - 'deploy/release.sh'
+      - 'deploy/runtime.sh'
+      - 'deploy/health.sh'
+      - 'deploy/docker-compose.yml'
+      - '.github/workflows/ci_java.yml'
       - '.github/workflows/cd.yml'
       - '.github/scripts/ssh_run.sh'
+      - '.github/scripts/deploy_targets.sh'
+      - '.github/scripts/render_remote_release.sh'
+      - 'client/**'
+      - 'deploy/deploy_frontend.sh'
+      - 'deploy/nginx.conf'
+      - '.dockerignore'
   workflow_dispatch:
     inputs:
       deploy_backend:
@@ -32,73 +43,38 @@ env:
   SERVER_HOST: ${{ secrets.SERVER_HOST }}
   SERVER_USER: root
   APP_DIR_MAIN: /opt/zdmj/zdmj
-  DOCKER_CLEANUP_UNTIL: 168h
 
 jobs:
-  detect-changes:
-    name: Detect Changed Paths
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      java: ${{ steps.filter.outputs.java }}
-      frontend: ${{ steps.filter.outputs.frontend }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Detect changed paths
-        id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          base: ${{ github.event_name == 'push' && github.event.before || '' }}
-          filters: |
-            java:
-              - 'backend/zdmj/**'
-              - 'deploy/deploy_backend.sh'
-              - 'deploy/sync_server_code.sh'
-              - 'deploy/docker-compose.yml'
-            frontend:
-              - 'client/**'
-              - 'client/Dockerfile'
-              - 'deploy/deploy_frontend.sh'
-              - 'deploy/docker-compose.yml'
-              - 'deploy/nginx.conf'
-              - 'deploy/sync_server_code.sh'
-              - '.dockerignore'
-
   deploy:
     name: Deploy on Server
     runs-on: ubuntu-latest
-    needs: detect-changes
     timeout-minutes: 45
     permissions:
       contents: read
       actions: read
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      (github.ref == 'refs/heads/main' && (needs.detect-changes.outputs.java == 'true' || needs.detect-changes.outputs.frontend == 'true'))
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Resolve deploy targets
         id: targets
         run: |
           set -euo pipefail
-          deploy_java=false
-          deploy_frontend_main=false
-
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            [[ "${{ inputs.deploy_backend }}" == "true" ]] && deploy_java=true
-            [[ "${{ inputs.deploy_frontend_main }}" == "true" ]] && deploy_frontend_main=true
-          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            [[ "${{ needs.detect-changes.outputs.java }}" == "true" ]] && deploy_java=true
-            [[ "${{ needs.detect-changes.outputs.frontend }}" == "true" ]] && deploy_frontend_main=true
+            bash .github/scripts/deploy_targets.sh \
+              --java "${{ inputs.deploy_backend }}" \
+              --frontend "${{ inputs.deploy_frontend_main }}"
+          else
+            before="${{ github.event.before }}"
+            if [[ -z "$before" || "$before" =~ ^0+$ ]]; then
+              git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" > "$RUNNER_TEMP/changed.txt"
+            else
+              git diff --name-only "$before" "$GITHUB_SHA" > "$RUNNER_TEMP/changed.txt"
+            fi
+            bash .github/scripts/deploy_targets.sh --from-file "$RUNNER_TEMP/changed.txt"
           fi
-
-          echo "deploy_java=${deploy_java}" >> "$GITHUB_OUTPUT"
-          echo "deploy_frontend_main=${deploy_frontend_main}" >> "$GITHUB_OUTPUT"
-          echo "java=${deploy_java}, frontend=${deploy_frontend_main}"
 
       - name: Require CI success for backend deploy
         if: steps.targets.outputs.deploy_java == 'true'
@@ -127,53 +103,21 @@ jobs:
       - name: Deploy on server
         if: |
           steps.targets.outputs.deploy_java == 'true' ||
-          steps.targets.outputs.deploy_frontend_main == 'true'
+          steps.targets.outputs.deploy_frontend == 'true'
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          DEPLOY_SHA: ${{ github.sha }}
+          APP_DIR: ${{ env.APP_DIR_MAIN }}
           DEPLOY_JAVA: ${{ steps.targets.outputs.deploy_java }}
-          DEPLOY_FRONTEND_MAIN: ${{ steps.targets.outputs.deploy_frontend_main }}
+          DEPLOY_FRONTEND: ${{ steps.targets.outputs.deploy_frontend }}
+          GIT_ORIGIN_URL: https://github.com/${{ github.repository }}.git
         run: |
           set -euo pipefail
-          bash .github/scripts/ssh_run.sh \
-            "${{ env.SERVER_HOST }}" \
-            "${{ env.SERVER_USER }}" \
-            22 \
-            4 \
-            20 \
-            2700 \
-            <<EOF
-          set -euo pipefail
-          echo "whoami=\$(whoami)"
-          echo "hostname=\$(hostname)"
-          APP_DIR_MAIN="${{ env.APP_DIR_MAIN }}"
-          DEPLOY_JAVA="${DEPLOY_JAVA}"
-          DEPLOY_FRONTEND_MAIN="${DEPLOY_FRONTEND_MAIN}"
-
-          if [[ "\$DEPLOY_JAVA" == "true" ]]; then
-            echo "== Deploy backend (main) =="
-            cd "\$APP_DIR_MAIN"
-            chmod +x "\$APP_DIR_MAIN/deploy/deploy_backend.sh"
-            "\$APP_DIR_MAIN/deploy/deploy_backend.sh"
-            echo "== Docker usage before cleanup =="
-            docker system df || true
-            echo "== Cleanup old Docker cache/images (${{ env.DOCKER_CLEANUP_UNTIL }}) =="
-            docker builder prune -af --filter "until=${{ env.DOCKER_CLEANUP_UNTIL }}" || true
-            docker image prune -af --filter "until=${{ env.DOCKER_CLEANUP_UNTIL }}" || true
-            echo "== Docker usage after cleanup =="
-            docker system df || true
-          fi
-
-          if [[ "\$DEPLOY_FRONTEND_MAIN" == "true" ]]; then
-            echo "== Deploy frontend (main :80, Docker) =="
-            cd "\$APP_DIR_MAIN"
-            chmod +x "\$APP_DIR_MAIN/deploy/deploy_frontend.sh"
-            APP_DIR="\$APP_DIR_MAIN" DEPLOY_BRANCH=main FRONTEND_SERVICE=frontend-main \
-              "\$APP_DIR_MAIN/deploy/deploy_frontend.sh"
-            echo "== Disk usage after frontend deploy =="
-            df -h
-            echo "== Docker frontend status =="
-            docker ps --filter "name=zdmj-frontend" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" || true
-            echo "== Cleanup old Docker build cache (${{ env.DOCKER_CLEANUP_UNTIL }}) =="
-            docker builder prune -af --filter "until=${{ env.DOCKER_CLEANUP_UNTIL }}" || true
-          fi
-          EOF
+          bash .github/scripts/render_remote_release.sh \
+            | bash .github/scripts/ssh_run.sh \
+              "${{ env.SERVER_HOST }}" \
+              "${{ env.SERVER_USER }}" \
+              22 \
+              4 \
+              20 \
+              2700

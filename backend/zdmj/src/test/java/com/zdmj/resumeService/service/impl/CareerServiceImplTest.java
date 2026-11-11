@@ -69,6 +69,18 @@ class CareerServiceImplTest {
     }
 
     @Test
+    void create_invalidDate_shouldThrowAndSkipSave() {
+        CareerRequest dto = new CareerRequest();
+        dto.setStartDate(LocalDate.of(2024, 1, 1));
+        dto.setEndDate(LocalDate.of(2023, 1, 1));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
+
+        assertEquals(ErrorCode.CAREER_LEAVE_TIME_INVALID.getCode(), ex.getCode());
+        verify(service, never()).save(any(Career.class));
+    }
+
+    @Test
     void create_saveFailed_shouldThrowAddFailed() {
         CareerRequest dto = new CareerRequest();
         dto.setCompany("ZDMJ");
@@ -77,35 +89,6 @@ class CareerServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
 
         assertEquals(ErrorCode.CAREER_ADD_FAILED.getCode(), ex.getCode());
-    }
-
-    @Test
-    void getById_notFound_shouldThrow() {
-        doReturn(null).when(careerMapper).selectById(9L);
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.getById(9L));
-
-        assertEquals(ErrorCode.CAREER_NOT_FOUND.getCode(), ex.getCode());
-    }
-
-    @Test
-    void getByUserId_shouldCallMapper() {
-        doReturn(List.of(new Career())).when(careerMapper).selectByUserId(1L);
-
-        List<CareerResponse> out = service.getByUserId();
-
-        assertEquals(1, out.size());
-        verify(careerMapper).selectByUserId(1L);
-    }
-
-    @Test
-    void getByUserId_userNotLogin_shouldThrowAndSkipMapperCall() {
-        UserHolder.clear();
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.getByUserId());
-
-        assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
-        verify(careerMapper, never()).selectByUserId(any());
     }
 
     @Test

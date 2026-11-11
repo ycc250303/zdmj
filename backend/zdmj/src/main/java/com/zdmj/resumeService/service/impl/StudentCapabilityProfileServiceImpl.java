@@ -9,7 +9,7 @@ import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
-import com.zdmj.aiService.api.StructuredModelRequest;
+import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.storage.FileUploadService;
 import com.zdmj.common.util.PdfParserUtil;
@@ -99,7 +99,7 @@ public class StudentCapabilityProfileServiceImpl
             String promptName = PROFILE_PROMPT_DIRECTORY + jobRole.slug();
             log.info("使用提示词: {}", promptName);
             aiResult = modelGateway.generateStructured(CurrentActor.of(userId),
-                    StructuredModelRequest.of(sourceText, promptName, null, StudentCapabilityProfileResponse.class));
+                    new ModelRequest(sourceText, promptName, null), StudentCapabilityProfileResponse.class);
             normalizeProfileScores(aiResult);
         } catch (BusinessException e) {
             throw e;

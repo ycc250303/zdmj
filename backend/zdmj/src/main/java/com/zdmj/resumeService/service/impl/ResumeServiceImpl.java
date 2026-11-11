@@ -1,8 +1,9 @@
 package com.zdmj.resumeService.service.impl;
 
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.aiService.api.ModelGateway;
-import com.zdmj.aiService.api.StructuredModelRequest;
+import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
@@ -15,23 +16,21 @@ import com.zdmj.resumeService.mapper.AwardMapper;
 import com.zdmj.resumeService.mapper.CareerMapper;
 import com.zdmj.resumeService.mapper.EducationMapper;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
+import com.zdmj.resumeService.mapper.ResumeContentRow;
 import com.zdmj.resumeService.mapper.ResumeMapper;
 import com.zdmj.resumeService.mapper.SkillMapper;
 import com.zdmj.resumeService.service.AwardService;
-import com.zdmj.userAuthService.entity.User;
-import com.zdmj.userAuthService.mapper.UserMapper;
+import com.zdmj.userAuthService.dto.UserUpdateRequest;
+import com.zdmj.userAuthService.service.UserLoginService;
 import com.zdmj.resumeService.service.CareerService;
 import com.zdmj.resumeService.service.EducationService;
 import com.zdmj.resumeService.service.ProjectExperienceService;
 import com.zdmj.resumeService.service.ResumeService;
 import com.zdmj.resumeService.service.SkillService;
-import com.zdmj.resumeService.support.AwardImportSupport;
-import com.zdmj.resumeService.support.ProjectHighlightsSupport;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -53,7 +52,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 @Service
-public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> implements ResumeService {
+public class ResumeServiceImpl implements ResumeService {
 
     private static final String IMPORT_PROMPT = "resume-import-parse";
 
@@ -65,7 +64,8 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     private final CareerMapper careerMapper;
     private final AwardMapper awardMapper;
     private final SkillMapper skillMapper;
-    private final UserMapper userMapper;
+    private final ResumeMapper resumeMapper;
+    private final UserLoginService userService;
     private final ModelGateway modelGateway;
     private final EducationService educationService;
     private final CareerService careerService;
@@ -74,218 +74,145 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     private final SkillService skillService;
     private final Validator validator;
     private final PdfParserUtil pdfParserUtil;
-
-    @Override
-    public ResumeResponse create(ResumeRequest resumeRequest) {
-        Long userId = UserHolder.requireUserId();
-
-        if (baseMapper.existsByUserId(userId)) {
-            throw new BusinessException(ErrorCode.RESUME_ALREADY_EXISTS);
-        }
-
-        Resume resume = new Resume();
-        resume.setUserId(userId);
-        resume.setSkillId(resumeRequest.getSkillId());
-
-        boolean saved = save(resume);
-        if (!saved) {
-            throw new BusinessException(ErrorCode.RESUME_CREATE_FAILED);
-        }
-        log.info("创建简历成功: userId={}", userId);
-        return convertToResponse(resume);
-    }
-
-    @Override
-    public List<ResumeResponse> getByUserId() {
-        Long userId = UserHolder.requireUserId();
-        return baseMapper.selectByUserId(userId).stream().map(this::convertToResponse).toList();
-    }
-
-    @Override
-    public ResumeResponse update(ResumeRequest resumeRequest) {
-        Long userId = UserHolder.requireUserId();
-        Long id = resumeRequest.getId();
-
-        Resume resume = requireResumeAndCheckOwnership(id, userId, "修改");
-
-        resume.setSkillId(resumeRequest.getSkillId());
-        boolean updated = updateById(resume);
-        if (!updated) {
-            throw new BusinessException(ErrorCode.RESUME_UPDATE_FAILED);
-        }
-        log.info("更新简历成功: resumeId={}", resume.getId());
-
-        // 注意：不再清除缓存，因为简历基础信息和列表已不使用缓存
-
-        return convertToResponse(resume);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void delete(Long id) {
-        Long userId = UserHolder.requireUserId();
-        Resume resume = requireResumeAndCheckOwnership(id, userId, "删除");
-        boolean removed = removeById(id);
-        if (!removed) {
-            throw new BusinessException(ErrorCode.RESUME_DELETE_FAILED);
-        }
-        log.info("删除简历成功: resumeId={}", resume.getId());
-
-        // 注意：不再清除缓存，因为简历基础信息和列表已不使用缓存
-    }
+    private final ObjectMapper objectMapper;
 
     @Override
     public List<ResumeContentResponse> getResumeContentList() {
         Long userId = UserHolder.requireUserId();
-        Resume resume = baseMapper.selectOneByUserId(userId);
-        if (resume == null) {
+        ResumeContentRow row = resumeMapper.selectContentByUserId(userId);
+        if (row == null || !hasStoredContent(row)) {
             return List.of();
         }
-        return List.of(buildResumeContent(resume));
+        return List.of(toContentResponse(row));
     }
 
     @Override
     public ResumeContentResponse getMyResumeContent() {
         Long userId = UserHolder.requireUserId();
-        Resume resume = ensureResumeForUser(userId);
-        return buildResumeContent(resume);
+        return toContentResponse(requireUserContent(userId));
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ResumeContentResponse saveMyResumeContent(ResumeContentSaveRequest request) {
         Long userId = UserHolder.requireUserId();
-        Resume resume = ensureResumeForUser(userId);
-
-        Long skillId = syncSkill(userId, resume.getSkillId(), request.getSkill());
-        resume.setSkillId(skillId);
-
+        requireUserContent(userId);
+        syncSkills(userId, request.getSkills());
         syncEducations(userId, request.getEducations());
         syncCareers(userId, request.getCareers());
         syncProjects(userId, request.getProjects());
         syncAwards(userId, request.getAwards());
         syncPersonalInfo(userId, request.getPersonalInfo());
-
-        List<Award> savedAwards = awardMapper.selectByUserId(userId);
-        resume.setAwards(savedAwards.stream().map(Award::getId).collect(Collectors.toList()));
-
-        boolean updated = updateById(resume);
-        if (!updated) {
-            throw new BusinessException(ErrorCode.RESUME_UPDATE_FAILED);
-        }
-        log.info("全量保存简历成功: userId={}, resumeId={}", userId, resume.getId());
-        return buildResumeContent(resume);
+        log.info("全量保存简历成功: userId={}", userId);
+        return toContentResponse(requireUserContent(userId));
     }
 
-    private ResumeContentResponse buildResumeContent(Resume resume) {
-        ResumeContentResponse resumeContentDTO = new ResumeContentResponse();
-        resumeContentDTO.setId(resume.getId());
-
-        Skill skill = resume.getSkillId() != null ? skillMapper.selectById(resume.getSkillId()) : null;
-        List<Education> educations = educationMapper.selectByUserId(resume.getUserId());
-        List<Career> careers = careerMapper.selectByUserId(resume.getUserId());
-        List<ProjectExperience> projects = projectExperienceMapper.selectByUserId(resume.getUserId());
-        List<Award> awards = awardMapper.selectByUserId(resume.getUserId());
-
-        resumeContentDTO.setSkill(skill != null ? skillService.toResponse(skill) : null);
-        resumeContentDTO.setEducations(educations.stream()
-                .map(education -> convertSimpleEntityToDTO(education, EducationRequest.class))
-                .collect(Collectors.toList()));
-        resumeContentDTO.setCareers(careers.stream()
-                .map(career -> convertSimpleEntityToDTO(career, CareerRequest.class))
-                .collect(Collectors.toList()));
-        resumeContentDTO.setProjects(projects.stream()
-                .map(project -> convertSimpleEntityToDTO(project, ProjectExperienceRequest.class))
-                .collect(Collectors.toList()));
-        resumeContentDTO.setAwards(awards.stream()
-                .map(award -> convertSimpleEntityToDTO(award, AwardRequest.class))
-                .collect(Collectors.toList()));
-        resumeContentDTO.setPersonalInfo(buildPersonalInfo(resume.getUserId()));
-        return resumeContentDTO;
+    /**
+     * 读取当前用户的整份简历行。用户不存在时立即终止。
+     *
+     * @param userId 用户编号
+     * @return 查询行
+     */
+    private ResumeContentRow requireUserContent(Long userId) {
+        ResumeContentRow row = resumeMapper.selectContentByUserId(userId);
+        if (row == null) {
+            throw new IllegalStateException("当前用户不存在，无法读取简历");
+        }
+        return row;
     }
 
-    private ResumePersonalInfoDTO buildPersonalInfo(Long userId) {
-        User user = userMapper.selectById(userId);
-        if (user == null) {
-            return new ResumePersonalInfoDTO();
-        }
+    private boolean hasStoredContent(ResumeContentRow row) {
+        return hasItems(row.getSkills())
+                || hasItems(row.getEducations())
+                || hasItems(row.getCareers())
+                || hasItems(row.getProjects())
+                || hasItems(row.getAwards());
+    }
+
+    private boolean hasItems(String json) {
+        return StringUtils.hasText(json) && !"[]".equals(json.trim());
+    }
+
+    /**
+     * 把一次查询结果组装成整份简历响应。
+     *
+     * @param row 查询行，不能为空
+     * @return 整份简历
+     */
+    private ResumeContentResponse toContentResponse(ResumeContentRow row) {
+        ResumeContentResponse response = new ResumeContentResponse();
+        response.setSkills(readSection(row.getSkills(), SkillResponse.class));
+        response.setEducations(readSection(row.getEducations(), EducationRequest.class));
+        response.setCareers(readSection(row.getCareers(), CareerRequest.class));
+        response.setProjects(readSection(row.getProjects(), ProjectExperienceRequest.class));
+        response.setAwards(readSection(row.getAwards(), AwardRequest.class));
         ResumePersonalInfoDTO info = new ResumePersonalInfoDTO();
-        info.setName(user.getName());
-        info.setPhone(user.getPhone());
-        info.setHomepageUrl(user.getWebsite());
-        info.setPreferredWorkCity(user.getPreferredWorkCity());
-        return info;
+        info.setName(row.getPersonalName());
+        info.setPhone(row.getPersonalPhone());
+        info.setHomepageUrl(row.getPersonalWebsite());
+        info.setPreferredWorkCity(row.getPreferredWorkCity());
+        response.setPersonalInfo(info);
+        return response;
+    }
+
+    private <T> List<T> readSection(String json, Class<T> type) {
+        if (!StringUtils.hasText(json)) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(json,
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, type));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("简历内容解析失败", e);
+        }
     }
 
     private void syncPersonalInfo(Long userId, ResumePersonalInfoDTO info) {
         if (info == null) {
             return;
         }
-        User user = userMapper.selectById(userId);
-        if (user == null) {
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        UserUpdateRequest update = new UserUpdateRequest();
+        update.setName(info.getName());
+        update.setPhone(info.getPhone());
+        update.setWebsite(info.getHomepageUrl());
+        update.setPreferredWorkCity(info.getPreferredWorkCity());
+        userService.updateProfile(userId, update);
+    }
+
+    /**
+     * 按提交列表替换当前用户的技能。列表不能为空，至少包含一项有效名称。
+     *
+     * @param userId 用户编号
+     * @param incoming 技能请求，不能为 null
+     */
+    private void syncSkills(Long userId, List<SkillRequest> incoming) {
+        if (incoming == null || incoming.stream().noneMatch(item -> item != null && StringUtils.hasText(item.getName()))) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "请至少填写一项技能");
         }
-        if (info.getName() != null) {
-            user.setName(info.getName().trim());
+        List<Skill> existing = skillMapper.selectByUserId(userId);
+        Set<Long> incomingIds = collectIncomingIds(incoming);
+        for (Skill item : existing) {
+            if (!incomingIds.contains(item.getId())) {
+                skillService.delete(item.getId());
+            }
         }
-        if (info.getPhone() != null) {
-            user.setPhone(info.getPhone().trim());
-        }
-        if (info.getHomepageUrl() != null) {
-            user.setWebsite(info.getHomepageUrl().trim());
-        }
-        if (info.getPreferredWorkCity() != null) {
-            user.setPreferredWorkCity(info.getPreferredWorkCity().trim());
-        }
-        if (userMapper.updateById(user) <= 0) {
-            throw new BusinessException(ErrorCode.USER_REGISTER_FAILED);
+        for (SkillRequest dto : incoming) {
+            validateForSave(dto, CreateGroup.class);
+            if (dto.getId() == null) {
+                skillService.create(dto);
+            } else {
+                requireOwnedSkill(dto.getId(), userId);
+                skillService.update(dto);
+            }
         }
     }
 
-    private Resume ensureResumeForUser(Long userId) {
-        Resume resume = baseMapper.selectOneByUserId(userId);
-        if (resume != null) {
-            return resume;
-        }
-
-        Long skillId = ensureDefaultSkillId(userId);
-        Resume newResume = new Resume();
-        newResume.setUserId(userId);
-        newResume.setSkillId(skillId);
-        boolean saved = save(newResume);
-        if (!saved) {
-            throw new BusinessException(ErrorCode.RESUME_CREATE_FAILED);
-        }
-        log.info("自动创建默认简历: userId={}", userId);
-        return newResume;
-    }
-
-    private Long ensureDefaultSkillId(Long userId) {
-        List<Skill> skills = skillMapper.selectByUserId(userId);
-        if (!skills.isEmpty()) {
-            return skills.get(0).getId();
-        }
-        SkillRequest skillDTO = new SkillRequest();
-        SkillItemDTO item = new SkillItemDTO();
-        item.setType("专业技能");
-        item.setContent(List.of("待补充"));
-        skillDTO.setContent(List.of(item));
-        return skillService.create(skillDTO).getId();
-    }
-
-    private Long syncSkill(Long userId, Long currentSkillId, SkillRequest skillDto) {
-        if (skillDto.getId() != null) {
-            skillService.update(skillDto);
-            return skillDto.getId();
-        }
-        if (currentSkillId != null) {
-            skillDto.setId(currentSkillId);
-            skillService.update(skillDto);
-            return currentSkillId;
-        }
-        return skillService.create(skillDto).getId();
-    }
-
+    /**
+     * 同步教育经历
+     * 
+     * @param userId 用户编号
+     * @param incoming 教育经历请求
+     */
     private void syncEducations(Long userId, List<EducationRequest> incoming) {
         List<Education> existing = educationMapper.selectByUserId(userId);
         Set<Long> incomingIds = collectIncomingIds(incoming);
@@ -388,6 +315,9 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         if (dto instanceof AwardRequest awardDTO) {
             return awardDTO.getId();
         }
+        if (dto instanceof SkillRequest skillDTO) {
+            return skillDTO.getId();
+        }
         return null;
     }
 
@@ -431,6 +361,16 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         }
     }
 
+    private void requireOwnedSkill(Long id, Long userId) {
+        Skill skill = skillMapper.selectById(id);
+        if (skill == null) {
+            throw new BusinessException(ErrorCode.SKILL_NOT_FOUND);
+        }
+        if (!skill.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.NO_PERMISSION);
+        }
+    }
+
     private void requireOwnedAward(Long id, Long userId) {
         Award award = awardMapper.selectById(id);
         if (award == null) {
@@ -451,18 +391,13 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
     public ResumeImportParseResponse parseImport(ResumeImportParseRequest request) {
         log.info("开始识别简历结构化字段");
         Long userId = UserHolder.requireUserId();
-        List<String> warnings = new ArrayList<>();
         String sourceText = PdfParserUtil.normalizeExtractedText(resolveImportSourceText(request));
 
         ResumeImportParseResponse parsed;
         try {
             parsed = modelGateway.generateStructured(
                     CurrentActor.of(userId),
-                    StructuredModelRequest.of(
-                            sourceText,
-                            IMPORT_PROMPT,
-                            null,
-                            ResumeImportParseResponse.class));
+                    new ModelRequest(sourceText, IMPORT_PROMPT, null), ResumeImportParseResponse.class);
         } catch (BusinessException e) {
             throw e;
         } catch (IllegalStateException e) {
@@ -473,7 +408,7 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
             throw new BusinessException(ErrorCode.RESUME_IMPORT_PARSE_FAILED);
         }
 
-        normalizeImportResult(parsed, warnings);
+        normalizeImportResult(parsed);
         return parsed;
     }
 
@@ -510,14 +445,15 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         throw new BusinessException(ErrorCode.VALIDATION_ERROR, "必须提供 pdfUrl 或 rawText");
     }
 
-    private void normalizeImportResult(ResumeImportParseResponse result, List<String> warnings) {
+    /**
+     * 整理模型返回的简历。能解析到月份的日期写成 YYYY-MM-DD；奖项缺少月份时补成该年 1 月 1 日。
+     *
+     * @param result 导入结果
+     */
+    private void normalizeImportResult(ResumeImportParseResponse result) {
         if (result == null) {
             throw new BusinessException(ErrorCode.RESUME_IMPORT_PARSE_FAILED);
         }
-        if (result.getWarnings() == null) {
-            result.setWarnings(new ArrayList<>());
-        }
-        result.getWarnings().addAll(0, warnings);
 
         if (result.getEducations() == null) {
             result.setEducations(new ArrayList<>());
@@ -562,13 +498,11 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
             }
             item.setStartDate(formatDateString(parseFlexibleDate(item.getStartDate())));
             item.setEndDate(formatDateString(parseFlexibleDate(item.getEndDate())));
-            item.setHighlights(normalizeHighlights(item.getHighlights()));
             projects.add(item);
         }
         result.setProjects(projects);
 
         List<ResumeImportParseResponse.AwardItem> awards = new ArrayList<>();
-        Set<String> seenAwardKeys = new HashSet<>();
         for (ResumeImportParseResponse.AwardItem item : result.getAwards()) {
             if (item == null) {
                 continue;
@@ -580,21 +514,25 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
             if (!StringUtils.hasText(item.getName())) {
                 continue;
             }
-            item.setAwardType(AwardImportSupport.resolveAwardType(item.getAwardType(), item.getName()));
-            LocalDate awardDate = parseAwardDate(item, warnings);
-            item.setName(AwardImportSupport.cleanAwardName(item.getName()));
-            String key = AwardImportSupport.normalizeAwardNameKey(item.getName());
-            if (!seenAwardKeys.add(key)) {
-                continue;
-            }
-            item.setAwardDate(formatDateString(awardDate));
+            item.setName(item.getName().trim());
+            item.setAwardDate(formatDateString(parseAwardDate(item)));
             awards.add(item);
         }
         result.setAwards(awards);
 
-        if (result.getSkill() != null && result.getSkill().getContent() == null) {
-            result.getSkill().setContent(new ArrayList<>());
+        if (result.getSkills() == null) {
+            result.setSkills(new ArrayList<>());
         }
+        List<ResumeImportParseResponse.SkillImportItem> skills = new ArrayList<>();
+        for (ResumeImportParseResponse.SkillImportItem item : result.getSkills()) {
+            if (item == null || !StringUtils.hasText(item.getName())) {
+                continue;
+            }
+            item.setName(item.getName().trim());
+            item.setDescription(StringUtils.hasText(item.getDescription()) ? item.getDescription().trim() : null);
+            skills.add(item);
+        }
+        result.setSkills(skills);
     }
 
     private Integer normalizeDegree(Integer degree) {
@@ -604,7 +542,13 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         return degree;
     }
 
-    private LocalDate parseAwardDate(ResumeImportParseResponse.AwardItem item, List<String> warnings) {
+    /**
+     * 解析奖项日期。字段本身能解析到月份时直接采用；否则从名称、说明中取完整日期，仍没有月份时取出现的年份并补成 1 月 1 日。
+     *
+     * @param item 奖项
+     * @return 解析后的日期，无法识别时返回 null
+     */
+    private LocalDate parseAwardDate(ResumeImportParseResponse.AwardItem item) {
         LocalDate date = parseFlexibleDate(item.getAwardDate());
         if (date != null) {
             return date;
@@ -617,24 +561,26 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         if (date != null) {
             return date;
         }
-        date = extractYearAsJanFirst(item.getName(), warnings, item.getName());
+        date = extractYearAsJanFirst(item.getName());
         if (date != null) {
             return date;
         }
-        return extractYearAsJanFirst(item.getDescription(), warnings, item.getName());
+        return extractYearAsJanFirst(item.getDescription());
     }
 
-    private LocalDate extractYearAsJanFirst(String text, List<String> warnings, String awardName) {
+    /**
+     * 从文本中提取年份并补成该年 1 月 1 日。年份区间取起始年。
+     *
+     * @param text 奖项名称或说明
+     * @return 补全后的日期，没有年份时返回 null
+     */
+    private LocalDate extractYearAsJanFirst(String text) {
         if (!StringUtils.hasText(text)) {
             return null;
         }
         var range = Pattern.compile("(\\d{4})\\s*[-~至到—]\\s*(\\d{4})").matcher(text);
         if (range.find()) {
-            int year = Integer.parseInt(range.group(1));
-            if (StringUtils.hasText(awardName)) {
-                warnings.add("奖项「" + awardName + "」日期为区间，已取起始年 " + year + "-01-01");
-            }
-            return LocalDate.of(year, 1, 1);
+            return LocalDate.of(Integer.parseInt(range.group(1)), 1, 1);
         }
         LocalDate chineseDate = parseChineseDate(text);
         if (chineseDate != null) {
@@ -643,28 +589,16 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
         if (isChineseYearOnly(text)) {
             var yearOnly = Pattern.compile("^(\\d{4})年$").matcher(text.trim());
             if (yearOnly.matches()) {
-                int year = Integer.parseInt(yearOnly.group(1));
-                if (StringUtils.hasText(awardName)) {
-                    warnings.add("奖项「" + awardName + "」仅有年份，已设为 " + year + "-01-01");
-                }
-                return LocalDate.of(year, 1, 1);
+                return LocalDate.of(Integer.parseInt(yearOnly.group(1)), 1, 1);
             }
         }
         var yearInText = Pattern.compile("(\\d{4})\\s*年").matcher(text);
         if (yearInText.find()) {
-            int year = Integer.parseInt(yearInText.group(1));
-            if (StringUtils.hasText(awardName)) {
-                warnings.add("奖项「" + awardName + "」仅有年份，已设为 " + year + "-01-01");
-            }
-            return LocalDate.of(year, 1, 1);
+            return LocalDate.of(Integer.parseInt(yearInText.group(1)), 1, 1);
         }
         var bareYear = Pattern.compile("(?:^|\\D)(19\\d{2}|20\\d{2})(?:\\D|$)").matcher(text);
         if (bareYear.find()) {
-            int year = Integer.parseInt(bareYear.group(1));
-            if (StringUtils.hasText(awardName)) {
-                warnings.add("奖项「" + awardName + "」仅有年份，已设为 " + year + "-01-01");
-            }
-            return LocalDate.of(year, 1, 1);
+            return LocalDate.of(Integer.parseInt(bareYear.group(1)), 1, 1);
         }
         return null;
     }
@@ -736,77 +670,6 @@ public class ResumeServiceImpl extends ServiceImpl<ResumeMapper, Resume> impleme
 
     private String formatDateString(LocalDate date) {
         return date == null ? null : date.format(DateTimeFormatter.ISO_LOCAL_DATE);
-    }
-
-    /**
-     * highlights 归一化为 JSON 数组字符串（与 project_experiences.highlights 存储一致）。
-     */
-    private Object normalizeHighlights(Object highlights) {
-        if (highlights == null) {
-            return null;
-        }
-        if (highlights instanceof List<?> list) {
-            return ProjectHighlightsSupport.normalizeForStorage(list);
-        }
-        if (highlights instanceof String s) {
-            return ProjectHighlightsSupport.normalizeForStorage(s);
-        }
-        return ProjectHighlightsSupport.normalizeForStorage(String.valueOf(highlights));
-    }
-
-    /**
-     * 校验简历是否存在，返回简历实体
-     *
-     * @param id 简历ID
-     * @return 简历实体
-     * @throws BusinessException 如果简历不存在
-     */
-    private Resume requireResume(Long id) {
-        Resume resume = baseMapper.selectById(id);
-        if (resume == null) {
-            throw new BusinessException(ErrorCode.RESUME_NOT_FOUND);
-        }
-        return resume;
-    }
-
-    /**
-     * 校验简历是否存在且用户有权限操作，返回简历实体
-     *
-     * @param id     简历ID
-     * @param userId 用户ID
-     * @param action 操作类型（用于错误提示）
-     * @return 简历实体
-     * @throws BusinessException 如果简历不存在或用户无权限
-     */
-    private Resume requireResumeAndCheckOwnership(Long id, Long userId, String action) {
-        Resume resume = requireResume(id);
-        if (!resume.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION,
-                    ErrorCode.NO_PERMISSION.getMessage() + action + "他人简历");
-        }
-        return resume;
-    }
-
-    /**
-     * 轻量通用转换：用于字段名一致且无需复杂转换的实体->DTO映射
-     */
-    private <S, T> T convertSimpleEntityToDTO(S source, Class<T> targetClass) {
-        if (source == null) {
-            return null;
-        }
-        try {
-            T target = targetClass.getDeclaredConstructor().newInstance();
-            BeanUtils.copyProperties(source, target);
-            return target;
-        } catch (Exception e) {
-            throw new RuntimeException("对象转换失败: " + targetClass.getSimpleName(), e);
-        }
-    }
-
-    private ResumeResponse convertToResponse(Resume resume) {
-        ResumeResponse response = new ResumeResponse();
-        BeanUtils.copyProperties(resume, response);
-        return response;
     }
 
 }

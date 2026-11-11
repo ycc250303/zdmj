@@ -7,12 +7,9 @@ import { request } from '../request';
  */
 export namespace ResumeApi {
   // --- 技能模块 ---
-  export interface SkillItem {
-    type: string;
-    content: string[];
-  }
   export interface SkillCreate {
-    content: SkillItem[];
+    name: string;
+    description?: string;
   }
   export interface SkillUpdate extends SkillCreate {
     id: number;
@@ -54,7 +51,7 @@ export namespace ResumeApi {
     description: string;
     contribution: string;
     techStack?: string[];
-    highlights?: string;
+    highlights?: string[];
     url?: string;
     visible?: boolean;
   }
@@ -64,8 +61,6 @@ export namespace ResumeApi {
 
   // --- 获奖信息模块 ---
   export interface AwardCreate {
-    /** 1=奖学金, 2=竞赛获奖, 3=其他类型 */
-    awardType: number;
     name: string;
     awardDate: string;
     description?: string;
@@ -74,18 +69,11 @@ export namespace ResumeApi {
     id: number;
   }
 
-  // --- 简历模块 ---
-  export interface ResumeCreate {
-    skillId: number;
-  }
-  export interface ResumeUpdate extends ResumeCreate {
-    id: number;
-  }
-
   //展示层
   export interface SkillDTO {
     id: number;
-    content: SkillItem[];
+    name: string;
+    description?: string;
   }
 
   export interface EducationDTO {
@@ -118,14 +106,13 @@ export namespace ResumeApi {
     description: string;
     contribution: string;
     techStack?: string[];
-    highlights?: string;
+    highlights?: string[];
     url?: string;
     visible: boolean;
   }
 
   export interface AwardDTO {
     id: number;
-    awardType: number;
     name: string;
     awardDate: string;
     description?: string;
@@ -139,8 +126,7 @@ export namespace ResumeApi {
   }
 
   export interface ResumeContentDTO {
-    id: number;
-    skill: SkillDTO;
+    skills: SkillDTO[];
     educations: EducationDTO[];
     careers: CareerDTO[];
     projects: ProjectDTO[];
@@ -149,7 +135,7 @@ export namespace ResumeApi {
   }
 
   export interface ResumeContentSaveRequest {
-    skill: SkillCreate | SkillUpdate;
+    skills: Array<SkillCreate | SkillUpdate>;
     educations: Array<EducationCreate | EducationUpdate>;
     careers: Array<CareerCreate | CareerUpdate>;
     projects: Array<ProjectCreate | ProjectUpdate>;
@@ -194,20 +180,20 @@ export namespace ResumeApi {
     description?: string;
     contribution?: string;
     techStack?: string[];
-    highlights?: string;
+    highlights?: string[];
     url?: string;
     visible?: boolean;
   }
 
   export interface ResumeImportAwardItem {
-    awardType?: number;
     name?: string;
     awardDate?: string;
     description?: string;
   }
 
   export interface ResumeImportSkillItem {
-    content?: SkillItem[];
+    name?: string;
+    description?: string;
   }
 
   export interface ResumeImportParseResult {
@@ -216,7 +202,7 @@ export namespace ResumeApi {
     careers?: ResumeImportCareerItem[];
     projects?: ResumeImportProjectItem[];
     awards?: ResumeImportAwardItem[];
-    skill?: ResumeImportSkillItem;
+    skills?: ResumeImportSkillItem[];
     warnings?: string[];
   }
 
@@ -232,11 +218,7 @@ export namespace ResumeApi {
  * =====================================================================
  */
 
-export function fetchGetProjectList() {
-  return request<ResumeApi.ProjectDTO[]>({ url: '/projects', method: 'get' });
-}
-
-/** 当前用户简历列表。单用户只有一份简历，结果为 0 或 1 条。 */
+/** 当前用户简历列表。没有技能和经历时为空，有内容时为一条。 */
 export function fetchGetResumeFullContentList() {
   return request<ResumeApi.ResumeContentDTO[]>({ url: '/resumes/content', method: 'get' });
 }

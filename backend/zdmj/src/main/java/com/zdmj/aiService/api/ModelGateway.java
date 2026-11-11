@@ -25,22 +25,25 @@ public interface ModelGateway {
      * 按用户配置完成一次结构化生成。
      *
      * @param actor   当前操作者，用户主键为空时抛出 {@link ErrorCode#USER_NOT_LOGIN}
-     * @param request 结构化请求
+     * @param request 模型输入
+     * @param outputType 非空的结构化结果类型
      * @param <T>     结果类型
      * @return 解析后的对象
      * @throws BusinessException     用户未登录，或模型配置不可用
      * @throws IllegalStateException 模型输出无法解析为目标类型
+     * @throws IllegalArgumentException 结构化结果类型为空
      */
-    <T> T generateStructured(CurrentActor actor, StructuredModelRequest<T> request);
+    <T> T generateStructured(CurrentActor actor, ModelRequest request, Class<T> outputType);
 
     /**
      * 在指定会话中按用户配置流式输出。调用方传入会话标识后，网关绑定会话记忆。
      *
      * @param actor   当前操作者，用户主键为空时抛出 {@link ErrorCode#USER_NOT_LOGIN}
-     * @param request 流式请求，会话标识为空时抛出 {@link IllegalArgumentException}
+     * @param conversationId 非空的会话主键
+     * @param request 模型输入
      * @return 文本流
      * @throws BusinessException        用户未登录，或模型配置不可用
      * @throws IllegalArgumentException 会话标识为空
      */
-    Flux<String> stream(CurrentActor actor, StreamingModelRequest request);
+    Flux<String> stream(CurrentActor actor, Long conversationId, ModelRequest request);
 }

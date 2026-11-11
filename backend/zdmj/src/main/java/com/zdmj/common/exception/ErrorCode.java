@@ -44,6 +44,7 @@ public enum ErrorCode {
     USER_LLM_CONNECTION_TEST_FAILED(2014, "大模型连通性测试失败", HttpStatus.BAD_REQUEST),
     CAPTCHA_STORE_UNAVAILABLE(2015, "验证码存储服务暂不可用", HttpStatus.SERVICE_UNAVAILABLE),
     CAPTCHA_MAIL_UNAVAILABLE(2016, "验证码邮件发送失败，请稍后重试", HttpStatus.SERVICE_UNAVAILABLE),
+    USER_UPDATE_FAILED(2017, "用户信息更新失败", HttpStatus.BAD_REQUEST),
 
     // ========== 简历与能力画像 3xxx ==========
     RESUME_CREATE_FAILED(3002, "创建简历失败", HttpStatus.BAD_REQUEST),
@@ -83,7 +84,6 @@ public enum ErrorCode {
     AWARD_UPDATE_FAILED(6502, "更新获奖信息失败", HttpStatus.BAD_REQUEST),
     AWARD_DELETE_FAILED(6503, "删除获奖信息失败", HttpStatus.BAD_REQUEST),
     AWARD_NOT_FOUND(6504, "获奖信息不存在", HttpStatus.NOT_FOUND),
-    AWARD_TYPE_INVALID(6505, "奖项类型无效", HttpStatus.BAD_REQUEST),
 
     // ========== 技能 7xxx ==========
     SKILL_ADD_FAILED(7001, "添加技能失败", HttpStatus.BAD_REQUEST),

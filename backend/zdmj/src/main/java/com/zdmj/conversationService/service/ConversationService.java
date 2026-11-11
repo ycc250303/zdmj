@@ -1,6 +1,5 @@
 package com.zdmj.conversationService.service;
 
-import com.baomidou.mybatisplus.extension.service.IService;
 import com.zdmj.conversationService.dto.ConversationRequest;
 import com.zdmj.conversationService.dto.ConversationResponse;
 import com.zdmj.conversationService.entity.Conversation;
@@ -11,7 +10,7 @@ import java.util.Map;
 /**
  * 会话 Service
  */
-public interface ConversationService extends IService<Conversation> {
+public interface ConversationService {
 
     /**
      * 创建会话

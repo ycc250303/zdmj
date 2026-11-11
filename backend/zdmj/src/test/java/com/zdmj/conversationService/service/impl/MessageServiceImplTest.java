@@ -1,45 +1,5 @@
 package com.zdmj.conversationService.service.impl;
 
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.zdmj.common.context.UserContext;
-import com.zdmj.common.context.UserHolder;
-import com.zdmj.common.exception.BusinessException;
-import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.common.model.PageDTO;
-import com.zdmj.aiService.api.ModelGateway;
-import com.zdmj.conversationService.dto.ChatStreamRequest;
-import com.zdmj.conversationService.entity.Conversation;
-import com.zdmj.conversationService.dto.MessageResponse;
-import com.zdmj.conversationService.entity.Message;
-import com.zdmj.conversationService.mapper.ConversationMapper;
-import com.zdmj.conversationService.mapper.MessageMapper;
-import com.zdmj.conversationService.service.ConversationService;
-import com.zdmj.conversationService.support.ConversationContextSupport;
-import com.zdmj.knowledgeService.service.KnowledgeRagService;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.codec.ServerSentEvent;
-import org.springframework.transaction.support.SimpleTransactionStatus;
-import org.springframework.transaction.support.TransactionCallback;
-import org.springframework.transaction.support.TransactionTemplate;
-import reactor.core.Disposable;
-import reactor.core.publisher.Flux;
-
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -57,11 +17,54 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.zdmj.common.context.UserContext;
+import com.zdmj.common.context.UserHolder;
+import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.common.model.PageDTO;
+import com.zdmj.conversationService.dto.ChatStreamRequest;
+import com.zdmj.conversationService.dto.MessageResponse;
+import com.zdmj.conversationService.entity.Conversation;
+import com.zdmj.conversationService.entity.Message;
+import com.zdmj.conversationService.mapper.ConversationMapper;
+import com.zdmj.conversationService.mapper.MessageMapper;
+import com.zdmj.conversationService.service.ConversationService;
+import com.zdmj.conversationService.support.ConversationContextSupport;
+import com.zdmj.knowledgeService.service.KnowledgeRagService;
+
+import reactor.core.Disposable;
+import reactor.core.publisher.Flux;
+
 @ExtendWith(MockitoExtension.class)
 class MessageServiceImplTest {
 
-    @Mock
-    private ModelGateway modelGateway;
     @Mock
     private MessageMapper messageMapper;
     @Mock
@@ -82,13 +85,13 @@ class MessageServiceImplTest {
             return callback.doInTransaction(new SimpleTransactionStatus());
         });
         messageService = new MessageServiceImpl(
-                modelGateway,
                 messageMapper,
                 conversationService,
                 conversationMapper,
                 knowledgeRagService,
                 transactionTemplate);
         lenient().doReturn(2).when(conversationMapper).incrementMessageCountAndGet(anyLong(), anyLong(), anyInt());
+        lenient().doReturn(1).when(conversationMapper).updateTitleByIdAndUserId(anyLong(), anyLong(), anyString());
         UserHolder.set(UserContext.of(1L, "u1"));
     }
 
@@ -147,18 +150,18 @@ class MessageServiceImplTest {
         verify(messageMapper).insert(any(Message.class));
     }
 
-    @Test
-    void login_createStream_successCompleted_shouldPersistAndEmitDelta() {
+    @ParameterizedTest
+    @MethodSource("titleCases")
+    void login_createStream_successCompleted_shouldPersistTitleAndEmitDelta(String message, String title) {
         ChatStreamRequest dto = new ChatStreamRequest();
         dto.setConversationId(302L);
-        dto.setMessage("hello");
+        dto.setMessage(message);
         Conversation conversation = new Conversation();
         conversation.setId(302L);
         conversation.setMessageCount(0);
         doReturn(conversation).when(conversationService).requireOwned(302L);
-        doReturn("title").when(modelGateway).generate(any(), any());
         doReturn(Flux.just("he", "llo")).when(knowledgeRagService)
-                .streamAnswer(eq(1L), eq(302L), eq("hello"), isNull(), eq(false), any());
+                .streamAnswer(eq(1L), eq(302L), eq(message), isNull(), eq(false), any());
         AtomicInteger insertTimes = new AtomicInteger(0);
         org.mockito.Mockito.doAnswer(invocation -> {
             Message m = invocation.getArgument(0);
@@ -179,6 +182,15 @@ class MessageServiceImplTest {
         ArgumentCaptor<Message> assistantCaptor = ArgumentCaptor.forClass(Message.class);
         verify(messageMapper).updateById(assistantCaptor.capture());
         assertEquals("hello", assistantCaptor.getValue().getContent());
+        verify(conversationMapper).updateTitleByIdAndUserId(302L, 1L, title);
+    }
+
+    private static Stream<Arguments> titleCases() {
+        return Stream.of(
+                Arguments.of("hello", "hello"),
+                Arguments.of("  hello\n\tworld  ", "hello world"),
+                Arguments.of("😀".repeat(30), "😀".repeat(30)),
+                Arguments.of("😀".repeat(31), "😀".repeat(30) + "…"));
     }
 
     @Test
@@ -259,7 +271,6 @@ class MessageServiceImplTest {
         conversation.setMessageCount(0);
         doReturn(conversation).when(conversationService).requireOwned(conversationId);
 
-        doReturn("title-once").when(modelGateway).generate(any(), any());
         doReturn(Flux.just("ok")).when(knowledgeRagService)
                 .streamAnswer(eq(1L), eq(conversationId), anyString(), isNull(), eq(false), any());
 
@@ -319,7 +330,8 @@ class MessageServiceImplTest {
             verify(conversationMapper, times(2))
                     .incrementMessageCountAndGet(eq(conversationId), anyLong(), eq(2));
             verify(conversationMapper, times(1))
-                    .updateTitleByIdAndUserId(eq(conversationId), anyLong(), eq("title-once"));
+                    .updateTitleByIdAndUserId(eq(conversationId), anyLong(),
+                            org.mockito.ArgumentMatchers.argThat(title -> Set.of("hello-1", "hello-2").contains(title)));
         } finally {
             pool.shutdown();
             pool.awaitTermination(5, TimeUnit.SECONDS);

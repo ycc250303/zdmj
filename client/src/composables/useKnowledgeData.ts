@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { fetchGetProjectList } from '@/service/api/resume';
+import { fetchGetResumeFullContentList } from '@/service/api/resume';
 import type { ResumeApi } from '@/service/api/resume';
 
 /**
@@ -16,9 +16,9 @@ export function useKnowledgeData() {
   async function loadProjects() {
     projectLoading.value = true;
     try {
-      const { data, error } = await fetchGetProjectList();
+      const { data, error } = await fetchGetResumeFullContentList();
       if (!error && data) {
-        projectList.value = data;
+        projectList.value = data[0]?.projects ?? [];
       }
     } finally {
       projectLoading.value = false;

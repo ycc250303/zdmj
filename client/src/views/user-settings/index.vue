@@ -2,22 +2,19 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { FormInst, FormRules, SelectOption } from 'naive-ui';
 import {
+  type UserLlmConfig,
   fetchDeleteUserLlmConfig,
   fetchGetUserLlmConfig,
-  fetchListLlmModels,
-  fetchSaveUserLlmConfig,
-  fetchTestUserLlmConnection,
-  type UserLlmConfigApi
+  fetchSaveUserLlmConfig
 } from '@/service/api/user-llm-config';
 import { $t } from '@/locales';
 
 const formRef = ref<FormInst | null>(null);
 const loading = ref(false);
 const saving = ref(false);
-const testing = ref(false);
 const deleting = ref(false);
 
-const config = ref<UserLlmConfigApi.Config | null>(null);
+const config = ref<UserLlmConfig | null>(null);
 const modelOptions = ref<SelectOption[]>([]);
 
 const formData = reactive({
@@ -41,13 +38,11 @@ const statusTag = computed(() => {
 async function loadData() {
   loading.value = true;
   try {
-    const [configRes, modelsRes] = await Promise.all([fetchGetUserLlmConfig(), fetchListLlmModels()]);
-    if (!configRes.error && configRes.data) {
-      config.value = configRes.data;
-      formData.modelCode = configRes.data.modelCode || '';
-    }
-    if (!modelsRes.error && modelsRes.data) {
-      modelOptions.value = modelsRes.data.map(item => ({
+    const { error, data } = await fetchGetUserLlmConfig();
+    if (!error && data) {
+      config.value = data;
+      formData.modelCode = data.modelCode || '';
+      modelOptions.value = data.models.map(item => ({
         label: item.displayName,
         value: item.code
       }));
@@ -83,27 +78,6 @@ async function handleSave() {
   }
 }
 
-async function handleTest() {
-  try {
-    await formRef.value?.validate();
-  } catch {
-    return;
-  }
-
-  testing.value = true;
-  try {
-    const { error } = await fetchTestUserLlmConnection({
-      modelCode: formData.modelCode,
-      apiKey: formData.apiKey.trim()
-    });
-    if (!error) {
-      window.$message?.success($t('page.userSettings.testSuccess'));
-    }
-  } finally {
-    testing.value = false;
-  }
-}
-
 function handleDelete() {
   window.$dialog?.warning({
     title: $t('common.tip'),
@@ -136,7 +110,7 @@ onMounted(() => {
     <NSpin :show="loading">
       <div class="mx-auto max-w-720px">
         <div class="mb-24px">
-          <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-200">{{ $t('page.userSettings.title') }}</h1>
+          <h1 class="text-2xl text-gray-800 font-bold dark:text-gray-200">{{ $t('page.userSettings.title') }}</h1>
           <p class="mt-8px text-sm text-gray-500 dark:text-gray-400">{{ $t('page.userSettings.desc') }}</p>
         </div>
 
@@ -151,7 +125,14 @@ onMounted(() => {
             </span>
           </div>
 
-          <NForm ref="formRef" :model="formData" :rules="rules" label-placement="top" require-mark-placement="right-hanging">
+          <NForm
+            ref="formRef"
+            :model="formData"
+            :rules="rules"
+            :disabled="saving || deleting"
+            label-placement="top"
+            require-mark-placement="right-hanging"
+          >
             <NFormItem :label="$t('page.userSettings.model')" path="modelCode">
               <NSelect
                 v-model:value="formData.modelCode"
@@ -174,13 +155,17 @@ onMounted(() => {
             </NFormItem>
 
             <div class="flex flex-wrap gap-12px pt-8px">
-              <NButton type="primary" :loading="saving" @click="handleSave">
+              <NButton type="primary" :loading="saving" :disabled="deleting || loading" @click="handleSave">
                 {{ $t('page.userSettings.save') }}
               </NButton>
-              <NButton :loading="testing" @click="handleTest">
-                {{ $t('page.userSettings.test') }}
-              </NButton>
-              <NButton v-if="config?.configured" type="error" ghost :loading="deleting" @click="handleDelete">
+              <NButton
+                v-if="config?.configured"
+                type="error"
+                ghost
+                :loading="deleting"
+                :disabled="saving || loading"
+                @click="handleDelete"
+              >
                 {{ $t('page.userSettings.clearConfig') }}
               </NButton>
             </div>

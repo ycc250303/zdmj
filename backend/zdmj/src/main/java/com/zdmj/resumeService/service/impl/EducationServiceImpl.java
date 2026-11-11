@@ -10,12 +10,11 @@ import com.zdmj.resumeService.entity.Education;
 import com.zdmj.resumeService.mapper.EducationMapper;
 import com.zdmj.resumeService.mapper.EducationStructMapper;
 import com.zdmj.resumeService.service.EducationService;
+import com.zdmj.resumeService.utils.DateRangeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -27,11 +26,10 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
     @Override
     public EducationResponse create(EducationRequest educationRequest) {
         Long userId = UserHolder.requireUserId();
-
-        if (educationRequest.getStartDate() != null && educationRequest.getEndDate() != null
-                && educationRequest.getEndDate().isBefore(educationRequest.getStartDate())) {
-            throw new BusinessException(ErrorCode.EDUCATION_GRADUATE_TIME_INVALID);
-        }
+        DateRangeUtil.rejectIfEndBeforeStart(
+                educationRequest.getStartDate(),
+                educationRequest.getEndDate(),
+                ErrorCode.EDUCATION_GRADUATE_TIME_INVALID);
 
         Education education = new Education();
         education.setUserId(userId);
@@ -45,7 +43,7 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
         if (!saved) {
             throw new BusinessException(ErrorCode.EDUCATION_ADD_FAILED);
         }
-        log.info("添加教育经历成功: {}", education.getSchool());
+        log.info("用户 {} 添加教育经历成功: id={}", userId, education.getId());
         return convertToResponse(education);
     }
 
@@ -56,12 +54,10 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
         Education existingEducation = requireEducationAndCheckOwnership(id, userId, "修改");
 
         educationPatchMapper.updateEntityFromDto(educationRequest, existingEducation);
-
-        if (existingEducation.getStartDate() != null && existingEducation.getEndDate() != null) {
-            if (existingEducation.getEndDate().isBefore(existingEducation.getStartDate())) {
-                throw new BusinessException(ErrorCode.EDUCATION_GRADUATE_TIME_INVALID);
-            }
-        }
+        DateRangeUtil.rejectIfEndBeforeStart(
+                existingEducation.getStartDate(),
+                existingEducation.getEndDate(),
+                ErrorCode.EDUCATION_GRADUATE_TIME_INVALID);
 
         boolean updated = updateById(existingEducation);
         if (!updated) {
@@ -83,17 +79,6 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
         }
 
         log.info("用户 {} 删除教育经历成功: id={}", userId, id);
-    }
-
-    @Override
-    public EducationResponse getById(Long id) {
-        return convertToResponse(requireEducation(id));
-    }
-
-    @Override
-    public List<EducationResponse> getByUserId() {
-        Long userId = UserHolder.requireUserId();
-        return baseMapper.selectByUserId(userId).stream().map(this::convertToResponse).toList();
     }
 
     private EducationResponse convertToResponse(Education education) {

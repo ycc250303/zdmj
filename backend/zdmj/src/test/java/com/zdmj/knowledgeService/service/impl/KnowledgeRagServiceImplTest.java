@@ -29,7 +29,6 @@ import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
-import com.zdmj.aiService.api.StreamingModelRequest;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrievalResponse;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
@@ -70,7 +69,7 @@ class KnowledgeRagServiceImplTest {
         assertEquals(ErrorCode.KNOWLEDGE_RETRIEVAL_FAILED.getCode(), ex.getCode());
         assertInstanceOf(RuntimeException.class, ex.getCause());
         assertEquals("embed fail", ex.getCause().getMessage());
-        verify(modelGateway, never()).stream(any(), any());
+        verify(modelGateway, never()).stream(any(), any(), any());
         verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
     }
 
@@ -84,7 +83,7 @@ class KnowledgeRagServiceImplTest {
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
         when(knowledgeVectorMapper.searchBySimilarity(401L, 501L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of());
-        when(modelGateway.stream(eq(CurrentActor.of(401L)), eq(new StreamingModelRequest(13L, "hello", "system", null))))
+        when(modelGateway.stream(eq(CurrentActor.of(401L)), eq(13L), eq(new ModelRequest("hello", "system", null))))
                 .thenReturn(Flux.just("fallback-system"));
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
@@ -114,7 +113,7 @@ class KnowledgeRagServiceImplTest {
         hit.setMetadata(Map.of("source", "test"));
         when(knowledgeVectorMapper.searchBySimilarity(402L, 502L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of(hit));
-        when(modelGateway.stream(eq(CurrentActor.of(402L)), argThat((StreamingModelRequest req) -> Long.valueOf(14L).equals(req.conversationId()) && "hello question".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName()))))
+        when(modelGateway.stream(eq(CurrentActor.of(402L)), eq(14L), argThat((ModelRequest req) -> "hello question".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName()))))
                 .thenReturn(Flux.just("rag-answer"));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
@@ -148,7 +147,7 @@ class KnowledgeRagServiceImplTest {
         hit.setContent("命中内容");
         when(knowledgeVectorMapper.searchBySimilarity(eq(403L), eq(503L), eq("[0.3,0.4]"), anyInt()))
                 .thenReturn(List.of(hit));
-        when(modelGateway.stream(eq(CurrentActor.of(403L)), argThat((StreamingModelRequest req) -> Long.valueOf(15L).equals(req.conversationId()) && "raw question".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName()))))
+        when(modelGateway.stream(eq(CurrentActor.of(403L)), eq(15L), argThat((ModelRequest req) -> "raw question".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName()))))
                 .thenReturn(Flux.just("rewritten-rag-answer"));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
@@ -167,7 +166,7 @@ class KnowledgeRagServiceImplTest {
     void streamAnswerEmptyDocumentSelection_shouldFallbackSystemPrompt() {
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
-        when(modelGateway.stream(eq(CurrentActor.of(1L)), eq(new StreamingModelRequest(16L, "hello", "system", null))))
+        when(modelGateway.stream(eq(CurrentActor.of(1L)), eq(16L), eq(new ModelRequest("hello", "system", null))))
                 .thenReturn(Flux.just("no-rag"));
 
         List<String> chunks = service.streamAnswer(1L, 16L, "hello", List.of(), false, null).collectList().block();
@@ -194,7 +193,7 @@ class KnowledgeRagServiceImplTest {
         when(knowledgeVectorMapper.searchBySimilarity(
                 KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.5,0.6]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of(hit));
-        when(modelGateway.stream(eq(CurrentActor.of(404L)), argThat((StreamingModelRequest req) -> Long.valueOf(17L).equals(req.conversationId()) && "system only".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName()))))
+        when(modelGateway.stream(eq(CurrentActor.of(404L)), eq(17L), argThat((ModelRequest req) -> "system only".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName()))))
                 .thenReturn(Flux.just("system-rag"));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
@@ -236,7 +235,7 @@ class KnowledgeRagServiceImplTest {
         assertEquals("rewrite fail", ex.getCause().getMessage());
         verify(embeddingGateway, never()).embed(any(), any());
         verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
-        verify(modelGateway, never()).stream(any(), any());
+        verify(modelGateway, never()).stream(any(), any(), any());
     }
 
     @Test

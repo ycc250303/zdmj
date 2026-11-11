@@ -3,6 +3,7 @@ package com.zdmj.userAuthService.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.DateTimeUtil;
@@ -124,13 +125,16 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
         return response;
     }
 
+    /**
+     * 查询当前登录用户的资料。目标编号必须与认证身份一致。
+     *
+     * @param id 用户编号
+     * @return 用户信息
+     * @throws BusinessException 未登录、编号不属于当前用户或用户不存在
+     */
     @Override
     public UserResponse getUserById(Long id) {
-        User user = getById(id);
-        if (user == null) {
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-        }
-        return convertToResponse(user);
+        return convertToResponse(requireOwnedUser(id));
     }
 
     @Override
@@ -174,33 +178,80 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
         log.info("用户密码重置成功: userId={}, email={}", user.getId(), resetPasswordDTO.getEmail());
     }
 
+    /**
+     * 确认目标用户就是当前登录用户后，按请求中的非 null 资料字段生成定向更新，并写入当前更新时间。
+     * 返回值按查询结果合并这些字段得到。四个资料字段都未提供时直接返回查询结果。
+     *
+     * @param userId 用户编号
+     * @param updateDTO 待更新字段
+     * @return 合并请求内容后的用户信息
+     * @throws BusinessException 未登录、编号不属于当前用户、用户不存在或写入未成功
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public UserResponse updateProfile(Long userId, UserUpdateRequest updateDTO) {
+        // 1. 确认目标用户就是当前登录用户
+        User user = requireOwnedUser(userId);
+
+        // 2. 只收集本次提供的资料字段
+        LambdaUpdateWrapper<User> update = new LambdaUpdateWrapper<User>()
+                .eq(User::getId, user.getId());
+        boolean changed = false;
+        if (updateDTO.getName() != null) {
+            String name = updateDTO.getName().trim();
+            user.setName(name);
+            update.set(User::getName, name);
+            changed = true;
+        }
+        if (updateDTO.getPhone() != null) {
+            String phone = updateDTO.getPhone().trim();
+            user.setPhone(phone);
+            update.set(User::getPhone, phone);
+            changed = true;
+        }
+        if (updateDTO.getWebsite() != null) {
+            String website = updateDTO.getWebsite().trim();
+            user.setWebsite(website);
+            update.set(User::getWebsite, website);
+            changed = true;
+        }
+        if (updateDTO.getPreferredWorkCity() != null) {
+            String city = updateDTO.getPreferredWorkCity().trim();
+            user.setPreferredWorkCity(city);
+            update.set(User::getPreferredWorkCity, city);
+            changed = true;
+        }
+        if (!changed) {
+            return convertToResponse(user);
+        }
+
+        // 3. 定向更新资料字段和更新时间
+        update.set(User::getUpdatedAt, DateTimeUtil.now());
+        if (!update(update)) {
+            throw new BusinessException(ErrorCode.USER_UPDATE_FAILED);
+        }
+        log.info("用户信息更新成功: userId={}", userId);
+        return convertToResponse(user);
+    }
+
+    /**
+     * 确认目标编号属于当前登录用户，并读取该用户。
+     * 编号不一致时不查询数据库。
+     *
+     * @param userId 目标用户编号
+     * @return 当前用户
+     * @throws BusinessException 未登录、编号不属于当前用户或用户不存在
+     */
+    private User requireOwnedUser(Long userId) {
+        Long currentUserId = UserHolder.requireUserId();
+        if (userId == null || !userId.equals(currentUserId)) {
+            throw new BusinessException(ErrorCode.NO_PERMISSION);
+        }
         User user = getById(userId);
         if (user == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
-
-        if (updateDTO.getName() != null) {
-            user.setName(updateDTO.getName().trim());
-        }
-        if (updateDTO.getPhone() != null) {
-            user.setPhone(updateDTO.getPhone().trim());
-        }
-        if (updateDTO.getWebsite() != null) {
-            user.setWebsite(updateDTO.getWebsite().trim());
-        }
-        if (updateDTO.getPreferredWorkCity() != null) {
-            user.setPreferredWorkCity(updateDTO.getPreferredWorkCity().trim());
-        }
-        boolean updated = updateById(user);
-        if (!updated) {
-            throw new BusinessException(ErrorCode.USER_REGISTER_FAILED);
-        }
-
-        log.info("用户信息更新成功: userId={}", userId);
-        return convertToResponse(user);
+        return user;
     }
 
     /**
@@ -222,5 +273,4 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
         BeanUtils.copyProperties(user, dto);
         return dto;
     }
-
 }

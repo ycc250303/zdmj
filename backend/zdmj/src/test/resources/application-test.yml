@@ -12,9 +12,6 @@ spring:
     openai:
       base-url: http://127.0.0.1:9
       api-key: ""
-      chat:
-        options:
-          model: test-fixed
   mail:
     host: 127.0.0.1
     port: 1

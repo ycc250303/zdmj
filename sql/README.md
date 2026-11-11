@@ -46,8 +46,6 @@ psql -U postgres -d your_database_name -f 2026-02-10.sql
 - `skills`: 技能表
 - `careers`: 工作/实习经历表
 - `project_experiences`: 项目经历表
-- `resumes`: 简历表
-- `resume_matches`: 专用简历表（针对岗位定制）
 
 ### 项目模块
 - `projects`: 项目经验表（使用JSONB替代MongoDB）

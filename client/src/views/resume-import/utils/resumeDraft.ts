@@ -20,10 +20,14 @@ export type DraftAward = Omit<ResumeApi.AwardDTO, 'id'> & {
   _key: string;
 };
 
+export type DraftSkill = Omit<ResumeApi.SkillDTO, 'id'> & {
+  id?: number;
+  _key: string;
+};
+
 export interface ResumeContentDraft {
-  id: number;
   personalInfo: ResumeApi.ResumePersonalInfo;
-  skill: ResumeApi.SkillDTO;
+  skills: DraftSkill[];
   educations: DraftEducation[];
   careers: DraftCareer[];
   projects: DraftProject[];
@@ -43,44 +47,16 @@ function newKey(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function defaultSkill(): ResumeApi.SkillDTO {
-  return {
-    id: 0,
-    content: [{ type: '专业技能', content: ['待补充'] }]
-  };
-}
-
-type ImportAwardLike = ResumeApi.ResumeImportAwardItem & Record<string, unknown>;
-
-function inferAwardTypeFromName(name: string): number {
-  if (/奖学金|助学金/.test(name)) return 1;
-  if (/竞赛|比赛|大赛|杯|挑战赛|Contest/i.test(name)) return 2;
-  return 3;
-}
-
-function resolveImportAwardType(rawType: unknown, name: string): number {
-  const fromName = inferAwardTypeFromName(name);
-  if (fromName === 1 || fromName === 2) return fromName;
-  if (typeof rawType === 'number' && rawType >= 1 && rawType <= 3) return rawType;
-  return 3;
-}
-
-function normalizeImportAwardItem(raw: ImportAwardLike) {
-  const name = trimOrEmpty(
-    raw.name ?? (raw.awardName as string | undefined) ?? (raw.title as string | undefined) ?? (raw.honor as string | undefined)
-  );
-  const awardDate = trimOrEmpty(
-    raw.awardDate ?? (raw.date as string | undefined) ?? (raw.award_date as string | undefined)
-  );
-  const rawType = raw.awardType ?? raw.award_type ?? raw.type;
+function normalizeImportAwardItem(raw: ResumeApi.ResumeImportAwardItem) {
+  const name = trimOrEmpty(raw.name);
+  const awardDate = trimOrEmpty(raw.awardDate);
   if (!name || !awardDate) {
     return null;
   }
   return {
-    awardType: resolveImportAwardType(rawType, name),
     name,
     awardDate,
-    description: trimOrEmpty(raw.description as string | undefined) || undefined
+    description: trimOrEmpty(raw.description) || undefined
   };
 }
 
@@ -130,7 +106,7 @@ export function buildDraftFromImportResult(
       description: project.description || '',
       contribution: project.contribution || '',
       techStack: project.techStack ?? [],
-      highlights: typeof project.highlights === 'string' ? project.highlights : undefined,
+      highlights: project.highlights ?? [],
       url: project.url,
       visible: project.visible ?? true
     });
@@ -139,36 +115,38 @@ export function buildDraftFromImportResult(
   const awards: DraftAward[] = [];
   const parsedAwards = parsed.awards ?? [];
   for (const award of parsedAwards) {
-    const normalized = normalizeImportAwardItem(award as ImportAwardLike);
+    const normalized = normalizeImportAwardItem(award);
     if (!normalized) continue;
     awards.push({
       _key: newKey('import-award'),
-      awardType: normalized.awardType,
       name: normalized.name,
       awardDate: normalized.awardDate,
       description: normalized.description
     });
   }
 
-  const parsedSkillContent = parsed.skill?.content?.length
-    ? parsed.skill.content.map(item => ({
-        type: item.type?.trim() || '专业技能',
-        content: [...(item.content ?? [])]
-      }))
-    : [{ type: '专业技能', content: ['待补充'] }];
+  const skills: DraftSkill[] = (parsed.skills ?? []).flatMap(skill => {
+    const name = trimOrEmpty(skill.name);
+    if (!name) {
+      return [];
+    }
+    return [
+      {
+        _key: newKey('import-skill'),
+        name,
+        description: trimOrEmpty(skill.description)
+      }
+    ];
+  });
 
   const draft: ResumeContentDraft = {
-    id: base.id,
     personalInfo: defaultPersonalInfo({
       name: parsed.personalInfo?.name ?? base.personalInfo?.name,
       phone: parsed.personalInfo?.phone ?? base.personalInfo?.phone,
       homepageUrl: parsed.personalInfo?.homepageUrl ?? base.personalInfo?.homepageUrl,
       preferredWorkCity: parsed.personalInfo?.preferredWorkCity ?? base.personalInfo?.preferredWorkCity
     }),
-    skill: {
-      id: base.skill?.id ?? 0,
-      content: parsedSkillContent
-    },
+    skills,
     educations,
     careers,
     projects,
@@ -185,15 +163,12 @@ function previewId(id: number | undefined, index: number) {
 /** 把编辑草稿转成模板预览使用的简历内容。未保存条目使用负数编号，避免列表键重复。 */
 export function draftToPreview(draft: ResumeContentDraft): ResumeApi.ResumeContentDTO {
   return {
-    id: draft.id,
     personalInfo: { ...draft.personalInfo },
-    skill: {
-      id: draft.skill.id,
-      content: draft.skill.content.map(item => ({
-        type: item.type,
-        content: [...(item.content ?? [])]
-      }))
-    },
+    skills: draft.skills.map((item, index) => ({
+      id: previewId(item.id, index),
+      name: item.name,
+      description: item.description
+    })),
     educations: draft.educations.map((item, index) => ({
       id: previewId(item.id, index),
       school: item.school,
@@ -228,7 +203,6 @@ export function draftToPreview(draft: ResumeContentDraft): ResumeApi.ResumeConte
     })),
     awards: draft.awards.map((item, index) => ({
       id: previewId(item.id, index),
-      awardType: item.awardType,
       name: item.name,
       awardDate: item.awardDate,
       description: item.description
@@ -238,17 +212,13 @@ export function draftToPreview(draft: ResumeContentDraft): ResumeApi.ResumeConte
 
 export function cloneResumeForEdit(source: ResumeApi.ResumeContentDTO): ResumeContentDraft {
   return {
-    id: source.id,
     personalInfo: defaultPersonalInfo(source.personalInfo),
-    skill: source.skill
-      ? {
-          id: source.skill.id,
-          content: source.skill.content?.map(item => ({
-            type: item.type,
-            content: [...(item.content ?? [])]
-          })) ?? [{ type: '专业技能', content: ['待补充'] }]
-        }
-      : defaultSkill(),
+    skills: (source.skills ?? []).map(skill => ({
+      id: skill.id,
+      name: skill.name,
+      description: skill.description ?? '',
+      _key: String(skill.id)
+    })),
     educations: (source.educations ?? []).map(edu => ({
       ...edu,
       _key: String(edu.id)
@@ -260,6 +230,7 @@ export function cloneResumeForEdit(source: ResumeApi.ResumeContentDTO): ResumeCo
     projects: (source.projects ?? []).map(project => ({
       ...project,
       techStack: project.techStack ?? [],
+      highlights: project.highlights ?? [],
       _key: String(project.id)
     })),
     awards: (source.awards ?? []).map(award => ({
@@ -304,6 +275,7 @@ export function createEmptyProject(): DraftProject {
     description: '',
     contribution: '',
     techStack: [],
+    highlights: [],
     visible: true,
     url: ''
   };
@@ -312,7 +284,6 @@ export function createEmptyProject(): DraftProject {
 export function createEmptyAward(): DraftAward {
   return {
     _key: newKey('award'),
-    awardType: 3,
     name: '',
     awardDate: '',
     description: ''
@@ -373,7 +344,8 @@ function isBlankDraftProject(project: DraftProject): boolean {
     && !trimOrEmpty(project.description)
     && !trimOrEmpty(project.contribution)
     && !trimOrEmpty(project.url)
-    && !(project.techStack?.length);
+    && !(project.techStack?.length)
+    && !(project.highlights?.length);
 }
 
 function isCompleteProject(project: DraftProject): boolean {
@@ -392,7 +364,7 @@ function isBlankDraftAward(award: DraftAward): boolean {
 }
 
 function isCompleteAward(award: DraftAward): boolean {
-  return Boolean(award.awardType && trimOrEmpty(award.name) && trimOrEmpty(award.awardDate));
+  return Boolean(trimOrEmpty(award.name) && trimOrEmpty(award.awardDate));
 }
 
 function mapEducation(edu: DraftEducation): ResumeApi.EducationCreate | ResumeApi.EducationUpdate {
@@ -437,8 +409,8 @@ function mapProject(project: DraftProject): ResumeApi.ProjectCreate | ResumeApi.
     contribution: trimOrEmpty(project.contribution),
     ...(trimOrEmpty(project.endDate) ? { endDate: trimOrEmpty(project.endDate) } : {}),
     ...(project.techStack?.length ? { techStack: project.techStack } : {}),
-    ...(trimOrEmpty(project.url) ? { url: trimOrEmpty(project.url) } : {}),
-    ...(project.highlights ? { highlights: project.highlights } : {})
+    ...(project.highlights?.length ? { highlights: project.highlights } : {}),
+    ...(trimOrEmpty(project.url) ? { url: trimOrEmpty(project.url) } : {})
   });
 }
 
@@ -448,34 +420,35 @@ function mapAward(award: DraftAward): ResumeApi.AwardCreate | ResumeApi.AwardUpd
   }
   return {
     ...(award.id ? { id: award.id } : {}),
-    awardType: award.awardType,
     name: trimOrEmpty(award.name),
     awardDate: trimOrEmpty(award.awardDate),
     ...(trimOrEmpty(award.description) ? { description: trimOrEmpty(award.description) } : {})
   };
 }
 
+export function createEmptySkill(): DraftSkill {
+  return {
+    _key: newKey('skill'),
+    name: '',
+    description: ''
+  };
+}
+
 export function buildSaveRequest(draft: ResumeContentDraft): ResumeApi.ResumeContentSaveRequest {
-  if (!draft.skill?.content?.length) {
-    throw new Error('skillRequired');
-  }
-
-  const skillContent = draft.skill.content
+  const skills = draft.skills
     .map(item => ({
-      type: item.type?.trim() || '专业技能',
-      content: (item.content ?? []).map(s => s.trim()).filter(Boolean)
+      ...(item.id ? { id: item.id } : {}),
+      name: trimOrEmpty(item.name),
+      ...(trimOrEmpty(item.description) ? { description: trimOrEmpty(item.description) } : {})
     }))
-    .filter(item => item.content.length > 0);
+    .filter(item => item.name);
 
-  if (!skillContent.length) {
+  if (!skills.length) {
     throw new Error('skillRequired');
   }
 
   return {
-    skill: {
-      ...(draft.skill.id ? { id: draft.skill.id } : {}),
-      content: skillContent
-    },
+    skills,
     personalInfo: {
       name: trimOrEmpty(draft.personalInfo.name),
       phone: trimOrEmpty(draft.personalInfo.phone),

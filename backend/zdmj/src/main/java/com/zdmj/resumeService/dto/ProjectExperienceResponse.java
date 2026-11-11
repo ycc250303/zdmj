@@ -33,7 +33,7 @@ public class ProjectExperienceResponse {
 
     private List<String> techStack;
 
-    private String highlights;
+    private List<String> highlights;
 
     private String url;
 

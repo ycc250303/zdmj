@@ -19,6 +19,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import com.jayway.jsonpath.JsonPath;
 import com.zdmj.testsupport.ApiClient;
 import com.zdmj.testsupport.ExternalAiStubConfig;
 import com.zdmj.testsupport.IntegrationTestBase;
@@ -48,17 +49,44 @@ class TransactionBoundaryIT extends IntegrationTestBase {
     @Test
     void 简历保存_中途业务失败_已写入的技能与教育经历回滚() throws Exception {
         String token = testJwt.authorize(testUsers.createPair().userA());
-        long skillId = ApiClient.dataId(api.post(token, "/skills", skillJson("Java")));
-        ApiClient.requireOk(api.put(token, "/resumes/me/content", contentJson(null, "Java", "测试大学")));
+        String saved = ApiClient.requireOk(api.put(token, "/resumes/me/content", contentJson(null, "Java", "测试大学")));
+        long skillId = JsonPath.<Number>read(saved, "$.data.skills[0].id").longValue();
 
         MvcResult rejected = api.put(token, "/resumes/me/content", contentJson(9_999_999_999L, "Python", "回滚大学"));
         ApiClient.assertProblem(rejected, 404, 6005);
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT content::text FROM skills WHERE id = ?", String.class, skillId)).contains("Java");
+                "SELECT name FROM skills WHERE id = ?", String.class, skillId)).isEqualTo("Java");
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM educations WHERE school = '回滚大学'", Integer.class)).isZero();
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM educations WHERE school = '测试大学'", Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    void 首次会话_标题写入失败_消息与会话计数回滚() throws Exception {
+        String token = testJwt.authorize(testUsers.createPair().userA());
+        long conversationId = ApiClient.dataId(api.post(token, "/conversations", """
+                {"config":{"useSystemKnowledge":false,"ragDocumentIds":[]}}
+                """));
+        String originalTitle = jdbcTemplate.queryForObject(
+                "SELECT title FROM conversations WHERE id = ?", String.class, conversationId);
+        jdbcTemplate.execute("ALTER TABLE conversations ADD CONSTRAINT test_reject_title CHECK (title <> '失败标题')");
+        try {
+            ApiClient.assertProblem(api.post(token, "/messages/chat", """
+                    {"conversationId":%d,"message":"失败标题"}
+                    """.formatted(conversationId)), 500, 1008);
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT count(*) FROM messages WHERE conversation_id = ?", Integer.class, conversationId))
+                    .isZero();
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT message_count FROM conversations WHERE id = ?", Integer.class, conversationId))
+                    .isZero();
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT title FROM conversations WHERE id = ?", String.class, conversationId))
+                    .isEqualTo(originalTitle);
+        } finally {
+            jdbcTemplate.execute("ALTER TABLE conversations DROP CONSTRAINT test_reject_title");
+        }
     }
 
     @Test
@@ -93,19 +121,15 @@ class TransactionBoundaryIT extends IntegrationTestBase {
         assertThat(created).isNotNull();
     }
 
-    private static String skillJson(String item) {
-        return "{\"content\":[{\"type\":\"编程语言\",\"content\":[\"" + item + "\"]}]}";
-    }
-
     private static String contentJson(Long educationId, String skillItem, String school) {
         String educationIdField = educationId == null ? "" : "\"id\":" + educationId + ",";
         return """
                 {
-                  "skill": {"content": [{"type": "编程语言", "content": ["%s"]}]},
+                  "skills": [{"name": "%s"}],
                   "educations": [{%s"school": "%s", "major": "计算机", "degree": 3, "startDate": "2020-09-01", "endDate": "2024-06-30", "gpa": "3.8"}],
                   "careers": [{"company": "测试公司", "position": "后端实习生", "startDate": "2023-07-01"}],
                   "projects": [{"name": "测试项目", "startDate": "2023-01-01", "role": "开发", "description": "实现接口", "contribution": "完成后端"}],
-                  "awards": [{"awardType": 2, "name": "测试奖项", "awardDate": "2024-05-01"}]
+                  "awards": [{"name": "测试奖项", "awardDate": "2024-05-01"}]
                 }
                 """.formatted(skillItem, educationIdField, school);
     }

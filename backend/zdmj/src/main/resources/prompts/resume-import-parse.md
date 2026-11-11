@@ -48,20 +48,20 @@
 | description         | 项目描述                               |
 | contribution        | 个人贡献                               |
 | techStack           | 字符串数组，如 ["Java", "Spring Boot"] |
-| highlights          | 亮点数组或字符串                       |
+| highlights          | 字符串数组，每项一条亮点；没有则 []    |
 | url                 | 项目链接                               |
 
-### skill（对应 skills 表）
+### skills[]（对应 skills 表，一项技能一行）
 
-| 字段    | 说明                                                               |
-| ------- | ------------------------------------------------------------------ |
-| content | 数组，每项 `{ "type": "分类名", "content": ["技能1", "技能2"] }`；常见 type：编程语言、框架、数据库、开发工具、语言证书等，无法分类时放入「专业技能」 |
+| 字段        | 说明                                              |
+| ----------- | ------------------------------------------------- |
+| name        | 技能名称，如 Java、Spring Boot、英语六级          |
+| description | 可选说明，原文没有则 null；不要把分类名写进说明 |
 
 ### awards[]（对应 awards 表）
 
 | 字段        | 说明                                   |
 | ----------- | -------------------------------------- |
-| awardType   | 1 奖学金/助学金；2 竞赛/比赛/大赛/杯/挑战赛/Contest；3 其他荣誉 |
 | name        | 奖项完整名称（含「二等奖」等等级）     |
 | awardDate   | 获奖时间，格式 YYYY-MM-DD              |
 | description | 可选说明（如项目负责人）               |
@@ -69,7 +69,7 @@
 - 线索（奖学金、助学金、xx等奖、第 x 名、冠亚季军）各抽一条；同句混有 GPA/课程/项目角色时仍要抽，不要整句丢弃
 - 顿号/逗号/「和」连写的多奖必须拆成多条独立 `name`（如「A比赛全国一等奖、B比赛全国三等奖」）；组织名前缀只属于紧邻的那一个奖
 - 标题、纯课程、无关描述不要生成奖项；同一奖项只一条，不要同时输出简称和全称
-- 奖项必须写入 `awards[]`；项目 `highlights` 可以提及获奖，但不能替代 `awards[]`
+- 奖项必须写入 `awards[]`。项目 `highlights` 可以提及获奖，但不能替代 `awards[]`
 
 # Rules
 
@@ -129,31 +129,25 @@
   ],
   "awards": [
     {
-      "awardType": 1,
       "name": "同济大学本科优秀学生奖学金二等奖",
       "awardDate": null,
       "description": null
     },
     {
-      "awardType": 2,
       "name": "2025年中国高校计算机大赛智能交互创新赛全国一等奖",
       "awardDate": "2025-01-01",
       "description": "项目负责人"
     },
     {
-      "awardType": 2,
       "name": "AIGC创新赛全国三等奖",
       "awardDate": "2025-01-01",
       "description": "项目负责人"
     }
   ],
-  "skill": {
-    "content": [
-      { "type": "编程语言", "content": ["Java", "Python", "TypeScript"] },
-      { "type": "框架", "content": ["Spring Boot", "MyBatis-Plus", "Vue 3"] },
-      { "type": "数据库", "content": ["PostgreSQL", "Redis"] },
-      { "type": "开发工具", "content": ["Git", "Docker", "Linux"] }
-    ]
-  }
+  "skills": [
+    { "name": "Java", "description": null },
+    { "name": "Spring Boot", "description": "用于后端接口开发" },
+    { "name": "PostgreSQL", "description": null }
+  ]
 }
 ```

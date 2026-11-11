@@ -69,9 +69,10 @@ public class ProjectExperienceRequest {
     private List<String> techStack;
 
     /**
-     * 项目亮点（JSONB数组，包含技术难点、成果等）
+     * 项目亮点（字符串数组，每项一条）。
+     * 更新时省略或为 null 保持原值；空列表表示清空。
      */
-    private String highlights;
+    private List<String> highlights;
 
     /**
      * 项目链接

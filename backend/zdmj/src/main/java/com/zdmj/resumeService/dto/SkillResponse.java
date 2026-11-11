@@ -1,16 +1,25 @@
 package com.zdmj.resumeService.dto;
 
-import java.util.List;
-
 import lombok.Data;
 
 /**
- * 技能响应（仅 id + content，不含 userId）
+ * 一项技能的响应。
  */
 @Data
 public class SkillResponse {
 
+    /**
+     * 技能编号。
+     */
     private Long id;
 
-    private List<SkillItemDTO> content;
+    /**
+     * 技能名称。
+     */
+    private String name;
+
+    /**
+     * 技能说明。没有说明时为空。
+     */
+    private String description;
 }

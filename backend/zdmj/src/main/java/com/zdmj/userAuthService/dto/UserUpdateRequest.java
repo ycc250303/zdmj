@@ -11,15 +11,15 @@ import lombok.Data;
 public class UserUpdateRequest {
 
     /**
-     * 用户姓名（最大长度 100 个字符）
+     * 用户姓名（最大长度50 个字符）
      */
-    @Size(max = 100, message = "姓名长度不能超过100个字符")
+    @Size(max = 50, message = "姓名长度不能超过50个字符")
     private String name;
 
     /**
-     * 电话（最大长度 50 个字符）
+     * 电话（最大长度 20 个字符）
      */
-    @Size(max = 50, message = "电话长度不能超过50个字符")
+    @Size(max = 20, message = "电话长度不能超过20个字符")
     private String phone;
 
     /**

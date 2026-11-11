@@ -14,7 +14,6 @@ import org.springframework.util.StringUtils;
 import com.zdmj.aiService.api.EmbeddingGateway;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
-import com.zdmj.aiService.api.StreamingModelRequest;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -64,7 +63,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         // --- 1. 两库都关：不检索、不改写，直接走求职助手 ---
         if (ragDocumentIds != null && ragDocumentIds.isEmpty() && !useSystemKnowledge) {
             return modelGateway.stream(CurrentActor.of(userId),
-                    new StreamingModelRequest(conversationId, userMessage, SYSTEM_PROMPT, chatPromptVars));
+                    conversationId, new ModelRequest(userMessage, SYSTEM_PROMPT, chatPromptVars));
         }
 
         // --- 2. 排序检索（改写 / embed / ANN / 合并截断） ---
@@ -76,7 +75,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
             log.info("RAG 无有效命中，退回求职导师对话: userId={}, useSystemKnowledge={}, queryLen={}",
                     userId, useSystemKnowledge, ranked.getQuery() == null ? 0 : ranked.getQuery().length());
             return modelGateway.stream(CurrentActor.of(userId),
-                    new StreamingModelRequest(conversationId, ranked.getQuery(), SYSTEM_PROMPT, chatPromptVars));
+                    conversationId, new ModelRequest(ranked.getQuery(), SYSTEM_PROMPT, chatPromptVars));
         }
 
         // --- 4. 用排序切块拼 {context}，user 消息仍用原文 ---
@@ -85,8 +84,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         ragPromptVars.put("context", buildContext(hits, ragConfig.getSearch().getContextBudget()));
         log.info("RAG 检索命中 {} 条片段，进入生成阶段 conversationId={}", hits.size(), conversationId);
         return modelGateway.stream(CurrentActor.of(userId),
-                new StreamingModelRequest(conversationId, ranked.getQuery(), RAG_PROMPT,
-                        ragPromptVars));
+                conversationId, new ModelRequest(ranked.getQuery(), RAG_PROMPT, ragPromptVars));
     }
 
     /**

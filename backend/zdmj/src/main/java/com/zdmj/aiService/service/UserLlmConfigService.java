@@ -1,37 +1,26 @@
 package com.zdmj.aiService.service;
 
-import java.util.List;
-
-import com.zdmj.aiService.dto.LlmModelOptionResponse;
-import com.zdmj.aiService.dto.UserLlmConfigResponse;
 import com.zdmj.aiService.dto.UserLlmConfigRequest;
-import com.zdmj.aiService.dto.UserLlmConnectionTestRequest;
+import com.zdmj.aiService.dto.UserLlmConfigResponse;
+import com.zdmj.common.context.CurrentActor;
 
 /** 用户模型配置管理，由 AI 模块的 HTTP 入口调用。 */
 public interface UserLlmConfigService {
 
-    /** @return 当前用户配置，没有记录时 configured 为 false；密钥仅返回掩码 */
-    UserLlmConfigResponse getMyConfig();
-
-    /** @return 模型目录中可供用户选择的编号与展示名称 */
-    List<LlmModelOptionResponse> listModels();
+    /** @return 当前用户配置及可选模型；没有记录时 configured 为 false，密钥仅返回掩码 */
+    UserLlmConfigResponse getMyConfig(CurrentActor actor);
 
     /**
-     * 校验模型、加密密钥并保存当前用户配置，然后清除客户端缓存。
+     * 在数据库事务外探测模型与密钥，成功后加密并完整替换当前用户配置。
+     * 探测失败时保留原配置；并发写入按数据库执行顺序覆盖。
+     * 创建时间保持不变，更新时间来自应用时钟，新调用在事务提交后读取新配置。
      *
+     * @param actor 当前操作者
      * @param request 模型编号与供应商密钥
-     * @throws com.zdmj.common.exception.BusinessException 未登录、模型非法或密钥加密失败
+     * @throws com.zdmj.common.exception.BusinessException 未登录、模型非法、探测失败或密钥加密失败
      */
-    void saveMyConfig(UserLlmConfigRequest request);
+    void saveMyConfig(CurrentActor actor, UserLlmConfigRequest request);
 
-    /** 删除当前用户配置并清除客户端缓存；没有配置时仍然成功。 */
-    void deleteMyConfig();
-
-    /**
-     * 用请求中的模型与密钥发起探测，不读取或保存用户配置。
-     *
-     * @param request 模型编号与探测密钥
-     * @throws com.zdmj.common.exception.BusinessException 模型非法或供应商探测失败
-     */
-    void testConnection(UserLlmConnectionTestRequest request);
+    /** 删除当前用户配置，提交后的新调用返回未配置；没有配置时仍然成功。 */
+    void deleteMyConfig(CurrentActor actor);
 }

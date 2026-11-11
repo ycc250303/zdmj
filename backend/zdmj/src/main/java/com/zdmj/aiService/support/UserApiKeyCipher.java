@@ -16,7 +16,7 @@ import com.zdmj.common.exception.ErrorCode;
 @Component
 public class UserApiKeyCipher {
 
-    /** Spring Encryptors.text 要求 password/salt 均为偶数位 hex 字符串 */
+    /** Encryptors.text 使用的固定盐，采用偶数位十六进制文本。 */
     private static final String SALT = "7a646d6a757365726c6c6d00";
 
     private final TextEncryptor textEncryptor;
@@ -53,6 +53,12 @@ public class UserApiKeyCipher {
         }
     }
 
+    /**
+     * 掩码用户 API Key。
+     *
+     * @param apiKey 明文密钥
+     * @return 掩码后的密文
+     */
     public static String mask(String apiKey) {
         if (!StringUtils.hasText(apiKey)) {
             return "";

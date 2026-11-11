@@ -1,14 +1,12 @@
 package com.zdmj.resumeService.service;
 
-import com.baomidou.mybatisplus.extension.service.IService;
 import com.zdmj.resumeService.dto.CapabilityProfileGenerateRequest;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
-import com.zdmj.resumeService.entity.StudentCapabilityProfile;
 
 /**
  * 学生就业能力画像服务接口
  */
-public interface StudentCapabilityProfileService extends IService<StudentCapabilityProfile> {
+public interface StudentCapabilityProfileService {
 
     /**
      * 根据当前用户获取画像

@@ -22,7 +22,7 @@ class PromptResourcesTest {
 
     @Test
     void fixedTemplatesExistAndDetectorListsEveryRole() {
-        for (String path : new String[]{"job-detect", "system", "generate-conversation-title", "resume-import-parse",
+        for (String path : new String[]{"job-detect", "system", "resume-import-parse",
                 "knowledgebase-rag-system", "knowledgebase-query-rewrite", "career-report/generate", "career-report/polish",
                 "career-report/integrity-check"}) {
             assertFalse(loader.load(path).isBlank());

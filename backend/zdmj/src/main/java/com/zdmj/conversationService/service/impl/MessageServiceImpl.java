@@ -8,9 +8,6 @@ import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.PageRequests;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.aiService.api.ModelGateway;
-import com.zdmj.aiService.api.ModelRequest;
-import com.zdmj.common.context.CurrentActor;
 import com.zdmj.conversationService.dto.ChatStreamRequest;
 import com.zdmj.conversationService.dto.MessageResponse;
 import com.zdmj.conversationService.entity.Conversation;
@@ -44,9 +41,6 @@ import java.util.concurrent.atomic.AtomicReference;
 @Service
 public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> implements MessageService {
 
-    private static final String TITLE_PROMPT = "generate-conversation-title";
-
-    private final ModelGateway modelGateway;
     private final MessageMapper messageMapper;
     private final ConversationService conversationService;
     private final ConversationMapper conversationMapper;
@@ -55,7 +49,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     /**
-     * 先在短事务中写入用户消息和助手占位并提交，再生成标题、订阅模型流。
+     * 先在短事务中写入消息、首条消息标题并提交，再订阅模型流。
      * 流正常结束、失败或客户端中断时，另以短事务回写助手消息内容。
      * 失败仍通过流错误向下游传递，消息表没有单独的状态列。
      *
@@ -70,12 +64,6 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         PreparedMessages prepared = transactionTemplate.execute(status -> insertMessages(request, userId));
         if (prepared == null) {
             throw new IllegalStateException("消息写入未返回结果");
-        }
-        if (prepared.newCount() == 2) {
-            String title = modelGateway.generate(
-                    CurrentActor.of(userId),
-                    new ModelRequest(request.getMessage(), TITLE_PROMPT, null));
-            conversationMapper.updateTitleByIdAndUserId(request.getConversationId(), userId, title);
         }
         subscribeAnswer(conversation, userId, request, prepared);
         return prepared.sink().asFlux()
@@ -124,7 +112,16 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         if (messageMapper.insert(assistantMsg) != 1) {
             throw new BusinessException(ErrorCode.MESSAGE_CREATE_FAILED);
         }
-        return new PreparedMessages(newCount, assistantMsg, Sinks.many().unicast().onBackpressureBuffer(),
+        if (newCount == 2) {
+            String title = request.getMessage().strip().replaceAll("(?U)\\s+", " ");
+            if (title.codePointCount(0, title.length()) > 30) {
+                title = title.substring(0, title.offsetByCodePoints(0, 30)) + "…";
+            }
+            if (conversationMapper.updateTitleByIdAndUserId(request.getConversationId(), userId, title) != 1) {
+                throw new IllegalStateException("首次会话标题必须更新一条记录");
+            }
+        }
+        return new PreparedMessages(assistantMsg, Sinks.many().unicast().onBackpressureBuffer(),
                 new StringBuilder(256), new AtomicReference<>());
     }
 
@@ -162,7 +159,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         prepared.upstream().set(upstream);
     }
 
-    private record PreparedMessages(int newCount, Message assistantMsg, Sinks.Many<String> sink, StringBuilder full,
+    private record PreparedMessages(Message assistantMsg, Sinks.Many<String> sink, StringBuilder full,
             AtomicReference<Disposable> upstream) {
     }
 

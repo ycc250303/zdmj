@@ -40,20 +40,12 @@ function degreeLabel(degree: number) {
   }
 }
 
-function awardTypeLabel(type: number) {
-  switch (type) {
-    case 1: return $t('page.resume.awardTypeScholarship');
-    case 2: return $t('page.resume.awardTypeCompetition');
-    default: return $t('page.resume.awardTypeOther');
-  }
-}
-
 function formatAwardDate(dateStr?: string) {
   if (!dateStr) return '—';
   return dateStr.length >= 7 ? dateStr.slice(0, 7) : dateStr;
 }
 
-const skillGroups = computed(() => props.resume.skill?.content ?? []);
+const skills = computed(() => props.resume.skills ?? []);
 
 const personalInfo = computed(() => props.resume.personalInfo ?? {});
 
@@ -180,6 +172,9 @@ function displayValue(value?: string) {
             <div v-if="proj.techStack?.length" class="flex flex-wrap gap-1 mt-2">
               <NTag v-for="t in proj.techStack" :key="t" size="small">{{ t }}</NTag>
             </div>
+            <ul v-if="proj.highlights?.length" class="mt-2 list-disc pl-4 text-sm text-slate-600">
+              <li v-for="(item, index) in proj.highlights" :key="index">{{ item }}</li>
+            </ul>
           </div>
         </div>
       </section>
@@ -197,7 +192,7 @@ function displayValue(value?: string) {
           >
             <div class="font-medium text-slate-800">{{ award.name }}</div>
             <div class="text-sm text-slate-600 mt-1">
-              {{ awardTypeLabel(award.awardType) }} · {{ formatAwardDate(award.awardDate) }}
+              {{ formatAwardDate(award.awardDate) }}
             </div>
             <p v-if="award.description" class="text-sm text-slate-600 mt-2 whitespace-pre-wrap">
               {{ award.description }}
@@ -210,13 +205,13 @@ function displayValue(value?: string) {
         <h3 class="text-base font-semibold text-slate-800 border-l-4 border-amber-500 pl-3 mb-3">
           {{ $t('page.resume.skills') }}
         </h3>
-        <NEmpty v-if="!skillGroups.length" size="small" :description="$t('page.resumeImport.noSection')" />
+        <NEmpty v-if="!skills.length" size="small" :description="$t('page.resumeImport.noSection')" />
         <div v-else class="space-y-3">
-          <div v-for="(group, idx) in skillGroups" :key="idx">
-            <div class="text-sm font-medium text-slate-700">{{ group.type }}</div>
-            <div class="flex flex-wrap gap-1 mt-1">
-              <NTag v-for="s in group.content" :key="s" size="small" type="info">{{ s }}</NTag>
-            </div>
+          <div v-for="skill in skills" :key="skill.id" class="rounded-lg bg-slate-50 p-4 border border-slate-100">
+            <div class="font-medium text-slate-800">{{ skill.name }}</div>
+            <p v-if="skill.description" class="text-sm text-slate-600 mt-2 whitespace-pre-wrap">
+              {{ skill.description }}
+            </p>
           </div>
         </div>
       </section>

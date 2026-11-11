@@ -646,7 +646,6 @@ declare namespace App {
             contriPlaceholder: string;
             techStack: string;
             highlights: string;
-            hlPlaceholder: string;
             url: string;
             urlPlaceholder: string;
             addSuccess: string;
@@ -787,12 +786,10 @@ declare namespace App {
           apiKeyRequired: string;
           apiKeyHint: string;
           save: string;
-          test: string;
           clearConfig: string;
           deleteConfirm: string;
           saveSuccess: string;
           deleteSuccess: string;
-          testSuccess: string;
           statusConfigured: string;
           statusNotConfigured: string;
           currentModel: string;
@@ -885,10 +882,6 @@ declare namespace App {
           "detailsLabel": string;
           "descLabel": string;
           "contributionLabel": string;
-          "awardType": string;
-          "awardTypeScholarship": string;
-          "awardTypeCompetition": string;
-          "awardTypeOther": string;
           "awardName": string;
           "awardDate": string;
           "awardDescription": string;
@@ -909,8 +902,9 @@ declare namespace App {
           careerIncomplete: string;
           projectIncomplete: string;
           awardIncomplete: string;
-          skillTypePlaceholder: string;
-          addSkillGroup: string;
+          skillNamePlaceholder: string;
+          skillDescriptionPlaceholder: string;
+          addSkill: string;
           nameRequired: string;
           renamePlaceholder: string;
           uploadSection: string;

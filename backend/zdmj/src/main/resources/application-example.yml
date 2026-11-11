@@ -50,30 +50,17 @@ spring:
       max-file-size: 20MB
       max-request-size: 25MB
    
-  # 模型配置
+  # 对话使用用户配置；平台密钥只用于嵌入
   ai:
-    dashscope:
-      base-url: https://dashscope.aliyuncs.com
-      api-key: your-dashscope-api-key
-      chat:
-        options:
-          model: qwen3.8-max
-      # Embedding模型配置
+    model:
+      chat: none
+    openai:
+      base-url: ${SPRING_AI_OPENAI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
+      api-key: ${SPRING_AI_OPENAI_API_KEY:${DASHSCOPE_API_KEY:}}
       embedding:
         options:
           model: text-embedding-v4
-      # 禁用自动重试机制，让异常立即返回
-      retry:
-        max-attempts: 1
-        on-client-errors: false
-      # PostgreSQL Vector Store配置
-      vectorstore:
-        pgvector:
-          index-type: HNSW
-          distance-type: COSINE_DISTANCE
-          dimensions: 1024  # text-embedding-v4 实际生成的向量维度
-          initialize-schema: true
-          remove-existing-vector-store-table: false
+          dimensions: 1024
 
 # MyBatis-Plus 配置
 mybatis-plus:

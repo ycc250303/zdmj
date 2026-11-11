@@ -8,7 +8,6 @@ import com.zdmj.resumeService.dto.ProjectExperienceRequest;
 import com.zdmj.resumeService.dto.ResumeContentResponse;
 import com.zdmj.resumeService.dto.ResumePersonalInfoDTO;
 import com.zdmj.resumeService.dto.SkillResponse;
-import com.zdmj.resumeService.dto.SkillItemDTO;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
@@ -148,16 +147,15 @@ public final class ConversationContextSupport {
             appendLine(sb, "意向工作城市", personal.getPreferredWorkCity());
         }
 
-        SkillResponse skill = resume.getSkill();
-        if (skill != null && skill.getContent() != null && !skill.getContent().isEmpty()) {
+        if (!CollectionUtils.isEmpty(resume.getSkills())) {
             sb.append("\n## 技能\n");
-            for (SkillItemDTO item : skill.getContent()) {
-                if (item == null || !StringUtils.hasText(item.getType())) {
+            for (SkillResponse skill : resume.getSkills()) {
+                if (skill == null || !StringUtils.hasText(skill.getName())) {
                     continue;
                 }
-                sb.append("- ").append(item.getType().trim());
-                if (!CollectionUtils.isEmpty(item.getContent())) {
-                    sb.append("：").append(String.join("、", item.getContent()));
+                sb.append("- ").append(skill.getName().trim());
+                if (StringUtils.hasText(skill.getDescription())) {
+                    sb.append("：").append(skill.getDescription().trim());
                 }
                 sb.append('\n');
             }
@@ -228,9 +226,10 @@ public final class ConversationContextSupport {
             if (!CollectionUtils.isEmpty(project.getTechStack())) {
                 sb.append(" | 技术栈：").append(String.join("、", project.getTechStack()));
             }
-            if (StringUtils.hasText(project.getHighlights())) {
-                sb.append("：").append(project.getHighlights().trim());
-            } else if (StringUtils.hasText(project.getDescription())) {
+            if (!CollectionUtils.isEmpty(project.getHighlights())) {
+                sb.append(" | 亮点：").append(String.join("、", project.getHighlights()));
+            }
+            if (StringUtils.hasText(project.getDescription())) {
                 sb.append("：").append(project.getDescription().trim());
             }
             sb.append('\n');
@@ -249,9 +248,6 @@ public final class ConversationContextSupport {
             sb.append("- ");
             appendPart(sb, award.getName());
             appendPart(sb, formatDate(award.getAwardDate()));
-            if (award.getAwardType() != null) {
-                sb.append("（类型=").append(award.getAwardType()).append("）");
-            }
             if (StringUtils.hasText(award.getDescription())) {
                 sb.append("：").append(award.getDescription().trim());
             }

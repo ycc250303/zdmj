@@ -49,12 +49,11 @@ spring:
       max-request-size: 25MB
 
   ai:
+    model:
+      chat: none
     openai:
       base-url: ${SPRING_AI_OPENAI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
       api-key: ${SPRING_AI_OPENAI_API_KEY:${DASHSCOPE_API_KEY:}}
-      chat:
-        options:
-          model: ${AL_MODEL:qwen3.8-max}
       embedding:
         options:
           model: text-embedding-v4

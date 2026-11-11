@@ -37,6 +37,17 @@ class ModuleArchitectureTest {
     };
 
     @ArchTest
+    static final ArchRule ai_consumers_only_use_api = classes()
+            .that().resideInAPackage("com.zdmj.aiService..")
+            .and().resideOutsideOfPackage("com.zdmj.aiService.api..")
+            .should().onlyHaveDependentClassesThat().resideInAPackage("com.zdmj.aiService..");
+
+    @ArchTest
+    static final ArchRule ai_services_receive_identity_explicitly = noClasses()
+            .that().resideInAnyPackage("com.zdmj.aiService.service..", "com.zdmj.aiService.support..")
+            .should().dependOnClassesThat().haveFullyQualifiedName("com.zdmj.common.context.UserHolder");
+
+    @ArchTest
     static final ArchRule user_auth_does_not_depend_on_ai = noClasses()
             .that().resideInAPackage("com.zdmj.userAuthService..")
             .should().dependOnClassesThat().resideInAPackage("com.zdmj.aiService..");

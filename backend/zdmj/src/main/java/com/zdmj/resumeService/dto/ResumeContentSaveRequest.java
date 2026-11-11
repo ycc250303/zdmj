@@ -13,9 +13,9 @@ import java.util.List;
 @Data
 public class ResumeContentSaveRequest {
 
-    @NotNull(message = "技能信息不能为空")
+    @NotNull(message = "技能列表不能为 null")
     @Valid
-    private SkillRequest skill;
+    private List<SkillRequest> skills = new ArrayList<>();
 
     @NotNull(message = "教育经历列表不能为 null")
     @Valid
