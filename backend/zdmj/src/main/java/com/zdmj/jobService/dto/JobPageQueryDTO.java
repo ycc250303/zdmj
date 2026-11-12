@@ -1,5 +1,7 @@
 package com.zdmj.jobService.dto;
 
+import java.beans.PropertyEditor;
+import java.beans.PropertyEditorSupport;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -58,8 +60,9 @@ public class JobPageQueryDTO {
     private String companyName;
 
     /**
-     * 实习 / 全职；不传表示不限制
+     * 实习 / 全职；不传表示不限制。查询参数须为 {@code INTERN} 或 {@code FULL_TIME}。
      */
+    @Setter(AccessLevel.NONE)
     private JobEmploymentEnum employment;
 
     /**
@@ -113,6 +116,80 @@ public class JobPageQueryDTO {
 
     public void setSalaryType(Object salaryType) {
         this.salaryType = parseInteger(salaryType, "salaryType");
+    }
+
+    /**
+     * 解析用工类型。空值表示不筛选；无法识别时抛出参数校验错误。
+     *
+     * @param employment 枚举值或查询参数原文
+     */
+    public void setEmployment(Object employment) {
+        if (employment == null) {
+            this.employment = null;
+            return;
+        }
+        if (employment instanceof JobEmploymentEnum value) {
+            this.employment = value;
+            return;
+        }
+        if (employment instanceof String str) {
+            try {
+                this.employment = JobEmploymentEnum.parse(str);
+            } catch (IllegalArgumentException ex) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "employment 必须为 INTERN 或 FULL_TIME");
+            }
+            return;
+        }
+        throw new BusinessException(ErrorCode.VALIDATION_ERROR, "employment 必须为 INTERN 或 FULL_TIME");
+    }
+
+    /**
+     * 整数字段按查询原文解析，空值表示不筛选。
+     *
+     * @param fieldName 字段名，写入校验错误
+     * @return 属性编辑器
+     */
+    public static PropertyEditor integerEditor(String fieldName) {
+        return new PropertyEditorSupport() {
+            @Override
+            public void setAsText(String text) {
+                setValue(parseInteger(text, fieldName));
+            }
+        };
+    }
+
+    /**
+     * 数组字段按 JSON 数组原文解析，空值表示不筛选。
+     *
+     * @param fieldName 字段名，写入校验错误
+     * @param integers  true 时元素为整数，false 时元素为字符串
+     * @return 属性编辑器
+     */
+    public static PropertyEditor listEditor(String fieldName, boolean integers) {
+        return new PropertyEditorSupport() {
+            @Override
+            public void setAsText(String text) {
+                setValue(integers ? parseIntegerList(text, fieldName) : parseStringList(text, fieldName));
+            }
+        };
+    }
+
+    /**
+     * 用工类型按枚举名解析，大小写不敏感，空值表示不筛选。
+     *
+     * @return 属性编辑器
+     */
+    public static PropertyEditor employmentEditor() {
+        return new PropertyEditorSupport() {
+            @Override
+            public void setAsText(String text) {
+                try {
+                    setValue(JobEmploymentEnum.parse(text));
+                } catch (IllegalArgumentException ex) {
+                    throw new BusinessException(ErrorCode.VALIDATION_ERROR, "employment 必须为 INTERN 或 FULL_TIME");
+                }
+            }
+        };
     }
 
     public void setCompanySizes(Object companySizes) {

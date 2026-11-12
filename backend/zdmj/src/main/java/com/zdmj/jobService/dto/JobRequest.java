@@ -56,7 +56,7 @@ public class JobRequest {
     private String companyIntroduction;
 
     /**
-     * 岗位描述（创建、更新时不能为空）
+     * 岗位描述，包含工作内容与岗位要求（创建、更新时不能为空）
      */
     @NotBlank(message = "岗位描述不能为空", groups = { CreateGroup.class, UpdateGroup.class })
     private String description;
@@ -91,16 +91,6 @@ public class JobRequest {
      * 岗位链接（选填，未传时写入空字符串）
      */
     private String link;
-
-    /**
-     * 岗位职责（字符串列表，写入 jobs.content）
-     */
-    private List<String> jobDuties;
-
-    /**
-     * 岗位要求（字符串列表，写入 jobs.requirements）
-     */
-    private List<String> jobRequirements;
 
     /**
      * 岗位关键词（字符串列表，写入 jobs.keywords）

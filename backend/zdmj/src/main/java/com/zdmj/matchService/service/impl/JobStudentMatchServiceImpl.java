@@ -6,18 +6,17 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.jobService.api.JobRole;
+import com.zdmj.jobService.api.JobRoleDetectionResult;
+import com.zdmj.jobService.api.JobRoleDetectionService;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.PageRequests;
-import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
-import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobService;
 import com.zdmj.matchService.dto.DimensionMatchResponse;
 import com.zdmj.matchService.dto.JobStudentMatchResponse;
@@ -50,9 +49,8 @@ import org.springframework.util.StringUtils;
 /**
  * 人岗匹配分析服务实现。
  *
- * <p>核心思路：把「岗位画像七维 + 关键词 + 学生画像七维」通过结构化 Prompt 喂给 LLM，让模型按
- * 「基础要求 / 职业技能 / 职业素养 / 发展潜力」四维做对比分析与打分，再用代码兜底重算「关键技能
- * 匹配率」与「综合分」，保证权重设置严格生效。</p>
+ * <p>核心思路：按当前岗位描述识别方向，把岗位描述、关键词和学生画像交给模型，按
+ * 「基础要求 / 职业技能 / 职业素养 / 发展潜力」四维打分，再用代码重算关键技能匹配率与综合分。</p>
  */
 @Slf4j
 @Service
@@ -64,15 +62,15 @@ public class JobStudentMatchServiceImpl
     private static final String MATCH_PROMPT_DIRECTORY = "job-student-match/";
 
     private final JobService jobService;
-    private final JobCapabilityProfileService jobCapabilityProfileService;
+    private final JobRoleDetectionService roleDetectionService;
     private final StudentCapabilityProfileService studentCapabilityProfileService;
     private final ModelGateway modelGateway;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
 
     @Override
-    public PageDTO<JobStudentMatchListItemResponse> getMyPage(Integer page, Integer limit) {
-        Long userId = UserHolder.requireUserId();
+    public PageDTO<JobStudentMatchListItemResponse> getMyPage(CurrentActor actor, Integer page, Integer limit) {
+        Long userId = actor.userId();
         PageRequests.Normalized paging = PageRequests.normalize(page, limit);
         IPage<JobStudentMatchListItemResponse> result =
                 baseMapper.selectMyMatchPage(PageRequests.toPage(paging), userId);
@@ -80,8 +78,8 @@ public class JobStudentMatchServiceImpl
     }
 
     @Override
-    public JobStudentMatchResponse getOrNull(Long jobId) {
-        Long userId = UserHolder.requireUserId();
+    public JobStudentMatchResponse getOrNull(CurrentActor actor, Long jobId) {
+        Long userId = actor.userId();
         if (jobId == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "jobId不能为空");
         }
@@ -97,13 +95,14 @@ public class JobStudentMatchServiceImpl
     /**
      * 生成人岗匹配。读取与模型调用在事务外完成，结果在短事务中按用户与岗位覆盖保存。
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param jobId 岗位编号
      * @param req   自定义权重，可为 null
      * @return 匹配结果
      */
     @Override
-    public JobStudentMatchResponse generate(Long jobId, JobStudentMatchGenerateRequest req) {
-        Long userId = UserHolder.requireUserId();
+    public JobStudentMatchResponse generate(CurrentActor actor, Long jobId, JobStudentMatchGenerateRequest req) {
+        Long userId = actor.userId();
         if (jobId == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "jobId不能为空");
         }
@@ -113,35 +112,30 @@ public class JobStudentMatchServiceImpl
         if (jobDetail == null) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
-        StudentCapabilityProfileResponse studentProfile = studentCapabilityProfileService.getCurrentUserProfileOrNull();
+        StudentCapabilityProfileResponse studentProfile = studentCapabilityProfileService.getCurrentUserProfileOrNull(actor);
         if (studentProfile == null) {
             throw new BusinessException(ErrorCode.MATCH_PRECONDITION_MISSING);
         }
 
-        // 2. 岗位画像缺失时自动生成。
-        JobCapabilityProfileResponse jobProfile = jobCapabilityProfileService.getJobCapabilityProfileOrNull(jobId);
-        if (jobProfile == null) {
-            log.info("岗位画像缺失，自动生成: jobId={}", jobId);
-            jobProfile = jobCapabilityProfileService.getJobCapabilityProfile(jobId);
-        }
-
-        // 3. 解析权重（默认 + 覆盖 → 归一化）
-        JobRole role = JobRole.fromString(jobProfile.getTargetRoleType());
+        // 2. 按当前岗位描述识别方向，并解析权重。
+        JobRoleDetectionResult detected = roleDetectionService.detect(
+                actor, buildJobText(jobDetail));
+        JobRole role = detected.role();
         MatchWeightConfigResponse weights = MatchWeightResolver.resolve(
                 role, req == null ? null : req.getWeights());
         String promptName = MATCH_PROMPT_DIRECTORY + role.slug();
         log.info("人岗匹配开始: jobId={}, userId={}, role={}, prompt={}", jobId, userId, role, promptName);
 
-        // 4. 拼装 LLM 上下文
+        // 3. 拼装模型上下文
         List<String> jobKeywords = jobDetail.getKeywords() == null
                 ? List.of()
                 : jobDetail.getKeywords().stream().filter(StringUtils::hasText).map(String::trim).toList();
-        String userMessage = buildUserMessage(jobDetail, jobProfile, studentProfile, weights, jobKeywords);
+        String userMessage = buildUserMessage(jobDetail, studentProfile, weights, jobKeywords);
 
-        // 5. 调用 LLM 结构化输出（promptVars 传 null，跳过模板渲染）
+        // 4. 调用模型输出结构化匹配结果
         JobStudentMatchResponse aiResult;
         try {
-            aiResult = modelGateway.generateStructured(CurrentActor.of(userId),
+            aiResult = modelGateway.generateStructured(actor,
                     new ModelRequest(userMessage, promptName, null), JobStudentMatchResponse.class);
         } catch (IllegalStateException e) {
             log.error("人岗匹配结构化输出解析失败 jobId={} userId={}", jobId, userId, e);
@@ -154,7 +148,7 @@ public class JobStudentMatchServiceImpl
             throw new BusinessException(ErrorCode.MATCH_GENERATION_FAILED);
         }
 
-        // 6. 兜底重算关键词匹配率 + 综合分
+        // 5. 重算关键词匹配率与综合分
         Map<String, DimensionMatchResponse> dims = sanitizeDimensions(aiResult.getDimensions());
         KeywordMatchResult kw = recomputeKeywordMatch(jobKeywords, aiResult.getMatchedKeywords(), studentProfile);
         int basicScore = clamp(getDimensionScore(dims, MatchDimension.BASIC));
@@ -163,14 +157,14 @@ public class JobStudentMatchServiceImpl
         int potentialScore = clamp(getDimensionScore(dims, MatchDimension.DEVELOPMENT_POTENTIAL));
         int overall = MatchWeightResolver.weightedOverall(weights, basicScore, skillScore, qualityScore, potentialScore);
 
-        JobStudentMatch entity = buildMatch(userId, jobId, jobProfile, promptName, weights,
+        JobStudentMatch entity = buildMatch(userId, jobId, role, promptName, weights,
                 basicScore, skillScore, qualityScore, potentialScore, overall,
                 dims, aiResult.getMatchedHighlights(), aiResult.getCriticalGaps(),
                 kw.matched, kw.missing, kw.rate, aiResult.getSummary());
         if (jobService.getDetail(jobId) == null) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
-        // 7. 落库
+        // 6. 写入匹配结果
         JobStudentMatch saved = transactionTemplate.execute(status -> saveMatch(entity));
         if (saved == null) {
             throw new IllegalStateException("人岗匹配结果未写入");
@@ -179,13 +173,16 @@ public class JobStudentMatchServiceImpl
     }
 
     @Override
-    public MatchWeightConfigResponse getDefaultWeights(Long jobId) {
+    public MatchWeightConfigResponse getDefaultWeights(CurrentActor actor, Long jobId) {
         if (jobId == null) {
             return MatchWeightResolver.defaultFor(JobRole.UNKNOWN);
         }
-        JobCapabilityProfileResponse profile = jobCapabilityProfileService.getJobCapabilityProfileOrNull(jobId);
-        JobRole role = profile == null ? JobRole.UNKNOWN
-                : JobRole.fromString(profile.getTargetRoleType());
+        JobListItemResponse jobDetail = jobService.getDetail(jobId);
+        if (jobDetail == null) {
+            throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
+        }
+        JobRole role = roleDetectionService.detect(
+                actor, buildJobText(jobDetail)).role();
         return MatchWeightResolver.defaultFor(role);
     }
 
@@ -194,11 +191,9 @@ public class JobStudentMatchServiceImpl
     // ============================================================
 
     /**
-     * 把岗位详情 + 岗位画像 + 学生画像 + 权重 + 关键词拼成结构化的 user message，
-     * Prompt 中通过 {weightsJson} 与 {jobKeywords} 取值，正文里用 Markdown 段落组织。
+     * 把岗位描述、学生画像、权重和关键词拼成模型输入。
      */
     private String buildUserMessage(JobListItemResponse jobDetail,
-                                    JobCapabilityProfileResponse jobProfile,
                                     StudentCapabilityProfileResponse studentProfile,
                                     MatchWeightConfigResponse weights,
                                     List<String> jobKeywords) {
@@ -210,29 +205,7 @@ public class JobStudentMatchServiceImpl
         sb.append("- 公司名称：").append(safe(jobDetail.getCompanyName())).append('\n');
         sb.append("- 工作地点：").append(safe(jobDetail.getLocation())).append('\n');
         sb.append("- 岗位描述：").append(safe(jobDetail.getDescription())).append('\n');
-        sb.append("- 岗位职责：").append(joinList(jobDetail.getJobDuties())).append('\n');
-        sb.append("- 岗位要求：").append(joinList(jobDetail.getJobRequirements())).append('\n');
         sb.append("- 岗位关键词：").append(joinList(jobKeywords)).append("\n\n");
-
-        sb.append("## 岗位能力画像（七维）\n");
-        appendCapabilityRow(sb, "专业技能", jobProfile.getProfessionalSkills());
-        appendCapabilityRow(sb, "证书", jobProfile.getCertificates());
-        appendCapabilityRow(sb, "创新能力", jobProfile.getInnovationAbility());
-        appendCapabilityRow(sb, "学习能力", jobProfile.getLearningAbility());
-        appendCapabilityRow(sb, "抗压能力", jobProfile.getPressureResistance());
-        appendCapabilityRow(sb, "沟通能力", jobProfile.getCommunicationAbility());
-        appendCapabilityRow(sb, "实习/实践能力", jobProfile.getPracticalAbility());
-        if (StringUtils.hasText(jobProfile.getSummary())) {
-            sb.append("- 岗位总结：").append(jobProfile.getSummary()).append('\n');
-        }
-        if (jobProfile.getStrengths() != null && !jobProfile.getStrengths().isEmpty()) {
-            sb.append("- 岗位优势点：").append(String.join("；", jobProfile.getStrengths())).append('\n');
-        }
-        if (jobProfile.getMissingSkills() != null && !jobProfile.getMissingSkills().isEmpty()) {
-            sb.append("- 补充要求（JD 未写明的该方向常见门槛）：")
-                    .append(String.join("；", jobProfile.getMissingSkills())).append('\n');
-        }
-        sb.append('\n');
 
         sb.append("## 学生就业能力画像（七维）\n");
         appendCapabilityRow(sb, "专业技能", studentProfile.getProfessionalSkills());
@@ -276,6 +249,35 @@ public class JobStudentMatchServiceImpl
 
     private static void appendCapabilityRow(StringBuilder sb, String label, String value) {
         sb.append("- ").append(label).append("：").append(safe(value)).append('\n');
+    }
+
+    /**
+     * 把岗位名称、描述、关键词和公司信息拼成方向识别文本。
+     *
+     * @param job 岗位详情
+     * @return 方向识别输入
+     */
+    private static String buildJobText(JobListItemResponse job) {
+        return """
+                岗位名称：%s
+                公司名称：%s
+                工作地点：%s
+                薪资：%s
+                岗位描述：%s
+                关键词：%s
+                公司行业：%s
+                """.formatted(
+                textOrBlank(job.getJobName()),
+                textOrBlank(job.getCompanyName()),
+                textOrBlank(job.getLocation()),
+                textOrBlank(job.getSalary()),
+                textOrBlank(job.getDescription()),
+                joinList(job.getKeywords()),
+                joinList(job.getCompanyIndustries()));
+    }
+
+    private static String textOrBlank(String value) {
+        return StringUtils.hasText(value) ? value.trim() : "未提供";
     }
 
     private static String joinList(List<String> values) {
@@ -401,7 +403,7 @@ public class JobStudentMatchServiceImpl
 
     @SuppressWarnings("checkstyle:ParameterNumber")
     private JobStudentMatch buildMatch(Long userId, Long jobId,
-                                   JobCapabilityProfileResponse jobProfile,
+                                   JobRole role,
                                    String promptName,
                                    MatchWeightConfigResponse weights,
                                    int basicScore, int skillScore,
@@ -429,8 +431,7 @@ public class JobStudentMatchServiceImpl
         entity.setMissingKeywords(missingKeywords == null ? List.of() : missingKeywords);
         entity.setKeySkillMatchRate(keySkillMatchRate == null ? BigDecimal.ZERO : keySkillMatchRate);
         entity.setSummary(summary);
-        entity.setTargetRoleType(StringUtils.hasText(jobProfile.getTargetRoleType())
-                ? jobProfile.getTargetRoleType() : "default");
+        entity.setTargetRoleType(role.slug());
         entity.setPromptName(promptName);
         return entity;
     }

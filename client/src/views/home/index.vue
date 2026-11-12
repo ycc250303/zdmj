@@ -180,8 +180,15 @@ function navigateTo(route: string) {
 }
 
 @keyframes pulse {
-  0%, 100% { transform: scale(1); opacity: 0.7; }
-  50% { transform: scale(1.1); opacity: 0.9; }
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.9;
+  }
 }
 
 /* ---------------- 主区域 ---------------- */
@@ -263,21 +270,28 @@ function navigateTo(route: string) {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06), 0 2px 8px rgba(15, 23, 42, 0.04);
-  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 0.35s ease,
-              border-color 0.35s ease;
+  box-shadow:
+    0 8px 24px rgba(15, 23, 42, 0.06),
+    0 2px 8px rgba(15, 23, 42, 0.04);
+  transition:
+    transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.35s ease,
+    border-color 0.35s ease;
   overflow: hidden;
 }
 
 :global(.dark) .action-card {
   background: rgba(30, 41, 59, 0.85);
   border-color: rgba(71, 85, 105, 0.5);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.3),
+    0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 :global(.dark) .action-card:hover {
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.4),
+    0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .action-card::before {
@@ -294,7 +308,9 @@ function navigateTo(route: string) {
 
 .action-card:hover {
   transform: translateY(-6px);
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12), 0 4px 12px rgba(15, 23, 42, 0.06);
+  box-shadow:
+    0 20px 40px rgba(15, 23, 42, 0.12),
+    0 4px 12px rgba(15, 23, 42, 0.06);
   border-color: color-mix(in srgb, var(--accent) 30%, white);
 }
 
@@ -360,7 +376,9 @@ function navigateTo(route: string) {
   font-size: 18px;
   font-weight: 600;
   opacity: 0.6;
-  transition: transform 0.35s ease, opacity 0.35s ease;
+  transition:
+    transform 0.35s ease,
+    opacity 0.35s ease;
 }
 
 /* ---------------- 响应式 ---------------- */
@@ -369,7 +387,9 @@ function navigateTo(route: string) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     max-width: 640px;
   }
-  .hero-title { font-size: 44px; }
+  .hero-title {
+    font-size: 44px;
+  }
 }
 
 @media (max-width: 640px) {
@@ -377,8 +397,12 @@ function navigateTo(route: string) {
     padding: 40px 16px;
     gap: 36px;
   }
-  .hero-title { font-size: 32px; }
-  .hero-subtitle { font-size: 15px; }
+  .hero-title {
+    font-size: 32px;
+  }
+  .hero-subtitle {
+    font-size: 15px;
+  }
   .action-grid {
     grid-template-columns: 1fr;
     max-width: 360px;

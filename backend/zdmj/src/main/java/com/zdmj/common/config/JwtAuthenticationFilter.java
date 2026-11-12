@@ -1,7 +1,6 @@
 package com.zdmj.common.config;
 
-import com.zdmj.common.context.UserContext;
-import com.zdmj.common.context.UserHolder;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.ProblemDetailHttpWriter;
 import com.zdmj.common.security.JwtSessionStore;
@@ -46,19 +45,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             Long userId = jwtTokenService.getUserIdFromToken(token);
             String username = jwtTokenService.getUsernameFromToken(token);
 
-            if (userId != null && username != null) {
+            if (userId != null && userId > 0 && username != null) {
                 try {
                     Optional<String> storedToken = jwtSessionStore.find(userId);
                     if (storedToken.isPresent() && storedToken.get().equals(token)) {
-                        UserContext userContext = UserContext.of(userId, username);
-                        UserHolder.set(userContext);
-
                         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                                userContext,
+                                new CurrentActor(userId),
                                 null,
                                 Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
                         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                        var context = SecurityContextHolder.createEmptyContext();
+                        context.setAuthentication(authentication);
+                        SecurityContextHolder.setContext(context);
                     } else {
                         log.warn("JWT Token 在 Redis 中不存在或已失效: userId={}, username={}", userId, username);
                     }

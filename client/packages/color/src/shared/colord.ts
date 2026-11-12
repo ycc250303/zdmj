@@ -80,14 +80,3 @@ export function transformColorWithOpacity(color: AnyColor, alpha: number, bgColo
 
   return colord(resultRgb).toHex();
 }
-
-/**
- * Is white color
- *
- * @param color - Color
- */
-export function isWhiteColor(color: AnyColor) {
-  return colord(color).isEqual('#ffffff');
-}
-
-export { colord };

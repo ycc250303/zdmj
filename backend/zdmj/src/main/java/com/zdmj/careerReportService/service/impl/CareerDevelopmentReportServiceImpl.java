@@ -15,7 +15,6 @@ import com.zdmj.careerReportService.entity.CareerDevelopmentReport;
 import com.zdmj.careerReportService.mapper.CareerDevelopmentReportMapper;
 import com.zdmj.careerReportService.service.CareerDevelopmentReportService;
 import com.zdmj.careerReportService.support.ReportIntegrity;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.EmbeddingGateway;
@@ -23,9 +22,7 @@ import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.util.DateTimeUtil;
-import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
-import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobService;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
@@ -65,7 +62,7 @@ import org.springframework.util.StringUtils;
 /**
  * 职业发展报告服务实现类
  *
- * <p>负责聚合学生画像、岗位画像、人岗匹配与知识库向量检索，
+ * <p>负责聚合学生画像、岗位详情、人岗匹配与知识库向量检索，
  * 调用大模型生成或润色结构化报告。模型调用在事务外完成，覆盖写入在同一次短事务中完成。</p>
  */
 @Slf4j
@@ -104,7 +101,6 @@ public class CareerDevelopmentReportServiceImpl
     private final ObjectMapper objectMapper;
     private final ModelGateway modelGateway;
     private final JobService jobService;
-    private final JobCapabilityProfileService jobCapabilityProfileService;
     private final JobStudentMatchService jobStudentMatchService;
     private final StudentCapabilityProfileService studentCapabilityProfileService;
     private final KnowledgeBasesService knowledgeBasesService;
@@ -116,8 +112,8 @@ public class CareerDevelopmentReportServiceImpl
     private final JdbcTemplate jdbcTemplate;
 
     @Override
-    public CareerReportResponse getLatestOrNull(Long jobId) {
-        Long userId = UserHolder.requireUserId();
+    public CareerReportResponse getLatestOrNull(CurrentActor actor, Long jobId) {
+        Long userId = actor.userId();
         if (jobId == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "jobId不能为空");
         }
@@ -129,8 +125,8 @@ public class CareerDevelopmentReportServiceImpl
     }
 
     @Override
-    public CareerReportResponse generate(Long jobId, CareerReportGenerateRequest req) {
-        Long userId = UserHolder.requireUserId();
+    public CareerReportResponse generate(CurrentActor actor, Long jobId, CareerReportGenerateRequest req) {
+        Long userId = actor.userId();
         if (jobId == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "jobId不能为空");
         }
@@ -139,33 +135,31 @@ public class CareerDevelopmentReportServiceImpl
         if (jobDetail == null) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
-        StudentCapabilityProfileResponse studentProfile = studentCapabilityProfileService.getCurrentUserProfileOrNull();
+        StudentCapabilityProfileResponse studentProfile = studentCapabilityProfileService.getCurrentUserProfileOrNull(actor);
         if (studentProfile == null) {
             throw new BusinessException(ErrorCode.MATCH_PRECONDITION_MISSING);
         }
-        // 2. 加载或生成岗位画像、人岗匹配
-        JobCapabilityProfileResponse jobProfile = loadOrGenerateJobProfile(jobId);
-        JobStudentMatchResponse match = loadOrGenerateMatch(jobId);
+        // 2. 加载或生成人岗匹配
+        JobStudentMatchResponse match = loadOrGenerateMatch(actor, jobId);
         // 3. 知识库 RAG 检索学习路径片段
-        List<KnowledgeRetrivalDTO> ragHits = retrieveLearningPathHits(jobDetail, req);
+        List<KnowledgeRetrivalDTO> ragHits = retrieveLearningPathHits(actor, jobDetail, req);
         // 4. 调用大模型生成结构化报告
         Map<String, Object> reportContent = generateStructuredReport(
-                userId, jobDetail, studentProfile, jobProfile, match, ragHits, req);
+                actor, jobDetail, studentProfile, match, ragHits, req);
         // 5. 事务外组装快照并校验正文，再覆盖写入唯一一行
         CareerDevelopmentReport draft = new CareerDevelopmentReport();
         draft.setUserId(userId);
         draft.setJobId(jobId);
         draft.setMatchId(match.getId());
         draft.setStudentProfileSnapshot(toJson(studentProfile));
-        draft.setJobProfileSnapshot(toJson(jobProfile));
         draft.setMatchSnapshot(toJson(match));
         draft.setKnowledgeSources(toJson(toKnowledgeSources(ragHits)));
         return toResponse(saveReport(draft, reportContent, GENERATE_PROMPT));
     }
 
     @Override
-    public CareerReportResponse polish(Long reportId, CareerReportPolishRequest req) {
-        CareerDevelopmentReport current = requireOwnedReport(reportId);
+    public CareerReportResponse polish(CurrentActor actor, Long reportId, CareerReportPolishRequest req) {
+        CareerDevelopmentReport current = requireOwnedReport(actor, reportId);
         Map<String, Object> currentContent = readJson(current.getReportContent(), MAP_TYPE, Map.of());
 
         Map<String, Object> vars = new LinkedHashMap<>();
@@ -177,18 +171,18 @@ public class CareerDevelopmentReportServiceImpl
                 + "## 当前日期（北京时间）\n" + currentDate + "\n\n"
                 + "若调整 evaluationPlan 中 quantitativeMetrics 的 deadline，具体日期（YYYY-MM-DD）不得早于当前日期。\n\n"
                 + toJson(currentContent);
-        Map<String, Object> polished = requestReportContent(current.getUserId(), userMessage,
+        Map<String, Object> polished = requestReportContent(actor, userMessage,
                 POLISH_PROMPT, vars, ErrorCode.CAREER_REPORT_POLISH_FAILED);
         return toResponse(saveReport(draftFromCurrent(current), polished, POLISH_PROMPT));
     }
 
     @Override
-    public CareerReportCheckResponse checkIntegrity(Long reportId) {
-        CareerDevelopmentReport report = requireOwnedReport(reportId);
+    public CareerReportCheckResponse checkIntegrity(CurrentActor actor, Long reportId) {
+        CareerDevelopmentReport report = requireOwnedReport(actor, reportId);
         Map<String, Object> reportContent = readJson(report.getReportContent(), MAP_TYPE, Map.of());
         CareerReportCheckResponse local = ReportIntegrity.check(reportContent);
 
-        CareerReportCheckResponse modelCheck = modelGateway.generateStructured(CurrentActor.of(report.getUserId()),
+        CareerReportCheckResponse modelCheck = modelGateway.generateStructured(actor,
                 new ModelRequest("请检查这份职业发展报告是否完整且可执行：\n" + toJson(reportContent),
                         INTEGRITY_CHECK_PROMPT, null), CareerReportCheckResponse.class);
         CareerReportCheckResponse check = ReportIntegrity.merge(local, modelCheck);
@@ -202,35 +196,32 @@ public class CareerDevelopmentReportServiceImpl
     }
 
     @Override
-    public CareerReportResponse saveManualEdit(Long reportId, CareerReportUpdateRequest req) {
-        CareerDevelopmentReport current = requireOwnedReport(reportId);
+    public CareerReportResponse saveManualEdit(CurrentActor actor, Long reportId, CareerReportUpdateRequest req) {
+        CareerDevelopmentReport current = requireOwnedReport(actor, reportId);
         if (req == null || req.getReportContent() == null || req.getReportContent().isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "报告内容不能为空");
         }
         return toResponse(saveReport(draftFromCurrent(current), req.getReportContent(), current.getPromptName()));
     }
 
-    private JobCapabilityProfileResponse loadOrGenerateJobProfile(Long jobId) {
-        JobCapabilityProfileResponse profile = jobCapabilityProfileService.getJobCapabilityProfileOrNull(jobId);
-        return profile != null ? profile : jobCapabilityProfileService.getJobCapabilityProfile(jobId);
-    }
-
-    private JobStudentMatchResponse loadOrGenerateMatch(Long jobId) {
-        JobStudentMatchResponse match = jobStudentMatchService.getOrNull(jobId);
-        return match != null ? match : jobStudentMatchService.generate(jobId, null);
+    private JobStudentMatchResponse loadOrGenerateMatch(CurrentActor actor, Long jobId) {
+        JobStudentMatchResponse match = jobStudentMatchService.getOrNull(actor, jobId);
+        return match != null ? match : jobStudentMatchService.generate(actor, jobId, null);
     }
 
     /**
      * 从用户私有库（scope=1）与学习路线库（scope=3）检索相关片段（向量相似度 + 文档分类过滤）。
+     *
+     * @param actor 已认证操作者，包含用户编号
      */
-    private List<KnowledgeRetrivalDTO> retrieveLearningPathHits(JobListItemResponse jobDetail, CareerReportGenerateRequest req) {
-        Long userId = UserHolder.requireUserId();
+    private List<KnowledgeRetrivalDTO> retrieveLearningPathHits(CurrentActor actor, JobListItemResponse jobDetail, CareerReportGenerateRequest req) {
+        Long userId = actor.userId();
         String query = buildKnowledgeQuery(jobDetail, req);
-        float[] vector = embedQueryText(userId, query);
+        float[] vector = embedQueryText(actor, query);
         String vec = knowledgeEmbeddingService.toPgVector(vector);
 
         List<KnowledgeRetrivalDTO> merged = new ArrayList<>();
-        merged.addAll(searchKnowledgeVectors(userId, knowledgeBasesService.getOrCreateKnowledgeBaseId(), vec));
+        merged.addAll(searchKnowledgeVectors(userId, knowledgeBasesService.getOrCreateKnowledgeBaseId(actor), vec));
 
         Long learningPathKbId = knowledgeBasesService.findKnowledgeBaseIdByScope(
                 KnowledgeScopeEnum.LEARNING_PATH.getCode());
@@ -274,10 +265,9 @@ public class CareerDevelopmentReportServiceImpl
         return deduped.values().stream().limit(topK).collect(Collectors.toList());
     }
 
-    private Map<String, Object> generateStructuredReport(Long userId,
+    private Map<String, Object> generateStructuredReport(CurrentActor actor,
                                                          JobListItemResponse jobDetail,
                                                          StudentCapabilityProfileResponse studentProfile,
-                                                         JobCapabilityProfileResponse jobProfile,
                                                          JobStudentMatchResponse match,
                                                          List<KnowledgeRetrivalDTO> ragHits,
                                                          CareerReportGenerateRequest req) {
@@ -296,18 +286,17 @@ public class CareerDevelopmentReportServiceImpl
                 .append("；短期建议 1~3 个月内，中期 3~6 个月内。\n\n");
         sb.append("## 岗位信息\n").append(toJson(jobDetail)).append("\n\n");
         sb.append("## 学生画像\n").append(toJson(studentProfile)).append("\n\n");
-        sb.append("## 岗位画像\n").append(toJson(jobProfile)).append("\n\n");
         sb.append("## 人岗匹配\n").append(toJson(match)).append("\n\n");
         sb.append("## 学习路径知识上下文\n").append(ragContext).append("\n");
 
-        return requestReportContent(userId, sb.toString(), GENERATE_PROMPT, vars,
+        return requestReportContent(actor, sb.toString(), GENERATE_PROMPT, vars,
                 ErrorCode.CAREER_REPORT_GENERATION_FAILED);
     }
 
     /**
      * 调用报告生成或润色模型，并校验返回正文。调用失败和空正文均终止保存。
      *
-     * @param userId 当前用户编号
+     * @param actor 已认证操作者，包含用户编号
      * @param message 已组装的业务输入
      * @param prompt 提示词名称
      * @param variables 提示词变量
@@ -315,11 +304,11 @@ public class CareerDevelopmentReportServiceImpl
      * @return 非空报告正文
      * @throws BusinessException 模型调用失败或正文缺失
      */
-    private Map<String, Object> requestReportContent(Long userId, String message, String prompt,
+    private Map<String, Object> requestReportContent(CurrentActor actor, String message, String prompt,
             Map<String, Object> variables, ErrorCode failure) {
         LlmReportPayload payload;
         try {
-            payload = modelGateway.generateStructured(CurrentActor.of(userId),
+            payload = modelGateway.generateStructured(actor,
                     new ModelRequest(message, prompt, variables), LlmReportPayload.class);
         } catch (RuntimeException exception) {
             throw new BusinessException(failure, exception);
@@ -332,9 +321,11 @@ public class CareerDevelopmentReportServiceImpl
 
     /**
      * 加载当前用户拥有的报告，不存在或不属于当前用户时抛业务异常。
+     *
+     * @param actor 已认证操作者，包含用户编号
      */
-    private CareerDevelopmentReport requireOwnedReport(Long reportId) {
-        Long userId = UserHolder.requireUserId();
+    private CareerDevelopmentReport requireOwnedReport(CurrentActor actor, Long reportId) {
+        Long userId = actor.userId();
         if (reportId == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "reportId不能为空");
         }
@@ -359,7 +350,6 @@ public class CareerDevelopmentReportServiceImpl
         draft.setJobId(current.getJobId());
         draft.setMatchId(current.getMatchId());
         draft.setStudentProfileSnapshot(current.getStudentProfileSnapshot());
-        draft.setJobProfileSnapshot(current.getJobProfileSnapshot());
         draft.setMatchSnapshot(current.getMatchSnapshot());
         draft.setKnowledgeSources(current.getKnowledgeSources());
         return draft;
@@ -491,14 +481,14 @@ public class CareerDevelopmentReportServiceImpl
     /**
      * 为报告检索生成查询向量。嵌入失败时保留原因并终止报告生成。
      *
-     * @param userId 当前用户
+     * @param actor 已认证操作者，包含用户编号
      * @param queryText 检索文本
      * @return 有效的查询向量
      */
-    private float[] embedQueryText(Long userId, String queryText) {
+    private float[] embedQueryText(CurrentActor actor, String queryText) {
         List<float[]> vectors;
         try {
-            vectors = embeddingGateway.embed(CurrentActor.of(userId), List.of(queryText));
+            vectors = embeddingGateway.embed(actor, List.of(queryText));
         } catch (BusinessException exception) {
             throw exception;
         } catch (RuntimeException exception) {

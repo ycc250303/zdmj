@@ -36,20 +36,6 @@ export function getRecommendedColorPalette(color: string) {
 }
 
 /**
- * get recommended palette color by provided color
- *
- * @param color the provided color
- * @param number the color palette number
- */
-export function getRecommendedPaletteColorByNumber(color: string, number: ColorPaletteNumber) {
-  const colorPalette = getRecommendedColorPalette(color);
-
-  const { hex } = colorPalette.colorMap.get(number)!;
-
-  return hex;
-}
-
-/**
  * get color palette family by provided color and color name
  *
  * @param color the provided color

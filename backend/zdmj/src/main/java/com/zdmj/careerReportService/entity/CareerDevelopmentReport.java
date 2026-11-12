@@ -46,12 +46,6 @@ public class CareerDevelopmentReport extends BaseEntity {
     private String studentProfileSnapshot;
 
     /**
-     * 生成时的岗位能力画像快照（JSONB）
-     */
-    @TableField(typeHandler = JsonbStringTypeHandler.class)
-    private String jobProfileSnapshot;
-
-    /**
      * 生成时的人岗匹配结果快照（JSONB）
      */
     @TableField(typeHandler = JsonbStringTypeHandler.class)

@@ -113,8 +113,6 @@ public enum ErrorCode {
 
     // ========== 岗位 jobService 100xx ==========
     JOB_NOT_FOUND(10001, "岗位不存在", HttpStatus.NOT_FOUND),
-    JOB_CAPABILITY_PROFILE_GENERATION_FAILED(10002, "生成岗位能力画像失败", HttpStatus.BAD_REQUEST),
-
     // ========== 人岗匹配 matchService 110xx ==========
     MATCH_GENERATION_FAILED(11001, "生成人岗匹配分析失败，请稍后重试", HttpStatus.BAD_REQUEST),
     MATCH_PRECONDITION_MISSING(11002, "学生能力画像缺失，请先到能力画像页生成画像", HttpStatus.BAD_REQUEST),

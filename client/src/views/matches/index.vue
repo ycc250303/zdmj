@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { type MatchApi, fetchGetMyMatchPage } from '@/service/api/match';
 import { $t } from '@/locales';
-import { fetchGetMyMatchPage, type MatchApi } from '@/service/api/match';
 
-defineOptions({ name: 'matches' });
+defineOptions({ name: 'Matches' });
 
 const router = useRouter();
 
@@ -42,7 +42,7 @@ function handlePageChange(page: number) {
 }
 
 function handleViewDetail(jobId?: number) {
-  if (jobId == null) return;
+  if (jobId === null || jobId === undefined) return;
   router.push({ name: 'job-detail', query: { id: String(jobId) } });
 }
 
@@ -51,7 +51,7 @@ function handleGoJobs() {
 }
 
 function formatScore(score?: number) {
-  return score == null ? '-' : String(score);
+  return score === null || score === undefined ? '-' : String(score);
 }
 
 function formatUpdatedAt(value?: string) {
@@ -68,7 +68,7 @@ onMounted(() => {
   <NSpin :show="loading">
     <div class="h-full min-h-[500px] bg-slate-50/50 p-6 dark:bg-dark-100">
       <div class="mb-6 flex items-center justify-between">
-        <h1 class="text-2xl font-bold text-slate-800 dark:text-gray-200">
+        <h1 class="text-2xl text-slate-800 font-bold dark:text-gray-200">
           {{ $t('page.matches.title') }}
         </h1>
         <NButton @click="handleGoJobs">{{ $t('page.matches.goJobs') }}</NButton>
@@ -79,13 +79,13 @@ onMounted(() => {
           v-for="item in matchList"
           :key="item.id"
           hoverable
-          class="cursor-pointer rounded-xl border-slate-200 transition-all hover:shadow-md dark:border-gray-700"
+          class="cursor-pointer border-slate-200 rounded-xl transition-all dark:border-gray-700 hover:shadow-md"
           @click="handleViewDetail(item.jobId)"
         >
           <div class="flex items-start justify-between gap-4">
             <div class="min-w-0 flex-1">
               <div class="mb-2 flex flex-wrap items-center gap-3">
-                <h3 class="text-xl font-bold text-slate-800 dark:text-gray-200">
+                <h3 class="text-xl text-slate-800 font-bold dark:text-gray-200">
                   {{ item.jobName || '-' }}
                 </h3>
                 <NTag type="success" size="small">

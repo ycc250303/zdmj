@@ -1,11 +1,11 @@
 package com.zdmj.common.util;
 
+import com.zdmj.common.context.CurrentActor;
 import java.io.InputStream;
 
 import org.apache.tika.Tika;
 import org.springframework.stereotype.Component;
 
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.storage.FileUploadService;
@@ -20,27 +20,23 @@ public class PdfParserUtil {
     private final FileUploadService fileUploadService;
 
     /**
-     * 解析当前登录用户拥有的 COS 对象。拒绝任意 http(s)/file URL，避免 SSRF。
+     * 解析操作者拥有的 COS 对象，身份由调用方显式传入。
+     *
+     * @param actor 已认证操作者，包含用户编号
+     * @param url 本系统上传文件的 HTTPS 地址
+     * @return 规范化后的文件文本
+     * @throws BusinessException 地址无效、对象不属于操作者或文本提取失败
      */
-    public String extractTextFromUrl(String url) {
-        return extractTextFromUrl(url, UserHolder.requireUserId());
-    }
-
-    /**
-     * 解析指定用户拥有的 COS 对象。异步向量化须传入文档所属 userId。
-     */
-    public String extractTextFromUrl(String url, Long ownerUserId) {
+    public String extractTextFromUrl(CurrentActor actor, String url) {
         if (url == null || url.isBlank()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "文件地址不能为空");
         }
-        if (ownerUserId == null) {
-            throw new BusinessException(ErrorCode.USER_NOT_LOGIN);
-        }
+        java.util.Objects.requireNonNull(actor, "actor 不能为空");
         String trimmed = url.trim();
         if (!fileUploadService.isManagedCosUrl(trimmed)) {
             throw new BusinessException(ErrorCode.URL_FORMAT_ERROR, "仅支持本系统已上传的文件");
         }
-        try (InputStream inputStream = fileUploadService.openInputStreamFromUrl(trimmed, ownerUserId)) {
+        try (InputStream inputStream = fileUploadService.openInputStreamFromUrl(actor, trimmed)) {
             return normalizeExtractedText(TIKA.parseToString(inputStream));
         } catch (BusinessException e) {
             throw e;

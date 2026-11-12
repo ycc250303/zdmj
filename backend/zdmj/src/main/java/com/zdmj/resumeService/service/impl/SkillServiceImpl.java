@@ -1,7 +1,7 @@
 package com.zdmj.resumeService.service.impl;
 
+import com.zdmj.common.context.CurrentActor;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.model.CreateGroup;
@@ -29,8 +29,8 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
     private final Validator validator;
 
     @Override
-    public SkillResponse create(SkillRequest skillRequest) {
-        Long userId = UserHolder.requireUserId();
+    public SkillResponse create(CurrentActor actor, SkillRequest skillRequest) {
+        Long userId = actor.userId();
         validate(skillRequest, CreateGroup.class);
 
         Skill skill = new Skill();
@@ -46,31 +46,36 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
     }
 
     @Override
-    public SkillResponse update(SkillRequest skillRequest) {
-        Long userId = UserHolder.requireUserId();
-        Long id = skillRequest.getId();
-        Skill skill = requireSkillAndCheckOwnership(id, userId, "修改");
+    public SkillResponse update(CurrentActor actor, SkillRequest skillRequest) {
+        Long userId = actor.userId();
+        Skill skill = requireSkillAndCheckOwnership(skillRequest.getId(), userId, "修改");
         validate(skillRequest, UpdateGroup.class);
-        applyFields(skill, skillRequest);
-
-        boolean updated = updateById(skill);
-        if (!updated) {
-            throw new BusinessException(ErrorCode.SKILL_UPDATE_FAILED);
-        }
-        log.info("用户 {} 更新技能成功: id={}", userId, id);
+        updateOwned(skill, skillRequest);
         return toResponse(skill);
     }
 
     @Override
-    public void delete(Long id) {
-        Long userId = UserHolder.requireUserId();
-        requireSkillAndCheckOwnership(id, userId, "删除");
+    public void updateOwned(Skill existing, SkillRequest skillRequest) {
+        applyFields(existing, skillRequest);
+        if (!updateById(existing)) {
+            throw new BusinessException(ErrorCode.SKILL_UPDATE_FAILED);
+        }
+        log.info("用户 {} 更新技能成功: id={}", existing.getUserId(), existing.getId());
+    }
 
-        boolean removed = removeById(id);
-        if (!removed) {
+    @Override
+    public void delete(CurrentActor actor, Long id) {
+        Long userId = actor.userId();
+        requireSkillAndCheckOwnership(id, userId, "删除");
+        deleteOwned(id);
+    }
+
+    @Override
+    public void deleteOwned(Long id) {
+        if (!removeById(id)) {
             throw new BusinessException(ErrorCode.SKILL_DELETE_FAILED);
         }
-        log.info("用户 {} 删除技能成功: id={}", userId, id);
+        log.info("删除技能成功: id={}", id);
     }
 
     @Override

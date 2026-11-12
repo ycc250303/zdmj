@@ -22,10 +22,6 @@
         <result property="salaryType" column="salary_type" />
         <result property="salary" column="salary" />
         <result property="link" column="link" />
-        <result property="jobDuties" column="job_duties"
-            typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" />
-        <result property="jobRequirements" column="job_requirements"
-            typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" />
         <result property="keywords" column="job_keywords"
             typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" />
         <result property="companyIndustries" column="company_industries"
@@ -46,10 +42,6 @@
         <result property="salaryType" column="salary_type" />
         <result property="salary" column="salary" />
         <result property="link" column="link" />
-        <result property="jobDuties" column="job_duties"
-            typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" />
-        <result property="jobRequirements" column="job_requirements"
-            typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" />
         <result property="keywords" column="job_keywords"
             typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" />
         <result property="companyIndustries" column="company_industries"
@@ -82,8 +74,6 @@
             j.salary_min, j.salary_max, j.salary_type,
             <include refid="Job_Salary_Label_Expr" /> AS salary,
             j.link,
-            j.content AS job_duties,
-            j.requirements AS job_requirements,
             j.keywords AS job_keywords,
             c.industries AS company_industries,
             c.size AS company_size, c.type AS company_funding_type
@@ -96,8 +86,6 @@
             j.salary_min, j.salary_max, j.salary_type,
             <include refid="Job_Salary_Label_Expr" /> AS salary,
             j.link,
-            j.content AS job_duties,
-            j.requirements AS job_requirements,
             j.keywords AS job_keywords,
             c.industries AS company_industries, c.size AS company_size, c.type AS company_funding_type
         <include refid="Job_Company_From_Where" />

@@ -62,12 +62,4 @@ public interface KnowledgeVectorMapper extends BaseMapper<KnowledgeVector> {
             @Param("documentIds") List<Long> documentIds,
             @Param("queryEmbedding") String queryEmbedding,
             @Param("limit") int limit);
-
-    /**
-     * 拉取指定文档在知识库下的全部向量块（按 chunk_index），用于「命中即带全篇」避免 Top-K 漏块。
-     */
-    List<KnowledgeRetrivalDTO> selectChunksByDocuments(
-            @Param("userId") Long userId,
-            @Param("knowledgeId") Long knowledgeId,
-            @Param("documentIds") List<Long> documentIds);
 }

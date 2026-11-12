@@ -43,9 +43,14 @@ class ModuleArchitectureTest {
             .should().onlyHaveDependentClassesThat().resideInAPackage("com.zdmj.aiService..");
 
     @ArchTest
-    static final ArchRule ai_services_receive_identity_explicitly = noClasses()
-            .that().resideInAnyPackage("com.zdmj.aiService.service..", "com.zdmj.aiService.support..")
-            .should().dependOnClassesThat().haveFullyQualifiedName("com.zdmj.common.context.UserHolder");
+    static final ArchRule business_receives_identity_explicitly = noClasses()
+            .that().resideInAnyPackage("..service..", "..support..", "..controller..",
+                    "com.zdmj.common.context..", "com.zdmj.common.storage..", "com.zdmj.common.util..")
+            .should().dependOnClassesThat().haveFullyQualifiedName(
+                    "org.springframework.security.core.context.SecurityContextHolder")
+            .orShould().dependOnClassesThat().haveFullyQualifiedName("java.lang.ThreadLocal")
+            .orShould().dependOnClassesThat().haveFullyQualifiedName(
+                    "org.springframework.web.context.request.RequestContextHolder");
 
     @ArchTest
     static final ArchRule user_auth_does_not_depend_on_ai = noClasses()

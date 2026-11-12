@@ -59,7 +59,7 @@ class ModelGatewayImplTest {
         ModelGatewayImpl gateway = gateway();
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> gateway.generate(CurrentActor.of(1L), new ModelRequest("hi", null, null)));
+                () -> gateway.generate(new CurrentActor(1L), new ModelRequest("hi", null, null)));
 
         assertEquals(ErrorCode.USER_LLM_NOT_CONFIGURED.getCode(), ex.getCode());
         verify(clients, never()).buildUserModel(any(), any());
@@ -71,7 +71,7 @@ class ModelGatewayImplTest {
         ModelGatewayImpl gateway = gateway();
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> gateway.generateStructured(CurrentActor.of(1L),
+                () -> gateway.generateStructured(new CurrentActor(1L),
                         new ModelRequest("resume", "resume-import-parse", null), Sample.class));
 
         assertEquals(ErrorCode.USER_LLM_NOT_CONFIGURED.getCode(), ex.getCode());
@@ -84,16 +84,16 @@ class ModelGatewayImplTest {
         ModelRequest input = new ModelRequest("hi", null, null);
 
         assertThrows(IllegalArgumentException.class,
-                () -> gateway.generateStructured(CurrentActor.of(1L), input, null));
+                () -> gateway.generateStructured(new CurrentActor(1L), input, null));
         assertThrows(IllegalArgumentException.class,
-                () -> gateway.stream(CurrentActor.of(1L), null, input));
+                () -> gateway.stream(new CurrentActor(1L), null, input));
 
         verifyNoInteractions(configurationReader, clients, promptLoader, chatMemory);
     }
 
     @Test
     void calls_shouldReadCurrentConfigurationAndOnlyRememberConversationMessages() {
-        CurrentActor actor = CurrentActor.of(1L);
+        CurrentActor actor = new CurrentActor(1L);
         var first = new ResolvedConfiguration(
                 ModelCode.DEEPSEEK_FLASH, "first-key");
         var updated = new ResolvedConfiguration(

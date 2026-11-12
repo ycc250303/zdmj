@@ -5,16 +5,15 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.context.CurrentActor;
-import com.zdmj.common.context.UserContext;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.model.PageDTO;
-import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
+import com.zdmj.jobService.api.JobRole;
+import com.zdmj.jobService.api.JobRoleDetectionResult;
+import com.zdmj.jobService.api.JobRoleDetectionService;
 import com.zdmj.jobService.dto.JobListItemResponse;
-import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobService;
 import com.zdmj.matchService.dto.DimensionMatchResponse;
 import com.zdmj.matchService.dto.JobStudentMatchResponse;
@@ -25,7 +24,6 @@ import com.zdmj.matchService.mapper.JobStudentMatchMapper;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
 import com.zdmj.resumeService.service.StudentCapabilityProfileService;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -63,12 +61,14 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class JobStudentMatchServiceImplTest {
 
+    private CurrentActor actor = new CurrentActor(1L);
+
     private static final Long USER_ID = 1024L;
 
     @Mock
     private JobService jobService;
     @Mock
-    private JobCapabilityProfileService jobCapabilityProfileService;
+    private JobRoleDetectionService roleDetectionService;
     @Mock
     private StudentCapabilityProfileService studentCapabilityProfileService;
     @Mock
@@ -85,18 +85,13 @@ class JobStudentMatchServiceImplTest {
         lenient().when(transactionManager.getTransaction(any())).thenReturn(org.mockito.Mockito.mock(TransactionStatus.class));
         matchService = spy(new JobStudentMatchServiceImpl(
                 jobService,
-                jobCapabilityProfileService,
+                roleDetectionService,
                 studentCapabilityProfileService,
                 modelGateway,
                 new ObjectMapper(),
                 new TransactionTemplate(transactionManager)));
         ReflectionTestUtils.setField(matchService, "baseMapper", matchMapper);
-        UserHolder.set(new UserContext(USER_ID, "tester", "tester@example.com"));
-    }
-
-    @AfterEach
-    void tearDown() {
-        UserHolder.clear();
+        actor = new CurrentActor(USER_ID);
     }
 
     @Test
@@ -104,9 +99,9 @@ class JobStudentMatchServiceImplTest {
         Long jobId = 12L;
         wireHappyPath(jobId, "weird-unknown-role", buildAiResult());
 
-        matchService.generate(jobId, null);
+        matchService.generate(actor, jobId, null);
 
-        verify(modelGateway).generateStructured(eq(CurrentActor.of(USER_ID)), argThat((ModelRequest req) -> req.promptVars() == null
+        verify(modelGateway).generateStructured(eq(new CurrentActor(USER_ID)), argThat((ModelRequest req) -> req.promptVars() == null
                         && "job-student-match/default".equals(req.promptName())), eq(JobStudentMatchResponse.class));
         verify(matchMapper).insert(argThat(match -> USER_ID.equals(match.getUserId()) && jobId.equals(match.getJobId())));
     }
@@ -116,11 +111,11 @@ class JobStudentMatchServiceImplTest {
         Long jobId = 15L;
         wireHappyPath(jobId, "java-backend", buildAiResult());
 
-        matchService.generate(jobId, null);
+        matchService.generate(actor, jobId, null);
 
         ArgumentCaptor<ModelRequest> userMessageCaptor =
                 ArgumentCaptor.forClass(ModelRequest.class);
-        verify(modelGateway).generateStructured(eq(CurrentActor.of(USER_ID)), userMessageCaptor.capture(), eq(JobStudentMatchResponse.class));
+        verify(modelGateway).generateStructured(eq(new CurrentActor(USER_ID)), userMessageCaptor.capture(), eq(JobStudentMatchResponse.class));
         assertNull(userMessageCaptor.getValue().promptVars());
         assertEquals("job-student-match/java-backend", userMessageCaptor.getValue().promptName());
 
@@ -129,8 +124,8 @@ class JobStudentMatchServiceImplTest {
                 "userMessage 必须内联权重配置；否则 LLM 拿不到打分依据：" + userMessage);
         assertTrue(userMessage.contains("岗位关键词"),
                 "userMessage 必须内联岗位关键词；否则 LLM 没法做命中判断：" + userMessage);
-        assertTrue(userMessage.contains("补充要求") && userMessage.contains("SQL/MySQL"),
-                "userMessage 必须内联岗位补充要求：" + userMessage);
+        assertTrue(userMessage.contains("开发业务接口"),
+                "userMessage 必须内联岗位描述：" + userMessage);
         assertTrue(userMessage.contains("Spring") && userMessage.contains("MySQL"),
                 "userMessage 必须包含具体的岗位关键词列表内容：" + userMessage);
     }
@@ -143,7 +138,7 @@ class JobStudentMatchServiceImplTest {
                 .generateStructured(any(), argThat((ModelRequest req) -> req.promptVars() == null), eq(JobStudentMatchResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> matchService.generate(jobId, null));
+                () -> matchService.generate(actor, jobId, null));
         assertEquals(ErrorCode.MATCH_GENERATION_FAILED.getCode(), ex.getCode());
         verify(matchMapper, never()).insert(any(JobStudentMatch.class));
     }
@@ -155,7 +150,7 @@ class JobStudentMatchServiceImplTest {
         doReturn(null).when(modelGateway).generateStructured(any(), argThat((ModelRequest req) -> req.promptVars() == null), eq(JobStudentMatchResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> matchService.generate(jobId, null));
+                () -> matchService.generate(actor, jobId, null));
         assertEquals(ErrorCode.MATCH_GENERATION_FAILED.getCode(), ex.getCode());
         verify(matchMapper, never()).insert(any(JobStudentMatch.class));
     }
@@ -164,12 +159,12 @@ class JobStudentMatchServiceImplTest {
     void generate_studentProfileMissing_shouldThrow11002_preconditionMissing() {
         Long jobId = 23L;
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(null).when(studentCapabilityProfileService).getCurrentUserProfileOrNull();
+        doReturn(null).when(studentCapabilityProfileService).getCurrentUserProfileOrNull(actor);
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> matchService.generate(jobId, null));
+                () -> matchService.generate(actor, jobId, null));
         assertEquals(ErrorCode.MATCH_PRECONDITION_MISSING.getCode(), ex.getCode());
-        org.mockito.Mockito.verifyNoInteractions(jobCapabilityProfileService);
+        org.mockito.Mockito.verifyNoInteractions(roleDetectionService);
         verify(modelGateway, never()).generateStructured(any(), any(ModelRequest.class), any());
         verify(matchMapper, never()).insert(any(JobStudentMatch.class));
     }
@@ -180,7 +175,7 @@ class JobStudentMatchServiceImplTest {
         doReturn(null).when(jobService).getDetail(jobId);
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> matchService.generate(jobId, null));
+                () -> matchService.generate(actor, jobId, null));
         assertEquals(ErrorCode.JOB_NOT_FOUND.getCode(), ex.getCode());
         verify(matchMapper, never()).insert(any(JobStudentMatch.class));
     }
@@ -189,14 +184,13 @@ class JobStudentMatchServiceImplTest {
     void generate_jobRemovedBeforeSave_shouldThrow10001AndSkipSave() {
         Long jobId = 25L;
         doReturn(buildJobDetail()).doReturn(null).when(jobService).getDetail(jobId);
-        doReturn(buildJobProfile("java-backend")).when(jobCapabilityProfileService)
-                .getJobCapabilityProfileOrNull(jobId);
+        stubRole("java-backend");
         doReturn(buildStudentProfile()).when(studentCapabilityProfileService)
-                .getCurrentUserProfileOrNull();
+                .getCurrentUserProfileOrNull(actor);
         doReturn(buildAiResult()).when(modelGateway).generateStructured(any(), any(ModelRequest.class), any());
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> matchService.generate(jobId, null));
+                () -> matchService.generate(actor, jobId, null));
 
         assertEquals(ErrorCode.JOB_NOT_FOUND.getCode(), ex.getCode());
         verify(matchMapper, never()).insert(any(JobStudentMatch.class));
@@ -210,7 +204,7 @@ class JobStudentMatchServiceImplTest {
     void getOrNull_whenNotFound_shouldReturnNull() {
         doReturn(null).when(matchService).getOne(any(LambdaQueryWrapper.class));
 
-        JobStudentMatchResponse dto = matchService.getOrNull(99L);
+        JobStudentMatchResponse dto = matchService.getOrNull(actor, 99L);
 
         assertNull(dto);
     }
@@ -223,7 +217,7 @@ class JobStudentMatchServiceImplTest {
         entity.setWeights(null);
         doReturn(entity).when(matchService).getOne(any(LambdaQueryWrapper.class));
 
-        JobStudentMatchResponse dto = matchService.getOrNull(99L);
+        JobStudentMatchResponse dto = matchService.getOrNull(actor, 99L);
 
         assertTrue(dto.getDimensions().isEmpty());
         assertNull(dto.getWeights());
@@ -236,7 +230,7 @@ class JobStudentMatchServiceImplTest {
         entity.setDimensionDetail("{bad-json");
         doReturn(entity).when(matchService).getOne(any(LambdaQueryWrapper.class));
 
-        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> matchService.getOrNull(99L));
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> matchService.getOrNull(actor, 99L));
 
         assertInstanceOf(JsonProcessingException.class, ex.getCause());
     }
@@ -257,7 +251,7 @@ class JobStudentMatchServiceImplTest {
         });
 
         IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> matchService.generate(jobId, null));
+                () -> matchService.generate(actor, jobId, null));
 
         assertInstanceOf(JsonProcessingException.class, ex.getCause());
         verify(matchMapper, never()).insert(any(JobStudentMatch.class));
@@ -267,10 +261,10 @@ class JobStudentMatchServiceImplTest {
     @Test
     void getDefaultWeights_forFrontendJob_shouldReturnFrontendDefaults() {
         Long jobId = 31L;
-        doReturn(buildJobProfile("frontend")).when(jobCapabilityProfileService)
-                .getJobCapabilityProfileOrNull(jobId);
+        doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
+        stubRole("frontend");
 
-        var weights = matchService.getDefaultWeights(jobId);
+        var weights = matchService.getDefaultWeights(actor, jobId);
 
         // FRONTEND 默认 0.20 / 0.45 / 0.15 / 0.20，总和 1.0
         assertEquals(0, weights.getProfessionalSkill().compareTo(new java.math.BigDecimal("0.45")));
@@ -293,7 +287,7 @@ class JobStudentMatchServiceImplTest {
         mpPage.setTotal(1);
         doReturn(mpPage).when(matchMapper).selectMyMatchPage(any(Page.class), eq(USER_ID));
 
-        PageDTO<JobStudentMatchListItemResponse> page = matchService.getMyPage(null, null);
+        PageDTO<JobStudentMatchListItemResponse> page = matchService.getMyPage(actor, null, null);
 
         assertEquals(1, page.getPage());
         assertEquals(20, page.getLimit());
@@ -310,7 +304,7 @@ class JobStudentMatchServiceImplTest {
         mpPage.setTotal(0);
         doReturn(mpPage).when(matchMapper).selectMyMatchPage(any(Page.class), eq(USER_ID));
 
-        PageDTO<JobStudentMatchListItemResponse> page = matchService.getMyPage(1, 500);
+        PageDTO<JobStudentMatchListItemResponse> page = matchService.getMyPage(actor, 1, 500);
 
         assertEquals(100, page.getLimit());
         assertTrue(page.getList().isEmpty());
@@ -383,10 +377,14 @@ class JobStudentMatchServiceImplTest {
 
     private void prepareJobAndProfiles(Long jobId, String roleType) {
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(buildJobProfile(roleType)).when(jobCapabilityProfileService)
-                .getJobCapabilityProfileOrNull(jobId);
+        stubRole(roleType);
         doReturn(buildStudentProfile()).when(studentCapabilityProfileService)
-                .getCurrentUserProfileOrNull();
+                .getCurrentUserProfileOrNull(actor);
+    }
+
+    private void stubRole(String roleType) {
+        doReturn(new JobRoleDetectionResult(JobRole.fromString(roleType), 0.8, "测试识别"))
+                .when(roleDetectionService).detect(any(), any());
     }
 
     private static final class JsonWriteFailure extends JsonProcessingException {
@@ -407,28 +405,10 @@ class JobStudentMatchServiceImplTest {
         JobListItemResponse dto = new JobListItemResponse();
         dto.setJobName("Java 后端开发");
         dto.setCompanyName("ZDMJ");
-        dto.setDescription("Java + Spring + MySQL + Redis");
+        dto.setDescription("Java + Spring + MySQL + Redis\n开发业务接口\n维护线上服务\n熟悉 Spring Boot\n熟悉 MySQL 索引");
         dto.setLocation("深圳");
-        dto.setJobDuties(List.of("开发业务接口", "维护线上服务"));
-        dto.setJobRequirements(List.of("熟悉 Spring Boot", "熟悉 MySQL 索引"));
         dto.setKeywords(List.of("Java", "Spring", "MySQL", "Redis"));
         return dto;
-    }
-
-    private static JobCapabilityProfileResponse buildJobProfile(String roleType) {
-        JobCapabilityProfileResponse p = new JobCapabilityProfileResponse();
-        p.setTargetRoleType(roleType);
-        p.setProfessionalSkills("Java/Spring/MySQL/Redis");
-        p.setCertificates("无");
-        p.setInnovationAbility("有持续改进意识");
-        p.setLearningAbility("快速跟进新框架");
-        p.setPressureResistance("能承担线上稳定性");
-        p.setCommunicationAbility("能与产品/前端协作");
-        p.setPracticalAbility("有实习/项目落地经验");
-        p.setSummary("Java 后端校招岗位");
-        p.setStrengths(List.of("工程化能力扎实"));
-        p.setMissingSkills(List.of("SQL/MySQL"));
-        return p;
     }
 
     private static StudentCapabilityProfileResponse buildStudentProfile() {

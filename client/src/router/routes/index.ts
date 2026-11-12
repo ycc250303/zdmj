@@ -22,8 +22,8 @@ export function createStaticRoutes() {
     portalRoute.meta = {
       ...portalRoute.meta,
       title: 'portal',
-      constant: true,   // 免登录
-      hideInMenu: true  // 隐藏左侧菜单
+      constant: true, // 免登录
+      hideInMenu: true // 隐藏左侧菜单
     };
   }
 

@@ -1,5 +1,7 @@
 package com.zdmj.conversationService.controller;
 
+import io.swagger.v3.oas.annotations.Parameter;
+import com.zdmj.common.context.CurrentActor;
 import java.util.List;
 import java.util.Map;
 
@@ -35,64 +37,71 @@ public class ConversationController {
     /**
      * 创建会话
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param request 会话请求
      * @return 创建的会话
      */
     @PostMapping
-    public Result<ConversationResponse> createConversation(@RequestBody ConversationRequest request) {
-        return Result.success("会话创建成功", conversationService.create(request));
+    public Result<ConversationResponse> createConversation(@Parameter(hidden = true) CurrentActor actor, @RequestBody ConversationRequest request) {
+        return Result.success("会话创建成功", conversationService.create(actor, request));
     }
 
     /**
      * 根据ID查询会话
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param id 会话ID
      * @return 查询的会话
      */
     @GetMapping("/{id}")
-    public Result<ConversationResponse> getConversationById(@PathVariable Long id) {
-        return Result.success("会话查询成功", conversationService.getById(id));
+    public Result<ConversationResponse> getConversationById(@Parameter(hidden = true) CurrentActor actor, @PathVariable Long id) {
+        return Result.success("会话查询成功", conversationService.getById(actor, id));
     }
 
     /**
      * 查询所有会话列表
      *
+     * @param actor 已认证操作者，包含用户编号
      * @return 查询的会话列表
      */
     @GetMapping
-    public Result<List<ConversationResponse>> getConversations() {
-        return Result.success("会话查询成功", conversationService.getByUserId());
+    public Result<List<ConversationResponse>> getConversations(@Parameter(hidden = true) CurrentActor actor) {
+        return Result.success("会话查询成功", conversationService.getByUserId(actor));
     }
 
     /**
      * 修改会话标题
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param id    会话ID
      * @param title 新会话标题
      * @return 更新后的会话
      */
     @PutMapping("/{id}/title")
-    public Result<ConversationResponse> updateTitle(@PathVariable Long id, @RequestParam("title") String title) {
-        return Result.success("会话标题修改成功", conversationService.updateTitle(id, title));
+    public Result<ConversationResponse> updateTitle(@Parameter(hidden = true) CurrentActor actor, @PathVariable Long id, @RequestParam("title") String title) {
+        return Result.success("会话标题修改成功", conversationService.updateTitle(actor, id, title));
     }
 
     /**
      * 更新检索配置（仅尚未发出首条消息时）
+     *
+     * @param actor 已认证操作者，包含用户编号
      */
     @PutMapping("/{id}/config")
-    public Result<ConversationResponse> updateConfig(@PathVariable Long id, @RequestBody Map<String, Object> config) {
-        return Result.success("会话配置更新成功", conversationService.updateConfig(id, config));
+    public Result<ConversationResponse> updateConfig(@Parameter(hidden = true) CurrentActor actor, @PathVariable Long id, @RequestBody Map<String, Object> config) {
+        return Result.success("会话配置更新成功", conversationService.updateConfig(actor, id, config));
     }
 
     /**
      * 删除会话
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param id 会话ID
      * @return 删除的会话
      */
     @DeleteMapping("/{id}")
-    public Result<String> deleteConversation(@PathVariable Long id) {
-        conversationService.delete(id);
+    public Result<String> deleteConversation(@Parameter(hidden = true) CurrentActor actor, @PathVariable Long id) {
+        conversationService.delete(actor, id);
         return Result.success("会话删除成功", null);
     }
 }

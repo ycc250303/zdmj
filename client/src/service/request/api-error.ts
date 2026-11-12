@@ -14,7 +14,7 @@ export function parseApiErrorBody(data: ApiErrorBody | undefined | null): { code
   if (!data) {
     return { code: '', msg: '' };
   }
-  const code = data.code != null ? String(data.code) : '';
+  const code = data.code !== null && data.code !== undefined ? String(data.code) : '';
   const msg = data.detail || data.msg || data.title || '';
   return { code, msg };
 }

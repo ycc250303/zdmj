@@ -41,7 +41,7 @@ public class Job extends BaseEntity {
     private String companyName;
 
     /**
-     * 岗位描述
+     * 岗位描述，包含工作内容与岗位要求，对应 {@code jobs.description}。
      */
     private String description;
 
@@ -64,18 +64,6 @@ public class Job extends BaseEntity {
      * 薪资类型：1=日薪 / 2=月薪 / 3=年薪
      */
     private Integer salaryType;
-
-    /**
-     * 岗位职责（JSONB 字符串数组）
-     */
-    @TableField(typeHandler = JacksonTypeHandler.class)
-    private List<String> content;
-
-    /**
-     * 岗位要求（JSONB 字符串数组）
-     */
-    @TableField(typeHandler = JacksonTypeHandler.class)
-    private List<String> requirements;
 
     /**
      * 岗位关键词（JSONB 字符串数组）

@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.context.CurrentActor;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.model.CreateGroup;
@@ -40,9 +39,11 @@ import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -77,48 +78,34 @@ public class ResumeServiceImpl implements ResumeService {
     private final ObjectMapper objectMapper;
 
     @Override
-    public List<ResumeContentResponse> getResumeContentList() {
-        Long userId = UserHolder.requireUserId();
+    public List<ResumeContentResponse> getResumeContentList(CurrentActor actor) {
+        Long userId = actor.userId();
         ResumeContentRow row = resumeMapper.selectContentByUserId(userId);
-        if (row == null || !hasStoredContent(row)) {
+        if (!hasStoredContent(row)) {
             return List.of();
         }
         return List.of(toContentResponse(row));
     }
 
     @Override
-    public ResumeContentResponse getMyResumeContent() {
-        Long userId = UserHolder.requireUserId();
-        return toContentResponse(requireUserContent(userId));
+    public ResumeContentResponse getMyResumeContent(CurrentActor actor) {
+        Long userId = actor.userId();
+        ResumeContentRow row = resumeMapper.selectContentByUserId(userId);
+        return toContentResponse(row);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public ResumeContentResponse saveMyResumeContent(ResumeContentSaveRequest request) {
-        Long userId = UserHolder.requireUserId();
-        requireUserContent(userId);
-        syncSkills(userId, request.getSkills());
-        syncEducations(userId, request.getEducations());
-        syncCareers(userId, request.getCareers());
-        syncProjects(userId, request.getProjects());
-        syncAwards(userId, request.getAwards());
-        syncPersonalInfo(userId, request.getPersonalInfo());
+    public ResumeContentResponse saveMyResumeContent(CurrentActor actor, ResumeContentSaveRequest request) {
+        Long userId = actor.userId();
+        syncSkills(actor, request.getSkills());
+        syncEducations(actor, request.getEducations());
+        syncCareers(actor, request.getCareers());
+        syncProjects(actor, request.getProjects());
+        syncAwards(actor, request.getAwards());
+        syncPersonalInfo(actor, request.getPersonalInfo());
         log.info("全量保存简历成功: userId={}", userId);
-        return toContentResponse(requireUserContent(userId));
-    }
-
-    /**
-     * 读取当前用户的整份简历行。用户不存在时立即终止。
-     *
-     * @param userId 用户编号
-     * @return 查询行
-     */
-    private ResumeContentRow requireUserContent(Long userId) {
-        ResumeContentRow row = resumeMapper.selectContentByUserId(userId);
-        if (row == null) {
-            throw new IllegalStateException("当前用户不存在，无法读取简历");
-        }
-        return row;
+        return toContentResponse(resumeMapper.selectContentByUserId(userId));
     }
 
     private boolean hasStoredContent(ResumeContentRow row) {
@@ -140,6 +127,9 @@ public class ResumeServiceImpl implements ResumeService {
      * @return 整份简历
      */
     private ResumeContentResponse toContentResponse(ResumeContentRow row) {
+        if (row == null || !hasStoredContent(row)) {
+            return null;
+        }
         ResumeContentResponse response = new ResumeContentResponse();
         response.setSkills(readSection(row.getSkills(), SkillResponse.class));
         response.setEducations(readSection(row.getEducations(), EducationRequest.class));
@@ -155,6 +145,13 @@ public class ResumeServiceImpl implements ResumeService {
         return response;
     }
 
+    /**
+     * 将 JSON 字符串转换为列表。
+     *
+     * @param json JSON 字符串
+     * @param type 类型
+     * @return 列表
+     */
     private <T> List<T> readSection(String json, Class<T> type) {
         if (!StringUtils.hasText(json)) {
             return List.of();
@@ -167,7 +164,8 @@ public class ResumeServiceImpl implements ResumeService {
         }
     }
 
-    private void syncPersonalInfo(Long userId, ResumePersonalInfoDTO info) {
+    private void syncPersonalInfo(CurrentActor actor, ResumePersonalInfoDTO info) {
+        Long userId = actor.userId();
         if (info == null) {
             return;
         }
@@ -176,149 +174,152 @@ public class ResumeServiceImpl implements ResumeService {
         update.setPhone(info.getPhone());
         update.setWebsite(info.getHomepageUrl());
         update.setPreferredWorkCity(info.getPreferredWorkCity());
-        userService.updateProfile(userId, update);
+        userService.updateProfile(actor, userId, update);
     }
 
     /**
-     * 按提交列表替换当前用户的技能。列表不能为空，至少包含一项有效名称。
+     * 按提交列表替换当前用户的技能。空列表会删除已有技能。
      *
-     * @param userId 用户编号
+     * @param actor 已认证操作者，包含用户编号
      * @param incoming 技能请求，不能为 null
      */
-    private void syncSkills(Long userId, List<SkillRequest> incoming) {
-        if (incoming == null || incoming.stream().noneMatch(item -> item != null && StringUtils.hasText(item.getName()))) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "请至少填写一项技能");
-        }
+    private void syncSkills(CurrentActor actor, List<SkillRequest> incoming) {
+        Long userId = actor.userId();
         List<Skill> existing = skillMapper.selectByUserId(userId);
-        Set<Long> incomingIds = collectIncomingIds(incoming);
+        Map<Long, Skill> owned = indexById(existing, Skill::getId);
+        Set<Long> incomingIds = incomingIds(incoming, SkillRequest::getId);
         for (Skill item : existing) {
             if (!incomingIds.contains(item.getId())) {
-                skillService.delete(item.getId());
+                skillService.deleteOwned(item.getId());
             }
         }
         for (SkillRequest dto : incoming) {
             validateForSave(dto, CreateGroup.class);
             if (dto.getId() == null) {
-                skillService.create(dto);
+                skillService.create(actor, dto);
             } else {
-                requireOwnedSkill(dto.getId(), userId);
-                skillService.update(dto);
+                Skill current = owned.get(dto.getId());
+                if (current == null) {
+                    current = requireOwned(dto.getId(), userId, skillMapper::selectById, Skill::getUserId,
+                            ErrorCode.SKILL_NOT_FOUND);
+                }
+                skillService.updateOwned(current, dto);
             }
         }
     }
 
     /**
-     * 同步教育经历
-     * 
-     * @param userId 用户编号
+     * 同步教育经历。已加载记录直接更新；编号不在其中时再按编号确认归属。
+     *
+     * @param actor 已认证操作者，包含用户编号
      * @param incoming 教育经历请求
      */
-    private void syncEducations(Long userId, List<EducationRequest> incoming) {
+    private void syncEducations(CurrentActor actor, List<EducationRequest> incoming) {
+        Long userId = actor.userId();
         List<Education> existing = educationMapper.selectByUserId(userId);
-        Set<Long> incomingIds = collectIncomingIds(incoming);
+        Map<Long, Education> owned = indexById(existing, Education::getId);
+        Set<Long> incomingIds = incomingIds(incoming, EducationRequest::getId);
         for (Education item : existing) {
             if (!incomingIds.contains(item.getId())) {
-                educationService.delete(item.getId());
+                educationService.deleteOwned(item.getId());
             }
         }
         for (EducationRequest dto : incoming) {
             validateForSave(dto, CreateGroup.class);
             if (dto.getId() == null) {
-                educationService.create(dto);
+                educationService.create(actor, dto);
             } else {
-                requireOwnedEducation(dto.getId(), userId);
-                educationService.update(dto);
+                Education current = owned.get(dto.getId());
+                if (current == null) {
+                    current = requireOwned(dto.getId(), userId, educationMapper::selectById, Education::getUserId,
+                            ErrorCode.EDUCATION_NOT_FOUND);
+                }
+                educationService.updateOwned(current, dto);
             }
         }
     }
 
-    private void syncCareers(Long userId, List<CareerRequest> incoming) {
+    private void syncCareers(CurrentActor actor, List<CareerRequest> incoming) {
+        Long userId = actor.userId();
         List<Career> existing = careerMapper.selectByUserId(userId);
-        Set<Long> incomingIds = collectIncomingIds(incoming);
+        Map<Long, Career> owned = indexById(existing, Career::getId);
+        Set<Long> incomingIds = incomingIds(incoming, CareerRequest::getId);
         for (Career item : existing) {
             if (!incomingIds.contains(item.getId())) {
-                careerService.delete(item.getId());
+                careerService.deleteOwned(item.getId());
             }
         }
         for (CareerRequest dto : incoming) {
             validateForSave(dto, CreateGroup.class);
             if (dto.getId() == null) {
-                careerService.create(dto);
+                careerService.create(actor, dto);
             } else {
-                requireOwnedCareer(dto.getId(), userId);
-                careerService.update(dto);
+                Career current = owned.get(dto.getId());
+                if (current == null) {
+                    current = requireOwned(dto.getId(), userId, careerMapper::selectById, Career::getUserId,
+                            ErrorCode.CAREER_NOT_FOUND);
+                }
+                careerService.updateOwned(current, dto);
             }
         }
     }
 
-    private void syncProjects(Long userId, List<ProjectExperienceRequest> incoming) {
+    private void syncProjects(CurrentActor actor, List<ProjectExperienceRequest> incoming) {
+        Long userId = actor.userId();
         List<ProjectExperience> existing = projectExperienceMapper.selectByUserId(userId);
-        Set<Long> incomingIds = collectIncomingIds(incoming);
+        Map<Long, ProjectExperience> owned = indexById(existing, ProjectExperience::getId);
+        Set<Long> incomingIds = incomingIds(incoming, ProjectExperienceRequest::getId);
         for (ProjectExperience item : existing) {
             if (!incomingIds.contains(item.getId())) {
-                projectExperienceService.delete(item.getId());
+                projectExperienceService.deleteOwned(item.getId());
             }
         }
         for (ProjectExperienceRequest dto : incoming) {
             validateForSave(dto, CreateGroup.class);
             if (dto.getId() == null) {
-                projectExperienceService.create(dto);
+                projectExperienceService.create(actor, dto);
             } else {
-                requireOwnedProject(dto.getId(), userId);
-                projectExperienceService.update(dto);
+                ProjectExperience current = owned.get(dto.getId());
+                if (current == null) {
+                    current = requireOwned(dto.getId(), userId, projectExperienceMapper::selectById,
+                            ProjectExperience::getUserId, ErrorCode.PROJECT_EXPERIENCE_NOT_FOUND);
+                }
+                projectExperienceService.updateOwned(current, dto);
             }
         }
     }
 
-    private void syncAwards(Long userId, List<AwardRequest> incoming) {
+    private void syncAwards(CurrentActor actor, List<AwardRequest> incoming) {
+        Long userId = actor.userId();
         List<Award> existing = awardMapper.selectByUserId(userId);
-        Set<Long> incomingIds = collectIncomingIds(incoming);
+        Map<Long, Award> owned = indexById(existing, Award::getId);
+        Set<Long> incomingIds = incomingIds(incoming, AwardRequest::getId);
         for (Award item : existing) {
             if (!incomingIds.contains(item.getId())) {
-                awardService.delete(item.getId());
+                awardService.deleteOwned(item.getId());
             }
         }
         for (AwardRequest dto : incoming) {
             validateForSave(dto, CreateGroup.class);
             if (dto.getId() == null) {
-                awardService.create(dto);
+                awardService.create(actor, dto);
             } else {
-                requireOwnedAward(dto.getId(), userId);
-                awardService.update(dto);
-            }
-        }
-    }
-
-    private <T> Set<Long> collectIncomingIds(List<T> incoming) {
-        Set<Long> ids = new HashSet<>();
-        for (T item : incoming) {
-            Long id = extractId(item);
-            if (id != null) {
-                if (!ids.add(id)) {
-                    throw new BusinessException(ErrorCode.VALIDATION_ERROR, "提交的数据中存在重复的经历 ID");
+                Award current = owned.get(dto.getId());
+                if (current == null) {
+                    current = requireOwned(dto.getId(), userId, awardMapper::selectById, Award::getUserId,
+                            ErrorCode.AWARD_NOT_FOUND);
                 }
+                awardService.updateOwned(current, dto);
             }
         }
-        return ids;
     }
 
-    private Long extractId(Object dto) {
-        if (dto instanceof EducationRequest educationDTO) {
-            return educationDTO.getId();
-        }
-        if (dto instanceof CareerRequest careerDTO) {
-            return careerDTO.getId();
-        }
-        if (dto instanceof ProjectExperienceRequest projectDTO) {
-            return projectDTO.getId();
-        }
-        if (dto instanceof AwardRequest awardDTO) {
-            return awardDTO.getId();
-        }
-        if (dto instanceof SkillRequest skillDTO) {
-            return skillDTO.getId();
-        }
-        return null;
+    private <T> Map<Long, T> indexById(List<T> existing, Function<T, Long> id) {
+        return existing.stream().collect(Collectors.toMap(id, Function.identity()));
+    }
+
+    private <T> Set<Long> incomingIds(List<T> incoming, Function<T, Long> id) {
+        return incoming.stream().map(id).filter(Objects::nonNull).collect(Collectors.toSet());
     }
 
     private <T> void validateForSave(T dto, Class<?>... groups) {
@@ -331,72 +332,46 @@ public class ResumeServiceImpl implements ResumeService {
         }
     }
 
-    private void requireOwnedEducation(Long id, Long userId) {
-        Education education = educationMapper.selectById(id);
-        if (education == null) {
-            throw new BusinessException(ErrorCode.EDUCATION_NOT_FOUND);
+    /**
+     * 确认记录存在且属于当前用户。不存在时抛出调用方给出的错误码，归属不符时拒绝访问。
+     *
+     * @param id 记录编号
+     * @param userId 当前用户编号
+     * @param findById 按编号读取记录
+     * @param ownerId 读取记录所属用户
+     * @param notFound 记录不存在时的错误码
+     * @return 属于当前用户的记录
+     */
+    private <T> T requireOwned(Long id, Long userId, Function<Long, T> findById, Function<T, Long> ownerId,
+            ErrorCode notFound) {
+        T item = findById.apply(id);
+        if (item == null) {
+            throw new BusinessException(notFound);
         }
-        if (!education.getUserId().equals(userId)) {
+        if (!ownerId.apply(item).equals(userId)) {
             throw new BusinessException(ErrorCode.NO_PERMISSION);
         }
-    }
-
-    private void requireOwnedCareer(Long id, Long userId) {
-        Career career = careerMapper.selectById(id);
-        if (career == null) {
-            throw new BusinessException(ErrorCode.CAREER_NOT_FOUND);
-        }
-        if (!career.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION);
-        }
-    }
-
-    private void requireOwnedProject(Long id, Long userId) {
-        ProjectExperience project = projectExperienceMapper.selectById(id);
-        if (project == null) {
-            throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_NOT_FOUND);
-        }
-        if (!project.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION);
-        }
-    }
-
-    private void requireOwnedSkill(Long id, Long userId) {
-        Skill skill = skillMapper.selectById(id);
-        if (skill == null) {
-            throw new BusinessException(ErrorCode.SKILL_NOT_FOUND);
-        }
-        if (!skill.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION);
-        }
-    }
-
-    private void requireOwnedAward(Long id, Long userId) {
-        Award award = awardMapper.selectById(id);
-        if (award == null) {
-            throw new BusinessException(ErrorCode.AWARD_NOT_FOUND);
-        }
-        if (!award.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION);
-        }
+        return item;
     }
 
     /**
      * 解析导入的简历
-     * 
+     *
+     * @param actor 已认证操作者，包含用户编号
      * @param request 导入请求
      * @return 解析后的简历
      */
     @Override
-    public ResumeImportParseResponse parseImport(ResumeImportParseRequest request) {
+    public ResumeImportParseResponse parseImport(CurrentActor actor, ResumeImportParseRequest request) {
+        java.util.Objects.requireNonNull(actor, "actor 不能为空");
         log.info("开始识别简历结构化字段");
-        Long userId = UserHolder.requireUserId();
-        String sourceText = PdfParserUtil.normalizeExtractedText(resolveImportSourceText(request));
+
+        String sourceText = PdfParserUtil.normalizeExtractedText(resolveImportSourceText(actor, request));
 
         ResumeImportParseResponse parsed;
         try {
             parsed = modelGateway.generateStructured(
-                    CurrentActor.of(userId),
+                    actor,
                     new ModelRequest(sourceText, IMPORT_PROMPT, null), ResumeImportParseResponse.class);
         } catch (BusinessException e) {
             throw e;
@@ -414,15 +389,16 @@ public class ResumeServiceImpl implements ResumeService {
 
     /**
      * 解析导入的简历文本
-     * 
+     *
+     * @param actor 已认证操作者，包含用户编号
      * @param request 导入请求
      * @return 解析后的文本
      */
-    private String resolveImportSourceText(ResumeImportParseRequest request) {
+    private String resolveImportSourceText(CurrentActor actor, ResumeImportParseRequest request) {
         if (StringUtils.hasText(request.getPdfUrl())) {
             log.info("简历识别：从 PDF 解析文本");
             try {
-                String text = pdfParserUtil.extractTextFromUrl(request.getPdfUrl().trim());
+                String text = pdfParserUtil.extractTextFromUrl(actor, request.getPdfUrl().trim());
                 if (!StringUtils.hasText(text)) {
                     throw new BusinessException(ErrorCode.RESUME_IMPORT_TEXT_EMPTY);
                 }

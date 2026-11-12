@@ -1,7 +1,7 @@
 package com.zdmj.resumeService.service.impl;
 
+import com.zdmj.common.context.CurrentActor;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.resumeService.dto.AwardRequest;
@@ -23,8 +23,8 @@ public class AwardServiceImpl extends ServiceImpl<AwardMapper, Award> implements
     private final AwardStructMapper awardPatchMapper;
 
     @Override
-    public AwardResponse create(AwardRequest awardRequest) {
-        Long userId = UserHolder.requireUserId();
+    public AwardResponse create(CurrentActor actor, AwardRequest awardRequest) {
+        Long userId = actor.userId();
 
         Award award = new Award();
         award.setUserId(userId);
@@ -41,30 +41,35 @@ public class AwardServiceImpl extends ServiceImpl<AwardMapper, Award> implements
     }
 
     @Override
-    public AwardResponse update(AwardRequest awardRequest) {
-        Long userId = UserHolder.requireUserId();
-        Long id = awardRequest.getId();
-        Award award = requireAwardAndCheckOwnership(id, userId, "修改");
-
-        awardPatchMapper.updateEntityFromDto(awardRequest, award);
-
-        boolean updated = updateById(award);
-        if (!updated) {
-            throw new BusinessException(ErrorCode.AWARD_UPDATE_FAILED);
-        }
-        log.info("用户 {} 更新获奖信息成功: id={}", userId, id);
-        return convertToResponse(award);
+    public AwardResponse update(CurrentActor actor, AwardRequest awardRequest) {
+        Long userId = actor.userId();
+        Award award = requireAwardAndCheckOwnership(awardRequest.getId(), userId, "修改");
+        return updateOwned(award, awardRequest);
     }
 
     @Override
-    public void delete(Long id) {
-        Long userId = UserHolder.requireUserId();
+    public AwardResponse updateOwned(Award existing, AwardRequest awardRequest) {
+        awardPatchMapper.updateEntityFromDto(awardRequest, existing);
+        if (!updateById(existing)) {
+            throw new BusinessException(ErrorCode.AWARD_UPDATE_FAILED);
+        }
+        log.info("用户 {} 更新获奖信息成功: id={}", existing.getUserId(), existing.getId());
+        return convertToResponse(existing);
+    }
+
+    @Override
+    public void delete(CurrentActor actor, Long id) {
+        Long userId = actor.userId();
         requireAwardAndCheckOwnership(id, userId, "删除");
-        boolean removed = removeById(id);
-        if (!removed) {
+        deleteOwned(id);
+    }
+
+    @Override
+    public void deleteOwned(Long id) {
+        if (!removeById(id)) {
             throw new BusinessException(ErrorCode.AWARD_DELETE_FAILED);
         }
-        log.info("用户 {} 删除获奖信息成功: id={}", userId, id);
+        log.info("删除获奖信息成功: id={}", id);
     }
 
     private AwardResponse convertToResponse(Award award) {

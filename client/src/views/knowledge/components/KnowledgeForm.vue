@@ -1,11 +1,7 @@
 <script setup lang="ts">
-import { ref, reactive, watch, computed, onMounted } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import type { FormInst, FormRules, UploadFileInfo } from 'naive-ui';
-import {
-  fetchCreateKnowledgeDocument,
-  fetchUpdateKnowledgeDocument,
-  fetchUploadFile
-} from '@/service/api/knowledge';
+import { fetchCreateKnowledgeDocument, fetchUpdateKnowledgeDocument, fetchUploadFile } from '@/service/api/knowledge';
 import type { KnowledgeApi } from '@/service/api/knowledge';
 import { $t } from '@/locales';
 
@@ -144,7 +140,7 @@ function handleDrop(e: DragEvent) {
     id: Date.now().toString(),
     name: file.name,
     status: 'pending',
-    file: file
+    file
   };
 
   fileList.value = [uploadFile];
@@ -199,13 +195,13 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="max-w-3xl mx-auto bg-white p-8 rounded-xl border border-gray-100 shadow-sm">
-    <div class="flex justify-between items-center mb-8">
+  <div class="mx-auto max-w-3xl border border-gray-100 rounded-xl bg-white p-8 shadow-sm">
+    <div class="mb-8 flex items-center justify-between">
       <div>
-        <h2 class="text-2xl font-bold text-gray-800">
+        <h2 class="text-2xl text-gray-800 font-bold">
           {{ props.initialData ? $t('page.profile.common.edit') : $t('page.profile.common.add') }}
         </h2>
-        <p class="text-gray-500 mt-1 text-sm">{{ $t('page.profile.common.requiredDesc') }}</p>
+        <p class="mt-1 text-sm text-gray-500">{{ $t('page.profile.common.requiredDesc') }}</p>
       </div>
       <NButton quaternary circle @click="emit('cancel')">
         <template #icon>
@@ -214,13 +210,7 @@ onMounted(() => {
       </NButton>
     </div>
 
-    <NForm
-      ref="formRef"
-      :model="formData"
-      :rules="rules"
-      label-placement="top"
-      require-mark-placement="right-hanging"
-    >
+    <NForm ref="formRef" :model="formData" :rules="rules" label-placement="top" require-mark-placement="right-hanging">
       <NFormItem :label="$t('page.knowledge.docTitle')" path="title">
         <NInput v-model:value="formData.title" :placeholder="$t('page.knowledge.docTitlePlaceholder')" size="large" />
       </NFormItem>
@@ -246,13 +236,13 @@ onMounted(() => {
             @remove="handleFileRemove"
           >
             <div
-              class="upload-area border-2 border-dashed rounded-lg p-8 text-center transition-all cursor-pointer"
+              class="upload-area cursor-pointer border-2 rounded-lg border-dashed p-8 text-center transition-all"
               :class="isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400'"
               @dragover="handleDragOver"
               @dragleave="handleDragLeave"
               @drop="handleDrop"
             >
-              <span class="text-4xl mb-2" :class="isDragging ? 'text-blue-500' : 'text-gray-400'">☁️</span>
+              <span class="mb-2 text-4xl" :class="isDragging ? 'text-blue-500' : 'text-gray-400'">☁️</span>
               <p class="mb-1" :class="isDragging ? 'text-blue-600 font-medium' : 'text-gray-600'">
                 {{ isDragging ? $t('page.knowledge.dragUploadActive') : $t('page.knowledge.dragUpload') }}
               </p>
@@ -262,7 +252,7 @@ onMounted(() => {
         </div>
       </NFormItem>
 
-      <div class="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-100">
+      <div class="mt-8 flex justify-end gap-4 border-t border-gray-100 pt-6">
         <NButton size="large" @click="emit('cancel')">{{ $t('page.profile.common.cancel') }}</NButton>
         <NButton size="large" type="primary" :loading="loading" @click="handleSubmit">
           {{ $t('page.profile.common.save') }}

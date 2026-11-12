@@ -1,7 +1,6 @@
 package com.zdmj.resumeService.service.impl;
 
-import com.zdmj.common.context.UserContext;
-import com.zdmj.common.context.UserHolder;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.resumeService.dto.CareerRequest;
@@ -9,7 +8,6 @@ import com.zdmj.resumeService.entity.Career;
 import com.zdmj.resumeService.dto.CareerResponse;
 import com.zdmj.resumeService.mapper.CareerMapper;
 import com.zdmj.resumeService.mapper.CareerStructMapper;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,6 +31,8 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class CareerServiceImplTest {
 
+    private final CurrentActor actor = new CurrentActor(1L);
+
     @Mock
     private CareerMapper careerMapper;
     @Mock
@@ -44,12 +44,6 @@ class CareerServiceImplTest {
     void setUp() {
         service = spy(new CareerServiceImpl(careerStructMapper));
         ReflectionTestUtils.setField(Objects.requireNonNull(service), "baseMapper", careerMapper);
-        UserHolder.set(UserContext.of(1L, "u1"));
-    }
-
-    @AfterEach
-    void tearDown() {
-        UserHolder.clear();
     }
 
     @Test
@@ -61,7 +55,7 @@ class CareerServiceImplTest {
         dto.setEndDate(LocalDate.of(2023, 1, 1));
         doReturn(true).when(service).save(any(Career.class));
 
-        CareerResponse out = service.create(dto);
+        CareerResponse out = service.create(actor, dto);
 
         assertEquals(1L, out.getUserId());
         assertEquals("ZDMJ", out.getCompany());
@@ -74,7 +68,7 @@ class CareerServiceImplTest {
         dto.setStartDate(LocalDate.of(2024, 1, 1));
         dto.setEndDate(LocalDate.of(2023, 1, 1));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(actor, dto));
 
         assertEquals(ErrorCode.CAREER_LEAVE_TIME_INVALID.getCode(), ex.getCode());
         verify(service, never()).save(any(Career.class));
@@ -86,7 +80,7 @@ class CareerServiceImplTest {
         dto.setCompany("ZDMJ");
         doReturn(false).when(service).save(any(Career.class));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(actor, dto));
 
         assertEquals(ErrorCode.CAREER_ADD_FAILED.getCode(), ex.getCode());
     }
@@ -100,7 +94,7 @@ class CareerServiceImplTest {
         existing.setUserId(2L);
         doReturn(existing).when(careerMapper).selectById(10L);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(actor, dto));
 
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         verify(careerStructMapper, never()).updateEntityFromDto(any(CareerRequest.class), any(Career.class));
@@ -124,7 +118,7 @@ class CareerServiceImplTest {
             return null;
         }).when(careerStructMapper).updateEntityFromDto(any(CareerRequest.class), any(Career.class));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(actor, dto));
 
         assertEquals(ErrorCode.CAREER_LEAVE_TIME_INVALID.getCode(), ex.getCode());
         verify(service, never()).updateById(any(Career.class));
@@ -148,7 +142,7 @@ class CareerServiceImplTest {
         }).when(careerStructMapper).updateEntityFromDto(any(CareerRequest.class), any(Career.class));
         doReturn(true).when(service).updateById(any(Career.class));
 
-        CareerResponse out = service.update(dto);
+        CareerResponse out = service.update(actor, dto);
 
         assertEquals("NewCo", out.getCompany());
         verify(careerStructMapper).updateEntityFromDto(dto, existing);
@@ -172,7 +166,7 @@ class CareerServiceImplTest {
         }).when(careerStructMapper).updateEntityFromDto(any(CareerRequest.class), any(Career.class));
         doReturn(false).when(service).updateById(any(Career.class));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(actor, dto));
 
         assertEquals(ErrorCode.CAREER_UPDATE_FAILED.getCode(), ex.getCode());
     }
@@ -185,7 +179,7 @@ class CareerServiceImplTest {
         doReturn(existing).when(careerMapper).selectById(11L);
         doReturn(false).when(service).removeById(11L);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.delete(11L));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.delete(actor, 11L));
 
         assertEquals(ErrorCode.CAREER_DELETE_FAILED.getCode(), ex.getCode());
         verify(service).removeById(11L);
@@ -198,7 +192,7 @@ class CareerServiceImplTest {
         existing.setUserId(2L);
         doReturn(existing).when(careerMapper).selectById(11L);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.delete(11L));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.delete(actor, 11L));
 
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         verify(service, never()).removeById(11L);

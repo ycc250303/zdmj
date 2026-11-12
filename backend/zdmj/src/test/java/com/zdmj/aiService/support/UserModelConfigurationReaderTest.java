@@ -43,7 +43,7 @@ class UserModelConfigurationReaderTest {
         assertEquals(ErrorCode.USER_NOT_LOGIN,
                 assertThrows(BusinessException.class, () -> reader.find(null)).getErrorCode());
         assertEquals(ErrorCode.USER_NOT_LOGIN,
-                assertThrows(BusinessException.class, () -> reader.find(CurrentActor.of(null))).getErrorCode());
+                assertThrows(BusinessException.class, () -> reader.find(null)).getErrorCode());
 
         verifyNoInteractions(userLlmConfigMapper, userApiKeyCipher);
     }
@@ -52,7 +52,7 @@ class UserModelConfigurationReaderTest {
     void find_whenConfigMissing_shouldReturnEmpty() {
         when(userLlmConfigMapper.selectById(7L)).thenReturn(null);
 
-        assertTrue(reader.find(CurrentActor.of(7L)).isEmpty());
+        assertTrue(reader.find(new CurrentActor(7L)).isEmpty());
         verify(userApiKeyCipher, never()).decrypt(org.mockito.ArgumentMatchers.any());
     }
 
@@ -62,7 +62,7 @@ class UserModelConfigurationReaderTest {
         when(userLlmConfigMapper.selectById(7L)).thenReturn(config);
         when(userApiKeyCipher.decrypt("ciphertext")).thenReturn("  secret-key  ");
 
-        ResolvedConfiguration resolved = reader.find(CurrentActor.of(7L)).orElseThrow();
+        ResolvedConfiguration resolved = reader.find(new CurrentActor(7L)).orElseThrow();
         assertEquals(ModelCode.QWEN_PLUS, resolved.model());
         assertEquals("secret-key", resolved.apiKey());
         assertFalse(resolved.toString().contains("secret-key"));
@@ -75,7 +75,7 @@ class UserModelConfigurationReaderTest {
         when(userApiKeyCipher.decrypt("ciphertext")).thenReturn("  ");
 
         BusinessException exception = assertThrows(BusinessException.class,
-                () -> reader.find(CurrentActor.of(7L)));
+                () -> reader.find(new CurrentActor(7L)));
 
         assertEquals(ErrorCode.USER_LLM_CONFIG_INVALID, exception.getErrorCode());
     }
@@ -85,7 +85,7 @@ class UserModelConfigurationReaderTest {
         IllegalStateException storageFailure = new IllegalStateException("storage unavailable");
         when(userLlmConfigMapper.selectById(7L)).thenThrow(storageFailure);
         org.junit.jupiter.api.Assertions.assertSame(storageFailure,
-                assertThrows(IllegalStateException.class, () -> reader.find(CurrentActor.of(7L))));
+                assertThrows(IllegalStateException.class, () -> reader.find(new CurrentActor(7L))));
         verifyNoInteractions(userApiKeyCipher);
     }
 

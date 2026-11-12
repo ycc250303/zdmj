@@ -1,7 +1,7 @@
 package com.zdmj.knowledgeService.service.impl;
 
+import com.zdmj.common.context.CurrentActor;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.knowledgeService.dto.KnowledgeBasesResponse;
@@ -9,7 +9,6 @@ import com.zdmj.knowledgeService.entity.KnowledgeBases;
 import com.zdmj.knowledgeService.mapper.KnowledgeBasesMapper;
 import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
-import com.zdmj.knowledgeService.mapper.KnowledgeVectorTaskMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 
 import org.springframework.beans.BeanUtils;
@@ -28,14 +27,13 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
 
     private final KnowledgeBasesMapper knowledgeBasesMapper;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
-    private final KnowledgeVectorTaskMapper knowledgeVectorTaskMapper;
     private final KnowledgeVectorMapper knowledgeVectorMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public KnowledgeBasesResponse create() {
+    public KnowledgeBasesResponse create(CurrentActor actor) {
         // 1.创建知识库
-        Long userId = UserHolder.requireUserId();
+        Long userId = actor.userId();
         log.info("用户 {} 创建知识库: {}", userId);
 
         KnowledgeBases knowledgeBases = new KnowledgeBases();
@@ -52,8 +50,8 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
     }
 
     @Override
-    public KnowledgeBasesResponse getByUserId() {
-        return convertToResponse(requireUserKnowledgeBase());
+    public KnowledgeBasesResponse getByUserId(CurrentActor actor) {
+        return convertToResponse(requireUserKnowledgeBase(actor));
     }
 
     @Override
@@ -63,8 +61,8 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Long getOrCreateKnowledgeBaseId() {
-        Long userId = UserHolder.requireUserId();
+    public Long getOrCreateKnowledgeBaseId(CurrentActor actor) {
+        Long userId = actor.userId();
         Long id = knowledgeBasesMapper.selectKnowledgeIdByUserId(userId);
         if (id != null) {
             return id;
@@ -89,17 +87,16 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void clear() {
-        KnowledgeBases knowledgeBases = requireUserKnowledgeBase();
+    public void clear(CurrentActor actor) {
+        KnowledgeBases knowledgeBases = requireUserKnowledgeBase(actor);
         Long knowledgeId = knowledgeBases.getId();
         knowledgeVectorMapper.deleteByKnowledgeId(knowledgeId);
-        knowledgeVectorTaskMapper.deleteByKnowledgeId(knowledgeId);
         knowledgeDocumentMapper.deleteByKnowledgeId(knowledgeId);
         log.info("清空知识库成功，knowledgeId={}", knowledgeId);
     }
 
-    private KnowledgeBases requireUserKnowledgeBase() {
-        KnowledgeBases knowledgeBases = knowledgeBasesMapper.selectByUserId(UserHolder.requireUserId());
+    private KnowledgeBases requireUserKnowledgeBase(CurrentActor actor) {
+        KnowledgeBases knowledgeBases = knowledgeBasesMapper.selectByUserId(actor.userId());
         if (knowledgeBases == null) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
         }

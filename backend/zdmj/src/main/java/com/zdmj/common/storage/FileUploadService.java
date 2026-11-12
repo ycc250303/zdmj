@@ -1,5 +1,6 @@
 package com.zdmj.common.storage;
 
+import com.zdmj.common.context.CurrentActor;
 import com.qcloud.cos.COSClient;
 import com.qcloud.cos.ClientConfig;
 import com.qcloud.cos.auth.BasicCOSCredentials;
@@ -16,7 +17,6 @@ import com.qcloud.cos.model.ObjectMetadata;
 import com.qcloud.cos.model.PutObjectRequest;
 import com.qcloud.cos.model.PutObjectResult;
 import com.qcloud.cos.region.Region;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 
@@ -110,11 +110,19 @@ public class FileUploadService {
         }
     }
 
-    public FileUploadResponse uploadFile(MultipartFile file, String prefix) {
+    /**
+     * 上传文件到 COS。
+     *
+     * @param actor 已认证操作者，包含用户编号
+     * @param file 文件
+     * @param prefix 前缀
+     * @return 上传响应
+     */
+    public FileUploadResponse uploadFile(CurrentActor actor, MultipartFile file, String prefix) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ErrorCode.FILE_EMPTY);
         }
-        String key = buildUserScopedKey(prefix, file.getOriginalFilename());
+        String key = buildUserScopedKey(actor, prefix, file.getOriginalFilename());
         String uploadedKey = putObject(file, key);
         return FileUploadResponse.builder()
                 .key(uploadedKey)
@@ -127,12 +135,14 @@ public class FileUploadService {
 
     /**
      * 删除当前用户在指定业务域下上传的文件。
+     *
+     * @param actor 已认证操作者，包含用户编号
      */
-    public void deleteOwnedByUrl(String fileUrl, String bizArea) {
+    public void deleteOwnedByUrl(CurrentActor actor, String fileUrl, String bizArea) {
         if (fileUrl == null || fileUrl.isBlank()) {
             return;
         }
-        Long userId = UserHolder.requireUserId();
+        Long userId = actor.userId();
         String key = requireOwnedKey(extractKeyFromUrl(fileUrl), userId);
         String expectedPrefix = UserObjectKeys.ownedPrefix(userId) + sanitizeBizArea(bizArea) + "/";
         if (!key.startsWith(expectedPrefix)) {
@@ -142,14 +152,14 @@ public class FileUploadService {
         log.info("用户域文件已清理，key={}", key);
     }
 
-    public void deleteByKey(String key) {
-        requireOwnedKey(key, UserHolder.requireUserId());
-        deleteObject(key);
+    public void deleteByKey(CurrentActor actor, String key) {
+        String ownedKey = requireOwnedKey(key, actor.userId());
+        deleteObject(ownedKey);
         log.info("文件删除成功，key={}", key);
     }
 
-    public List<FileUploadListItemResponse> listUploadedFiles(String prefix) {
-        Long userId = UserHolder.requireUserId();
+    public List<FileUploadListItemResponse> listUploadedFiles(CurrentActor actor, String prefix) {
+        Long userId = actor.userId();
         String queryPrefix = (prefix == null || prefix.isBlank())
                 ? String.format("user-%d/", userId)
                 : String.format("user-%d/%s/", userId, sanitizeBizArea(prefix));
@@ -166,8 +176,8 @@ public class FileUploadService {
         return result;
     }
 
-    public boolean exists(String key) {
-        String ownedKey = requireOwnedKey(key, UserHolder.requireUserId());
+    public boolean exists(CurrentActor actor, String key) {
+        String ownedKey = requireOwnedKey(key, actor.userId());
         try {
             cosClient.getObjectMetadata(new GetObjectMetadataRequest(bucketName, ownedKey));
             return true;
@@ -202,24 +212,19 @@ public class FileUploadService {
     }
 
     /**
-     * 从 COS URL 读取当前用户拥有的对象流（SDK 鉴权，适用于私有桶）。调用方须关闭返回的 InputStream。
+     * 校验地址与对象归属后，通过 SDK 读取 COS 对象。调用方负责关闭返回的输入流。
+     *
+     * @param actor 已认证操作者，包含用户编号
+     * @param sourceUri 本系统上传文件的 HTTPS 地址
+     * @return 对象内容输入流
+     * @throws BusinessException 地址非法、对象不属于操作者或存储读取失败
      */
-    public InputStream openInputStreamFromUrl(String sourceUri) {
-        return openInputStreamFromUrl(sourceUri, UserHolder.requireUserId());
-    }
-
-    /**
-     * 从 COS URL 读取指定用户拥有的对象流。异步任务须传入文档所属 {@code ownerUserId}，勿依赖 ThreadLocal。
-     */
-    public InputStream openInputStreamFromUrl(String sourceUri, Long ownerUserId) {
+    public InputStream openInputStreamFromUrl(CurrentActor actor, String sourceUri) {
         ensureInitialized();
-        if (ownerUserId == null) {
-            throw new BusinessException(ErrorCode.USER_NOT_LOGIN);
-        }
         if (!isManagedCosUrl(sourceUri)) {
             throw new BusinessException(ErrorCode.URL_FORMAT_ERROR, "仅支持本系统已上传的文件");
         }
-        String key = requireOwnedKey(extractKeyFromUrl(sourceUri), ownerUserId);
+        String key = requireOwnedKey(extractKeyFromUrl(sourceUri), actor.userId());
         return execute("读取文件", () -> {
             COSObject cosObject = cosClient.getObject(new GetObjectRequest(bucketName, key));
             return cosObject.getObjectContent();
@@ -344,8 +349,8 @@ public class FileUploadService {
         return bizArea.replaceAll("[^a-zA-Z0-9_-]", "_");
     }
 
-    private String buildUserScopedKey(String prefix, String originalFilename) {
-        Long userId = UserHolder.requireUserId();
+    private String buildUserScopedKey(CurrentActor actor, String prefix, String originalFilename) {
+        Long userId = actor.userId();
         String bizArea = sanitizeBizArea(prefix);
         String finalPrefix = String.format("user-%d/%s", userId, bizArea);
         return generateKey(finalPrefix, originalFilename);

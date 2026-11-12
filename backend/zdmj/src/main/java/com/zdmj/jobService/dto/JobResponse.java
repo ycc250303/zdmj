@@ -18,6 +18,9 @@ public class JobResponse {
 
     private String companyName;
 
+    /**
+     * 岗位描述，包含工作内容与岗位要求
+     */
     private String description;
 
     private String location;
@@ -27,10 +30,6 @@ public class JobResponse {
     private Integer salaryMax;
 
     private Integer salaryType;
-
-    private List<String> content;
-
-    private List<String> requirements;
 
     private List<String> keywords;
 

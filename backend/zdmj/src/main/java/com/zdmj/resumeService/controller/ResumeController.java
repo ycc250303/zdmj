@@ -1,5 +1,7 @@
 package com.zdmj.resumeService.controller;
 
+import io.swagger.v3.oas.annotations.Parameter;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.annotation.RateLimit;
 import com.zdmj.common.model.Result;
 import com.zdmj.resumeService.dto.ResumeContentResponse;
@@ -28,25 +30,25 @@ public class ResumeController {
     private final ResumeService resumeService;
 
     @GetMapping("/me/content")
-    public Result<ResumeContentResponse> getMyResumeContent() {
-        return Result.success("查询简历完整内容成功", resumeService.getMyResumeContent());
+    public Result<ResumeContentResponse> getMyResumeContent(@Parameter(hidden = true) CurrentActor actor) {
+        return Result.success("查询简历完整内容成功", resumeService.getMyResumeContent(actor));
     }
 
     @PutMapping("/me/content")
-    public Result<ResumeContentResponse> saveMyResumeContent(
+    public Result<ResumeContentResponse> saveMyResumeContent(@Parameter(hidden = true) CurrentActor actor,
             @Validated @RequestBody ResumeContentSaveRequest request) {
-        return Result.success("保存简历成功", resumeService.saveMyResumeContent(request));
+        return Result.success("保存简历成功", resumeService.saveMyResumeContent(actor, request));
     }
 
     @GetMapping("/content")
-    public Result<List<ResumeContentResponse>> getResumeContentList() {
-        return Result.success("查询简历完整内容成功", resumeService.getResumeContentList());
+    public Result<List<ResumeContentResponse>> getResumeContentList(@Parameter(hidden = true) CurrentActor actor) {
+        return Result.success("查询简历完整内容成功", resumeService.getResumeContentList(actor));
     }
 
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/import/parse")
-    public Result<ResumeImportParseResponse> parseResumeImport(
+    public Result<ResumeImportParseResponse> parseResumeImport(@Parameter(hidden = true) CurrentActor actor,
             @Validated @RequestBody ResumeImportParseRequest request) {
-        return Result.success("简历识别成功", resumeService.parseImport(request));
+        return Result.success("简历识别成功", resumeService.parseImport(actor, request));
     }
 }

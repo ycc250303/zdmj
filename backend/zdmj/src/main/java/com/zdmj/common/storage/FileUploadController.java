@@ -1,5 +1,7 @@
 package com.zdmj.common.storage;
 
+import com.zdmj.common.context.CurrentActor;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -31,27 +33,29 @@ public class FileUploadController {
     /**
      * 上传文件到COS（后端直传）
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param file   上传文件
      * @param prefix 业务区域前缀，如 knowledge、resume
      * @return 上传结果（key、url、fileName、fileSize、contentType）
      */
     @PostMapping("/upload")
-    public Result<FileUploadResponse> uploadFile(
+    public Result<FileUploadResponse> uploadFile(@Parameter(hidden = true) CurrentActor actor,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "prefix", required = false) String prefix) {
-        FileUploadResponse response = fileUploadService.uploadFile(file, prefix);
+        FileUploadResponse response = fileUploadService.uploadFile(actor, file, prefix);
         return Result.success("文件上传成功", response);
     }
 
     /**
      * 按 COS key 删除文件
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param key COS对象键
      * @return 结果
      */
     @DeleteMapping
-    public Result<Void> deleteByKey(@RequestParam("key") String key) {
-        fileUploadService.deleteByKey(key);
+    public Result<Void> deleteByKey(@Parameter(hidden = true) CurrentActor actor, @RequestParam("key") String key) {
+        fileUploadService.deleteByKey(actor, key);
         return Result.success("文件删除成功", null);
     }
 
@@ -59,13 +63,14 @@ public class FileUploadController {
      * 查询当前用户某业务域下上传的文件列表
      * 例：GET /files/list?prefix=knowledge
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param prefix 业务区域
      * @return 文件列表（key、url、fileName、bizArea）
      */
     @GetMapping("/list")
-    public Result<List<FileUploadListItemResponse>> listByBizArea(
+    public Result<List<FileUploadListItemResponse>> listByBizArea(@Parameter(hidden = true) CurrentActor actor,
             @RequestParam(value = "prefix", required = false) String prefix) {
-        return Result.success(fileUploadService.listUploadedFiles(prefix));
+        return Result.success(fileUploadService.listUploadedFiles(actor, prefix));
     }
 
 }

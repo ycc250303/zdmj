@@ -1,9 +1,9 @@
 package com.zdmj.conversationService.service.impl;
 
+import com.zdmj.common.context.CurrentActor;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.PageRequests;
 import com.zdmj.common.exception.BusinessException;
@@ -53,19 +53,20 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
      * 流正常结束、失败或客户端中断时，另以短事务回写助手消息内容。
      * 失败仍通过流错误向下游传递，消息表没有单独的状态列。
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param request 会话编号与用户消息
      * @return SSE 增量事件
      * @throws BusinessException 会话不存在、无权访问或消息写入失败
      */
     @Override
-    public Flux<ServerSentEvent<String>> createStream(ChatStreamRequest request) {
-        Conversation conversation = requireConversationAccess(request.getConversationId());
-        Long userId = UserHolder.requireUserId();
+    public Flux<ServerSentEvent<String>> createStream(CurrentActor actor, ChatStreamRequest request) {
+        Conversation conversation = requireConversationAccess(actor, request.getConversationId());
+        Long userId = actor.userId();
         PreparedMessages prepared = transactionTemplate.execute(status -> insertMessages(request, userId));
         if (prepared == null) {
             throw new IllegalStateException("消息写入未返回结果");
         }
-        subscribeAnswer(conversation, userId, request, prepared);
+        subscribeAnswer(conversation, actor, request, prepared);
         return prepared.sink().asFlux()
                 .doOnCancel(() -> {
                     try {
@@ -125,13 +126,13 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
                 new StringBuilder(256), new AtomicReference<>());
     }
 
-    private void subscribeAnswer(Conversation conversation, Long userId, ChatStreamRequest request,
+    private void subscribeAnswer(Conversation conversation, CurrentActor actor, ChatStreamRequest request,
             PreparedMessages prepared) {
         List<Long> ragDocumentIds = ConversationContextSupport.resolveRagDocumentIds(conversation);
         boolean useSystemKnowledge = ConversationContextSupport.resolveUseSystemKnowledge(conversation);
         Map<String, Object> promptVars = ConversationContextSupport.buildChatPromptVars(conversation);
         Flux<String> chatFlux = knowledgeRagService.streamAnswer(
-                userId,
+                actor,
                 request.getConversationId(),
                 request.getMessage(),
                 ragDocumentIds,
@@ -165,14 +166,15 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
 
     /**
      * 获取会话消息列表
+     * @param actor 已认证操作者，包含用户编号
      * @param conversationId 会话 ID
      * @param page 页码
      * @param limit 每页条数
      * @return 消息列表
      */
     @Override
-    public PageDTO<MessageResponse> getMessagesByConversationId(Long conversationId, Integer page, Integer limit) {
-        requireConversationAccess(conversationId);
+    public PageDTO<MessageResponse> getMessagesByConversationId(CurrentActor actor, Long conversationId, Integer page, Integer limit) {
+        requireConversationAccess(actor, conversationId);
         PageRequests.Normalized paging = PageRequests.normalize(page, limit);
         var mpPage = messageMapper.selectPageByConversationId(PageRequests.toPage(paging), conversationId);
         List<MessageResponse> list = mpPage.getRecords().stream().map(this::convertToResponse).toList();
@@ -181,12 +183,14 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
 
     /**
      * 校验会话 ID 有效且存在，且属于当前用户（发送消息、拉取消息列表前调用）。
+     *
+     * @param actor 已认证操作者，包含用户编号
      */
-    private Conversation requireConversationAccess(Long conversationId) {
+    private Conversation requireConversationAccess(CurrentActor actor, Long conversationId) {
         if (conversationId == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "会话ID不能为空");
         }
-        return conversationService.requireOwned(conversationId);
+        return conversationService.requireOwned(actor, conversationId);
     }
 
     /**

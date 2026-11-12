@@ -1,7 +1,6 @@
 package com.zdmj.resumeService.service.impl;
 
-import com.zdmj.common.context.UserContext;
-import com.zdmj.common.context.UserHolder;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.resumeService.dto.ProjectExperienceRequest;
@@ -10,7 +9,6 @@ import com.zdmj.resumeService.dto.ProjectExperienceResponse;
 import com.zdmj.resumeService.enums.ProjectStatusEnum;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
 import com.zdmj.resumeService.mapper.ProjectExperienceStructMapper;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,6 +34,8 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class ProjectExperienceServiceImplTest {
 
+    private final CurrentActor actor = new CurrentActor(1L);
+
     @Mock
     private ProjectExperienceMapper projectExperienceMapper;
     @Mock
@@ -47,12 +47,6 @@ class ProjectExperienceServiceImplTest {
     void setUp() {
         service = spy(new ProjectExperienceServiceImpl(projectExperienceStructMapper));
         ReflectionTestUtils.setField(Objects.requireNonNull(service), "baseMapper", projectExperienceMapper);
-        UserHolder.set(UserContext.of(1L, "u1"));
-    }
-
-    @AfterEach
-    void tearDown() {
-        UserHolder.clear();
     }
 
     @Test
@@ -65,7 +59,7 @@ class ProjectExperienceServiceImplTest {
         dto.setHighlights(List.of("实现分布式锁"));
         doReturn(true).when(service).save(any(ProjectExperience.class));
 
-        ProjectExperienceResponse out = service.create(dto);
+        ProjectExperienceResponse out = service.create(actor, dto);
 
         assertEquals(1L, out.getUserId());
         assertEquals(List.of("实现分布式锁"), out.getHighlights());
@@ -82,7 +76,7 @@ class ProjectExperienceServiceImplTest {
         dto.setStartDate(LocalDate.of(2024, 1, 1));
         dto.setEndDate(LocalDate.of(2023, 1, 1));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(actor, dto));
 
         assertEquals(ErrorCode.PROJECT_END_TIME_INVALID.getCode(), ex.getCode());
         verify(service, never()).save(any(ProjectExperience.class));
@@ -94,7 +88,7 @@ class ProjectExperienceServiceImplTest {
         dto.setName("Resume Parser");
         doReturn(false).when(service).save(any(ProjectExperience.class));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(actor, dto));
 
         assertEquals(ErrorCode.PROJECT_EXPERIENCE_ADD_FAILED.getCode(), ex.getCode());
     }
@@ -108,7 +102,7 @@ class ProjectExperienceServiceImplTest {
         existing.setUserId(2L);
         doReturn(existing).when(projectExperienceMapper).selectById(10L);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(actor, dto));
 
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         verify(projectExperienceStructMapper, never())
@@ -134,7 +128,7 @@ class ProjectExperienceServiceImplTest {
         }).when(projectExperienceStructMapper)
                 .updateEntityFromDto(any(ProjectExperienceRequest.class), any(ProjectExperience.class));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(actor, dto));
 
         assertEquals(ErrorCode.PROJECT_END_TIME_INVALID.getCode(), ex.getCode());
         verify(service, never()).updateById(any(ProjectExperience.class));
@@ -159,7 +153,7 @@ class ProjectExperienceServiceImplTest {
                 .updateEntityFromDto(any(ProjectExperienceRequest.class), any(ProjectExperience.class));
         doReturn(true).when(service).updateById(any(ProjectExperience.class));
 
-        ProjectExperienceResponse out = service.update(dto);
+        ProjectExperienceResponse out = service.update(actor, dto);
 
         assertEquals("NewName", out.getName());
         verify(projectExperienceStructMapper).updateEntityFromDto(dto, existing);
@@ -184,7 +178,7 @@ class ProjectExperienceServiceImplTest {
                 .updateEntityFromDto(any(ProjectExperienceRequest.class), any(ProjectExperience.class));
         doReturn(false).when(service).updateById(any(ProjectExperience.class));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(actor, dto));
 
         assertEquals(ErrorCode.PROJECT_EXPERIENCE_UPDATE_FAILED.getCode(), ex.getCode());
     }
@@ -197,7 +191,7 @@ class ProjectExperienceServiceImplTest {
         doReturn(existing).when(projectExperienceMapper).selectById(11L);
         doReturn(false).when(service).removeById(11L);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.delete(11L));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.delete(actor, 11L));
 
         assertEquals(ErrorCode.PROJECT_EXPERIENCE_DELETE_FAILED.getCode(), ex.getCode());
         verify(service).removeById(11L);
@@ -210,7 +204,7 @@ class ProjectExperienceServiceImplTest {
         existing.setUserId(2L);
         doReturn(existing).when(projectExperienceMapper).selectById(11L);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.delete(11L));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.delete(actor, 11L));
 
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         verify(service, never()).removeById(11L);

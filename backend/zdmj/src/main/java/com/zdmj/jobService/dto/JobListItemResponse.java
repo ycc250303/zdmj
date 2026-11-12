@@ -31,7 +31,7 @@ public class JobListItemResponse {
      */
     private String companyName;
     /**
-     * 岗位描述
+     * 岗位描述，包含工作内容与岗位要求
      */
     private String description;
     /**
@@ -58,14 +58,6 @@ public class JobListItemResponse {
      * 岗位链接
      */
     private String link;
-    /**
-     * 岗位职责（对应 jobs.content）
-     */
-    private List<String> jobDuties;
-    /**
-     * 岗位要求（对应 jobs.requirements）
-     */
-    private List<String> jobRequirements;
     /**
      * 岗位关键词（对应 jobs.keywords）
      */

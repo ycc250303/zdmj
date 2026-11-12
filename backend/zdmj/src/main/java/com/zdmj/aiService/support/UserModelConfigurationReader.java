@@ -40,7 +40,7 @@ public class UserModelConfigurationReader {
      * @throws BusinessException 身份缺失、模型非法或密钥无法解密出有效内容
      */
     public Optional<ResolvedConfiguration> find(CurrentActor actor) {
-        if (actor == null || actor.userId() == null) {
+        if (actor == null) {
             throw new BusinessException(ErrorCode.USER_NOT_LOGIN);
         }
         UserLlmConfig config = userLlmConfigMapper.selectById(actor.userId());

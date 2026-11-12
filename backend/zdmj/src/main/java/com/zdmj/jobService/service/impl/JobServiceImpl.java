@@ -34,10 +34,10 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobService {
 
-    /** 详情缓存键前缀，完整键为 {@code job:detail:{id}}。 */
-    private static final String DETAIL_KEY_PREFIX = "job:detail:";
+    /** 详情缓存键前缀，完整键为 {@code job:detail:v2:{id}}。 */
+    private static final String DETAIL_KEY_PREFIX = "job:detail:v2:";
 
-    /** 空值标记前缀。与详情键拼接后为 {@code null:value:job:detail:{id}}。 */
+    /** 空值标记前缀。与详情键拼接后为 {@code null:value:job:detail:v2:{id}}。 */
     private static final String NULL_VALUE_KEY_PREFIX = "null:value:";
 
     /** 详情缓存有效期，单位秒。 */
@@ -187,12 +187,6 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
         patchJobFromDto(dto, job);
         job.setCompanyId(company.getId());
         job.setCompanyName(company.getName());
-        if (job.getContent() == null) {
-            job.setContent(new ArrayList<>());
-        }
-        if (job.getRequirements() == null) {
-            job.setRequirements(new ArrayList<>());
-        }
         if (job.getKeywords() == null) {
             job.setKeywords(new ArrayList<>());
         }
@@ -241,12 +235,6 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
         }
         if (dto.getLink() != null) {
             job.setLink(dto.getLink());
-        }
-        if (dto.getJobDuties() != null) {
-            job.setContent(dto.getJobDuties());
-        }
-        if (dto.getJobRequirements() != null) {
-            job.setRequirements(dto.getJobRequirements());
         }
         if (dto.getKeywords() != null) {
             job.setKeywords(dto.getKeywords());

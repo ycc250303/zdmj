@@ -1,5 +1,7 @@
 package com.zdmj.knowledgeService.controller;
 
+import io.swagger.v3.oas.annotations.Parameter;
+import com.zdmj.common.context.CurrentActor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -39,60 +41,65 @@ public class KnowledgeDocumentController {
     /**
      * 分页查询当前用户的知识文档
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param page  页码，从 1 开始，默认 1
      * @param limit 每页条数，默认 20，最大 100
      */
     @GetMapping
-    public Result<PageDTO<KnowledgeDocumentPublicResponse>> listKnowledgeDocuments(
+    public Result<PageDTO<KnowledgeDocumentPublicResponse>> listKnowledgeDocuments(@Parameter(hidden = true) CurrentActor actor,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer limit) {
-        return Result.success("查询知识文档列表成功", knowledgeDocumentService.getByPage(page, limit));
+        return Result.success("查询知识文档列表成功", knowledgeDocumentService.getByPage(actor, page, limit));
     }
 
     /**
      * 创建知识文档
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param request 知识文档请求
      * @return 知识文档
      */
     @PostMapping
-    public Result<KnowledgeDocumentResponse> createKnowledgeDocument(
+    public Result<KnowledgeDocumentResponse> createKnowledgeDocument(@Parameter(hidden = true) CurrentActor actor,
             @Validated(CreateGroup.class) @RequestBody KnowledgeDocumentRequest request) {
-        return Result.success("创建知识文档成功", knowledgeDocumentService.create(request));
+        return Result.success("创建知识文档成功", knowledgeDocumentService.create(actor, request));
     }
 
     /**
      * 根据ID获取知识文档
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param id 知识文档ID
      * @return 知识文档
      */
     @GetMapping("/{id}")
-    public Result<KnowledgeDocumentPublicResponse> getKnowledgeDocumentById(@PathVariable Long id) {
-        return Result.success("查询知识文档成功", knowledgeDocumentService.getPublicById(id));
+    public Result<KnowledgeDocumentPublicResponse> getKnowledgeDocumentById(@Parameter(hidden = true) CurrentActor actor, @PathVariable Long id) {
+        return Result.success("查询知识文档成功", knowledgeDocumentService.getPublicById(actor, id));
     }
 
     /**
      * 更新知识文档
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param request 知识文档请求
      * @return 知识文档
      */
     @PutMapping
-    public Result<KnowledgeDocumentResponse> updateKnowledgeDocument(
+    public Result<KnowledgeDocumentResponse> updateKnowledgeDocument(@Parameter(hidden = true) CurrentActor actor,
             @Validated(UpdateGroup.class) @RequestBody KnowledgeDocumentRequest request) {
-        return Result.success("更新知识文档成功", knowledgeDocumentService.update(request));
+        return Result.success("更新知识文档成功", knowledgeDocumentService.update(actor, request));
     }
 
     /**
      * 删除知识文档
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param id 知识文档ID
      * @return 知识文档
      */
     @DeleteMapping("/{id}")
-    public Result<Void> deleteKnowledgeDocument(@PathVariable Long id) {
-        knowledgeDocumentService.delete(id);
+    public Result<Void> deleteKnowledgeDocument(@Parameter(hidden = true) CurrentActor actor, @PathVariable Long id) {
+        knowledgeDocumentService.delete(actor, id);
         return Result.success("删除知识文档成功", null);
     }
 }

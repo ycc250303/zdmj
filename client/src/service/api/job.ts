@@ -1,96 +1,7 @@
 import { request } from '../request';
+import type * as JobApi from './job.types';
 
-/**
- * =====================================================================
- * TypeScript 类型定义区域 (DTOs)
- * 规范：与后端 OpenAPI Schema 严格对齐，保障数据结构在前端的强类型约束
- * 对齐后端：
- *  - JobController (基路径 /jobs)
- *  - JobStudentMatchController (基路径 /matches)
- * =====================================================================
- */
-export namespace JobApi {
-  // 岗位列表项（后端 JobListItemDTO，详情、列表统一使用此结构）
-  export interface JobListItem {
-    id: number;
-    jobName: string;
-    companyId?: number;
-    companyName: string;
-    description: string;
-    location: string;
-    salaryMin: number;
-    salaryMax: number;
-    salaryType: number; // 1=日薪 / 2=月薪 / 3=年薪
-    salary?: string; // 薪资展示文案
-    keywords?: string[];
-    link?: string;
-    companySize?: number;
-    companyFundingType?: number;
-    companyIndustries?: string[];
-    jobDuties?: string[]; // 岗位职责
-    jobRequirements?: string[]; // 岗位要求
-  }
-
-  // 兼容旧引用：Job 与 JobListItem 同构
-  export type Job = JobListItem;
-
-  // 岗位分页查询条件（对应后端 JobPageQueryDTO）
-  export interface JobPageQuery extends Api.Common.PageQueryParams {
-    companySizes?: number[];
-    fundingTypes?: number[];
-    industries?: string[];
-    companyName?: string;
-    /** 实习=INTERN，全职=FULL_TIME（月薪+年薪） */
-    employment?: 'INTERN' | 'FULL_TIME';
-    /** 薪资类型 1=日薪/2=月薪/3=年薪；与 employment 二选一，用于薪资区间筛选 */
-    salaryType?: number;
-    filterSalaryMin?: number;
-    filterSalaryMax?: number;
-    jobName?: string;
-  }
-
-  // 创建岗位请求（对应后端 JobDTO，创建组）
-  export interface JobCreate {
-    jobName: string;
-    companyName: string;
-    companySize?: number;
-    companyFundingType?: number;
-    companyIndustries?: string[];
-    companyIntroduction?: string;
-    description: string;
-    location: string;
-    salaryMin: number;
-    salaryMax: number;
-    salaryType: number;
-    link?: string;
-    jobDuties?: string[];
-    jobRequirements?: string[];
-    keywords?: string[];
-  }
-
-  // 更新岗位请求（对应后端 JobDTO，更新组，需 id）
-  export interface JobUpdate extends JobCreate {
-    id: number;
-  }
-
-  // 分页响应（对应后端 PageDTO）
-  export type PageResponse<T> = Api.Common.PageDTO<T>;
-
-  // 岗位能力画像（对应后端 JobCapabilityProfileDTO）
-  export interface JobCapabilityProfile {
-    targetRoleType?: string; // 岗位类型
-    professionalSkills?: string; // 专业技能
-    certificates?: string; // 证书
-    innovationAbility?: string; // 创新能力
-    learningAbility?: string; // 学习能力
-    pressureResistance?: string; // 抗压能力
-    communicationAbility?: string; // 沟通能力
-    practicalAbility?: string; // 实践能力
-    strengths?: string[]; // 岗位已写明的核心要求亮点
-    missingSkills?: string[]; // 补充要求：JD 未写明的该方向常见核心门槛
-    summary?: string; // 一句话总结
-  }
-}
+export type { JobApi };
 
 /**
  * =====================================================================
@@ -169,30 +80,4 @@ export function fetchUpdateJob(data: JobApi.JobUpdate) {
  */
 export function fetchDeleteJob(id: number | string) {
   return request({ url: `/jobs/${id}`, method: 'delete' });
-}
-
-/**
- * 查询岗位能力画像
- * 后端：GET /jobs/capability-profile?id={id}
- * 注意：后端使用 @RequestParam Long id，而非 PathVariable，
- *      因此路径不是 /jobs/{id}/capability-profile。
- */
-export function fetchGetJobCapabilityProfile(id: number | string) {
-  return request<JobApi.JobCapabilityProfile | null>({
-    url: '/jobs/capability-profile',
-    method: 'get',
-    params: { id }
-  });
-}
-
-/**
- * 生成岗位能力画像并返回结果。
- * 后端：POST /jobs/{id}/capability-profile
- */
-export function fetchGenerateJobCapabilityProfile(id: number | string) {
-  return request<JobApi.JobCapabilityProfile>({
-    url: `/jobs/${id}/capability-profile`,
-    method: 'post',
-    timeout: 300000
-  });
 }

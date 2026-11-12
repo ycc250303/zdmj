@@ -1,5 +1,6 @@
 package com.zdmj.knowledgeService.service.impl;
 
+import com.zdmj.common.context.CurrentActor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.LinkedHashMap;
@@ -14,7 +15,6 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.PageRequests;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.storage.FileUploadService;
@@ -22,11 +22,9 @@ import com.zdmj.knowledgeService.dto.KnowledgeDocumentPublicResponse;
 import com.zdmj.knowledgeService.dto.KnowledgeDocumentRequest;
 import com.zdmj.knowledgeService.dto.KnowledgeDocumentResponse;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
-import com.zdmj.knowledgeService.entity.KnowledgeVectorTask;
 import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
-import com.zdmj.knowledgeService.enums.KnowledgeVectorTaskStatusEnum;
+import com.zdmj.knowledgeService.enums.KnowledgeEmbeddingStatusEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
-import com.zdmj.knowledgeService.mapper.KnowledgeVectorTaskMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 import com.zdmj.knowledgeService.service.KnowledgeDocumentService;
 import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
@@ -44,7 +42,6 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
         implements KnowledgeDocumentService {
 
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
-    private final KnowledgeVectorTaskMapper knowledgeVectorTaskMapper;
     private final KnowledgeBasesService knowledgeBasesService;
     private final KnowledgeEmbeddingService knowledgeEmbeddingService;
     private final FileUploadService fileUploadService;
@@ -52,18 +49,19 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
     /**
      * 创建知识文档。文档插入先提交，再在事务外向量化。
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param request 知识文档请求
      * @return 向量化完成后的知识文档
      */
     @Override
-    public KnowledgeDocumentResponse create(KnowledgeDocumentRequest request) {
+    public KnowledgeDocumentResponse create(CurrentActor actor, KnowledgeDocumentRequest request) {
 
         // 1. 验证内容
-        validateContent(request);
+        validateContent(actor, request);
 
         // 2. 创建知识文档
-        Long userId = UserHolder.requireUserId();
-        Long knowledgeId = knowledgeBasesService.getOrCreateKnowledgeBaseId();
+        Long userId = actor.userId();
+        Long knowledgeId = knowledgeBasesService.getOrCreateKnowledgeBaseId(actor);
         KnowledgeDocument knowledgeDocument = new KnowledgeDocument();
         knowledgeDocument.setUserId(userId);
         knowledgeDocument.setKnowledgeId(knowledgeId);
@@ -87,7 +85,7 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
             throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_CREATE_FAILED);
         }
 
-        knowledgeEmbeddingService.vectorizeAndStore(knowledgeDocument.getId());
+        knowledgeEmbeddingService.vectorizeAndStore(actor, knowledgeDocument.getId());
         KnowledgeDocument stored = knowledgeDocumentMapper.selectById(knowledgeDocument.getId());
         log.info("创建知识文档并完成向量化，documentId={}, knowledgeId={}",
                 knowledgeDocument.getId(), knowledgeId);
@@ -96,19 +94,21 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
 
     /**
      * 根据ID获取知识文档（内部完整实体，含权限校验）
+     *
+     * @param actor 已认证操作者，包含用户编号
      */
     @Override
-    public KnowledgeDocument getById(Long id) {
+    public KnowledgeDocument getById(CurrentActor actor, Long id) {
         KnowledgeDocument knowledgeDocument = knowledgeDocumentMapper.selectById(id);
-        if (knowledgeDocument == null || !knowledgeDocument.getUserId().equals(UserHolder.requireUserId())) {
+        if (knowledgeDocument == null || !knowledgeDocument.getUserId().equals(actor.userId())) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_NOT_FOUND);
         }
         return knowledgeDocument;
     }
 
     @Override
-    public KnowledgeDocumentPublicResponse getPublicById(Long id) {
-        return toPublicResponse(getById(id));
+    public KnowledgeDocumentPublicResponse getPublicById(CurrentActor actor, Long id) {
+        return toPublicResponse(getById(actor, id));
     }
 
     private KnowledgeDocumentPublicResponse toPublicResponse(KnowledgeDocument kd) {
@@ -117,7 +117,7 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
         response.setType(kd.getType());
         response.setContent(kd.getContent());
         response.setTitle(kd.getTitle());
-        KnowledgeVectorTaskStatusEnum statusEnum = KnowledgeVectorTaskStatusEnum.fromCode(kd.getEmbeddingStatus());
+        KnowledgeEmbeddingStatusEnum statusEnum = KnowledgeEmbeddingStatusEnum.fromCode(kd.getEmbeddingStatus());
         response.setEmbeddingStatus(statusEnum != null ? statusEnum.getName() : null);
         response.setLastEmbeddedAt(kd.getLastEmbeddedAt());
         response.setLastError(kd.getLastError());
@@ -128,12 +128,13 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
     /**
      * 分页查询知识文档
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param page  页码
      * @param limit 每页数量
      * @return 知识文档列表
      */
-    public PageDTO<KnowledgeDocumentPublicResponse> getByPage(Integer page, Integer limit) {
-        Long userId = UserHolder.requireUserId();
+    public PageDTO<KnowledgeDocumentPublicResponse> getByPage(CurrentActor actor, Integer page, Integer limit) {
+        Long userId = actor.userId();
         PageRequests.Normalized paging = PageRequests.normalize(page, limit);
         LambdaQueryWrapper<KnowledgeDocument> queryWrapper = new LambdaQueryWrapper<KnowledgeDocument>()
                 .eq(KnowledgeDocument::getUserId, userId)
@@ -149,15 +150,16 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
     /**
      * 更新知识文档
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param request 知识文档请求
      * @return 知识文档
      */
-    public KnowledgeDocumentResponse update(KnowledgeDocumentRequest request) {
+    public KnowledgeDocumentResponse update(CurrentActor actor, KnowledgeDocumentRequest request) {
         // 1. 验证内容
-        validateContent(request);
+        validateContent(actor, request);
         // 2. 获取知识文档
         KnowledgeDocument knowledgeDocument = knowledgeDocumentMapper.selectById(request.getId());
-        if (knowledgeDocument == null || !knowledgeDocument.getUserId().equals(UserHolder.requireUserId())) {
+        if (knowledgeDocument == null || !knowledgeDocument.getUserId().equals(actor.userId())) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_NOT_FOUND);
         }
         // 3. 判断内容是否发生变化
@@ -175,7 +177,7 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
             throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_UPDATE_FAILED);
         }
         if (contentChanged) {
-            knowledgeEmbeddingService.vectorizeAndStore(knowledgeDocument.getId());
+            knowledgeEmbeddingService.vectorizeAndStore(actor, knowledgeDocument.getId());
             knowledgeDocument = knowledgeDocumentMapper.selectById(knowledgeDocument.getId());
             log.info("更新知识文档并完成向量化，knowledgeId={}", knowledgeDocument.getId());
         } else {
@@ -188,15 +190,14 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
     /**
      * 删除知识文档
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param id 知识文档ID
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void delete(Long id) {
-        KnowledgeDocument kd = getById(id);
-        knowledgeEmbeddingService.deleteVectors(id);
-        knowledgeVectorTaskMapper.delete(new LambdaQueryWrapper<KnowledgeVectorTask>()
-                .eq(KnowledgeVectorTask::getDocumentId, id));
+    public void delete(CurrentActor actor, Long id) {
+        KnowledgeDocument kd = getById(actor, id);
+        knowledgeEmbeddingService.deleteVectors(actor, id);
         knowledgeDocumentMapper.deleteById(id);
         log.info("删除知识文档，documentId={}, knowledgeId={}", id, kd.getKnowledgeId());
     }
@@ -218,13 +219,15 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
 
     /**
      * 验证内容
-     * 
+     *
      * 验证规则：
      * - type=1（项目文档）：必须是COS链接的PDF或MD文件
      * - type=2（GitHub链接）：必须是GitHub链接
      * - type=3（DeepWiki）：暂不支持
+     *
+     * @param actor 已认证操作者，包含用户编号
      */
-    private void validateContent(KnowledgeDocumentRequest request) {
+    private void validateContent(CurrentActor actor, KnowledgeDocumentRequest request) {
         Integer type = request.getType();
         String content = request.getContent();
 
@@ -255,7 +258,7 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
                         "项目文档须为本系统已上传的文件");
             }
             String cosKey = fileUploadService.extractKeyFromUrl(content);
-            if (cosKey.isBlank() || !fileUploadService.exists(cosKey)) {
+            if (cosKey.isBlank() || !fileUploadService.exists(actor, cosKey)) {
                 throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS);
             }
 

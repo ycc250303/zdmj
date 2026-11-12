@@ -36,7 +36,7 @@
    - `industryEvidence`：行业趋势、岗位定位、市场机会等相关证据
    - `technicalEvidence`：技能栈、项目经历、技术短板等人岗差距证据
    - `communicationEvidence`：沟通协作、表达、团队配合等软技能证据
-   可选 `source`（string）：数据来源与引用说明（如「基于人岗匹配、岗位画像与学习路径知识」）。
+   可选 `source`（string）：数据来源与引用说明（如「基于人岗匹配、岗位描述与学习路径知识」）。
    禁止仅用 `gapAnalysis`、`actionPlanRationale` 等字段替代上述三列；若存在差距或计划依据，须拆入对应 `*Evidence` 数组。
 8. 所有建议必须可执行、可验证，避免空泛表达。
 9. 严禁捏造输入中不存在的个人经历或岗位事实。

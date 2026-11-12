@@ -1,21 +1,16 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { computed, onMounted, reactive, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { type JobApi, fetchCreateJob, fetchGetJobDetail, fetchUpdateJob } from '@/service/api/job';
 import { $t } from '@/locales';
-import {
-  fetchGetJobDetail,
-  fetchCreateJob,
-  fetchUpdateJob,
-  type JobApi
-} from '@/service/api/job';
 
-defineOptions({ name: 'job-edit' });
+defineOptions({ name: 'JobEdit' });
 
 const router = useRouter();
 const route = useRoute();
 
 const editId = computed(() => (route.query.id ? Number(route.query.id) : null));
-const isEdit = computed(() => !!editId.value);
+const isEdit = computed(() => Boolean(editId.value));
 
 const loading = ref(false);
 const submitting = ref(false);
@@ -34,14 +29,10 @@ const formData = reactive<JobApi.JobCreate & { id?: number }>({
   salaryMax: 0,
   salaryType: 2, // 默认月薪
   link: '',
-  jobDuties: [],
-  jobRequirements: [],
   keywords: []
 });
 
 // 临时存储的数组输入值
-const dutiesInput = ref('');
-const requirementsInput = ref('');
 const keywordsInput = ref('');
 const industriesInput = ref('');
 
@@ -108,22 +99,16 @@ async function loadJobDetail() {
         link: data.link ?? ''
       });
 
-      // 设置数组字段
-      formData.jobDuties = data.jobDuties || [];
-      formData.jobRequirements = data.jobRequirements || [];
       formData.keywords = data.keywords || [];
       formData.companyIndustries = data.companyIndustries || [];
 
-      // 设置临时输入值
-      dutiesInput.value = (formData.jobDuties || []).join('\n');
-      requirementsInput.value = (formData.jobRequirements || []).join('\n');
       keywordsInput.value = (formData.keywords || []).join('\n');
       industriesInput.value = (formData.companyIndustries || []).join('\n');
     } else {
       window.$message?.error($t('page.jobs.loadFailed'));
       router.back();
     }
-  } catch (err) {
+  } catch {
     window.$message?.error($t('page.jobs.loadFailed'));
     router.back();
   } finally {
@@ -134,17 +119,6 @@ async function loadJobDetail() {
 async function handleSubmit() {
   try {
     await formRef.value?.validate();
-
-    // 解析数组字段
-    formData.jobDuties = dutiesInput.value
-      .split('\n')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
-
-    formData.jobRequirements = requirementsInput.value
-      .split('\n')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
 
     formData.keywords = keywordsInput.value
       .split(/[,，\n]/)
@@ -194,13 +168,13 @@ onMounted(() => {
 
 <template>
   <NSpin :show="loading">
-    <div class="h-full p-6 bg-slate-50/50 min-h-[500px] overflow-auto">
+    <div class="h-full min-h-[500px] overflow-auto bg-slate-50/50 p-6">
       <!-- 头部 -->
       <div class="mb-6 flex items-center gap-3">
         <NButton quaternary circle @click="handleCancel">
           <template #icon><span>←</span></template>
         </NButton>
-        <h1 class="text-2xl font-bold text-slate-800">{{ isEdit ? $t('page.jobs.edit') : $t('page.jobs.create') }}</h1>
+        <h1 class="text-2xl text-slate-800 font-bold">{{ isEdit ? $t('page.jobs.edit') : $t('page.jobs.create') }}</h1>
       </div>
 
       <!-- 表单 -->
@@ -236,11 +210,21 @@ onMounted(() => {
 
           <NCard :title="$t('page.jobs.salaryInfo')" class="mb-4 rounded-xl">
             <NFormItem :label="$t('page.jobs.salaryMin')" path="salaryMin">
-              <NInputNumber v-model:value="formData.salaryMin" :min="0" :placeholder="$t('page.jobs.salaryMin')" class="w-full" />
+              <NInputNumber
+                v-model:value="formData.salaryMin"
+                :min="0"
+                :placeholder="$t('page.jobs.salaryMin')"
+                class="w-full"
+              />
             </NFormItem>
 
             <NFormItem :label="$t('page.jobs.salaryMax')" path="salaryMax">
-              <NInputNumber v-model:value="formData.salaryMax" :min="0" :placeholder="$t('page.jobs.salaryMax')" class="w-full" />
+              <NInputNumber
+                v-model:value="formData.salaryMax"
+                :min="0"
+                :placeholder="$t('page.jobs.salaryMax')"
+                class="w-full"
+              />
             </NFormItem>
 
             <NFormItem :label="$t('page.jobs.salaryType')" path="salaryType">
@@ -260,34 +244,6 @@ onMounted(() => {
                 :rows="6"
                 :placeholder="$t('page.jobs.placeholders.description')"
               />
-            </NFormItem>
-
-            <NFormItem :label="$t('page.jobs.jobDuties')">
-              <NInput
-                v-model:value="dutiesInput"
-                type="textarea"
-                :rows="5"
-                :placeholder="$t('page.jobs.tips.dutiesFormat')"
-              />
-              <template #feedback>
-                <div class="text-xs text-slate-500">
-                  {{ $t('page.jobs.tips.dutiesFormat') }}
-                </div>
-              </template>
-            </NFormItem>
-
-            <NFormItem :label="$t('page.jobs.jobRequirements')">
-              <NInput
-                v-model:value="requirementsInput"
-                type="textarea"
-                :rows="5"
-                :placeholder="$t('page.jobs.tips.requirementsFormat')"
-              />
-              <template #feedback>
-                <div class="text-xs text-slate-500">
-                  {{ $t('page.jobs.tips.requirementsFormat') }}
-                </div>
-              </template>
             </NFormItem>
 
             <NFormItem :label="$t('page.jobs.jobKeywords')">
@@ -325,7 +281,7 @@ onMounted(() => {
         </NForm>
 
         <!-- 操作按钮 -->
-        <div class="flex justify-end gap-3 mt-6">
+        <div class="mt-6 flex justify-end gap-3">
           <NButton size="large" @click="handleCancel">{{ $t('common.cancel') }}</NButton>
           <NButton type="primary" size="large" :loading="submitting" @click="handleSubmit">
             {{ isEdit ? $t('common.modify') : $t('page.jobs.create') }}

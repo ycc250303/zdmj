@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, onMounted, nextTick } from 'vue';
+import { computed, reactive } from 'vue';
 import { loginModuleRecord } from '@/constants/app';
 import { useAuthStore } from '@/store/modules/auth';
 import { useRouterPush } from '@/hooks/common/router';
@@ -44,8 +44,6 @@ async function handleSubmit() {
   await validate();
   await authStore.login(model.userName, model.password);
 }
-
-
 </script>
 
 <template>
@@ -79,7 +77,7 @@ async function handleSubmit() {
           {{ $t(loginModuleRecord.register) }}
         </NButton>
       </div>
-      </NSpace>
+    </NSpace>
   </NForm>
 </template>
 

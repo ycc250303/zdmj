@@ -174,6 +174,6 @@ export function createFlatRequest<ResponseData, ApiData, State extends Record<st
   return flatRequest;
 }
 
-export { BACKEND_ERROR_CODE, REQUEST_ID_KEY };
+export { BACKEND_ERROR_CODE };
 export type * from './type';
 export type { CreateAxiosDefaults, AxiosError };

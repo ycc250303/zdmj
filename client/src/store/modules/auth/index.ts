@@ -2,7 +2,7 @@ import { computed, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { defineStore } from 'pinia';
 import { useLoading } from '@sa/hooks';
-import { fetchGetUserInfo, fetchLogin } from '@/service/api';
+import { fetchLogin } from '@/service/api';
 import { useRouterPush } from '@/hooks/common/router';
 import { localStg } from '@/utils/storage';
 import { SetupStoreId } from '@/enum';
@@ -99,15 +99,14 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
   async function login(userName: string, password: string, redirect = true) {
     startLoading();
     const response = await fetchLogin(userName, password);
-    const data = response.data as any; 
+    const data = response.data as any;
     const error = response.error;
 
     if (!error && data) {
       window.localStorage.setItem('custom_user_info', JSON.stringify(data.user));
 
       const loginToken: Api.Auth.LoginToken = {
-        token: data.token,
-        refreshToken: data.token
+        token: data.token
       };
 
       const pass = await loginByToken(loginToken);
@@ -137,7 +136,6 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
   async function loginByToken(loginToken: Api.Auth.LoginToken) {
     // 1. stored in the localStorage, the later requests need it in headers
     localStg.set('token', loginToken.token);
-    localStg.set('refreshToken', loginToken.refreshToken);
 
     // 2. get user info
     const pass = await getUserInfo();
@@ -168,7 +166,7 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
       const formattedInfo: Api.Auth.UserInfo = {
         userId: String(cachedUser.id),
         userName: cachedUser.username,
-        roles: roles,
+        roles,
         buttons: []
       };
 

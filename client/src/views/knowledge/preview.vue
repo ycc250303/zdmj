@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { fetchGetKnowledgeDetail } from '@/service/api/knowledge';
 import type { KnowledgeApi } from '@/service/api/knowledge';
@@ -40,8 +40,8 @@ onMounted(() => {
 <template>
   <div class="h-screen flex flex-col bg-gray-900">
     <!-- 顶部工具栏 -->
-    <div class="bg-gray-800 text-white p-3 flex items-center gap-3 border-b border-gray-700">
-      <NButton quaternary circle @click="goBack" class="text-white">
+    <div class="flex items-center gap-3 border-b border-gray-700 bg-gray-800 p-3 text-white">
+      <NButton quaternary circle class="text-white" @click="goBack">
         <template #icon>
           <span class="text-xl">←</span>
         </template>
@@ -50,7 +50,13 @@ onMounted(() => {
         <span v-if="detail">{{ detail.title }}</span>
         <span v-else>加载中...</span>
       </div>
-      <a v-if="detail" :href="detail.content" target="_blank" class="text-white hover:text-blue-400">
+      <a
+        v-if="detail"
+        :href="detail.content"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="text-white hover:text-blue-400"
+      >
         <NButton size="small" secondary>
           <template #icon>
             <span>⬇️</span>
@@ -65,7 +71,7 @@ onMounted(() => {
       <div v-if="detail && detail.content" class="h-full">
         <iframe
           :src="detail.content"
-          class="w-full h-full border-0"
+          class="h-full w-full border-0"
           :type="detail.content.toLowerCase().includes('.pdf') ? 'application/pdf' : undefined"
         ></iframe>
       </div>

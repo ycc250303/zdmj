@@ -1,5 +1,7 @@
 package com.zdmj.knowledgeService.controller;
 
+import io.swagger.v3.oas.annotations.Parameter;
+import com.zdmj.common.context.CurrentActor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,31 +31,34 @@ public class KnowledgeBasesController {
     /**
      * 创建知识库
      *
+     * @param actor 已认证操作者，包含用户编号
      * @return 知识库
      */
     @PostMapping
-    public Result<KnowledgeBasesResponse> createKnowledgeBases() {
-        return Result.success("创建知识库成功", knowledgeBasesService.create());
+    public Result<KnowledgeBasesResponse> createKnowledgeBases(@Parameter(hidden = true) CurrentActor actor) {
+        return Result.success("创建知识库成功", knowledgeBasesService.create(actor));
     }
 
     /**
      * 查询知识库
      *
+     * @param actor 已认证操作者，包含用户编号
      * @return 知识库
      */
     @GetMapping
-    public Result<KnowledgeBasesResponse> getKnowledgeBases() {
-        return Result.success("查询知识库成功", knowledgeBasesService.getByUserId());
+    public Result<KnowledgeBasesResponse> getKnowledgeBases(@Parameter(hidden = true) CurrentActor actor) {
+        return Result.success("查询知识库成功", knowledgeBasesService.getByUserId(actor));
     }
 
     /**
      * 清空知识库
      *
+     * @param actor 已认证操作者，包含用户编号
      * @return 删除结果
      */
     @DeleteMapping
-    public Result<String> clearKnowledgeBases() {
-        knowledgeBasesService.clear();
+    public Result<String> clearKnowledgeBases(@Parameter(hidden = true) CurrentActor actor) {
+        knowledgeBasesService.clear(actor);
         return Result.success("清空知识库成功", null);
     }
 

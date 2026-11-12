@@ -1,7 +1,7 @@
 package com.zdmj.resumeService.service.impl;
 
+import com.zdmj.common.context.CurrentActor;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.resumeService.dto.ProjectExperienceRequest;
@@ -26,8 +26,8 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
     private final ProjectExperienceStructMapper projectExperiencePatchMapper;
 
     @Override
-    public ProjectExperienceResponse create(ProjectExperienceRequest projectExperienceRequest) {
-        Long userId = UserHolder.requireUserId();
+    public ProjectExperienceResponse create(CurrentActor actor, ProjectExperienceRequest projectExperienceRequest) {
+        Long userId = actor.userId();
         DateRangeUtil.rejectIfEndBeforeStart(
                 projectExperienceRequest.getStartDate(),
                 projectExperienceRequest.getEndDate(),
@@ -55,36 +55,40 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
     }
 
     @Override
-    public ProjectExperienceResponse update(ProjectExperienceRequest projectExperienceRequest) {
-        Long userId = UserHolder.requireUserId();
-        Long id = projectExperienceRequest.getId();
-        ProjectExperience projectExperience = requireProjectExperienceAndCheckOwnership(id, userId, "修改");
-
-        projectExperiencePatchMapper.updateEntityFromDto(projectExperienceRequest, projectExperience);
-        DateRangeUtil.rejectIfEndBeforeStart(
-                projectExperience.getStartDate(),
-                projectExperience.getEndDate(),
-                ErrorCode.PROJECT_END_TIME_INVALID);
-
-        boolean updated = updateById(projectExperience);
-        if (!updated) {
-            throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_UPDATE_FAILED);
-        }
-
-        log.info("用户 {} 更新项目经历成功: id={}", userId, id);
-        return convertToResponse(projectExperience);
+    public ProjectExperienceResponse update(CurrentActor actor, ProjectExperienceRequest projectExperienceRequest) {
+        Long userId = actor.userId();
+        ProjectExperience projectExperience = requireProjectExperienceAndCheckOwnership(
+                projectExperienceRequest.getId(), userId, "修改");
+        return updateOwned(projectExperience, projectExperienceRequest);
     }
 
     @Override
-    public void delete(Long id) {
-        Long userId = UserHolder.requireUserId();
+    public ProjectExperienceResponse updateOwned(ProjectExperience existing, ProjectExperienceRequest projectExperienceRequest) {
+        projectExperiencePatchMapper.updateEntityFromDto(projectExperienceRequest, existing);
+        DateRangeUtil.rejectIfEndBeforeStart(
+                existing.getStartDate(),
+                existing.getEndDate(),
+                ErrorCode.PROJECT_END_TIME_INVALID);
+        if (!updateById(existing)) {
+            throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_UPDATE_FAILED);
+        }
+        log.info("用户 {} 更新项目经历成功: id={}", existing.getUserId(), existing.getId());
+        return convertToResponse(existing);
+    }
+
+    @Override
+    public void delete(CurrentActor actor, Long id) {
+        Long userId = actor.userId();
         requireProjectExperienceAndCheckOwnership(id, userId, "删除");
-        boolean removed = removeById(id);
-        if (!removed) {
+        deleteOwned(id);
+    }
+
+    @Override
+    public void deleteOwned(Long id) {
+        if (!removeById(id)) {
             throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_DELETE_FAILED);
         }
-
-        log.info("用户 {} 删除项目经历成功: id={}", userId, id);
+        log.info("删除项目经历成功: id={}", id);
     }
 
     private ProjectExperienceResponse convertToResponse(ProjectExperience projectExperience) {

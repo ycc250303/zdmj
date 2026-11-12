@@ -1,5 +1,7 @@
 package com.zdmj.matchService.controller;
 
+import io.swagger.v3.oas.annotations.Parameter;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.annotation.RateLimit;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.Result;
@@ -36,51 +38,55 @@ public class JobStudentMatchController {
     /**
      * 分页查询当前用户已匹配过的岗位记录（按最近匹配时间倒序；岗位已删则不返回）。
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param page  页码（从 1 开始）
      * @param limit 每页条数
      * @return 分页列表
      */
     @GetMapping
-    public Result<PageDTO<JobStudentMatchListItemResponse>> getMyPage(
+    public Result<PageDTO<JobStudentMatchListItemResponse>> getMyPage(@Parameter(hidden = true) CurrentActor actor,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer limit) {
-        return Result.success("查询匹配记录成功", matchService.getMyPage(page, limit));
+        return Result.success("查询匹配记录成功", matchService.getMyPage(actor, page, limit));
     }
 
     /**
      * 仅查询当前用户与该岗位的最新匹配结果（不触发 LLM 生成；不存在返回 null）。
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param jobId 岗位ID
      * @return 匹配结果或 null
      */
     @GetMapping("/jobs/{jobId}")
-    public Result<JobStudentMatchResponse> query(@PathVariable Long jobId) {
-        return Result.success("查询人岗匹配成功", matchService.getOrNull(jobId));
+    public Result<JobStudentMatchResponse> query(@Parameter(hidden = true) CurrentActor actor, @PathVariable Long jobId) {
+        return Result.success("查询人岗匹配成功", matchService.getOrNull(actor, jobId));
     }
 
     /**
      * 生成人岗匹配并返回结果。学生画像缺失时返回 {@code MATCH_PRECONDITION_MISSING}。
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param jobId 岗位ID
      * @param req   生成请求体（可选，可携带自定义权重）
      * @return 匹配结果
      */
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/jobs/{jobId}")
-    public Result<JobStudentMatchResponse> generate(@PathVariable Long jobId,
+    public Result<JobStudentMatchResponse> generate(@Parameter(hidden = true) CurrentActor actor, @PathVariable Long jobId,
                                                @RequestBody(required = false) JobStudentMatchGenerateRequest req) {
         log.info("生成人岗匹配: jobId={}", jobId);
-        return Result.success("生成人岗匹配成功", matchService.generate(jobId, req));
+        return Result.success("生成人岗匹配成功", matchService.generate(actor, jobId, req));
     }
 
     /**
      * 获取该岗位的默认权重（用于前端权重调节面板初始化）。
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param jobId 岗位ID
      * @return 默认权重
      */
     @GetMapping("/jobs/{jobId}/weights")
-    public Result<MatchWeightConfigResponse> defaultWeights(@PathVariable Long jobId) {
-        return Result.success("查询默认权重成功", matchService.getDefaultWeights(jobId));
+    public Result<MatchWeightConfigResponse> defaultWeights(@Parameter(hidden = true) CurrentActor actor, @PathVariable Long jobId) {
+        return Result.success("查询默认权重成功", matchService.getDefaultWeights(actor, jobId));
     }
 }

@@ -60,15 +60,23 @@ function normalizeImportAwardItem(raw: ResumeApi.ResumeImportAwardItem) {
   };
 }
 
+function collectImported<T, R>(items: T[] | undefined, mapItem: (item: T) => R | null) {
+  return (items ?? []).flatMap(item => {
+    const mapped = mapItem(item);
+    return mapped ? [mapped] : [];
+  });
+}
+
 /** 用 PDF 识别结果构建全量覆盖草稿（不含旧经历 id，保存时会删除未提交项） */
 export function buildDraftFromImportResult(
   base: ResumeApi.ResumeContentDTO,
   parsed: ResumeApi.ResumeImportParseResult
 ): ResumeContentDraft {
-  const educations: DraftEducation[] = [];
-  for (const edu of parsed.educations ?? []) {
-    if (!edu.school || !edu.startDate) continue;
-    educations.push({
+  const educations = collectImported(parsed.educations, edu => {
+    if (!edu.school || !edu.startDate) {
+      return null;
+    }
+    return {
       _key: newKey('import-edu'),
       school: edu.school,
       major: edu.major || '',
@@ -77,13 +85,14 @@ export function buildDraftFromImportResult(
       endDate: edu.endDate,
       visible: edu.visible ?? true,
       gpa: edu.gpa
-    });
-  }
+    };
+  });
 
-  const careers: DraftCareer[] = [];
-  for (const career of parsed.careers ?? []) {
-    if (!career.company || !career.position || !career.startDate) continue;
-    careers.push({
+  const careers = collectImported(parsed.careers, career => {
+    if (!career.company || !career.position || !career.startDate) {
+      return null;
+    }
+    return {
       _key: newKey('import-career'),
       company: career.company,
       position: career.position,
@@ -91,13 +100,14 @@ export function buildDraftFromImportResult(
       endDate: career.endDate,
       visible: career.visible ?? true,
       details: career.details
-    });
-  }
+    };
+  });
 
-  const projects: DraftProject[] = [];
-  for (const project of parsed.projects ?? []) {
-    if (!project.name || !project.role || !project.startDate) continue;
-    projects.push({
+  const projects = collectImported(parsed.projects, project => {
+    if (!project.name || !project.role || !project.startDate) {
+      return null;
+    }
+    return {
       _key: newKey('import-project'),
       name: project.name,
       role: project.role,
@@ -109,21 +119,21 @@ export function buildDraftFromImportResult(
       highlights: project.highlights ?? [],
       url: project.url,
       visible: project.visible ?? true
-    });
-  }
+    };
+  });
 
-  const awards: DraftAward[] = [];
-  const parsedAwards = parsed.awards ?? [];
-  for (const award of parsedAwards) {
+  const awards = collectImported(parsed.awards, award => {
     const normalized = normalizeImportAwardItem(award);
-    if (!normalized) continue;
-    awards.push({
+    if (!normalized) {
+      return null;
+    }
+    return {
       _key: newKey('import-award'),
       name: normalized.name,
       awardDate: normalized.awardDate,
       description: normalized.description
-    });
-  }
+    };
+  });
 
   const skills: DraftSkill[] = (parsed.skills ?? []).flatMap(skill => {
     const name = trimOrEmpty(skill.name);
@@ -307,13 +317,34 @@ function stripEmptyOptionalDates<T extends { startDate?: string; endDate?: strin
   return next;
 }
 
+function isBlankDraftSkill(skill: DraftSkill): boolean {
+  return !skill.id && !trimOrEmpty(skill.name) && !trimOrEmpty(skill.description);
+}
+
+function isCompleteSkill(skill: DraftSkill): boolean {
+  return Boolean(trimOrEmpty(skill.name));
+}
+
+function mapSkill(skill: DraftSkill): ResumeApi.SkillCreate | ResumeApi.SkillUpdate {
+  if (!isCompleteSkill(skill)) {
+    throw new Error('skillIncomplete');
+  }
+  return {
+    ...(skill.id ? { id: skill.id } : {}),
+    name: trimOrEmpty(skill.name),
+    ...(trimOrEmpty(skill.description) ? { description: trimOrEmpty(skill.description) } : {})
+  };
+}
+
 function isBlankDraftEducation(edu: DraftEducation): boolean {
-  return !edu.id
-    && !trimOrEmpty(edu.school)
-    && !trimOrEmpty(edu.major)
-    && !trimOrEmpty(edu.startDate)
-    && !trimOrEmpty(edu.endDate)
-    && !trimOrEmpty(edu.gpa);
+  return (
+    !edu.id &&
+    !trimOrEmpty(edu.school) &&
+    !trimOrEmpty(edu.major) &&
+    !trimOrEmpty(edu.startDate) &&
+    !trimOrEmpty(edu.endDate) &&
+    !trimOrEmpty(edu.gpa)
+  );
 }
 
 function isCompleteEducation(edu: DraftEducation): boolean {
@@ -321,46 +352,41 @@ function isCompleteEducation(edu: DraftEducation): boolean {
 }
 
 function isBlankDraftCareer(career: DraftCareer): boolean {
-  return !career.id
-    && !trimOrEmpty(career.company)
-    && !trimOrEmpty(career.position)
-    && !trimOrEmpty(career.startDate)
-    && !trimOrEmpty(career.endDate)
-    && !trimOrEmpty(career.details);
+  return (
+    !career.id &&
+    !trimOrEmpty(career.company) &&
+    !trimOrEmpty(career.position) &&
+    !trimOrEmpty(career.startDate) &&
+    !trimOrEmpty(career.endDate) &&
+    !trimOrEmpty(career.details)
+  );
 }
 
 function isCompleteCareer(career: DraftCareer): boolean {
-  return Boolean(
-    trimOrEmpty(career.company) && trimOrEmpty(career.position) && trimOrEmpty(career.startDate)
-  );
+  return Boolean(trimOrEmpty(career.company) && trimOrEmpty(career.position) && trimOrEmpty(career.startDate));
 }
 
 function isBlankDraftProject(project: DraftProject): boolean {
-  return !project.id
-    && !trimOrEmpty(project.name)
-    && !trimOrEmpty(project.role)
-    && !trimOrEmpty(project.startDate)
-    && !trimOrEmpty(project.endDate)
-    && !trimOrEmpty(project.description)
-    && !trimOrEmpty(project.contribution)
-    && !trimOrEmpty(project.url)
-    && !(project.techStack?.length)
-    && !(project.highlights?.length);
-}
-
-function isCompleteProject(project: DraftProject): boolean {
-  return Boolean(
-    trimOrEmpty(project.name)
-    && trimOrEmpty(project.role)
-    && trimOrEmpty(project.startDate)
+  return (
+    !project.id &&
+    !trimOrEmpty(project.name) &&
+    !trimOrEmpty(project.role) &&
+    !trimOrEmpty(project.startDate) &&
+    !trimOrEmpty(project.endDate) &&
+    !trimOrEmpty(project.description) &&
+    !trimOrEmpty(project.contribution) &&
+    !trimOrEmpty(project.url) &&
+    !project.techStack?.length &&
+    !project.highlights?.length
   );
 }
 
+function isCompleteProject(project: DraftProject): boolean {
+  return Boolean(trimOrEmpty(project.name) && trimOrEmpty(project.role) && trimOrEmpty(project.startDate));
+}
+
 function isBlankDraftAward(award: DraftAward): boolean {
-  return !award.id
-    && !trimOrEmpty(award.name)
-    && !trimOrEmpty(award.awardDate)
-    && !trimOrEmpty(award.description);
+  return !award.id && !trimOrEmpty(award.name) && !trimOrEmpty(award.awardDate) && !trimOrEmpty(award.description);
 }
 
 function isCompleteAward(award: DraftAward): boolean {
@@ -435,37 +461,17 @@ export function createEmptySkill(): DraftSkill {
 }
 
 export function buildSaveRequest(draft: ResumeContentDraft): ResumeApi.ResumeContentSaveRequest {
-  const skills = draft.skills
-    .map(item => ({
-      ...(item.id ? { id: item.id } : {}),
-      name: trimOrEmpty(item.name),
-      ...(trimOrEmpty(item.description) ? { description: trimOrEmpty(item.description) } : {})
-    }))
-    .filter(item => item.name);
-
-  if (!skills.length) {
-    throw new Error('skillRequired');
-  }
-
   return {
-    skills,
+    skills: draft.skills.filter(skill => !isBlankDraftSkill(skill)).map(mapSkill),
     personalInfo: {
       name: trimOrEmpty(draft.personalInfo.name),
       phone: trimOrEmpty(draft.personalInfo.phone),
       homepageUrl: trimOrEmpty(draft.personalInfo.homepageUrl),
       preferredWorkCity: trimOrEmpty(draft.personalInfo.preferredWorkCity)
     },
-    educations: draft.educations
-      .filter(edu => !isBlankDraftEducation(edu))
-      .map(mapEducation),
-    careers: draft.careers
-      .filter(career => !isBlankDraftCareer(career))
-      .map(mapCareer),
-    projects: draft.projects
-      .filter(project => !isBlankDraftProject(project))
-      .map(mapProject),
-    awards: draft.awards
-      .filter(award => !isBlankDraftAward(award))
-      .map(mapAward)
+    educations: draft.educations.filter(edu => !isBlankDraftEducation(edu)).map(mapEducation),
+    careers: draft.careers.filter(career => !isBlankDraftCareer(career)).map(mapCareer),
+    projects: draft.projects.filter(project => !isBlankDraftProject(project)).map(mapProject),
+    awards: draft.awards.filter(award => !isBlankDraftAward(award)).map(mapAward)
   };
 }

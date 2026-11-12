@@ -9,10 +9,4 @@
         WHERE user_id = #{userId}
         ORDER BY start_date DESC
     </select>
-
-    <select id="selectIdByUserIdAndName" resultType="java.lang.Long">
-        SELECT id
-        FROM project_experiences
-        WHERE user_id = #{userId} AND name = #{name}
-    </select>
 </mapper>

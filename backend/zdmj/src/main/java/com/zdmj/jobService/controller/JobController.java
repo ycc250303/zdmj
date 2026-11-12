@@ -1,30 +1,33 @@
 package com.zdmj.jobService.controller;
 
+import org.springframework.beans.PropertyAccessException;
+import org.springframework.core.ResolvableType;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.DefaultBindingErrorProcessor;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.model.CreateGroup;
 
-import java.util.concurrent.TimeUnit;
+import java.util.List;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.Result;
 import com.zdmj.common.model.UpdateGroup;
 import com.zdmj.jobService.dto.JobListItemResponse;
-import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobRequest;
 import com.zdmj.jobService.dto.JobResponse;
 import com.zdmj.jobService.dto.JobPageQueryDTO;
 import com.zdmj.jobService.enums.JobEmploymentEnum;
-import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -35,11 +38,56 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/jobs")
-@Tag(name = "岗位管理", description = "岗位信息与能力画像")
+@Tag(name = "岗位管理", description = "岗位信息")
 public class JobController {
 
     private final JobService jobService;
-    private final JobCapabilityProfileService jobCapabilityProfileService;
+
+    /**
+     * 查询参数绑定岗位列表条件。{@code resolvedSalaryType} 与 {@code fullTimeEmployment} 由服务计算，不接受请求传入。
+     * 查询字段不合法时抛出参数校验错误。
+     *
+     * @param binder 当前请求的数据绑定器
+     */
+    @InitBinder
+    public void initJobPageQueryBinder(WebDataBinder binder) {
+        if (!isJobPageQuery(binder)) {
+            return;
+        }
+        binder.setDisallowedFields("resolvedSalaryType", "fullTimeEmployment");
+        binder.registerCustomEditor(Integer.class, "page", JobPageQueryDTO.integerEditor("page"));
+        binder.registerCustomEditor(Integer.class, "limit", JobPageQueryDTO.integerEditor("limit"));
+        binder.registerCustomEditor(Integer.class, "salaryType", JobPageQueryDTO.integerEditor("salaryType"));
+        binder.registerCustomEditor(Integer.class, "filterSalaryMin", JobPageQueryDTO.integerEditor("filterSalaryMin"));
+        binder.registerCustomEditor(Integer.class, "filterSalaryMax", JobPageQueryDTO.integerEditor("filterSalaryMax"));
+        binder.registerCustomEditor(List.class, "companySizes", JobPageQueryDTO.listEditor("companySizes", true));
+        binder.registerCustomEditor(List.class, "fundingTypes", JobPageQueryDTO.listEditor("fundingTypes", true));
+        binder.registerCustomEditor(List.class, "industries", JobPageQueryDTO.listEditor("industries", false));
+        binder.registerCustomEditor(JobEmploymentEnum.class, "employment", JobPageQueryDTO.employmentEditor());
+        binder.setBindingErrorProcessor(new DefaultBindingErrorProcessor() {
+            @Override
+            public void processPropertyAccessException(PropertyAccessException ex, BindingResult bindingResult) {
+                if (ex.getCause() instanceof BusinessException businessException) {
+                    throw businessException;
+                }
+                super.processPropertyAccessException(ex, bindingResult);
+            }
+        });
+    }
+
+    /**
+     * 按已创建对象或声明类型判断当前绑定是否为岗位列表查询。
+     *
+     * @param binder 当前请求的数据绑定器
+     * @return 当前绑定目标是岗位列表查询条件
+     */
+    private static boolean isJobPageQuery(WebDataBinder binder) {
+        if (binder.getTarget() instanceof JobPageQueryDTO) {
+            return true;
+        }
+        ResolvableType targetType = binder.getTargetType();
+        return targetType != null && targetType.resolve() == JobPageQueryDTO.class;
+    }
 
     /**
      * 查询岗位详情
@@ -61,30 +109,7 @@ public class JobController {
      * }</pre>
      */
     @GetMapping
-    public Result<PageDTO<JobListItemResponse>> getPage(
-            @RequestParam(required = false) String page,
-            @RequestParam(required = false) String limit,
-            @RequestParam(required = false) String companySizes,
-            @RequestParam(required = false) String fundingTypes,
-            @RequestParam(required = false) String industries,
-            @RequestParam(required = false) String companyName,
-            @RequestParam(required = false) String employment,
-            @RequestParam(required = false) String salaryType,
-            @RequestParam(required = false) String filterSalaryMin,
-            @RequestParam(required = false) String filterSalaryMax,
-            @RequestParam(required = false) String jobName) {
-        JobPageQueryDTO query = new JobPageQueryDTO();
-        query.setPage(page);
-        query.setLimit(limit);
-        query.setCompanySizes(companySizes);
-        query.setFundingTypes(fundingTypes);
-        query.setIndustries(industries);
-        query.setCompanyName(companyName);
-        query.setEmployment(JobEmploymentEnum.parse(employment));
-        query.setSalaryType(salaryType);
-        query.setFilterSalaryMin(filterSalaryMin);
-        query.setFilterSalaryMax(filterSalaryMax);
-        query.setJobName(jobName);
+    public Result<PageDTO<JobListItemResponse>> getPage(JobPageQueryDTO query) {
         return Result.success("查询岗位列表成功", jobService.getPage(query));
     }
 
@@ -119,29 +144,5 @@ public class JobController {
     public Result<Void> delete(@PathVariable Long id) {
         jobService.delete(id);
         return Result.success("删除岗位成功", null);
-    }
-
-
-    /**
-     * 查询当前用户对该岗的能力画像（仅查询，不触发生成；未登录或不存在返回 null）
-     *
-     * @param id 岗位ID
-     * @return 岗位能力画像或 null
-     */
-    @GetMapping("/capability-profile")
-    public Result<JobCapabilityProfileResponse> queryJobCapabilityProfileByParam(@RequestParam Long id) {
-        return Result.success("查询岗位能力画像成功", jobCapabilityProfileService.getJobCapabilityProfileOrNull(id));
-    }
-
-    /**
-     * 生成岗位能力画像并返回结果。
-     *
-     * @param id 岗位ID
-     * @return 岗位能力画像
-     */
-    @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
-    @PostMapping("/{id}/capability-profile")
-    public Result<JobCapabilityProfileResponse> getJobCapabilityProfile(@PathVariable Long id) {
-        return Result.success("生成岗位能力画像成功", jobCapabilityProfileService.getJobCapabilityProfile(id));
     }
 }

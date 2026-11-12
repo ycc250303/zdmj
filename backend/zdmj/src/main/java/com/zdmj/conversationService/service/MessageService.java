@@ -1,5 +1,6 @@
 package com.zdmj.conversationService.service;
 
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.conversationService.dto.ChatStreamRequest;
 import com.zdmj.conversationService.dto.MessageResponse;
@@ -15,11 +16,15 @@ public interface MessageService {
 
     /**
      * 根据会话ID分页查询消息列表（按 sequence 升序）
+     *
+     * @param actor 已认证操作者，包含用户编号
      */
-    PageDTO<MessageResponse> getMessagesByConversationId(Long conversationId, Integer page, Integer limit);
+    PageDTO<MessageResponse> getMessagesByConversationId(CurrentActor actor, Long conversationId, Integer page, Integer limit);
 
     /**
      * 创建流式消息
+     *
+     * @param actor 已认证操作者，包含用户编号
      */
-    Flux<ServerSentEvent<String>> createStream(ChatStreamRequest request);
+    Flux<ServerSentEvent<String>> createStream(CurrentActor actor, ChatStreamRequest request);
 }

@@ -76,12 +76,6 @@ server:
 api:
   prefix: /api/zdmj
 
-springdoc:
-  override-with-generic-response: false
-  swagger-ui:
-    tags-sorter: alpha
-    operations-sorter: alpha
-
 management:
   endpoints:
     web:
