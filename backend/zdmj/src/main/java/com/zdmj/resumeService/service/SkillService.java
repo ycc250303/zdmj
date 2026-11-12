@@ -33,6 +33,21 @@ public interface SkillService {
     void delete(Long id);
 
     /**
+     * 把已确认归属的技能写成本次请求。调用方负责创建组校验。
+     *
+     * @param existing 当前用户已加载的技能
+     * @param skillRequest 本次技能内容
+     */
+    void updateOwned(Skill existing, SkillRequest skillRequest);
+
+    /**
+     * 删除已确认属于当前用户的技能。
+     *
+     * @param id 技能编号
+     */
+    void deleteOwned(Long id);
+
+    /**
      * 把已加载的技能转成响应。
      *
      * @param skill 技能实体，为空时返回 null

@@ -361,7 +361,6 @@ declare namespace App {
         logoutMsg: string;
         logoutWithModal: string;
         logoutWithModalMsg: string;
-        refreshToken: string;
         tokenExpired: string;
       };
       theme: {
@@ -514,7 +513,7 @@ declare namespace App {
             protocol: string;
             policy: string;
             success: string;
-          sendCodeSuccess: string;
+            sendCodeSuccess: string;
           };
           resetPwd: {
             title: string;
@@ -523,7 +522,6 @@ declare namespace App {
           bindWeChat: {
             title: string;
           };
-          
         };
         home: {
           hero: {
@@ -796,8 +794,8 @@ declare namespace App {
           currentModel: string;
           currentApiKey: string;
         };
-        resume:{
-          template:string;
+        resume: {
+          template: string;
           color: string;
           exportPdf: string;
           contact: string;
@@ -809,83 +807,83 @@ declare namespace App {
           present: string;
           name: string;
           targetJob: string;
-          "manageContent": string;
-          "saveSync": string;
-          "saveSuccess": string;
-          "saveFail":string;
-          "basicInfo": string;
-          "fullName":string;
-          "major": string;
-          "phone": string;
-          "email": string;
-          "school":string;
-          "startDate":string;
-          "endDate": string;
-          "gpa": string;
-          "projectName": string;
-          "role": string;
-          "duration": string;
-          "projectDesc": string;
-          "company": string;
-          "position": string;
-          "jobDetails":string;
-          "skillListName": string;
-          "skillTip":string;
-          "standardTemplate": string;
-          "myResumes": string;
-          "modernTemplate": string;
-          "subtitle": string;
-          "tagSmart": string;
-          "statusReady": string;
-          "editResume": string;
-          "emptyDesc": string;
-          "createBtn": string;
-          "dialogDeleteTitle": string;
-          "dialogDeleteContent": string;
-          "dialogDeleteConfirm": string;
-          "msgDeleteSuccess": string;
-          "msgDeleteFail": string;
-          "modalTitle": string;
-          "tabSelect": string;
-          "tabCreate": string;
-          "noSkillAvailable": string;
-          "formLabelListName": string;
-          "formPlaceholderName": string;
-          "alertSkillTip": string;
-          "modalConfirm": string;
-          "cancel": string;
-          "getFail":string;
-          "pleaseInput": string;
-          "createFail": string;
-          "position": string;
-          "addEducation": string;
-          "addProject": string;
-          "addAward": string;
-          "addCareer": string;
-          "confirmAdd": string;
-          "delete": string;
-          "confirmDeleteEdu": string;
-          "confirmDeleteProj": string;
-          "confirmDeleteAward": string;
-          "confirmDeleteCareer": string;
-          "missingIdParam": string;
-          "contentNotFound": string;
-          "degree": string;
-          "schoolLabel": string;
-          "majorLabel": string;
-          "gpaLabel": string;
-          "projectNameLabel": string;
-          "roleLabel": string;
-          "startDateLabel": string;
-          "endDateLabel": string;
-          "companyLabel": string;
-          "positionLabel": string;
-          "detailsLabel": string;
-          "descLabel": string;
-          "contributionLabel": string;
-          "awardName": string;
-          "awardDate": string;
-          "awardDescription": string;
+          manageContent: string;
+          saveSync: string;
+          saveSuccess: string;
+          saveFail: string;
+          basicInfo: string;
+          fullName: string;
+          major: string;
+          phone: string;
+          email: string;
+          school: string;
+          startDate: string;
+          endDate: string;
+          gpa: string;
+          projectName: string;
+          role: string;
+          duration: string;
+          projectDesc: string;
+          company: string;
+          position: string;
+          jobDetails: string;
+          skillListName: string;
+          skillTip: string;
+          standardTemplate: string;
+          myResumes: string;
+          modernTemplate: string;
+          subtitle: string;
+          tagSmart: string;
+          statusReady: string;
+          editResume: string;
+          emptyDesc: string;
+          createBtn: string;
+          dialogDeleteTitle: string;
+          dialogDeleteContent: string;
+          dialogDeleteConfirm: string;
+          msgDeleteSuccess: string;
+          msgDeleteFail: string;
+          modalTitle: string;
+          tabSelect: string;
+          tabCreate: string;
+          noSkillAvailable: string;
+          formLabelListName: string;
+          formPlaceholderName: string;
+          alertSkillTip: string;
+          modalConfirm: string;
+          cancel: string;
+          getFail: string;
+          pleaseInput: string;
+          createFail: string;
+          position: string;
+          addEducation: string;
+          addProject: string;
+          addAward: string;
+          addCareer: string;
+          confirmAdd: string;
+          delete: string;
+          confirmDeleteEdu: string;
+          confirmDeleteProj: string;
+          confirmDeleteAward: string;
+          confirmDeleteCareer: string;
+          missingIdParam: string;
+          contentNotFound: string;
+          degree: string;
+          schoolLabel: string;
+          majorLabel: string;
+          gpaLabel: string;
+          projectNameLabel: string;
+          roleLabel: string;
+          startDateLabel: string;
+          endDateLabel: string;
+          companyLabel: string;
+          positionLabel: string;
+          detailsLabel: string;
+          descLabel: string;
+          contributionLabel: string;
+          awardName: string;
+          awardDate: string;
+          awardDescription: string;
         };
         resumeImport: {
           title: string;
@@ -1195,28 +1193,11 @@ declare namespace App {
 
   /** Service namespace */
   namespace Service {
-    /** Other baseURL key */
-    type OtherBaseURLKey = 'demo';
-
     interface ServiceConfigItem {
       /** The backend service base url */
       baseURL: string;
       /** The proxy pattern of the backend service base url */
       proxyPattern: string;
-    }
-
-    interface OtherServiceConfigItem extends ServiceConfigItem {
-      key: OtherBaseURLKey;
-    }
-
-    /** The backend service config */
-    interface ServiceConfig extends ServiceConfigItem {
-      /** Other backend service config */
-      other: OtherServiceConfigItem[];
-    }
-
-    interface SimpleServiceConfig extends Pick<ServiceConfigItem, 'baseURL'> {
-      other: Record<OtherBaseURLKey, string>;
     }
 
     /** The backend service response data */
@@ -1238,16 +1219,6 @@ declare namespace App {
       instance?: string;
       /** Business error code (unwrapped from properties) */
       code?: number;
-    };
-
-    /** The demo backend service response data */
-    type DemoResponse<T = unknown> = {
-      /** The backend service response code */
-      status: string;
-      /** The backend service response message */
-      message: string;
-      /** The backend service response data */
-      result: T;
     };
   }
 }

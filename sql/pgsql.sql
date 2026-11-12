@@ -29,7 +29,6 @@ DROP TABLE IF EXISTS career_development_reports;
 DROP TABLE IF EXISTS knowledge_documents;
 DROP TABLE IF EXISTS knowledge_bases;
 DROP TABLE IF EXISTS knowledge_vectors;
-DROP TABLE IF EXISTS knowledge_vector_tasks;
 DROP TABLE IF EXISTS conversations;
 DROP TABLE IF EXISTS messages;
 DROP TABLE IF EXISTS SPRING_AI_CHAT_MEMORY;
@@ -58,8 +57,6 @@ CREATE TABLE IF NOT EXISTS users (
     -- 创建时间
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
 );
-CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 -- 1.2 用户大模型配置表
 CREATE TABLE IF NOT EXISTS user_llm_config (
     user_id         BIGINT PRIMARY KEY,          -- users.id，每用户一行
@@ -247,8 +244,6 @@ CREATE TABLE IF NOT EXISTS student_capability_profiles (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     -- 更新时间
 );
-CREATE INDEX IF NOT EXISTS idx_student_capability_profiles_user_id
-    ON student_capability_profiles(user_id);
 CREATE INDEX IF NOT EXISTS idx_student_capability_profiles_target_role
     ON student_capability_profiles(target_role_type);
 --
@@ -468,7 +463,6 @@ CREATE TABLE IF NOT EXISTS knowledge_documents (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX IF NOT EXISTS idx_knowledge_documents_knowledge_id ON knowledge_documents (knowledge_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_documents_user_id ON knowledge_documents (user_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_documents_type ON knowledge_documents (type);
 CREATE INDEX IF NOT EXISTS idx_knowledge_documents_embedding_status ON knowledge_documents (knowledge_id, embedding_status);
@@ -506,8 +500,6 @@ CREATE TABLE IF NOT EXISTS knowledge_vectors (
     -- 文档块Token数量（用于上下文预算控制）
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 创建时间
 );
-CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_user_id ON knowledge_vectors (user_id);
-CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_knowledge_id ON knowledge_vectors (knowledge_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_user_id_knowledge_id ON knowledge_vectors (user_id, knowledge_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_document_id ON knowledge_vectors (document_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_embedding ON knowledge_vectors USING HNSW (embedding vector_cosine_ops) WITH (M = 16, ef_construction = 100);
@@ -516,37 +508,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_knowledge_vectors_kid_did_chunk ON knowledg
     COALESCE(document_id, 0),
     chunk_index
 );
--- 5.2 向量化任务表（异步任务）
-CREATE TABLE IF NOT EXISTS knowledge_vector_tasks (
-    id BIGSERIAL PRIMARY KEY,
-    -- 任务自增ID
-    user_id BIGINT NOT NULL,
-    -- 用户ID（逻辑外键：users.id）
-    knowledge_id BIGINT,
-    -- 知识库ID（逻辑外键：knowledge_bases.id）
-    document_id BIGINT,
-    -- 文档ID（逻辑外键：knowledge_documents.id，可空表示整库任务）
-    task_type SMALLINT NOT NULL,
-    -- 任务类型（枚举：1=创建向量/2=更新向量/3=删除向量）
-    status SMALLINT NOT NULL,
-    -- 任务状态（枚举：1=pending/2=running/3=success/4=failed）
-    error_message TEXT,
-    -- 错误信息（失败时记录）
-    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    -- 开始时间
-    completed_at TIMESTAMP,
-    -- 完成时间
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    -- 创建时间
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
-);
-CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_user_id ON knowledge_vector_tasks(user_id);
-CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_knowledge_id ON knowledge_vector_tasks(knowledge_id);
-CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_document_id ON knowledge_vector_tasks(document_id);
-CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_document_id_user_id ON knowledge_vector_tasks(document_id, user_id);
-CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_knowledge_id_created_at ON knowledge_vector_tasks(knowledge_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_status ON knowledge_vector_tasks(status);
-CREATE INDEX IF NOT EXISTS idx_knowledge_vector_tasks_task_type ON knowledge_vector_tasks(task_type);
 --
 -- ==========================6 AI对话模块==========================
 --

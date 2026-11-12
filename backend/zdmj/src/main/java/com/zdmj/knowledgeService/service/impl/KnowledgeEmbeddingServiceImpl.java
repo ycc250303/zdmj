@@ -25,7 +25,7 @@ import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
 import com.zdmj.knowledgeService.entity.KnowledgeVector;
 import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
-import com.zdmj.knowledgeService.enums.KnowledgeVectorTaskStatusEnum;
+import com.zdmj.knowledgeService.enums.KnowledgeEmbeddingStatusEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
 import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
@@ -67,7 +67,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
         log.info("开始向量化并存储知识库: documentId={}, userId={}", documentId, userId);
         // 2. 标记为进行中
         if (markStatus(documentId, userId, contentSnapshot,
-                KnowledgeVectorTaskStatusEnum.RUNNING.getCode(), null) != 1) {
+                KnowledgeEmbeddingStatusEnum.RUNNING.getCode(), null) != 1) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
         }
 
@@ -86,7 +86,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
             });
         } catch (RuntimeException exception) {
             markStatus(documentId, userId, contentSnapshot,
-                    KnowledgeVectorTaskStatusEnum.FAILED.getCode(), exception.getMessage());
+                    KnowledgeEmbeddingStatusEnum.FAILED.getCode(), exception.getMessage());
             throw exception;
         }
     }
@@ -178,7 +178,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
         }
         knowledgeVectorMapper.deleteByDocumentIdAndUserId(documentId, userId);
         knowledgeVectorMapper.batchInsert(rows);
-        current.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.SUCCESS.getCode());
+        current.setEmbeddingStatus(KnowledgeEmbeddingStatusEnum.SUCCESS.getCode());
         current.setChunkCount(rows.size());
         current.setLastEmbeddedAt(LocalDateTime.now());
         current.setLastError(null);
@@ -210,7 +210,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
             KnowledgeDocument kd = knowledgeDocumentMapper.selectById(DocumentId);
             if (kd != null && userId.equals(kd.getUserId())) {
                 kd.setChunkCount(0);
-                kd.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.PENDING.getCode());
+                kd.setEmbeddingStatus(KnowledgeEmbeddingStatusEnum.PENDING.getCode());
                 kd.setLastEmbeddedAt(null);
                 kd.setLastError(null);
                 knowledgeDocumentMapper.updateById(kd);

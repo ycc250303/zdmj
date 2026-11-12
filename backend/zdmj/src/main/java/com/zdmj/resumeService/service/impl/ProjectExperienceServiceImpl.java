@@ -57,34 +57,38 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
     @Override
     public ProjectExperienceResponse update(ProjectExperienceRequest projectExperienceRequest) {
         Long userId = UserHolder.requireUserId();
-        Long id = projectExperienceRequest.getId();
-        ProjectExperience projectExperience = requireProjectExperienceAndCheckOwnership(id, userId, "修改");
+        ProjectExperience projectExperience = requireProjectExperienceAndCheckOwnership(
+                projectExperienceRequest.getId(), userId, "修改");
+        return updateOwned(projectExperience, projectExperienceRequest);
+    }
 
-        projectExperiencePatchMapper.updateEntityFromDto(projectExperienceRequest, projectExperience);
+    @Override
+    public ProjectExperienceResponse updateOwned(ProjectExperience existing, ProjectExperienceRequest projectExperienceRequest) {
+        projectExperiencePatchMapper.updateEntityFromDto(projectExperienceRequest, existing);
         DateRangeUtil.rejectIfEndBeforeStart(
-                projectExperience.getStartDate(),
-                projectExperience.getEndDate(),
+                existing.getStartDate(),
+                existing.getEndDate(),
                 ErrorCode.PROJECT_END_TIME_INVALID);
-
-        boolean updated = updateById(projectExperience);
-        if (!updated) {
+        if (!updateById(existing)) {
             throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_UPDATE_FAILED);
         }
-
-        log.info("用户 {} 更新项目经历成功: id={}", userId, id);
-        return convertToResponse(projectExperience);
+        log.info("用户 {} 更新项目经历成功: id={}", existing.getUserId(), existing.getId());
+        return convertToResponse(existing);
     }
 
     @Override
     public void delete(Long id) {
         Long userId = UserHolder.requireUserId();
         requireProjectExperienceAndCheckOwnership(id, userId, "删除");
-        boolean removed = removeById(id);
-        if (!removed) {
+        deleteOwned(id);
+    }
+
+    @Override
+    public void deleteOwned(Long id) {
+        if (!removeById(id)) {
             throw new BusinessException(ErrorCode.PROJECT_EXPERIENCE_DELETE_FAILED);
         }
-
-        log.info("用户 {} 删除项目经历成功: id={}", userId, id);
+        log.info("删除项目经历成功: id={}", id);
     }
 
     private ProjectExperienceResponse convertToResponse(ProjectExperience projectExperience) {

@@ -49,32 +49,35 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
     @Override
     public CareerResponse update(CareerRequest careerRequest) {
         Long userId = UserHolder.requireUserId();
-        Long id = careerRequest.getId();
-        Career career = requireCareerAndCheckOwnership(id, userId, "修改");
+        Career career = requireCareerAndCheckOwnership(careerRequest.getId(), userId, "修改");
+        return updateOwned(career, careerRequest);
+    }
 
-        careerPatchMapper.updateEntityFromDto(careerRequest, career);
+    @Override
+    public CareerResponse updateOwned(Career existing, CareerRequest careerRequest) {
+        careerPatchMapper.updateEntityFromDto(careerRequest, existing);
         DateRangeUtil.rejectIfEndBeforeStart(
-                career.getStartDate(), career.getEndDate(), ErrorCode.CAREER_LEAVE_TIME_INVALID);
-
-        boolean updated = updateById(career);
-        if (!updated) {
+                existing.getStartDate(), existing.getEndDate(), ErrorCode.CAREER_LEAVE_TIME_INVALID);
+        if (!updateById(existing)) {
             throw new BusinessException(ErrorCode.CAREER_UPDATE_FAILED);
         }
-
-        log.info("用户 {} 更新工作经历成功: id={}", userId, id);
-        return convertToResponse(career);
+        log.info("用户 {} 更新工作经历成功: id={}", existing.getUserId(), existing.getId());
+        return convertToResponse(existing);
     }
 
     @Override
     public void delete(Long id) {
         Long userId = UserHolder.requireUserId();
         requireCareerAndCheckOwnership(id, userId, "删除");
-        boolean removed = removeById(id);
-        if (!removed) {
+        deleteOwned(id);
+    }
+
+    @Override
+    public void deleteOwned(Long id) {
+        if (!removeById(id)) {
             throw new BusinessException(ErrorCode.CAREER_DELETE_FAILED);
         }
-
-        log.info("用户 {} 删除工作经历成功: id={}", userId, id);
+        log.info("删除工作经历成功: id={}", id);
     }
 
     private CareerResponse convertToResponse(Career career) {

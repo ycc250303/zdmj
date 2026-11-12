@@ -8,9 +8,5 @@
     "*": {
       "*": ["./src/*"]
     }
-  },
-  "dependencies": {
-    "@sa/axios": "workspace:*",
-    "@sa/utils": "workspace:*"
   }
 }

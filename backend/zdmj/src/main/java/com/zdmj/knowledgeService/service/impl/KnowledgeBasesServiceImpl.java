@@ -9,7 +9,6 @@ import com.zdmj.knowledgeService.entity.KnowledgeBases;
 import com.zdmj.knowledgeService.mapper.KnowledgeBasesMapper;
 import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
-import com.zdmj.knowledgeService.mapper.KnowledgeVectorTaskMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 
 import org.springframework.beans.BeanUtils;
@@ -28,7 +27,6 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
 
     private final KnowledgeBasesMapper knowledgeBasesMapper;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
-    private final KnowledgeVectorTaskMapper knowledgeVectorTaskMapper;
     private final KnowledgeVectorMapper knowledgeVectorMapper;
 
     @Override
@@ -93,7 +91,6 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         KnowledgeBases knowledgeBases = requireUserKnowledgeBase();
         Long knowledgeId = knowledgeBases.getId();
         knowledgeVectorMapper.deleteByKnowledgeId(knowledgeId);
-        knowledgeVectorTaskMapper.deleteByKnowledgeId(knowledgeId);
         knowledgeDocumentMapper.deleteByKnowledgeId(knowledgeId);
         log.info("清空知识库成功，knowledgeId={}", knowledgeId);
     }

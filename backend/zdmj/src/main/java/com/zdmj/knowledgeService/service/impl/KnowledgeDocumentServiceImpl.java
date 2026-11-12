@@ -22,11 +22,9 @@ import com.zdmj.knowledgeService.dto.KnowledgeDocumentPublicResponse;
 import com.zdmj.knowledgeService.dto.KnowledgeDocumentRequest;
 import com.zdmj.knowledgeService.dto.KnowledgeDocumentResponse;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
-import com.zdmj.knowledgeService.entity.KnowledgeVectorTask;
 import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
-import com.zdmj.knowledgeService.enums.KnowledgeVectorTaskStatusEnum;
+import com.zdmj.knowledgeService.enums.KnowledgeEmbeddingStatusEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
-import com.zdmj.knowledgeService.mapper.KnowledgeVectorTaskMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 import com.zdmj.knowledgeService.service.KnowledgeDocumentService;
 import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
@@ -44,7 +42,6 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
         implements KnowledgeDocumentService {
 
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
-    private final KnowledgeVectorTaskMapper knowledgeVectorTaskMapper;
     private final KnowledgeBasesService knowledgeBasesService;
     private final KnowledgeEmbeddingService knowledgeEmbeddingService;
     private final FileUploadService fileUploadService;
@@ -117,7 +114,7 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
         response.setType(kd.getType());
         response.setContent(kd.getContent());
         response.setTitle(kd.getTitle());
-        KnowledgeVectorTaskStatusEnum statusEnum = KnowledgeVectorTaskStatusEnum.fromCode(kd.getEmbeddingStatus());
+        KnowledgeEmbeddingStatusEnum statusEnum = KnowledgeEmbeddingStatusEnum.fromCode(kd.getEmbeddingStatus());
         response.setEmbeddingStatus(statusEnum != null ? statusEnum.getName() : null);
         response.setLastEmbeddedAt(kd.getLastEmbeddedAt());
         response.setLastError(kd.getLastError());
@@ -195,8 +192,6 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
     public void delete(Long id) {
         KnowledgeDocument kd = getById(id);
         knowledgeEmbeddingService.deleteVectors(id);
-        knowledgeVectorTaskMapper.delete(new LambdaQueryWrapper<KnowledgeVectorTask>()
-                .eq(KnowledgeVectorTask::getDocumentId, id));
         knowledgeDocumentMapper.deleteById(id);
         log.info("删除知识文档，documentId={}, knowledgeId={}", id, kd.getKnowledgeId());
     }

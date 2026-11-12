@@ -57,7 +57,7 @@ public class KnowledgeDocument extends BaseEntity {
     private String contentHash;
 
     /**
-     * 文档向量化状态
+     * 文档向量化状态，码值见 {@link com.zdmj.knowledgeService.enums.KnowledgeEmbeddingStatusEnum}
      */
     private Integer embeddingStatus;
 

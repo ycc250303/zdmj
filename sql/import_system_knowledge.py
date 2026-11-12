@@ -53,7 +53,7 @@ EMBED_DIMENSIONS = 1024
 EMBED_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
 SYSTEM_USER_ID = 0
-EMBEDDING_SUCCESS = 3  # KnowledgeVectorTaskStatusEnum.SUCCESS
+EMBEDDING_SUCCESS = 3  # KnowledgeEmbeddingStatusEnum.SUCCESS
 # 文档 type：当前 Java 枚举无 MARKDOWN，预导入用 1 占位；content 存稳定路径标识
 DOC_TYPE_PLACEHOLDER = 1
 

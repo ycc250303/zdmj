@@ -40,8 +40,9 @@ import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -184,10 +185,11 @@ public class ResumeServiceImpl implements ResumeService {
      */
     private void syncSkills(Long userId, List<SkillRequest> incoming) {
         List<Skill> existing = skillMapper.selectByUserId(userId);
-        Set<Long> incomingIds = collectIncomingIds(incoming);
+        Map<Long, Skill> owned = indexById(existing, Skill::getId);
+        Set<Long> incomingIds = incomingIds(incoming, SkillRequest::getId);
         for (Skill item : existing) {
             if (!incomingIds.contains(item.getId())) {
-                skillService.delete(item.getId());
+                skillService.deleteOwned(item.getId());
             }
         }
         for (SkillRequest dto : incoming) {
@@ -195,24 +197,29 @@ public class ResumeServiceImpl implements ResumeService {
             if (dto.getId() == null) {
                 skillService.create(dto);
             } else {
-                requireOwned(dto.getId(), userId, skillMapper::selectById, Skill::getUserId, ErrorCode.SKILL_NOT_FOUND);
-                skillService.update(dto);
+                Skill current = owned.get(dto.getId());
+                if (current == null) {
+                    current = requireOwned(dto.getId(), userId, skillMapper::selectById, Skill::getUserId,
+                            ErrorCode.SKILL_NOT_FOUND);
+                }
+                skillService.updateOwned(current, dto);
             }
         }
     }
 
     /**
-     * 同步教育经历
-     * 
+     * 同步教育经历。已加载记录直接更新；编号不在其中时再按编号确认归属。
+     *
      * @param userId 用户编号
      * @param incoming 教育经历请求
      */
     private void syncEducations(Long userId, List<EducationRequest> incoming) {
         List<Education> existing = educationMapper.selectByUserId(userId);
-        Set<Long> incomingIds = collectIncomingIds(incoming);
+        Map<Long, Education> owned = indexById(existing, Education::getId);
+        Set<Long> incomingIds = incomingIds(incoming, EducationRequest::getId);
         for (Education item : existing) {
             if (!incomingIds.contains(item.getId())) {
-                educationService.delete(item.getId());
+                educationService.deleteOwned(item.getId());
             }
         }
         for (EducationRequest dto : incoming) {
@@ -220,19 +227,23 @@ public class ResumeServiceImpl implements ResumeService {
             if (dto.getId() == null) {
                 educationService.create(dto);
             } else {
-                requireOwned(dto.getId(), userId, educationMapper::selectById, Education::getUserId,
-                        ErrorCode.EDUCATION_NOT_FOUND);
-                educationService.update(dto);
+                Education current = owned.get(dto.getId());
+                if (current == null) {
+                    current = requireOwned(dto.getId(), userId, educationMapper::selectById, Education::getUserId,
+                            ErrorCode.EDUCATION_NOT_FOUND);
+                }
+                educationService.updateOwned(current, dto);
             }
         }
     }
 
     private void syncCareers(Long userId, List<CareerRequest> incoming) {
         List<Career> existing = careerMapper.selectByUserId(userId);
-        Set<Long> incomingIds = collectIncomingIds(incoming);
+        Map<Long, Career> owned = indexById(existing, Career::getId);
+        Set<Long> incomingIds = incomingIds(incoming, CareerRequest::getId);
         for (Career item : existing) {
             if (!incomingIds.contains(item.getId())) {
-                careerService.delete(item.getId());
+                careerService.deleteOwned(item.getId());
             }
         }
         for (CareerRequest dto : incoming) {
@@ -240,18 +251,23 @@ public class ResumeServiceImpl implements ResumeService {
             if (dto.getId() == null) {
                 careerService.create(dto);
             } else {
-                requireOwned(dto.getId(), userId, careerMapper::selectById, Career::getUserId, ErrorCode.CAREER_NOT_FOUND);
-                careerService.update(dto);
+                Career current = owned.get(dto.getId());
+                if (current == null) {
+                    current = requireOwned(dto.getId(), userId, careerMapper::selectById, Career::getUserId,
+                            ErrorCode.CAREER_NOT_FOUND);
+                }
+                careerService.updateOwned(current, dto);
             }
         }
     }
 
     private void syncProjects(Long userId, List<ProjectExperienceRequest> incoming) {
         List<ProjectExperience> existing = projectExperienceMapper.selectByUserId(userId);
-        Set<Long> incomingIds = collectIncomingIds(incoming);
+        Map<Long, ProjectExperience> owned = indexById(existing, ProjectExperience::getId);
+        Set<Long> incomingIds = incomingIds(incoming, ProjectExperienceRequest::getId);
         for (ProjectExperience item : existing) {
             if (!incomingIds.contains(item.getId())) {
-                projectExperienceService.delete(item.getId());
+                projectExperienceService.deleteOwned(item.getId());
             }
         }
         for (ProjectExperienceRequest dto : incoming) {
@@ -259,19 +275,23 @@ public class ResumeServiceImpl implements ResumeService {
             if (dto.getId() == null) {
                 projectExperienceService.create(dto);
             } else {
-                requireOwned(dto.getId(), userId, projectExperienceMapper::selectById, ProjectExperience::getUserId,
-                        ErrorCode.PROJECT_EXPERIENCE_NOT_FOUND);
-                projectExperienceService.update(dto);
+                ProjectExperience current = owned.get(dto.getId());
+                if (current == null) {
+                    current = requireOwned(dto.getId(), userId, projectExperienceMapper::selectById,
+                            ProjectExperience::getUserId, ErrorCode.PROJECT_EXPERIENCE_NOT_FOUND);
+                }
+                projectExperienceService.updateOwned(current, dto);
             }
         }
     }
 
     private void syncAwards(Long userId, List<AwardRequest> incoming) {
         List<Award> existing = awardMapper.selectByUserId(userId);
-        Set<Long> incomingIds = collectIncomingIds(incoming);
+        Map<Long, Award> owned = indexById(existing, Award::getId);
+        Set<Long> incomingIds = incomingIds(incoming, AwardRequest::getId);
         for (Award item : existing) {
             if (!incomingIds.contains(item.getId())) {
-                awardService.delete(item.getId());
+                awardService.deleteOwned(item.getId());
             }
         }
         for (AwardRequest dto : incoming) {
@@ -279,40 +299,22 @@ public class ResumeServiceImpl implements ResumeService {
             if (dto.getId() == null) {
                 awardService.create(dto);
             } else {
-                requireOwned(dto.getId(), userId, awardMapper::selectById, Award::getUserId, ErrorCode.AWARD_NOT_FOUND);
-                awardService.update(dto);
+                Award current = owned.get(dto.getId());
+                if (current == null) {
+                    current = requireOwned(dto.getId(), userId, awardMapper::selectById, Award::getUserId,
+                            ErrorCode.AWARD_NOT_FOUND);
+                }
+                awardService.updateOwned(current, dto);
             }
         }
     }
 
-    private <T> Set<Long> collectIncomingIds(List<T> incoming) {
-        Set<Long> ids = new HashSet<>();
-        for (T item : incoming) {
-            Long id = extractId(item);
-            if (id != null) {
-                ids.add(id);
-            }
-        }
-        return ids;
+    private <T> Map<Long, T> indexById(List<T> existing, Function<T, Long> id) {
+        return existing.stream().collect(Collectors.toMap(id, Function.identity()));
     }
 
-    private Long extractId(Object dto) {
-        if (dto instanceof EducationRequest educationDTO) {
-            return educationDTO.getId();
-        }
-        if (dto instanceof CareerRequest careerDTO) {
-            return careerDTO.getId();
-        }
-        if (dto instanceof ProjectExperienceRequest projectDTO) {
-            return projectDTO.getId();
-        }
-        if (dto instanceof AwardRequest awardDTO) {
-            return awardDTO.getId();
-        }
-        if (dto instanceof SkillRequest skillDTO) {
-            return skillDTO.getId();
-        }
-        return null;
+    private <T> Set<Long> incomingIds(List<T> incoming, Function<T, Long> id) {
+        return incoming.stream().map(id).filter(Objects::nonNull).collect(Collectors.toSet());
     }
 
     private <T> void validateForSave(T dto, Class<?>... groups) {
@@ -333,8 +335,9 @@ public class ResumeServiceImpl implements ResumeService {
      * @param findById 按编号读取记录
      * @param ownerId 读取记录所属用户
      * @param notFound 记录不存在时的错误码
+     * @return 属于当前用户的记录
      */
-    private <T> void requireOwned(Long id, Long userId, Function<Long, T> findById, Function<T, Long> ownerId,
+    private <T> T requireOwned(Long id, Long userId, Function<Long, T> findById, Function<T, Long> ownerId,
             ErrorCode notFound) {
         T item = findById.apply(id);
         if (item == null) {
@@ -343,6 +346,7 @@ public class ResumeServiceImpl implements ResumeService {
         if (!ownerId.apply(item).equals(userId)) {
             throw new BusinessException(ErrorCode.NO_PERMISSION);
         }
+        return item;
     }
 
     /**

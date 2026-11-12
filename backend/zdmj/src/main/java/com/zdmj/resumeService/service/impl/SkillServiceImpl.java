@@ -48,29 +48,34 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
     @Override
     public SkillResponse update(SkillRequest skillRequest) {
         Long userId = UserHolder.requireUserId();
-        Long id = skillRequest.getId();
-        Skill skill = requireSkillAndCheckOwnership(id, userId, "修改");
+        Skill skill = requireSkillAndCheckOwnership(skillRequest.getId(), userId, "修改");
         validate(skillRequest, UpdateGroup.class);
-        applyFields(skill, skillRequest);
+        updateOwned(skill, skillRequest);
+        return toResponse(skill);
+    }
 
-        boolean updated = updateById(skill);
-        if (!updated) {
+    @Override
+    public void updateOwned(Skill existing, SkillRequest skillRequest) {
+        applyFields(existing, skillRequest);
+        if (!updateById(existing)) {
             throw new BusinessException(ErrorCode.SKILL_UPDATE_FAILED);
         }
-        log.info("用户 {} 更新技能成功: id={}", userId, id);
-        return toResponse(skill);
+        log.info("用户 {} 更新技能成功: id={}", existing.getUserId(), existing.getId());
     }
 
     @Override
     public void delete(Long id) {
         Long userId = UserHolder.requireUserId();
         requireSkillAndCheckOwnership(id, userId, "删除");
+        deleteOwned(id);
+    }
 
-        boolean removed = removeById(id);
-        if (!removed) {
+    @Override
+    public void deleteOwned(Long id) {
+        if (!removeById(id)) {
             throw new BusinessException(ErrorCode.SKILL_DELETE_FAILED);
         }
-        log.info("用户 {} 删除技能成功: id={}", userId, id);
+        log.info("删除技能成功: id={}", id);
     }
 
     @Override

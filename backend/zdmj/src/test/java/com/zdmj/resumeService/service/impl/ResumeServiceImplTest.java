@@ -422,7 +422,6 @@ class ResumeServiceImplTest {
         existingSkill.setId(9L);
         existingSkill.setUserId(1L);
         doReturn(List.of(existingSkill)).when(skillMapper).selectByUserId(1L);
-        doReturn(existingSkill).when(skillMapper).selectById(9L);
         doReturn(java.util.Set.of()).when(validator).validate(any(), any(Class[].class));
         doReturn(emptyContent()).when(resumeMapper).selectContentByUserId(1L);
 
@@ -438,7 +437,8 @@ class ResumeServiceImplTest {
 
         resumeService.saveMyResumeContent(request);
 
-        verify(skillService).update(any());
+        verify(skillService).updateOwned(eq(existingSkill), any());
+        verify(skillMapper, never()).selectById(any());
         verify(userService, never()).updateProfile(any(), any());
     }
 
@@ -453,7 +453,6 @@ class ResumeServiceImplTest {
         existingSkill.setId(9L);
         existingSkill.setUserId(1L);
         doReturn(List.of(existingSkill)).when(skillMapper).selectByUserId(1L);
-        doReturn(existingSkill).when(skillMapper).selectById(9L);
         doReturn(java.util.Set.of()).when(validator).validate(any(), any(Class[].class));
         doReturn(emptyContent()).when(resumeMapper).selectContentByUserId(1L);
 
@@ -472,8 +471,9 @@ class ResumeServiceImplTest {
 
         resumeService.saveMyResumeContent(request);
 
-        verify(skillService, times(2)).update(any());
-        verify(skillService, never()).delete(any());
+        verify(skillService, times(2)).updateOwned(eq(existingSkill), any());
+        verify(skillMapper, never()).selectById(any());
+        verify(skillService, never()).deleteOwned(any());
     }
 
     @Test
@@ -498,9 +498,10 @@ class ResumeServiceImplTest {
 
         resumeService.saveMyResumeContent(request);
 
-        verify(skillService).delete(9L);
+        verify(skillService).deleteOwned(9L);
+        verify(skillMapper, never()).selectById(any());
         verify(skillService, never()).create(any());
-        verify(skillService, never()).update(any());
+        verify(skillService, never()).updateOwned(any(), any());
     }
 
     @Test
@@ -514,7 +515,6 @@ class ResumeServiceImplTest {
         existingSkill.setId(9L);
         existingSkill.setUserId(1L);
         doReturn(List.of(existingSkill)).when(skillMapper).selectByUserId(1L);
-        doReturn(existingSkill).when(skillMapper).selectById(9L);
         doReturn(java.util.Set.of()).when(validator).validate(any(), any(Class[].class));
         doReturn(emptyContent()).when(resumeMapper).selectContentByUserId(1L);
 
@@ -542,6 +542,56 @@ class ResumeServiceImplTest {
         assertEquals("", update.getValue().getPhone());
         assertEquals(" https://example.com ", update.getValue().getWebsite());
         assertEquals(" 上海 ", update.getValue().getPreferredWorkCity());
+        verify(skillMapper, never()).selectById(any());
+    }
+
+    @Test
+    void saveMyResumeContent_foreignSkillId_shouldRejectWithoutWrite() {
+        UserHolder.set(UserContext.of(1L, "u1"));
+        doReturn(List.of()).when(skillMapper).selectByUserId(1L);
+        Skill foreign = new Skill();
+        foreign.setId(9L);
+        foreign.setUserId(2L);
+        doReturn(foreign).when(skillMapper).selectById(9L);
+        doReturn(java.util.Set.of()).when(validator).validate(any(), any(Class[].class));
+
+        SkillRequest skill = new SkillRequest();
+        skill.setId(9L);
+        skill.setName("Java");
+        ResumeContentSaveRequest request = new ResumeContentSaveRequest();
+        request.setSkills(List.of(skill));
+        request.setEducations(List.of());
+        request.setCareers(List.of());
+        request.setProjects(List.of());
+        request.setAwards(List.of());
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.saveMyResumeContent(request));
+
+        assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
+        verify(skillService, never()).updateOwned(any(), any());
+    }
+
+    @Test
+    void saveMyResumeContent_missingSkillId_shouldRejectWithoutWrite() {
+        UserHolder.set(UserContext.of(1L, "u1"));
+        doReturn(List.of()).when(skillMapper).selectByUserId(1L);
+        doReturn(null).when(skillMapper).selectById(9L);
+        doReturn(java.util.Set.of()).when(validator).validate(any(), any(Class[].class));
+
+        SkillRequest skill = new SkillRequest();
+        skill.setId(9L);
+        skill.setName("Java");
+        ResumeContentSaveRequest request = new ResumeContentSaveRequest();
+        request.setSkills(List.of(skill));
+        request.setEducations(List.of());
+        request.setCareers(List.of());
+        request.setProjects(List.of());
+        request.setAwards(List.of());
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.saveMyResumeContent(request));
+
+        assertEquals(ErrorCode.SKILL_NOT_FOUND.getCode(), ex.getCode());
+        verify(skillService, never()).updateOwned(any(), any());
     }
 
     private static ResumeContentRow emptyContent() {

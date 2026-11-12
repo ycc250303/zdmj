@@ -178,7 +178,6 @@ mvn -B -ntp clean spring-boot:run
 ```
 
 - 接口：`http://localhost:8080`
-- Swagger：`http://localhost:8080/swagger-ui/index.html`
 
 ### 4. 启动前端
 
@@ -206,7 +205,6 @@ docker compose --env-file ../.env up -d --build
 | --- | --- |
 | 前端 | http://localhost |
 | 后端 API | http://localhost:8080 |
-| Swagger | http://localhost:8080/swagger-ui/index.html |
 | PostgreSQL | localhost:5432 |
 | Redis | localhost:6379 |
 

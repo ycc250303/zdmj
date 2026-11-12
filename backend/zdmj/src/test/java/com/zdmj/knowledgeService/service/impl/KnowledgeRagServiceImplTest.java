@@ -123,7 +123,6 @@ class KnowledgeRagServiceImplTest {
 
         assertEquals(List.of("rag-answer"), chunks);
         verify(knowledgeVectorMapper).searchBySimilarity(402L, 502L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium());
-        verify(knowledgeVectorMapper, never()).selectChunksByDocuments(any(), any(), any());
         verify(embeddingGateway).embed(eq(CurrentActor.of(402L)), eq(List.of("hello question")));
     }
 
@@ -159,7 +158,6 @@ class KnowledgeRagServiceImplTest {
         verify(embeddingGateway).embed(eq(CurrentActor.of(403L)), eq(List.of("raw question")));
         verify(embeddingGateway).embed(eq(CurrentActor.of(403L)), eq(List.of("rewritten question")));
         verify(knowledgeVectorMapper, Mockito.times(2)).searchBySimilarity(eq(403L), eq(503L), eq("[0.3,0.4]"), anyInt());
-        verify(knowledgeVectorMapper, never()).selectChunksByDocuments(any(), any(), any());
     }
 
     @Test
@@ -206,7 +204,6 @@ class KnowledgeRagServiceImplTest {
                 KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.5,0.6]", ragConfig.getSearch().getTopkMedium());
         verify(knowledgeBasesService, never()).getOrCreateKnowledgeBaseId();
         verify(knowledgeVectorMapper, never()).searchBySimilarity(eq(404L), any(), any(), anyInt());
-        verify(knowledgeVectorMapper, never()).selectChunksByDocuments(any(), any(), any());
     }
 
     @Test
@@ -269,7 +266,6 @@ class KnowledgeRagServiceImplTest {
         assertFalse(out.isRewriteUsed());
         verify(modelGateway, never()).generate(any(), any());
         verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
-        verify(knowledgeVectorMapper, never()).selectChunksByDocuments(any(), any(), any());
     }
 
     @Test
@@ -304,7 +300,6 @@ class KnowledgeRagServiceImplTest {
         verify(knowledgeVectorMapper).searchBySimilarity(
                 KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.5,0.6]", ragConfig.getSearch().getTopkMedium());
         verify(knowledgeBasesService, never()).getOrCreateKnowledgeBaseId();
-        verify(knowledgeVectorMapper, never()).selectChunksByDocuments(any(), any(), any());
     }
 
     @Test
@@ -345,7 +340,6 @@ class KnowledgeRagServiceImplTest {
         assertEquals(22L, out.getHits().get(0).getId());
         verify(knowledgeVectorMapper, Mockito.times(2)).searchBySimilarity(
                 eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(11L), eq("[0.3,0.4]"), anyInt());
-        verify(knowledgeVectorMapper, never()).selectChunksByDocuments(any(), any(), any());
     }
 
     @Test

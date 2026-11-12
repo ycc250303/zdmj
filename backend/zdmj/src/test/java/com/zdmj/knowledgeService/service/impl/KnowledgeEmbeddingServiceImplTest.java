@@ -40,7 +40,7 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
 import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
-import com.zdmj.knowledgeService.enums.KnowledgeVectorTaskStatusEnum;
+import com.zdmj.knowledgeService.enums.KnowledgeEmbeddingStatusEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
 
@@ -111,7 +111,7 @@ class KnowledgeEmbeddingServiceImplTest {
 
         service.vectorizeAndStore(110L);
 
-        assertEquals(KnowledgeVectorTaskStatusEnum.SUCCESS.getCode(), kd.getEmbeddingStatus());
+        assertEquals(KnowledgeEmbeddingStatusEnum.SUCCESS.getCode(), kd.getEmbeddingStatus());
         assertEquals(1, kd.getChunkCount());
         InOrder order = inOrder(pdfParserUtil, embeddingGateway, knowledgeVectorMapper);
         order.verify(pdfParserUtil).extractTextFromUrl(kd.getContent(), 1L);
@@ -163,14 +163,14 @@ class KnowledgeEmbeddingServiceImplTest {
         kd.setId(8101L);
         kd.setUserId(1L);
         kd.setChunkCount(12);
-        kd.setEmbeddingStatus(KnowledgeVectorTaskStatusEnum.SUCCESS.getCode());
+        kd.setEmbeddingStatus(KnowledgeEmbeddingStatusEnum.SUCCESS.getCode());
         when(knowledgeDocumentMapper.selectById(8101L)).thenReturn(kd);
         KnowledgeEmbeddingServiceImpl service = newService();
 
         service.deleteVectors(8101L);
 
         assertEquals(0, kd.getChunkCount());
-        assertEquals(KnowledgeVectorTaskStatusEnum.PENDING.getCode(), kd.getEmbeddingStatus());
+        assertEquals(KnowledgeEmbeddingStatusEnum.PENDING.getCode(), kd.getEmbeddingStatus());
         assertNull(kd.getLastEmbeddedAt());
         verify(knowledgeVectorMapper).deleteByDocumentIdAndUserId(8101L, 1L);
         verify(knowledgeDocumentMapper).updateById(kd);

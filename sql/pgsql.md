@@ -6,7 +6,7 @@
 ### 脚本约定（与 `pgsql.sql` 一致）
 
 - **扩展**：`vector`（pgvector，同时提供 HNSW 索引）；`pg_trgm`（岗位/公司名称模糊搜索 GIN 索引）。
-- **删表顺序**（与脚本 `DROP TABLE` 自上而下一致）：`users` → `user_profiles` → `user_behavior_logs` → `educations` → `skills` → `careers` → `project_experiences` → `job_student_matches` / 相关岗位侧表 → `jobs` → `companies` → `knowledge_documents` → `knowledge_bases` → `knowledge_vectors` → `knowledge_vector_tasks` → `conversations` → `messages` → `SPRING_AI_CHAT_MEMORY`。
+- **删表顺序**（与脚本 `DROP TABLE` 自上而下一致）：`users` → `user_profiles` → `user_behavior_logs` → `educations` → `skills` → `careers` → `project_experiences` → `job_student_matches` / 相关岗位侧表 → `jobs` → `companies` → `knowledge_documents` → `knowledge_bases` → `knowledge_vectors` → `conversations` → `messages` → `SPRING_AI_CHAT_MEMORY`。
 - **知识库模型（当前）**：每用户**一个** `scope=1` 的用户私有库；全系统**一个** `scope=2` 的系统默认库。`knowledge_bases` **仅存标识**（`user_id`、`scope`）；向量化状态、分块数等均在 **`knowledge_documents`**。
 - **系统库占位**：`knowledge_bases` / `knowledge_documents` / `knowledge_vectors` 在系统场景下 `user_id` 约定为 `0`（与真实用户 ID 区分）。
 
@@ -140,7 +140,7 @@
 | `created_at`            | `TIMESTAMP`    | 创建时间       | `DEFAULT CURRENT_TIMESTAMP`                       | -                                                                                                                                                |
 | `updated_at`            | `TIMESTAMP`    | 更新时间       | `DEFAULT CURRENT_TIMESTAMP`                       | -                                                                                                                                                |
 
-**索引**：`idx_student_capability_profiles_user_id`、`idx_student_capability_profiles_target_role`。
+**索引**：`user_id` 唯一约束；`idx_student_capability_profiles_target_role`。
 
 ## 3 岗位模块
 
@@ -258,7 +258,7 @@
 
 **唯一索引**：`uk_knowledge_documents_kid_content` — `UNIQUE (knowledge_id, content)`，同一库内相同来源地址只保留一条。
 
-**其他索引**：`idx_knowledge_documents_knowledge_id`、`idx_knowledge_documents_user_id`、`idx_knowledge_documents_type`、`idx_knowledge_documents_embedding_status`（`(knowledge_id, embedding_status)`）、`idx_knowledge_documents_content_hash`。
+**其他索引**：`idx_knowledge_documents_user_id`、`idx_knowledge_documents_type`、`idx_knowledge_documents_embedding_status`（`(knowledge_id, embedding_status)`）、`idx_knowledge_documents_content_hash`。`knowledge_id` 单列条件使用唯一索引和向量化状态索引的前缀。
 
 ## 5 向量检索模块
 
@@ -282,25 +282,7 @@
 
 **向量索引**：`idx_knowledge_vectors_embedding` — `HNSW (embedding vector_cosine_ops) WITH (M = 16, ef_construction = 100)`。
 
-**其他索引**（与 `pgsql.sql` 一致）：`idx_knowledge_vectors_user_id`、`idx_knowledge_vectors_knowledge_id`、`idx_knowledge_vectors_user_id_knowledge_id`、`idx_knowledge_vectors_document_id`。
-
-### 5.2 表 `knowledge_vector_tasks`
-
-| 字段名称          | 字段类型      | 字段含义 | 约束                                      | 枚举/JSON字段含义                             |
-| ----------------- | ------------- | -------- | ----------------------------------------- | --------------------------------------------- |
-| `id`            | `BIGSERIAL` | 任务ID   | `PK`                                    | -                                             |
-| `user_id`       | `BIGINT`    | 用户ID   | `NOT NULL`，逻辑外键 `users.id`       | -                                             |
-| `knowledge_id`  | `BIGINT`    | 知识库ID | 可空，逻辑外键 `knowledge_bases.id`     | -                                             |
-| `document_id`   | `BIGINT`    | 文档ID   | 可空，逻辑外键 `knowledge_documents.id` | 空表示整库任务                                |
-| `task_type`     | `SMALLINT`  | 任务类型 | `NOT NULL`                              | `1=创建向量, 2=更新向量, 3=删除向量`        |
-| `status`        | `SMALLINT`  | 任务状态 | `NOT NULL`                              | `1=pending, 2=running, 3=success, 4=failed` |
-| `error_message` | `TEXT`      | 错误信息 | 可空                                      | -                                             |
-| `started_at`    | `TIMESTAMP` | 开始时间 | `DEFAULT CURRENT_TIMESTAMP`             | -                                             |
-| `completed_at`  | `TIMESTAMP` | 完成时间 | 可空                                      | -                                             |
-| `created_at`    | `TIMESTAMP` | 创建时间 | `DEFAULT CURRENT_TIMESTAMP`             | -                                             |
-| `updated_at`    | `TIMESTAMP` | 更新时间 | `DEFAULT CURRENT_TIMESTAMP`             | -                                             |
-
-**索引**（与 `pgsql.sql` 一致）：`idx_knowledge_vector_tasks_user_id`、`idx_knowledge_vector_tasks_knowledge_id`、`idx_knowledge_vector_tasks_document_id`、`idx_knowledge_vector_tasks_document_id_user_id`、`idx_knowledge_vector_tasks_knowledge_id_created_at`、`idx_knowledge_vector_tasks_status`、`idx_knowledge_vector_tasks_task_type`。
+**其他索引**：`idx_knowledge_vectors_user_id_knowledge_id`、`idx_knowledge_vectors_document_id`。按用户和知识库过滤使用复合索引；按知识库删除使用唯一索引前缀。
 
 ## 6 AI对话模块
 
