@@ -65,15 +65,12 @@ class JsonbPersistenceIT extends IntegrationTestBase {
         job.setSalaryType(2);
         job.setLink("");
         job.setKeywords(List.of("Java", "PostgreSQL"));
-        job.setContent(List.of("设计接口"));
-        job.setRequirements(List.of());
         jobMapper.insert(job);
 
         Job loadedJob = jobMapper.selectById(job.getId());
         assertThat(loadedJob.getKeywords()).containsExactly("Java", "PostgreSQL");
         assertThat(loadedJob.getKeywords().get(0)).isInstanceOf(String.class);
-        assertThat(loadedJob.getContent()).containsExactly("设计接口");
-        assertThat(loadedJob.getRequirements()).isEmpty();
+        assertThat(loadedJob.getDescription()).isEqualTo("负责服务端开发");
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT jsonb_typeof(keywords) FROM jobs WHERE id = ?", String.class, job.getId())).isEqualTo("array");
 

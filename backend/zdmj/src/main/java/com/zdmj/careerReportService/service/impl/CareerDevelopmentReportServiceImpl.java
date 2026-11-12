@@ -23,9 +23,7 @@ import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.util.DateTimeUtil;
-import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
 import com.zdmj.jobService.dto.JobListItemResponse;
-import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobService;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
@@ -65,7 +63,7 @@ import org.springframework.util.StringUtils;
 /**
  * 职业发展报告服务实现类
  *
- * <p>负责聚合学生画像、岗位画像、人岗匹配与知识库向量检索，
+ * <p>负责聚合学生画像、岗位详情、人岗匹配与知识库向量检索，
  * 调用大模型生成或润色结构化报告。模型调用在事务外完成，覆盖写入在同一次短事务中完成。</p>
  */
 @Slf4j
@@ -104,7 +102,6 @@ public class CareerDevelopmentReportServiceImpl
     private final ObjectMapper objectMapper;
     private final ModelGateway modelGateway;
     private final JobService jobService;
-    private final JobCapabilityProfileService jobCapabilityProfileService;
     private final JobStudentMatchService jobStudentMatchService;
     private final StudentCapabilityProfileService studentCapabilityProfileService;
     private final KnowledgeBasesService knowledgeBasesService;
@@ -143,21 +140,19 @@ public class CareerDevelopmentReportServiceImpl
         if (studentProfile == null) {
             throw new BusinessException(ErrorCode.MATCH_PRECONDITION_MISSING);
         }
-        // 2. 加载或生成岗位画像、人岗匹配
-        JobCapabilityProfileResponse jobProfile = loadOrGenerateJobProfile(jobId);
+        // 2. 加载或生成人岗匹配
         JobStudentMatchResponse match = loadOrGenerateMatch(jobId);
         // 3. 知识库 RAG 检索学习路径片段
         List<KnowledgeRetrivalDTO> ragHits = retrieveLearningPathHits(jobDetail, req);
         // 4. 调用大模型生成结构化报告
         Map<String, Object> reportContent = generateStructuredReport(
-                userId, jobDetail, studentProfile, jobProfile, match, ragHits, req);
+                userId, jobDetail, studentProfile, match, ragHits, req);
         // 5. 事务外组装快照并校验正文，再覆盖写入唯一一行
         CareerDevelopmentReport draft = new CareerDevelopmentReport();
         draft.setUserId(userId);
         draft.setJobId(jobId);
         draft.setMatchId(match.getId());
         draft.setStudentProfileSnapshot(toJson(studentProfile));
-        draft.setJobProfileSnapshot(toJson(jobProfile));
         draft.setMatchSnapshot(toJson(match));
         draft.setKnowledgeSources(toJson(toKnowledgeSources(ragHits)));
         return toResponse(saveReport(draft, reportContent, GENERATE_PROMPT));
@@ -208,11 +203,6 @@ public class CareerDevelopmentReportServiceImpl
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "报告内容不能为空");
         }
         return toResponse(saveReport(draftFromCurrent(current), req.getReportContent(), current.getPromptName()));
-    }
-
-    private JobCapabilityProfileResponse loadOrGenerateJobProfile(Long jobId) {
-        JobCapabilityProfileResponse profile = jobCapabilityProfileService.getJobCapabilityProfileOrNull(jobId);
-        return profile != null ? profile : jobCapabilityProfileService.getJobCapabilityProfile(jobId);
     }
 
     private JobStudentMatchResponse loadOrGenerateMatch(Long jobId) {
@@ -277,7 +267,6 @@ public class CareerDevelopmentReportServiceImpl
     private Map<String, Object> generateStructuredReport(Long userId,
                                                          JobListItemResponse jobDetail,
                                                          StudentCapabilityProfileResponse studentProfile,
-                                                         JobCapabilityProfileResponse jobProfile,
                                                          JobStudentMatchResponse match,
                                                          List<KnowledgeRetrivalDTO> ragHits,
                                                          CareerReportGenerateRequest req) {
@@ -296,7 +285,6 @@ public class CareerDevelopmentReportServiceImpl
                 .append("；短期建议 1~3 个月内，中期 3~6 个月内。\n\n");
         sb.append("## 岗位信息\n").append(toJson(jobDetail)).append("\n\n");
         sb.append("## 学生画像\n").append(toJson(studentProfile)).append("\n\n");
-        sb.append("## 岗位画像\n").append(toJson(jobProfile)).append("\n\n");
         sb.append("## 人岗匹配\n").append(toJson(match)).append("\n\n");
         sb.append("## 学习路径知识上下文\n").append(ragContext).append("\n");
 
@@ -359,7 +347,6 @@ public class CareerDevelopmentReportServiceImpl
         draft.setJobId(current.getJobId());
         draft.setMatchId(current.getMatchId());
         draft.setStudentProfileSnapshot(current.getStudentProfileSnapshot());
-        draft.setJobProfileSnapshot(current.getJobProfileSnapshot());
         draft.setMatchSnapshot(current.getMatchSnapshot());
         draft.setKnowledgeSources(current.getKnowledgeSources());
         return draft;

@@ -4,8 +4,6 @@ import { useRouter, useRoute } from 'vue-router';
 import { $t } from '@/locales';
 import {
   fetchGetJobDetail,
-  fetchGetJobCapabilityProfile,
-  fetchGenerateJobCapabilityProfile,
   type JobApi
 } from '@/service/api/job';
 import {
@@ -34,10 +32,8 @@ const jobId = computed(() => {
 });
 
 const jobDetail = ref<JobApi.JobListItem | null>(null);
-const capabilityProfile = ref<JobApi.JobCapabilityProfile | null>(null);
 const matchResult = ref<MatchApi.JobStudentMatch | null>(null);
 const loading = ref(false);
-const generatingProfile = ref(false);
 const generatingMatch = ref(false);
 
 // --- 职业发展报告相关状态 ---
@@ -66,7 +62,7 @@ function extractApiError(errLike: any, fallback: string): string {
   const msg: string = parsed.msg || errLike?.message || fallback;
   const code = parsed.code ? `[${parsed.code}] ` : '';
   if (Number(parsed.code) === 11001) {
-    return `${code}${msg}（请稍后重试，或确认后端 LLM 服务可用、能力画像已生成）`;
+    return `${code}${msg}（请稍后重试，或确认模型服务可用）`;
   }
   return `${code}${msg}`;
 }
@@ -101,8 +97,6 @@ async function loadJobDetail() {
     const { data, error } = await fetchGetJobDetail(jobId.value);
     if (!error && data) {
       jobDetail.value = data;
-      // 加载能力画像
-      loadCapabilityProfile();
       // 加载人岗匹配结果
       loadMatchResult();
       // 加载职业发展报告（不存在则为 null，不弹错）
@@ -116,19 +110,6 @@ async function loadJobDetail() {
     router.back();
   } finally {
     loading.value = false;
-  }
-}
-
-async function loadCapabilityProfile() {
-  if (!jobId.value) return;
-
-  try {
-    const { data, error } = await fetchGetJobCapabilityProfile(jobId.value);
-    if (!error && data) {
-      capabilityProfile.value = data;
-    }
-  } catch (err) {
-    console.error($t('page.jobs.loadProfileFailed'), err);
   }
 }
 
@@ -162,32 +143,6 @@ async function loadCareerReport() {
   }
 }
 
-async function handleGenerateProfile() {
-  if (!jobId.value) return;
-
-  generatingProfile.value = true;
-  window.$message?.info($t('page.jobs.profileGenerating') as string, { duration: 5000 });
-  try {
-    const { data, error } = await fetchGenerateJobCapabilityProfile(jobId.value);
-    if (error || !data) {
-      window.$message?.error(
-        extractApiError(error, $t('page.jobs.createFailed') as string),
-        { duration: 6000 }
-      );
-      return;
-    }
-    capabilityProfile.value = data;
-    window.$message?.success($t('page.jobs.profileGenerated') as string);
-  } catch (err) {
-    console.error($t('page.jobs.generateProfileError'), err);
-    window.$message?.error(extractApiError(err, $t('page.jobs.createFailed') + $t('page.jobs.retryLater')), {
-      duration: 6000
-    });
-  } finally {
-    generatingProfile.value = false;
-  }
-}
-
 async function handleGenerateMatch() {
   if (!jobId.value) return;
   generatingMatch.value = true;
@@ -212,10 +167,7 @@ async function handleGenerateMatch() {
 
 // --- 职业发展报告：生成 / 润色 / 完整性检查 ---
 async function refreshJobAnalysisAfterReport() {
-  await Promise.all([
-    loadMatchResult(),
-    loadCapabilityProfile(),
-  ]);
+  await loadMatchResult();
 }
 
 function isPlaceholderDocTitle(title: string): boolean {
@@ -609,10 +561,6 @@ onMounted(() => {
             <template #icon><span>🎯</span></template>
             {{ matchResult ? $t('page.jobs.reanalyzeMatch') : $t('page.jobs.analyzeMatch') }}
           </NButton>
-          <NButton @click="handleGenerateProfile" :loading="generatingProfile">
-            <template #icon><span>🧠</span></template>
-            {{ capabilityProfile ? $t('page.jobs.regenerateProfile') : $t('page.jobs.generateProfile') }}
-          </NButton>
           <NButton
             type="info"
             ghost
@@ -643,9 +591,7 @@ onMounted(() => {
         />
       </div>
 
-      <div v-if="jobDetail" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- 左侧：岗位信息 -->
-        <div class="lg:col-span-2 space-y-6">
+      <div v-if="jobDetail" class="space-y-6">
           <!-- 基本信息 -->
           <NCard :title="$t('page.jobs.basicInfo')" class="rounded-xl">
             <div class="space-y-4">
@@ -670,9 +616,9 @@ onMounted(() => {
                   :href="normalizeJobLink(jobDetail.link)!"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="font-semibold text-blue-600 hover:underline truncate text-right"
+                  class="font-semibold text-blue-600 hover:underline text-right"
                 >
-                  {{ jobDetail.link }}
+                  {{ $t('page.jobs.jobLink') }}
                 </a>
               </div>
               <div class="flex items-center justify-between py-2">
@@ -696,26 +642,6 @@ onMounted(() => {
             </div>
           </NCard>
 
-          <!-- 岗位职责 -->
-          <NCard v-if="jobDetail.jobDuties && jobDetail.jobDuties.length > 0" :title="$t('page.jobs.jobDuties')" class="rounded-xl">
-            <ul class="space-y-2">
-              <li v-for="(duty, idx) in jobDetail.jobDuties" :key="idx" class="text-slate-700 dark:text-gray-300 flex items-start gap-2">
-                <span class="text-blue-500 mt-1">•</span>
-                <span>{{ duty }}</span>
-              </li>
-            </ul>
-          </NCard>
-
-          <!-- 岗位要求 -->
-          <NCard v-if="jobDetail.jobRequirements && jobDetail.jobRequirements.length > 0" :title="$t('page.jobs.jobRequirements')" class="rounded-xl">
-            <ul class="space-y-2">
-              <li v-for="(req, idx) in jobDetail.jobRequirements" :key="idx" class="text-slate-700 dark:text-gray-300 flex items-start gap-2">
-                <span class="text-blue-500 mt-1">•</span>
-                <span>{{ req }}</span>
-              </li>
-            </ul>
-          </NCard>
-
           <!-- 公司信息 -->
           <NCard v-if="jobDetail.companyIndustries" :title="$t('page.jobs.companyIndustry') + $t('page.jobs.infoSuffix')" class="rounded-xl">
             <div class="space-y-3">
@@ -727,141 +653,6 @@ onMounted(() => {
               </div>
             </div>
           </NCard>
-        </div>
-
-        <!-- 右侧：能力画像 -->
-        <div class="lg:col-span-1">
-          <NCard :title="$t('page.jobs.capabilityProfile')" class="rounded-xl h-full">
-            <template #header-extra>
-              <NButton
-                text
-                type="primary"
-                :loading="generatingProfile"
-                @click="handleGenerateProfile"
-              >
-                <template #icon><span>🔄</span></template>
-              </NButton>
-            </template>
-
-            <div v-if="capabilityProfile" class="space-y-4">
-              <!-- 岗位类型 -->
-              <div v-if="capabilityProfile.targetRoleType">
-                <h4 class="font-semibold text-slate-800 dark:text-gray-200 mb-2 flex items-center gap-2">
-                  <span class="text-blue-500">💼</span>
-                  {{ $t('page.jobs.jobName') + $t('page.jobs.jobType') }}
-                </h4>
-                <p class="text-slate-700 dark:text-gray-300">{{ capabilityProfile.targetRoleType }}</p>
-              </div>
-
-              <!-- 专业技能 -->
-              <div v-if="capabilityProfile.professionalSkills">
-                <h4 class="font-semibold text-slate-800 dark:text-gray-200 mb-2 flex items-center gap-2">
-                  <span class="text-blue-500">💻</span>
-                  {{ $t('page.jobs.technicalSkills') }}
-                </h4>
-                <p class="text-slate-700 dark:text-gray-300 whitespace-pre-wrap">{{ capabilityProfile.professionalSkills }}</p>
-              </div>
-
-              <!-- 证书 -->
-              <div v-if="capabilityProfile.certificates">
-                <h4 class="font-semibold text-slate-800 dark:text-gray-200 mb-2 flex items-center gap-2">
-                  <span class="text-purple-500">🎓</span>
-                  {{ $t('page.jobs.certificateRequired') }}
-                </h4>
-                <p class="text-slate-700 dark:text-gray-300 whitespace-pre-wrap">{{ capabilityProfile.certificates }}</p>
-              </div>
-
-              <!-- 七维能力 -->
-              <div class="grid grid-cols-1 gap-3">
-                <div v-if="capabilityProfile.innovationAbility" class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
-                  <div class="font-medium text-slate-800 dark:text-gray-200 mb-1 flex items-center gap-2">
-                    <span class="text-blue-500">💡</span>
-                    {{ $t('page.jobs.innovationAbility') }}
-                  </div>
-                  <p class="text-sm text-slate-700 dark:text-gray-300">{{ capabilityProfile.innovationAbility }}</p>
-                </div>
-
-                <div v-if="capabilityProfile.learningAbility" class="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
-                  <div class="font-medium text-slate-800 dark:text-gray-200 mb-1 flex items-center gap-2">
-                    <span class="text-green-500">🎓</span>
-                    {{ $t('page.jobs.learningAbility') }}
-                  </div>
-                  <p class="text-sm text-slate-700 dark:text-gray-300">{{ capabilityProfile.learningAbility }}</p>
-                </div>
-
-                <div v-if="capabilityProfile.pressureResistance" class="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-lg">
-                  <div class="font-medium text-slate-800 dark:text-gray-200 mb-1 flex items-center gap-2">
-                    <span class="text-orange-500">🛡️</span>
-                    {{ $t('page.jobs.pressureResistance') }}
-                  </div>
-                  <p class="text-sm text-slate-700 dark:text-gray-300">{{ capabilityProfile.pressureResistance }}</p>
-                </div>
-
-                <div v-if="capabilityProfile.communicationAbility" class="bg-cyan-50 dark:bg-cyan-900/20 p-3 rounded-lg">
-                  <div class="font-medium text-slate-800 dark:text-gray-200 mb-1 flex items-center gap-2">
-                    <span class="text-cyan-500">🗣️</span>
-                    {{ $t('page.jobs.communicationAbility') }}
-                  </div>
-                  <p class="text-sm text-slate-700 dark:text-gray-300">{{ capabilityProfile.communicationAbility }}</p>
-                </div>
-
-                <div v-if="capabilityProfile.practicalAbility" class="bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-lg">
-                  <div class="font-medium text-slate-800 dark:text-gray-200 mb-1 flex items-center gap-2">
-                    <span class="text-indigo-500">🔨</span>
-                    {{ $t('page.jobs.practicalAbility') }}
-                  </div>
-                  <p class="text-sm text-slate-700 dark:text-gray-300">{{ capabilityProfile.practicalAbility }}</p>
-                </div>
-              </div>
-
-              <!-- 岗位优势 -->
-              <div v-if="capabilityProfile.strengths && capabilityProfile.strengths.length > 0">
-                <h4 class="font-semibold text-slate-800 dark:text-gray-200 mb-2 flex items-center gap-2">
-                  <span class="text-yellow-500">⭐</span>
-                  {{ $t('page.jobs.strengths') }}
-                </h4>
-                <ul class="space-y-1">
-                  <li v-for="(strength, idx) in capabilityProfile.strengths" :key="idx" class="text-sm text-slate-700 dark:text-gray-300 flex items-start gap-2">
-                    <span class="text-green-500">✓</span>
-                    <span>{{ strength }}</span>
-                  </li>
-                </ul>
-              </div>
-
-              <!-- 补充要求：JD 未写明的该方向常见门槛 -->
-              <div v-if="capabilityProfile.missingSkills && capabilityProfile.missingSkills.length > 0">
-                <h4 class="font-semibold text-slate-800 dark:text-gray-200 mb-2 flex items-center gap-2">
-                  <span class="text-blue-500">＋</span>
-                  {{ $t('page.jobs.missingSkills') }}
-                </h4>
-                <ul class="space-y-1">
-                  <li v-for="(skill, idx) in capabilityProfile.missingSkills" :key="idx" class="text-sm text-slate-700 dark:text-gray-300 flex items-start gap-2">
-                    <span class="text-blue-500">•</span>
-                    <span>{{ skill }}</span>
-                  </li>
-                </ul>
-              </div>
-
-              <!-- 总结 -->
-              <div v-if="capabilityProfile.summary" class="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
-                <h4 class="font-semibold text-slate-800 dark:text-gray-200 mb-2 flex items-center gap-2">
-                  <span class="text-blue-600">📝</span>
-                  {{ $t('page.jobs.summary') }}
-                </h4>
-                <p class="text-slate-700 dark:text-gray-300 italic">{{ capabilityProfile.summary }}</p>
-              </div>
-            </div>
-
-            <NEmpty v-else :description="$t('page.jobs.noProfile')" class="py-8">
-              <template #extra>
-                <NButton type="primary" :loading="generatingProfile" @click="handleGenerateProfile">
-                  <template #icon><span>🧠</span></template>
-                  {{ $t('page.jobs.generateProfile') }}
-                </NButton>
-              </template>
-            </NEmpty>
-          </NCard>
-        </div>
       </div>
     </div>
 

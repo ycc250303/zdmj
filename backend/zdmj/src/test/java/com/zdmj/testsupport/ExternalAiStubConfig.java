@@ -195,9 +195,6 @@ public class ExternalAiStubConfig {
             if (text.indexOf("你是岗位分类器") >= 0) {
                 return response("{\"roleCode\":\"java-backend\",\"confidence\":0.88,\"reason\":\"岗位方向识别\"}");
             }
-            if (text.indexOf("本任务仅做**岗位要求分析**") >= 0) {
-                return response("{\"professionalSkills\":\"Java 岗位要求\",\"strengths\":[],\"missingSkills\":[]}");
-            }
             if (text.indexOf("专项评估") >= 0) {
                 return response("{\"professionalSkills\":\"Java 简历能力\",\"competitivenessScore\":80}");
             }

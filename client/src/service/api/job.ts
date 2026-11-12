@@ -27,8 +27,6 @@ export namespace JobApi {
     companySize?: number;
     companyFundingType?: number;
     companyIndustries?: string[];
-    jobDuties?: string[]; // 岗位职责
-    jobRequirements?: string[]; // 岗位要求
   }
 
   // 兼容旧引用：Job 与 JobListItem 同构
@@ -63,8 +61,6 @@ export namespace JobApi {
     salaryMax: number;
     salaryType: number;
     link?: string;
-    jobDuties?: string[];
-    jobRequirements?: string[];
     keywords?: string[];
   }
 
@@ -75,21 +71,6 @@ export namespace JobApi {
 
   // 分页响应（对应后端 PageDTO）
   export type PageResponse<T> = Api.Common.PageDTO<T>;
-
-  // 岗位能力画像（对应后端 JobCapabilityProfileDTO）
-  export interface JobCapabilityProfile {
-    targetRoleType?: string; // 岗位类型
-    professionalSkills?: string; // 专业技能
-    certificates?: string; // 证书
-    innovationAbility?: string; // 创新能力
-    learningAbility?: string; // 学习能力
-    pressureResistance?: string; // 抗压能力
-    communicationAbility?: string; // 沟通能力
-    practicalAbility?: string; // 实践能力
-    strengths?: string[]; // 岗位已写明的核心要求亮点
-    missingSkills?: string[]; // 补充要求：JD 未写明的该方向常见核心门槛
-    summary?: string; // 一句话总结
-  }
 }
 
 /**
@@ -169,30 +150,4 @@ export function fetchUpdateJob(data: JobApi.JobUpdate) {
  */
 export function fetchDeleteJob(id: number | string) {
   return request({ url: `/jobs/${id}`, method: 'delete' });
-}
-
-/**
- * 查询岗位能力画像
- * 后端：GET /jobs/capability-profile?id={id}
- * 注意：后端使用 @RequestParam Long id，而非 PathVariable，
- *      因此路径不是 /jobs/{id}/capability-profile。
- */
-export function fetchGetJobCapabilityProfile(id: number | string) {
-  return request<JobApi.JobCapabilityProfile | null>({
-    url: '/jobs/capability-profile',
-    method: 'get',
-    params: { id }
-  });
-}
-
-/**
- * 生成岗位能力画像并返回结果。
- * 后端：POST /jobs/{id}/capability-profile
- */
-export function fetchGenerateJobCapabilityProfile(id: number | string) {
-  return request<JobApi.JobCapabilityProfile>({
-    url: `/jobs/${id}/capability-profile`,
-    method: 'post',
-    timeout: 300000
-  });
 }

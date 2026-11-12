@@ -81,7 +81,7 @@ public enum JobRole {
     }
 
     /**
-     * 从提示词路径末段还原角色，例如 {@code job-requirement/java-backend} → {@link #JAVA}。
+     * 从提示词路径末段还原角色，例如 {@code resume-analysis/java-backend} → {@link #JAVA}。
      */
     public static JobRole fromPromptName(String promptName) {
         if (promptName == null || promptName.isBlank()) {

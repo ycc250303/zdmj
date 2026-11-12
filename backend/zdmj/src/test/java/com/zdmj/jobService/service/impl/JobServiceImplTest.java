@@ -169,8 +169,7 @@ class JobServiceImplTest {
         JobResponse created = jobService.create(dto);
 
         assertEquals(88L, created.getCompanyId());
-        assertNotNull(created.getContent());
-        assertNotNull(created.getRequirements());
+        assertEquals("desc", created.getDescription());
         assertNotNull(created.getKeywords());
         assertEquals("", created.getLink());
         verify(jobService).save(any(Job.class));
@@ -442,11 +441,11 @@ class JobServiceImplTest {
     }
 
     private static String detailKey(Long jobId) {
-        return "job:detail:" + jobId;
+        return "job:detail:v2:" + jobId;
     }
 
     private static String nullMarkerKey(Long jobId) {
-        return "null:value:job:detail:" + jobId;
+        return "null:value:job:detail:v2:" + jobId;
     }
 
     private static void initMybatisPlusLambdaCache() {

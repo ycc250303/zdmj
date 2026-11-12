@@ -265,7 +265,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     company_name VARCHAR(255) NOT NULL,
     -- 公司名称（冗余字段，用于查询）
     description TEXT NOT NULL,
-    -- 岗位描述
+    -- 岗位描述（工作内容与岗位要求）
     location VARCHAR(255) NOT NULL,
     -- 工作地点
     salary_min INTEGER NOT NULL,
@@ -278,17 +278,10 @@ CREATE TABLE IF NOT EXISTS jobs (
     keywords JSONB DEFAULT '[]'::jsonb,
     -- 岗位关键词（字符串数组，用于检索/向量化等）
     -- ["Java","MySQL"]
-    content  JSONB DEFAULT '[]'::jsonb,
-    -- 工作内容
-    requirements  JSONB DEFAULT '[]'::jsonb,
-    -- 岗位要求
-    content_embedding VECTOR(1024),
-    -- 工作内容向量（1024维，使用text-embedding-v4模型）
+    description_embedding VECTOR(1024),
+    -- 岗位描述向量（1024维，使用text-embedding-v4模型）
     critical_skills_embedding VECTOR(1024),
     -- 关键技能向量（1024维，使用text-embedding-v4模型）
-    requirements_embedding VECTOR(1024),
-    -- 岗位要求向量（1024维，使用text-embedding-v4模型）
- 
     link VARCHAR(500) NOT NULL,
     -- 岗位链接
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -327,46 +320,8 @@ CREATE INDEX IF NOT EXISTS idx_companies_name_trgm ON companies USING GIN (name 
 CREATE INDEX IF NOT EXISTS idx_companies_size ON companies(size);
 CREATE INDEX IF NOT EXISTS idx_companies_type ON companies(type);
 CREATE INDEX IF NOT EXISTS idx_companies_industries ON companies(industries);
--- 3.3 岗位能力画像表
-CREATE TABLE IF NOT EXISTS job_capability_profiles (
-    id BIGSERIAL PRIMARY KEY,
-    -- 岗位能力画像ID
-    job_id BIGINT NOT NULL,
-    -- 岗位ID（逻辑外键：jobs.id）
-    professional_skills TEXT,
-    -- 专业技能
-    certificates TEXT,
-    -- 证书
-    innovation_ability TEXT,
-    -- 创新能力
-    learning_ability TEXT,
-    -- 学习能力
-    pressure_resistance TEXT,
-    -- 抗压能力
-    communication_ability TEXT,
-    -- 沟通能力
-    practical_ability TEXT,
-    -- 实习能力
-    role_confidence NUMERIC(5,4) NOT NULL DEFAULT 0.0,
-    -- 岗位分类置信度（0~1）
-    prompt_name VARCHAR(128) NOT NULL DEFAULT 'job-requirement/default',
-    -- 实际使用的岗位画像提示词名称
-    target_role_type VARCHAR(64) NOT NULL DEFAULT 'default',
-    -- 岗位类型展示值（如 software-test）
-    strengths JSONB DEFAULT '[]'::jsonb,
-    -- 岗位已写明的核心要求亮点
-    missing_skills JSONB DEFAULT '[]'::jsonb,
-    -- 补充要求：JD 未写明的该方向常见核心门槛
-    summary TEXT,
-    -- 一句话总结
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    -- 创建时间
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
-);
-CREATE INDEX IF NOT EXISTS idx_job_capability_profiles_job_id ON job_capability_profiles(job_id);
-CREATE INDEX IF NOT EXISTS idx_job_capability_profiles_role_type ON job_capability_profiles(target_role_type);
 
--- 3.4 人岗匹配分析表（学生 × 岗位 多维匹配结果）
+-- 3.3 人岗匹配分析表（学生 × 岗位 多维匹配结果）
 CREATE TABLE IF NOT EXISTS job_student_matches (
     id BIGSERIAL PRIMARY KEY,
     -- 匹配ID
@@ -424,7 +379,7 @@ CREATE INDEX IF NOT EXISTS idx_job_student_matches_job_id
 CREATE INDEX IF NOT EXISTS idx_job_student_matches_role_type
     ON job_student_matches(target_role_type);
 
--- 3.5 职业发展报告表（单表 + JSONB 主存）
+-- 3.4 职业发展报告表（单表 + JSONB 主存）
 CREATE TABLE IF NOT EXISTS career_development_reports (
     id BIGSERIAL PRIMARY KEY,
     -- 报告ID
@@ -436,8 +391,6 @@ CREATE TABLE IF NOT EXISTS career_development_reports (
     -- 人岗匹配ID（逻辑外键：job_student_matches.id）
     student_profile_snapshot JSONB DEFAULT '{}'::jsonb,
     -- 学生画像快照
-    job_profile_snapshot JSONB DEFAULT '{}'::jsonb,
-    -- 岗位画像快照
     match_snapshot JSONB DEFAULT '{}'::jsonb,
     -- 匹配结果快照
     knowledge_sources JSONB DEFAULT '[]'::jsonb,

@@ -12,9 +12,10 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.model.PageDTO;
-import com.zdmj.jobService.dto.JobCapabilityProfileResponse;
+import com.zdmj.jobService.api.JobRole;
+import com.zdmj.jobService.api.JobRoleDetectionResult;
+import com.zdmj.jobService.api.JobRoleDetectionService;
 import com.zdmj.jobService.dto.JobListItemResponse;
-import com.zdmj.jobService.service.JobCapabilityProfileService;
 import com.zdmj.jobService.service.JobService;
 import com.zdmj.matchService.dto.DimensionMatchResponse;
 import com.zdmj.matchService.dto.JobStudentMatchResponse;
@@ -68,7 +69,7 @@ class JobStudentMatchServiceImplTest {
     @Mock
     private JobService jobService;
     @Mock
-    private JobCapabilityProfileService jobCapabilityProfileService;
+    private JobRoleDetectionService roleDetectionService;
     @Mock
     private StudentCapabilityProfileService studentCapabilityProfileService;
     @Mock
@@ -85,7 +86,7 @@ class JobStudentMatchServiceImplTest {
         lenient().when(transactionManager.getTransaction(any())).thenReturn(org.mockito.Mockito.mock(TransactionStatus.class));
         matchService = spy(new JobStudentMatchServiceImpl(
                 jobService,
-                jobCapabilityProfileService,
+                roleDetectionService,
                 studentCapabilityProfileService,
                 modelGateway,
                 new ObjectMapper(),
@@ -129,8 +130,8 @@ class JobStudentMatchServiceImplTest {
                 "userMessage 必须内联权重配置；否则 LLM 拿不到打分依据：" + userMessage);
         assertTrue(userMessage.contains("岗位关键词"),
                 "userMessage 必须内联岗位关键词；否则 LLM 没法做命中判断：" + userMessage);
-        assertTrue(userMessage.contains("补充要求") && userMessage.contains("SQL/MySQL"),
-                "userMessage 必须内联岗位补充要求：" + userMessage);
+        assertTrue(userMessage.contains("开发业务接口"),
+                "userMessage 必须内联岗位描述：" + userMessage);
         assertTrue(userMessage.contains("Spring") && userMessage.contains("MySQL"),
                 "userMessage 必须包含具体的岗位关键词列表内容：" + userMessage);
     }
@@ -169,7 +170,7 @@ class JobStudentMatchServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> matchService.generate(jobId, null));
         assertEquals(ErrorCode.MATCH_PRECONDITION_MISSING.getCode(), ex.getCode());
-        org.mockito.Mockito.verifyNoInteractions(jobCapabilityProfileService);
+        org.mockito.Mockito.verifyNoInteractions(roleDetectionService);
         verify(modelGateway, never()).generateStructured(any(), any(ModelRequest.class), any());
         verify(matchMapper, never()).insert(any(JobStudentMatch.class));
     }
@@ -189,8 +190,7 @@ class JobStudentMatchServiceImplTest {
     void generate_jobRemovedBeforeSave_shouldThrow10001AndSkipSave() {
         Long jobId = 25L;
         doReturn(buildJobDetail()).doReturn(null).when(jobService).getDetail(jobId);
-        doReturn(buildJobProfile("java-backend")).when(jobCapabilityProfileService)
-                .getJobCapabilityProfileOrNull(jobId);
+        stubRole("java-backend");
         doReturn(buildStudentProfile()).when(studentCapabilityProfileService)
                 .getCurrentUserProfileOrNull();
         doReturn(buildAiResult()).when(modelGateway).generateStructured(any(), any(ModelRequest.class), any());
@@ -267,8 +267,8 @@ class JobStudentMatchServiceImplTest {
     @Test
     void getDefaultWeights_forFrontendJob_shouldReturnFrontendDefaults() {
         Long jobId = 31L;
-        doReturn(buildJobProfile("frontend")).when(jobCapabilityProfileService)
-                .getJobCapabilityProfileOrNull(jobId);
+        doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
+        stubRole("frontend");
 
         var weights = matchService.getDefaultWeights(jobId);
 
@@ -383,10 +383,14 @@ class JobStudentMatchServiceImplTest {
 
     private void prepareJobAndProfiles(Long jobId, String roleType) {
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(buildJobProfile(roleType)).when(jobCapabilityProfileService)
-                .getJobCapabilityProfileOrNull(jobId);
+        stubRole(roleType);
         doReturn(buildStudentProfile()).when(studentCapabilityProfileService)
                 .getCurrentUserProfileOrNull();
+    }
+
+    private void stubRole(String roleType) {
+        doReturn(new JobRoleDetectionResult(JobRole.fromString(roleType), 0.8, "测试识别"))
+                .when(roleDetectionService).detect(any(), any());
     }
 
     private static final class JsonWriteFailure extends JsonProcessingException {
@@ -407,28 +411,10 @@ class JobStudentMatchServiceImplTest {
         JobListItemResponse dto = new JobListItemResponse();
         dto.setJobName("Java 后端开发");
         dto.setCompanyName("ZDMJ");
-        dto.setDescription("Java + Spring + MySQL + Redis");
+        dto.setDescription("Java + Spring + MySQL + Redis\n开发业务接口\n维护线上服务\n熟悉 Spring Boot\n熟悉 MySQL 索引");
         dto.setLocation("深圳");
-        dto.setJobDuties(List.of("开发业务接口", "维护线上服务"));
-        dto.setJobRequirements(List.of("熟悉 Spring Boot", "熟悉 MySQL 索引"));
         dto.setKeywords(List.of("Java", "Spring", "MySQL", "Redis"));
         return dto;
-    }
-
-    private static JobCapabilityProfileResponse buildJobProfile(String roleType) {
-        JobCapabilityProfileResponse p = new JobCapabilityProfileResponse();
-        p.setTargetRoleType(roleType);
-        p.setProfessionalSkills("Java/Spring/MySQL/Redis");
-        p.setCertificates("无");
-        p.setInnovationAbility("有持续改进意识");
-        p.setLearningAbility("快速跟进新框架");
-        p.setPressureResistance("能承担线上稳定性");
-        p.setCommunicationAbility("能与产品/前端协作");
-        p.setPracticalAbility("有实习/项目落地经验");
-        p.setSummary("Java 后端校招岗位");
-        p.setStrengths(List.of("工程化能力扎实"));
-        p.setMissingSkills(List.of("SQL/MySQL"));
-        return p;
     }
 
     private static StudentCapabilityProfileResponse buildStudentProfile() {

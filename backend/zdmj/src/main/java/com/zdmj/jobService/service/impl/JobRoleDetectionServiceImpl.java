@@ -15,7 +15,7 @@ import java.util.Locale;
 /**
  * 岗位方向识别：关键词达到阈值时返回结果，其余文本通过模型识别。
  *
- * <p>仅简历画像与岗位画像生成时调用。其他流程读取已落库的 {@code targetRoleType}。</p>
+ * <p>简历画像生成与人岗匹配时调用。匹配结果保存本次识别出的方向。</p>
  */
 @Service
 public final class JobRoleDetectionServiceImpl implements JobRoleDetectionService {

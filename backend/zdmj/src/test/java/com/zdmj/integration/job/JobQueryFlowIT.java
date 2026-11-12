@@ -73,6 +73,13 @@ class JobQueryFlowIT extends IntegrationTestBase {
                 "/jobs?salaryType=2&filterSalaryMin=18000&filterSalaryMax=32000&limit=10"));
         assertThat(JsonPath.<List<String>>read(bySalary, "$.data.list[*].jobName")).containsExactly("后端工程师");
 
+        String byEmployment = ApiClient.requireOk(api.get(token, "/jobs?employment=intern&limit=10"));
+        assertThat(JsonPath.<List<String>>read(byEmployment, "$.data.list[*].jobName")).containsExactly("实习生");
+
+        var invalidPage = api.get(token, "/jobs?page=abc");
+        ApiClient.assertProblem(invalidPage, 400, 1001);
+        assertThat(invalidPage.getResponse().getContentAsString()).contains("page 必须是整数");
+
         String detail = ApiClient.requireOk(api.get(token, "/jobs/" + newest));
         assertThat(JsonPath.<String>read(detail, "$.data.jobName")).isEqualTo("后端工程师");
         assertThat(JsonPath.<String>read(detail, "$.data.companyName")).isEqualTo("星云科技");

@@ -34,14 +34,10 @@ const formData = reactive<JobApi.JobCreate & { id?: number }>({
   salaryMax: 0,
   salaryType: 2, // 默认月薪
   link: '',
-  jobDuties: [],
-  jobRequirements: [],
   keywords: []
 });
 
 // 临时存储的数组输入值
-const dutiesInput = ref('');
-const requirementsInput = ref('');
 const keywordsInput = ref('');
 const industriesInput = ref('');
 
@@ -108,15 +104,9 @@ async function loadJobDetail() {
         link: data.link ?? ''
       });
 
-      // 设置数组字段
-      formData.jobDuties = data.jobDuties || [];
-      formData.jobRequirements = data.jobRequirements || [];
       formData.keywords = data.keywords || [];
       formData.companyIndustries = data.companyIndustries || [];
 
-      // 设置临时输入值
-      dutiesInput.value = (formData.jobDuties || []).join('\n');
-      requirementsInput.value = (formData.jobRequirements || []).join('\n');
       keywordsInput.value = (formData.keywords || []).join('\n');
       industriesInput.value = (formData.companyIndustries || []).join('\n');
     } else {
@@ -134,17 +124,6 @@ async function loadJobDetail() {
 async function handleSubmit() {
   try {
     await formRef.value?.validate();
-
-    // 解析数组字段
-    formData.jobDuties = dutiesInput.value
-      .split('\n')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
-
-    formData.jobRequirements = requirementsInput.value
-      .split('\n')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
 
     formData.keywords = keywordsInput.value
       .split(/[,，\n]/)
@@ -260,34 +239,6 @@ onMounted(() => {
                 :rows="6"
                 :placeholder="$t('page.jobs.placeholders.description')"
               />
-            </NFormItem>
-
-            <NFormItem :label="$t('page.jobs.jobDuties')">
-              <NInput
-                v-model:value="dutiesInput"
-                type="textarea"
-                :rows="5"
-                :placeholder="$t('page.jobs.tips.dutiesFormat')"
-              />
-              <template #feedback>
-                <div class="text-xs text-slate-500">
-                  {{ $t('page.jobs.tips.dutiesFormat') }}
-                </div>
-              </template>
-            </NFormItem>
-
-            <NFormItem :label="$t('page.jobs.jobRequirements')">
-              <NInput
-                v-model:value="requirementsInput"
-                type="textarea"
-                :rows="5"
-                :placeholder="$t('page.jobs.tips.requirementsFormat')"
-              />
-              <template #feedback>
-                <div class="text-xs text-slate-500">
-                  {{ $t('page.jobs.tips.requirementsFormat') }}
-                </div>
-              </template>
             </NFormItem>
 
             <NFormItem :label="$t('page.jobs.jobKeywords')">

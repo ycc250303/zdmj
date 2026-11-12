@@ -7,7 +7,7 @@ import com.zdmj.matchService.dto.JobStudentMatchListItemResponse;
 import com.zdmj.matchService.dto.MatchWeightConfigResponse;
 
 /**
- * 人岗匹配分析服务：基于岗位画像与学生画像做四维对比，输出可解释的匹配结果与综合分。
+ * 人岗匹配分析服务：对照岗位描述与学生画像做四维对比，输出可解释的匹配结果与综合分。
  */
 public interface JobStudentMatchService {
 
@@ -33,10 +33,10 @@ public interface JobStudentMatchService {
      *
      * <p>编排流程：</p>
      * <ol>
-     *   <li>取岗位画像（不存在则自动调用 jobCapabilityProfileService 生成）；</li>
      *   <li>取学生画像（不存在则抛 {@code MATCH_PRECONDITION_MISSING}）；</li>
+     *   <li>按当前岗位描述识别方向，并据此选择提示词和默认权重；</li>
      *   <li>解析权重（默认权重 + 请求体覆盖 → 归一化）；</li>
-     *   <li>路由 Prompt（按岗位 targetRoleType）→ 调 LLM 结构化输出；</li>
+     *   <li>调用模型输出结构化匹配结果；</li>
      *   <li>后端兜底重算关键技能匹配率 与 综合分；</li>
      *   <li>再次确认岗位仍存在后，短事务按用户与岗位覆盖保存。</li>
      * </ol>
@@ -48,7 +48,7 @@ public interface JobStudentMatchService {
     JobStudentMatchResponse generate(Long jobId, JobStudentMatchGenerateRequest req);
 
     /**
-     * 仅根据岗位类型解析默认权重（不查 LLM、不落库）。
+     * 根据当前岗位描述识别方向后返回默认权重。关键词不足时调用方向识别模型，不写入匹配结果。
      *
      * @param jobId 岗位ID
      * @return 该岗位的默认权重

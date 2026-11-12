@@ -152,17 +152,14 @@
 | `job_name`                  | `VARCHAR(255)` | 岗位名称         | `NOT NULL`                            | -                          |
 | `company_id`                | `BIGINT`       | 公司ID           | `NOT NULL`，逻辑外键 `companies.id` | -                          |
 | `company_name`              | `VARCHAR(255)` | 公司名称（冗余） | `NOT NULL`                            | 用于列表筛选与展示         |
-| `description`               | `TEXT`         | 岗位描述         | `NOT NULL`                            | -                          |
+| `description`               | `TEXT`         | 岗位描述         | `NOT NULL`                            | 工作内容与岗位要求         |
 | `location`                  | `VARCHAR(255)` | 工作地点         | `NOT NULL`                            | -                          |
 | `salary_min`                | `INTEGER`      | 薪资下限         | `NOT NULL`                            | 单位见 `salary_type`     |
 | `salary_max`                | `INTEGER`      | 薪资上限         | `NOT NULL`                            | 单位见 `salary_type`     |
 | `salary_type`               | `SMALLINT`     | 薪资类型         | `NOT NULL`                            | `1=日薪, 2=月薪, 3=年薪` |
 | `keywords`                  | `JSONB`        | 岗位关键词       | `DEFAULT '[]'::jsonb`                 | 示例：`["Java","MySQL"]` |
-| `content`                   | `JSONB`        | 工作内容         | `DEFAULT '[]'::jsonb`                 | 字符串数组                 |
-| `requirements`              | `JSONB`        | 岗位要求         | `DEFAULT '[]'::jsonb`                 | 字符串数组                 |
-| `content_embedding`         | `VECTOR(1024)` | 工作内容向量     | 可空                                    | HNSW 语义检索              |
+| `description_embedding`     | `VECTOR(1024)` | 岗位描述向量     | 可空                                    | HNSW 语义检索              |
 | `critical_skills_embedding` | `VECTOR(1024)` | 关键技能向量     | 可空                                    | HNSW 语义检索              |
-| `requirements_embedding`    | `VECTOR(1024)` | 岗位要求向量     | 可空                                    | HNSW 语义检索              |
 | `link`                      | `VARCHAR(500)` | 岗位链接         | `NOT NULL`                            | -                          |
 | `created_at`                | `TIMESTAMP`    | 创建时间         | `DEFAULT CURRENT_TIMESTAMP`           | -                          |
 | `updated_at`                | `TIMESTAMP`    | 更新时间         | `DEFAULT CURRENT_TIMESTAMP`           | -                          |
@@ -191,26 +188,7 @@
 
 **索引**：`idx_companies_name`、`idx_companies_name_trgm` — `GIN (name gin_trgm_ops)`；`idx_jobs_company_name_trgm` — `GIN (company_name gin_trgm_ops)`（jobs 冗余字段）；`idx_companies_size`、`idx_companies_type`、`idx_companies_industries`。
 
-### 3.3 表 `job_capability_profiles`
-
-岗位能力画像：每个 `job_id` 至多一条；重新生成覆盖写。
-
-| 字段名称 | 字段类型 | 字段含义 | 约束 | 枚举/JSON字段含义 |
-| --- | --- | --- | --- | --- |
-| `id` | `BIGSERIAL` | 画像ID | `PK` | - |
-| `job_id` | `BIGINT` | 岗位ID | `NOT NULL`，逻辑外键 `jobs.id` | - |
-| `professional_skills` / `certificates` / `innovation_ability` / `learning_ability` / `pressure_resistance` / `communication_ability` / `practical_ability` | `TEXT` | 七维岗位要求 | 可空 | - |
-| `role_confidence` | `NUMERIC(5,4)` | 岗位分类置信度 | `NOT NULL DEFAULT 0.0` | 0~1 |
-| `prompt_name` | `VARCHAR(128)` | 实际使用的提示词名 | `NOT NULL DEFAULT 'job-requirement/default'` | 如 `job-requirement/java-backend` |
-| `target_role_type` | `VARCHAR(64)` | 岗位类型展示值 | `NOT NULL DEFAULT 'default'` | 如 `java-backend` |
-| `strengths` | `JSONB` | 岗位已写明的核心要求亮点 | `DEFAULT '[]'` | 字符串数组 |
-| `missing_skills` | `JSONB` | 补充要求（JD 未写明的该方向常见核心门槛） | `DEFAULT '[]'` | 字符串数组 |
-| `summary` | `TEXT` | 一句话总结 | 可空 | - |
-| `created_at` / `updated_at` | `TIMESTAMP` | 创建/更新时间 | `DEFAULT CURRENT_TIMESTAMP` | - |
-
-**索引**：`idx_job_capability_profiles_job_id`；`idx_job_capability_profiles_role_type`。
-
-### 3.4 表 `job_student_matches`
+### 3.3 表 `job_student_matches`
 
 人岗匹配分析表：每一行表示「某用户 × 某岗位」的**最新一次**匹配结果；`(user_id, job_id)` 唯一，重新分析覆盖写。
 

@@ -25,7 +25,7 @@ public class PromptLoader {
     /**
      * 加载提示词
      *
-     * @param fileName 文件名，如 "system" 或 "job-requirement/java-backend"
+     * @param fileName 文件名，如 "system" 或 "resume-analysis/java-backend"
      * @return 提示词
      * @throws IllegalArgumentException 路径非法或提示词文件缺失
      * @throws IllegalStateException 文件读取失败
