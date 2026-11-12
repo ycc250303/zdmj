@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, reactive } from 'vue';
+import { fetchResetPassword } from '@/service/api/auth';
 import { useRouterPush } from '@/hooks/common/router';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
-import { $t } from '@/locales';
 import { useCaptcha } from '@/hooks/business/captcha';
-import { fetchResetPassword } from '@/service/api/auth';
+import { $t } from '@/locales';
 
 defineOptions({
   name: 'ResetPwd'
@@ -12,7 +12,7 @@ defineOptions({
 
 const { toggleLoginModule } = useRouterPush();
 const { formRef, validate } = useNaiveForm();
-const { label, isCounting, loading, getCaptcha, start } = useCaptcha('reset_password');
+const { label, isCounting, loading, getCaptcha } = useCaptcha('reset_password');
 
 interface FormModel {
   email: string;
@@ -45,12 +45,12 @@ async function handleSubmit() {
   await validate();
   // request to reset password
   const { error } = await fetchResetPassword(model.email, model.code, model.password);
-  
+
   if (!error) {
     window.$message?.success($t('page.login.resetPwd.success'));
     toggleLoginModule('pwd-login');
   }
-  }
+}
 </script>
 
 <template>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { fetchGetKnowledgeDocumentDetail } from '@/service/api/knowledge';
 import type { KnowledgeApi } from '@/service/api/knowledge';
 import { $t } from '@/locales';
@@ -23,11 +23,14 @@ const knowledgeTypeLabels: Record<number, { label: string; type: 'primary' | 'in
 
 const showModal = computed({
   get: () => props.show,
-  set: (val) => emit('update:show', val)
+  set: val => emit('update:show', val)
 });
 
 // 向量化状态映射
-const embeddingStatusLabels: Record<string, { text: string; type: 'success' | 'warning' | 'error' | 'default'; icon: string }> = {
+const embeddingStatusLabels: Record<
+  string,
+  { text: string; type: 'success' | 'warning' | 'error' | 'default'; icon: string }
+> = {
   PENDING: { text: '等待中', type: 'default', icon: '🕐' },
   RUNNING: { text: '向量化中...', type: 'warning', icon: '⏳' },
   SUCCESS: { text: '已向量化', type: 'success', icon: '✅' },
@@ -98,7 +101,7 @@ const embeddingInfo = computed(() => {
 
 watch(
   () => props.show,
-  (newVal) => {
+  newVal => {
     if (newVal) {
       loadDetail();
     }
@@ -119,7 +122,7 @@ watch(
       <div v-if="detail" class="space-y-6">
         <!-- 基本信息 -->
         <div>
-          <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <h3 class="mb-4 flex items-center gap-2 text-lg text-gray-800 font-bold">
             <span class="text-blue-500">ℹ️</span>
             {{ $t('page.knowledge.basicInfo') }}
           </h3>
@@ -133,7 +136,12 @@ watch(
               </NTag>
             </NDescriptionsItem>
             <NDescriptionsItem :label="$t('page.knowledge.content')">
-              <a :href="detail.content" target="_blank" class="text-blue-500 hover:underline truncate block max-w-md">
+              <a
+                :href="detail.content"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="block max-w-md truncate text-blue-500 hover:underline"
+              >
                 {{ detail.content }}
               </a>
             </NDescriptionsItem>
@@ -148,7 +156,7 @@ watch(
 
         <!-- 向量化信息 -->
         <div v-if="embeddingInfo">
-          <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <h3 class="mb-4 flex items-center gap-2 text-lg text-gray-800 font-bold">
             <span class="text-purple-500">⬚</span>
             {{ $t('page.knowledge.vectorInfo') }}
           </h3>
@@ -169,7 +177,6 @@ watch(
             </NDescriptionsItem>
           </NDescriptions>
         </div>
-
       </div>
       <NEmpty v-else :description="$t('common.noData')" />
     </NSpin>

@@ -13,14 +13,10 @@
  *  - strengths: 优势亮点（「能力标签 — 具体证据」列表）
  *  - generatedAt: 分析时间显示
  */
-import { computed, onMounted, onBeforeUnmount, ref, shallowRef, watch, nextTick } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import * as echarts from 'echarts/core';
 import { RadarChart } from 'echarts/charts';
-import {
-  TitleComponent,
-  TooltipComponent,
-  LegendComponent
-} from 'echarts/components';
+import { LegendComponent, TitleComponent, TooltipComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 
 echarts.use([RadarChart, TitleComponent, TooltipComponent, LegendComponent, CanvasRenderer]);
@@ -168,20 +164,20 @@ interface ParsedStrength {
 
 function parseStrengthItem(item: string): ParsedStrength {
   const trimmed = item.trim();
-  const sep = trimmed.includes(' — ') ? ' — ' : (trimmed.includes(' - ') ? ' - ' : null);
-  if (!sep) {
+  const sep = trimmed.includes(' — ') ? ' — ' : null;
+  const hyphen = trimmed.includes(' - ') ? ' - ' : null;
+  const splitter = sep ?? hyphen;
+  if (!splitter) {
     return { label: trimmed, detail: '' };
   }
-  const idx = trimmed.indexOf(sep);
+  const idx = trimmed.indexOf(splitter);
   return {
     label: trimmed.slice(0, idx).trim(),
-    detail: trimmed.slice(idx + sep.length).trim()
+    detail: trimmed.slice(idx + splitter.length).trim()
   };
 }
 
-const parsedStrengths = computed(() =>
-  (props.strengths ?? []).map(parseStrengthItem)
-);
+const parsedStrengths = computed(() => (props.strengths ?? []).map(parseStrengthItem));
 
 /** 是否处于"仅有总分"的极简状态：用于切换左卡为居中大评分卡 */
 const isMinimal = computed(() => !props.summary && !hasStrengths.value);
@@ -211,23 +207,29 @@ const gradId = `csc-grad-${Math.random().toString(36).slice(2, 8)}`;
 </script>
 
 <template>
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+  <div class="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
     <!-- 左侧：根据是否有 summary/strengths 切换布局 -->
     <div
-      class="relative overflow-hidden rounded-2xl border border-emerald-100 p-6 flex flex-col"
-      :class="isMinimal
-        ? 'bg-gradient-to-br from-emerald-50 via-teal-50/60 to-cyan-50/40 items-center justify-center text-center gap-6'
-        : 'bg-gradient-to-br from-emerald-50 to-teal-50/40 gap-5'"
+      class="relative flex flex-col overflow-hidden border border-emerald-100 rounded-2xl p-6"
+      :class="
+        isMinimal
+          ? 'bg-gradient-to-br from-emerald-50 via-teal-50/60 to-cyan-50/40 items-center justify-center text-center gap-6'
+          : 'bg-gradient-to-br from-emerald-50 to-teal-50/40 gap-5'
+      "
     >
       <!-- 装饰光斑（仅 minimal 模式） -->
       <template v-if="isMinimal">
-        <div class="absolute -top-12 -right-12 w-44 h-44 rounded-full bg-emerald-300/20 blur-3xl pointer-events-none"></div>
-        <div class="absolute -bottom-16 -left-10 w-52 h-52 rounded-full bg-teal-300/20 blur-3xl pointer-events-none"></div>
+        <div
+          class="pointer-events-none absolute h-44 w-44 rounded-full bg-emerald-300/20 blur-3xl -right-12 -top-12"
+        ></div>
+        <div
+          class="pointer-events-none absolute h-52 w-52 rounded-full bg-teal-300/20 blur-3xl -bottom-16 -left-10"
+        ></div>
       </template>
 
       <!-- ============ Minimal 模式：环形大评分卡 ============ -->
       <template v-if="isMinimal">
-        <div class="relative z-10 text-emerald-700 font-semibold flex items-center gap-2">
+        <div class="relative z-10 flex items-center gap-2 text-emerald-700 font-semibold">
           <span class="text-lg">🏆</span>
           <span>{{ totalLabel }}</span>
         </div>
@@ -255,26 +257,24 @@ const gradId = `csc-grad-${Math.random().toString(36).slice(2, 8)}`;
               stroke-linecap="round"
               :stroke-dasharray="RING_CIRC"
               :stroke-dashoffset="ringDashOffset"
-              style="transition: stroke-dashoffset 0.8s ease;"
+              style="transition: stroke-dashoffset 0.8s ease"
             />
           </svg>
           <!-- 圆心数字 -->
           <div class="absolute inset-0 flex flex-col items-center justify-center">
-            <div class="text-4xl font-bold text-slate-800 leading-none">{{ totalScore ?? 0 }}</div>
-            <div class="text-xs text-slate-400 mt-1">/ {{ totalMax }}</div>
+            <div class="text-4xl text-slate-800 font-bold leading-none">{{ totalScore ?? 0 }}</div>
+            <div class="mt-1 text-xs text-slate-400">/ {{ totalMax }}</div>
           </div>
         </div>
 
         <div class="relative z-10 flex flex-col items-center gap-2">
-          <span class="px-3 py-1 text-xs rounded-full font-medium" :class="scoreLevelClass">
+          <span class="rounded-full px-3 py-1 text-xs font-medium" :class="scoreLevelClass">
             {{ scoreLevelText }}
           </span>
           <p class="text-sm text-slate-600">{{ scoreLevelTip }}</p>
         </div>
 
-        <div v-if="generatedAt" class="relative z-10 text-xs text-slate-400">
-          分析时间：{{ generatedAt }}
-        </div>
+        <div v-if="generatedAt" class="relative z-10 text-xs text-slate-400">分析时间：{{ generatedAt }}</div>
       </template>
 
       <!-- ============ 正常模式：标题 + 评价 + 总分胶囊 + 优势亮点 ============ -->
@@ -287,46 +287,41 @@ const gradId = `csc-grad-${Math.random().toString(36).slice(2, 8)}`;
           <span v-if="generatedAt" class="text-xs text-slate-500">{{ generatedAt }}</span>
         </div>
 
-        <p v-if="summary" class="text-slate-700 leading-relaxed text-sm whitespace-pre-wrap">
+        <p v-if="summary" class="whitespace-pre-wrap text-sm text-slate-700 leading-relaxed">
           {{ summary }}
         </p>
 
-        <div class="flex items-center gap-4 bg-white/80 backdrop-blur rounded-xl p-4 border border-emerald-100 shadow-sm">
+        <div
+          class="flex items-center gap-4 border border-emerald-100 rounded-xl bg-white/80 p-4 shadow-sm backdrop-blur"
+        >
           <div
-            class="w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md flex-shrink-0"
+            class="h-16 w-16 flex flex-shrink-0 items-center justify-center rounded-full text-lg text-white font-bold shadow-md"
             :style="{ background: `linear-gradient(135deg, ${themeColor}, #22c55e)` }"
           >
             {{ totalScore ?? 0 }}
           </div>
           <div class="flex-1">
-            <div class="text-xs text-slate-500 mb-1">{{ totalLabel }}</div>
-            <div class="flex items-baseline gap-1 flex-wrap">
-              <span class="text-2xl font-bold text-slate-800">{{ totalScore ?? 0 }}</span>
+            <div class="mb-1 text-xs text-slate-500">{{ totalLabel }}</div>
+            <div class="flex flex-wrap items-baseline gap-1">
+              <span class="text-2xl text-slate-800 font-bold">{{ totalScore ?? 0 }}</span>
               <span class="text-sm text-slate-400">/ {{ totalMax }}</span>
-              <span
-                class="ml-2 px-2 py-0.5 text-xs rounded-full"
-                :class="scoreLevelClass"
-              >{{ scoreLevelText }}</span>
+              <span class="ml-2 rounded-full px-2 py-0.5 text-xs" :class="scoreLevelClass">{{ scoreLevelText }}</span>
             </div>
           </div>
         </div>
 
         <div v-if="hasStrengths" class="flex-1">
-          <div class="text-emerald-700 font-semibold text-sm mb-3 flex items-center gap-1">
+          <div class="mb-3 flex items-center gap-1 text-sm text-emerald-700 font-semibold">
             <span>✨</span>
             <span>{{ strengthsLabel }}</span>
-            <span class="text-xs text-slate-400 font-normal ml-1">({{ strengths!.length }})</span>
+            <span class="ml-1 text-xs text-slate-400 font-normal">({{ strengths!.length }})</span>
           </div>
           <ul class="space-y-2.5">
-            <li
-              v-for="(item, i) in parsedStrengths"
-              :key="i"
-              class="flex items-start gap-2 text-sm leading-relaxed"
-            >
-              <span class="text-emerald-500 mt-0.5 flex-shrink-0">•</span>
+            <li v-for="(item, i) in parsedStrengths" :key="i" class="flex items-start gap-2 text-sm leading-relaxed">
+              <span class="mt-0.5 flex-shrink-0 text-emerald-500">•</span>
               <span class="min-w-0">
-                <span class="font-semibold text-emerald-800">{{ item.label }}</span>
-                <span v-if="item.detail" class="text-slate-600"> — {{ item.detail }}</span>
+                <span class="text-emerald-800 font-semibold">{{ item.label }}</span>
+                <span v-if="item.detail" class="text-slate-600">— {{ item.detail }}</span>
               </span>
             </li>
           </ul>
@@ -335,21 +330,21 @@ const gradId = `csc-grad-${Math.random().toString(36).slice(2, 8)}`;
     </div>
 
     <!-- 右侧：雷达图 + 各维度进度条 -->
-    <div class="bg-white border border-slate-200 rounded-2xl p-6 flex flex-col gap-5">
+    <div class="flex flex-col gap-5 border border-slate-200 rounded-2xl bg-white p-6">
       <div class="flex items-center gap-2 text-slate-700 font-semibold">
         <span class="text-lg">🎯</span>
         <span>多维度评分</span>
       </div>
 
-      <div ref="chartEl" class="w-full h-[260px] px-2"></div>
+      <div ref="chartEl" class="h-[260px] w-full px-2"></div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+      <div class="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
         <div v-for="(d, i) in dimensions" :key="d.key">
-          <div class="flex justify-between items-center text-xs text-slate-600 mb-1.5">
+          <div class="mb-1.5 flex items-center justify-between text-xs text-slate-600">
             <span class="font-medium">{{ d.label }}</span>
-            <span class="font-semibold text-slate-700">{{ d.score }}/{{ d.max }}</span>
+            <span class="text-slate-700 font-semibold">{{ d.score }}/{{ d.max }}</span>
           </div>
-          <div class="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+          <div class="h-2 w-full overflow-hidden rounded-full bg-slate-100">
             <div
               class="h-full rounded-full transition-all duration-500"
               :style="{ width: percentOf(d) + '%', background: colorOf(i) }"

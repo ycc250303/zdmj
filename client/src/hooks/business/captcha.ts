@@ -1,8 +1,8 @@
 import { computed } from 'vue';
 import { useCountDown, useLoading } from '@sa/hooks';
 import { REG_PHONE } from '@/constants/reg';
-import { $t } from '@/locales';
 import { fetchGetVerificationCode } from '@/service/api/auth';
+import { $t } from '@/locales';
 
 const REG_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -26,7 +26,7 @@ export function useCaptcha(type: 'register' | 'reset_password') {
     return text;
   });
 
- function isAccountValid(account: string) {
+  function isAccountValid(account: string) {
     if (account.trim() === '') {
       window.$message?.error?.('账号/邮箱不能为空');
       return false;
@@ -54,11 +54,11 @@ export function useCaptcha(type: 'register' | 'reset_password') {
     const { error } = await fetchGetVerificationCode(account, type);
     if (error) {
       endLoading();
-      return; 
+      return;
     }
     if (!error) {
       window.$message?.success?.('验证码发送成功，请前往邮箱查收！');
-      start(); 
+      start();
     }
     endLoading();
   }

@@ -1,4 +1,5 @@
 import { request } from '../request';
+import type * as KnowledgeApi from './knowledge.types';
 
 /**
  * =====================================================================
@@ -6,64 +7,8 @@ import { request } from '../request';
  * 规范：与后端 API 严格对齐，保障数据结构在前端的强类型约束
  * =====================================================================
  */
-export namespace KnowledgeApi {
-  /** 知识类型枚举 */
-  export type KnowledgeType = 1 | 2 | 3;
-  // 1=项目文档, 2=GitHub仓库代码, 3=项目DeepWiki文档
 
-  /** 向量化状态枚举 */
-  export type EmbeddingStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED';
-
-  /** 创建知识文档 DTO */
-  export interface KnowledgeDocumentCreate {
-    title: string;
-    type: KnowledgeType;
-    content: string;
-  }
-
-  /** 更新知识文档 DTO */
-  export interface KnowledgeDocumentUpdate extends KnowledgeDocumentCreate {
-    id: number;
-  }
-
-  /** 知识文档响应 DTO (公开视图) */
-  export interface KnowledgeDocumentDTO {
-    id?: number;
-    type: KnowledgeType;
-    content: string;
-    title: string;
-    embeddingStatus: EmbeddingStatus | null;
-    lastEmbeddedAt: string | null;
-    lastError: string | null;
-    metadata: Record<string, any> | null;
-    createdAt?: string;
-    updatedAt?: string;
-  }
-
-  /** 知识库响应 DTO */
-  export interface KnowledgeBasesDTO {
-    id: number;
-    userId: number;
-    scope: number;
-    createdAt: string;
-    updatedAt: string;
-  }
-
-  /** 分页查询参数 */
-  export type KnowledgeQueryParams = Api.Common.PageQueryParams;
-
-  /** 分页结果 */
-  export type PageResult<T> = Api.Common.PageDTO<T>;
-
-  /** 文件上传结果 */
-  export interface FileUploadResult {
-    key: string;
-    url: string;
-    fileName: string;
-    fileSize: number;
-    contentType: string;
-  }
-}
+export type { KnowledgeApi };
 
 /**
  * =====================================================================
@@ -87,7 +32,7 @@ export function fetchGetKnowledgeBases() {
 
 /** 清空知识库 */
 export function fetchClearKnowledgeBases() {
-  return request<void>({ url: '/knowledge', method: 'delete' });
+  return request<undefined>({ url: '/knowledge', method: 'delete' });
 }
 
 // ========== 知识文档管理 ==========
@@ -128,7 +73,7 @@ export function fetchUpdateKnowledgeDocument(data: KnowledgeApi.KnowledgeDocumen
 
 /** 删除知识文档 */
 export function fetchDeleteKnowledgeDocument(id: number) {
-  return request<void>({ url: `/knowledge-document/${id}`, method: 'delete' });
+  return request<undefined>({ url: `/knowledge-document/${id}`, method: 'delete' });
 }
 
 // ========== 文件上传 ==========

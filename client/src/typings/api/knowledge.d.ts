@@ -38,7 +38,7 @@ declare namespace Api {
     }
 
     /** 创建知识库DTO */
-    interface KnowledgeCreate extends Pick<KnowledgeBase, 'name' | 'projectId' | 'type' | 'content' | 'tag'> {}
+    type KnowledgeCreate = Pick<KnowledgeBase, 'name' | 'projectId' | 'type' | 'content' | 'tag'>;
 
     /** 更新知识库DTO */
     interface KnowledgeUpdate extends KnowledgeCreate {

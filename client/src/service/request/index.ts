@@ -110,11 +110,11 @@ export const request = createFlatRequest(
 
       return null;
     },
-    onError(error) {
+    async onError(error) {
       const { httpStatus, message, backendErrorCode } = resolveRequestErrorInfo(error);
 
       if (shouldForceLogout(httpStatus, backendErrorCode)) {
-        void forceLogout();
+        await forceLogout();
         return;
       }
 

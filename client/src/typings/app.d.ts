@@ -741,6 +741,7 @@ declare namespace App {
             fileUpload: string;
             fileUploadDesc: string;
             selectFile: string;
+            uploadOnGenerateHint: string;
             uploadFile: string;
             uploadSuccess: string;
             textInput: string;
@@ -984,6 +985,7 @@ declare namespace App {
           typeAll: string;
           typeProjectDoc: string;
           typeGithub: string;
+          typeGithubUnsupported: string;
           embeddingPending: string;
           embeddingRunning: string;
           embeddingSuccess: string;

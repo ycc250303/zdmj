@@ -33,9 +33,9 @@ const rules = computed<Record<keyof FormModel, App.Global.FormRule[]>>(() => {
 
 async function handleSubmit() {
   await validate();
-  // TODO: 后端目前只有密码登录接口，没有验证码登录接口。
+  // 后端目前只有密码登录接口，验证码登录待接口提供后再接入。
   // 等后端补上接口后，这里调用类似：await authStore.loginByCode(model.email, model.code);
- window.$message?.warning($t('page.login.codeLogin.notSupported')); 
+  window.$message?.warning($t('page.login.codeLogin.notSupported'));
 }
 </script>
 

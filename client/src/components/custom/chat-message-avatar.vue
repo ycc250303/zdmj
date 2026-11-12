@@ -33,13 +33,7 @@ const isAssistant = computed(() => props.role === 2);
       <path d="M9 7V5.8a3 3 0 016 0V7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
       <path d="M4 10l-1.2-.7M20 10l1.2-.7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
     </svg>
-    <svg
-      v-else
-      class="chat-message-avatar__icon"
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
+    <svg v-else class="chat-message-avatar__icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
       <circle cx="12" cy="8.2" r="3.2" stroke="currentColor" stroke-width="1.6" />
       <path
         d="M6.5 18.5c1.2-2.8 3.4-4.3 5.5-4.3s4.3 1.5 5.5 4.3"

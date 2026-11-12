@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, reactive } from 'vue';
+import { fetchRegister } from '@/service/api/auth';
 import { useRouterPush } from '@/hooks/common/router';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { useCaptcha } from '@/hooks/business/captcha';
 import { $t } from '@/locales';
-import { fetchRegister } from '@/service/api/auth';
 
 defineOptions({
   name: 'Register'
@@ -12,7 +12,7 @@ defineOptions({
 
 const { toggleLoginModule } = useRouterPush();
 const { formRef, validate } = useNaiveForm();
-const { label, isCounting, loading, getCaptcha, start } = useCaptcha('register');
+const { label, isCounting, loading, getCaptcha } = useCaptcha('register');
 
 interface FormModel {
   username: string;
@@ -30,26 +30,28 @@ const model: FormModel = reactive({
   confirmPassword: ''
 });
 
-
 const rules = computed<Record<keyof FormModel, App.Global.FormRule[]>>(() => {
   const { formRules, createConfirmPwdRule } = useFormRules();
 
   return {
-    username: formRules.userName, 
-    email: formRules.email,  
+    username: formRules.userName,
+    email: formRules.email,
     code: formRules.code,
     password: formRules.pwd,
     confirmPassword: createConfirmPwdRule(model.password)
   };
 });
 
-
-
 async function handleSubmit() {
   await validate();
 
-  const { error } = await fetchRegister(model.username, model.password, model.email, model.code);
-  
+  const { error } = await fetchRegister({
+    username: model.username,
+    password: model.password,
+    email: model.email,
+    verificationCode: model.code
+  });
+
   if (!error) {
     window.$message?.success($t('page.login.register.success'));
     sessionStorage.setItem('new_username', model.username);
@@ -61,7 +63,6 @@ async function handleSubmit() {
 
 <template>
   <NForm ref="formRef" :model="model" :rules="rules" size="large" :show-label="false" @keyup.enter="handleSubmit">
-    
     <NFormItem path="username">
       <NInput v-model:value="model.username" :placeholder="$t('page.login.common.userNamePlaceholder')" />
     </NFormItem>
@@ -74,7 +75,7 @@ async function handleSubmit() {
       <div class="w-full flex-y-center gap-16px">
         <NInput v-model:value="model.code" :placeholder="$t('page.login.common.codePlaceholder')" />
         <NButton size="large" :disabled="isCounting" :loading="loading" @click="getCaptcha(model.email)">
-           {{ label }}
+          {{ label }}
         </NButton>
       </div>
     </NFormItem>

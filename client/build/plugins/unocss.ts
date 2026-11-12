@@ -17,7 +17,7 @@ function loadIconifyCollection(name: string) {
     try {
       const json = require(`@iconify/json/json/${name}.json`);
       return json;
-    } catch (e) {
+    } catch {
       console.warn(`[unocss] 未找到图标集 @iconify/json/json/${name}.json`);
       return undefined;
     }

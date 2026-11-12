@@ -12,7 +12,7 @@ export function fetchLogin(userName: string, password: string) {
     method: 'post',
     data: {
       usernameOrEmail: userName,
-      password: password
+      password
     }
   });
 }
@@ -68,16 +68,16 @@ export function fetchGetVerificationCode(email: string, type: 'register' | 'rese
  * 注册接口
  * * @param data
  */
-export function fetchRegister(username: string, password: string, email: string, verificationCode: string) {
+export function fetchRegister(payload: {
+  username: string;
+  password: string;
+  email: string;
+  verificationCode: string;
+}) {
   return request({
     url: '/users',
     method: 'post',
-    data: {
-      username: username,
-      password: password,
-      email: email,
-      verificationCode: verificationCode
-    }
+    data: payload
   });
 }
 
@@ -89,9 +89,9 @@ export function fetchResetPassword(email: string, verificationCode: string, newP
     url: '/users/password',
     method: 'put',
     data: {
-      email: email,
-      verificationCode: verificationCode,
-      newPassword: newPassword
+      email,
+      verificationCode,
+      newPassword
     }
   });
 }

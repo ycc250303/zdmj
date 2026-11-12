@@ -2,7 +2,7 @@ import { computed, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { defineStore } from 'pinia';
 import { useLoading } from '@sa/hooks';
-import { fetchGetUserInfo, fetchLogin } from '@/service/api';
+import { fetchLogin } from '@/service/api';
 import { useRouterPush } from '@/hooks/common/router';
 import { localStg } from '@/utils/storage';
 import { SetupStoreId } from '@/enum';
@@ -168,7 +168,7 @@ export const useAuthStore = defineStore(SetupStoreId.Auth, () => {
       const formattedInfo: Api.Auth.UserInfo = {
         userId: String(cachedUser.id),
         userName: cachedUser.username,
-        roles: roles,
+        roles,
         buttons: []
       };
 

@@ -1,21 +1,16 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { computed, onMounted, reactive, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { type JobApi, fetchCreateJob, fetchGetJobDetail, fetchUpdateJob } from '@/service/api/job';
 import { $t } from '@/locales';
-import {
-  fetchGetJobDetail,
-  fetchCreateJob,
-  fetchUpdateJob,
-  type JobApi
-} from '@/service/api/job';
 
-defineOptions({ name: 'job-edit' });
+defineOptions({ name: 'JobEdit' });
 
 const router = useRouter();
 const route = useRoute();
 
 const editId = computed(() => (route.query.id ? Number(route.query.id) : null));
-const isEdit = computed(() => !!editId.value);
+const isEdit = computed(() => Boolean(editId.value));
 
 const loading = ref(false);
 const submitting = ref(false);
@@ -113,7 +108,7 @@ async function loadJobDetail() {
       window.$message?.error($t('page.jobs.loadFailed'));
       router.back();
     }
-  } catch (err) {
+  } catch {
     window.$message?.error($t('page.jobs.loadFailed'));
     router.back();
   } finally {
@@ -173,13 +168,13 @@ onMounted(() => {
 
 <template>
   <NSpin :show="loading">
-    <div class="h-full p-6 bg-slate-50/50 min-h-[500px] overflow-auto">
+    <div class="h-full min-h-[500px] overflow-auto bg-slate-50/50 p-6">
       <!-- 头部 -->
       <div class="mb-6 flex items-center gap-3">
         <NButton quaternary circle @click="handleCancel">
           <template #icon><span>←</span></template>
         </NButton>
-        <h1 class="text-2xl font-bold text-slate-800">{{ isEdit ? $t('page.jobs.edit') : $t('page.jobs.create') }}</h1>
+        <h1 class="text-2xl text-slate-800 font-bold">{{ isEdit ? $t('page.jobs.edit') : $t('page.jobs.create') }}</h1>
       </div>
 
       <!-- 表单 -->
@@ -215,11 +210,21 @@ onMounted(() => {
 
           <NCard :title="$t('page.jobs.salaryInfo')" class="mb-4 rounded-xl">
             <NFormItem :label="$t('page.jobs.salaryMin')" path="salaryMin">
-              <NInputNumber v-model:value="formData.salaryMin" :min="0" :placeholder="$t('page.jobs.salaryMin')" class="w-full" />
+              <NInputNumber
+                v-model:value="formData.salaryMin"
+                :min="0"
+                :placeholder="$t('page.jobs.salaryMin')"
+                class="w-full"
+              />
             </NFormItem>
 
             <NFormItem :label="$t('page.jobs.salaryMax')" path="salaryMax">
-              <NInputNumber v-model:value="formData.salaryMax" :min="0" :placeholder="$t('page.jobs.salaryMax')" class="w-full" />
+              <NInputNumber
+                v-model:value="formData.salaryMax"
+                :min="0"
+                :placeholder="$t('page.jobs.salaryMax')"
+                class="w-full"
+              />
             </NFormItem>
 
             <NFormItem :label="$t('page.jobs.salaryType')" path="salaryType">
@@ -276,7 +281,7 @@ onMounted(() => {
         </NForm>
 
         <!-- 操作按钮 -->
-        <div class="flex justify-end gap-3 mt-6">
+        <div class="mt-6 flex justify-end gap-3">
           <NButton size="large" @click="handleCancel">{{ $t('common.cancel') }}</NButton>
           <NButton type="primary" size="large" :loading="submitting" @click="handleSubmit">
             {{ isEdit ? $t('common.modify') : $t('page.jobs.create') }}
