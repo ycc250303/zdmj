@@ -52,14 +52,15 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
      * 先短事务标记为进行中，再在事务外抽文本、切块和嵌入；成功后短事务按当时的文档内容覆盖向量。
      * 失败时另开短事务写入失败状态。文档内容在远程调用期间变化时，不覆盖新内容，也不改写其状态。
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param documentId 知识文档编号
      * @throws BusinessException 文档不存在、类型不支持、分块或向量结果非法，或保存失败
      */
     @Override
-    public void vectorizeAndStore(Long documentId) {
+    public void vectorizeAndStore(CurrentActor actor, Long documentId) {
         // 1. 获取知识文档
         KnowledgeDocument loaded = knowledgeDocumentMapper.selectById(documentId);
-        if (loaded == null || loaded.getUserId() == null || loaded.getKnowledgeId() == null) {
+        if (loaded == null || !actor.userId().equals(loaded.getUserId()) || loaded.getKnowledgeId() == null) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
         }
         Long userId = loaded.getUserId();
@@ -73,13 +74,13 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
 
         try {
             // 3. 抽文本
-            String rawText = extractText(loaded);
+            String rawText = extractText(actor, loaded);
             // 4. 切块
             List<Document> chunks = textSplitter.apply(List.of(new Document(rawText)));
             if (chunks.isEmpty()) {
                 throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "分块结果为空");
             }
-            List<KnowledgeVector> rows = embedChunks(loaded, chunks);
+            List<KnowledgeVector> rows = embedChunks(actor, loaded, chunks);
             transactionTemplate.execute(status -> {
                 saveVectors(documentId, userId, contentSnapshot, rows);
                 return null;
@@ -93,9 +94,9 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void deleteVectors(Long DocumentId) {
+    public void deleteVectors(CurrentActor actor, Long DocumentId) {
         KnowledgeDocument kd = knowledgeDocumentMapper.selectById(DocumentId);
-        if (kd == null) {
+        if (kd == null || !actor.userId().equals(kd.getUserId())) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
         }
         runDeleteTaskByUser(DocumentId, kd.getUserId());
@@ -125,11 +126,12 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
     /**
      * 调用嵌入模型并组装待写入的向量行，不访问数据库。
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param source 开始向量化时读到的文档
      * @param chunks 文本分块
      * @return 与分块顺序一致的向量行
      */
-    private List<KnowledgeVector> embedChunks(KnowledgeDocument source, List<Document> chunks) {
+    private List<KnowledgeVector> embedChunks(CurrentActor actor, KnowledgeDocument source, List<Document> chunks) {
         int totalChunks = chunks.size();
         int batchCount = (totalChunks + MAX_BATCH_SIZE - 1) / MAX_BATCH_SIZE;
         List<KnowledgeVector> rows = new ArrayList<>(totalChunks);
@@ -137,7 +139,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
             int start = batchIndex * MAX_BATCH_SIZE;
             int end = Math.min(start + MAX_BATCH_SIZE, totalChunks);
             List<String> batchTexts = chunks.subList(start, end).stream().map(Document::getText).toList();
-            List<float[]> batchVectors = embeddingGateway.embed(CurrentActor.of(source.getUserId()), batchTexts);
+            List<float[]> batchVectors = embeddingGateway.embed(actor, batchTexts);
             for (int j = 0; j < batchTexts.size(); j++) {
                 String chunkText = batchTexts.get(j);
                 KnowledgeVector row = new KnowledgeVector();
@@ -220,13 +222,12 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
         }
     }
 
-    private String extractText(KnowledgeDocument kd) {
+    private String extractText(CurrentActor actor, KnowledgeDocument kd) {
         if (kd.getType() != null && kd.getType().equals(KnowledgeTypeEnum.PROJECT_DOCUMENT.getCode())) {
-            return pdfParserUtil.extractTextFromUrl(kd.getContent(), kd.getUserId());
+            return pdfParserUtil.extractTextFromUrl(actor, kd.getContent());
         }
         throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "当前知识类型暂不支持向量化");
     }
-
 
     private static String sha256(String input) {
         try {
@@ -243,7 +244,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
 
     /**
      * 估计文本的token数量
-     * 
+     *
      * @param text 输入文本
      * @return token数量
      */

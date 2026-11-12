@@ -65,7 +65,7 @@ class ModelGatewayStructuredParseTest {
         stubEntityConvert("```json {\"name\":\"Dee\",\"score\":4} ```");
 
         SampleOut parsed = gateway.generateStructured(
-                CurrentActor.of(1L), new ModelRequest("msg", null, null), SampleOut.class);
+                new CurrentActor(1L), new ModelRequest("msg", null, null), SampleOut.class);
 
         assertEquals("Dee", parsed.getName());
         assertEquals(4, parsed.getScore());
@@ -76,7 +76,7 @@ class ModelGatewayStructuredParseTest {
         stubEntityConvert("{\"name\":\"Cara\",\"score\":1}");
 
         SampleOut parsed = gateway.generateStructured(
-                CurrentActor.of(1L), new ModelRequest("简历原文", null, null), SampleOut.class);
+                new CurrentActor(1L), new ModelRequest("简历原文", null, null), SampleOut.class);
 
         assertEquals("Cara", parsed.getName());
         assertEquals(1, parsed.getScore());
@@ -98,14 +98,14 @@ class ModelGatewayStructuredParseTest {
 
         assertThrows(IllegalStateException.class,
                 () -> gateway.generateStructured(
-                        CurrentActor.of(1L), new ModelRequest("msg", null, null), SampleOut.class));
+                        new CurrentActor(1L), new ModelRequest("msg", null, null), SampleOut.class));
     }
 
     @Test
     void generate_shouldNotSetJsonObjectOptions() {
         when(callSpec.content()).thenReturn("ok");
 
-        String text = gateway.generate(CurrentActor.of(1L), new ModelRequest("hi", null, null));
+        String text = gateway.generate(new CurrentActor(1L), new ModelRequest("hi", null, null));
 
         assertEquals("ok", text);
         verify(spec, never()).options(any());

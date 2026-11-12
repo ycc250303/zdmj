@@ -8,8 +8,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import com.zdmj.common.context.UserHolder;
-
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,14 +19,12 @@ public class RequestContextCleanupFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        // 清理用户上下文和 Security 上下文
-        UserHolder.clear();
+        // 请求开始和结束均清理认证上下文。
         SecurityContextHolder.clearContext();
 
         try {
             filterChain.doFilter(request, response);
         } finally {
-            UserHolder.clear();
             SecurityContextHolder.clearContext();
         }
 

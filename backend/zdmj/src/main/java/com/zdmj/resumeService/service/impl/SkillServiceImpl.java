@@ -1,7 +1,7 @@
 package com.zdmj.resumeService.service.impl;
 
+import com.zdmj.common.context.CurrentActor;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.model.CreateGroup;
@@ -29,8 +29,8 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
     private final Validator validator;
 
     @Override
-    public SkillResponse create(SkillRequest skillRequest) {
-        Long userId = UserHolder.requireUserId();
+    public SkillResponse create(CurrentActor actor, SkillRequest skillRequest) {
+        Long userId = actor.userId();
         validate(skillRequest, CreateGroup.class);
 
         Skill skill = new Skill();
@@ -46,8 +46,8 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
     }
 
     @Override
-    public SkillResponse update(SkillRequest skillRequest) {
-        Long userId = UserHolder.requireUserId();
+    public SkillResponse update(CurrentActor actor, SkillRequest skillRequest) {
+        Long userId = actor.userId();
         Skill skill = requireSkillAndCheckOwnership(skillRequest.getId(), userId, "修改");
         validate(skillRequest, UpdateGroup.class);
         updateOwned(skill, skillRequest);
@@ -64,8 +64,8 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
     }
 
     @Override
-    public void delete(Long id) {
-        Long userId = UserHolder.requireUserId();
+    public void delete(CurrentActor actor, Long id) {
+        Long userId = actor.userId();
         requireSkillAndCheckOwnership(id, userId, "删除");
         deleteOwned(id);
     }

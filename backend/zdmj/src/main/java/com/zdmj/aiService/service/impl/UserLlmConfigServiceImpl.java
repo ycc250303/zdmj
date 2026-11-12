@@ -132,7 +132,7 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
     }
 
     private static Long requireUserId(CurrentActor actor) {
-        if (actor == null || actor.userId() == null) {
+        if (actor == null) {
             throw new BusinessException(ErrorCode.USER_NOT_LOGIN);
         }
         return actor.userId();

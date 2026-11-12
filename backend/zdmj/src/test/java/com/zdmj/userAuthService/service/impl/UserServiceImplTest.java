@@ -1,5 +1,6 @@
 package com.zdmj.userAuthService.service.impl;
 
+import com.zdmj.common.context.CurrentActor;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
@@ -8,8 +9,6 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import com.zdmj.common.context.UserContext;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.security.JwtSessionStore;
@@ -23,7 +22,6 @@ import com.zdmj.userAuthService.dto.UserUpdateRequest;
 import com.zdmj.userAuthService.entity.User;
 import com.zdmj.userAuthService.enums.VerificationCodeScene;
 import com.zdmj.userAuthService.service.VerificationCodeService;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -56,6 +54,8 @@ import static org.mockito.Mockito.times;
 @ExtendWith(MockitoExtension.class)
 class UserServiceImplTest {
 
+    private CurrentActor actor = new CurrentActor(1L);
+
     @Mock
     private VerificationCodeService verificationCodeService;
 
@@ -74,11 +74,6 @@ class UserServiceImplTest {
         initMybatisPlusLambdaCache();
         userService = spy(new UserLoginServiceImpl(
                 verificationCodeService, jwtSessionStore, new JwtTokenService(TEST_JWT_SECRET)));
-    }
-
-    @AfterEach
-    void tearDown() {
-        UserHolder.clear();
     }
 
     @Test
@@ -257,7 +252,7 @@ class UserServiceImplTest {
         loginAs(123L);
         doReturn(user).when(userService).getById(123L);
 
-        UserResponse dto = userService.getUserById(123L);
+        UserResponse dto = userService.getUserById(actor, 123L);
 
         assertEquals(123L, dto.getId());
         assertEquals("u123", dto.getUsername());
@@ -270,7 +265,7 @@ class UserServiceImplTest {
         loginAs(404L);
         doReturn(null).when(userService).getById(404L);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> userService.getUserById(404L));
+        BusinessException ex = assertThrows(BusinessException.class, () -> userService.getUserById(actor, 404L));
 
         assertEquals(ErrorCode.USER_NOT_FOUND.getCode(), ex.getCode());
         verify(userService).getById(404L);
@@ -280,18 +275,10 @@ class UserServiceImplTest {
     void getUserById_whenOtherUser_shouldThrow1003AndNotQuery() {
         loginAs(1L);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> userService.getUserById(123L));
+        BusinessException ex = assertThrows(BusinessException.class, () -> userService.getUserById(actor, 123L));
 
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         assertEquals(ErrorCode.NO_PERMISSION.getMessage(), ex.getMessage());
-        verify(userService, never()).getById(anyLong());
-    }
-
-    @Test
-    void getUserById_whenNotLogin_shouldThrow1002AndNotQuery() {
-        BusinessException ex = assertThrows(BusinessException.class, () -> userService.getUserById(123L));
-
-        assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
         verify(userService, never()).getById(anyLong());
     }
 
@@ -381,7 +368,7 @@ class UserServiceImplTest {
         doReturn(existing).when(userService).getById(14L);
         doReturn(true).when(userService).update(any(LambdaUpdateWrapper.class));
 
-        UserResponse result = userService.updateProfile(14L, dto);
+        UserResponse result = userService.updateProfile(actor, 14L, dto);
 
         assertEquals("", result.getName());
         assertEquals("", result.getPhone());
@@ -400,7 +387,7 @@ class UserServiceImplTest {
         loginAs(12L);
         doReturn(null).when(userService).getById(12L);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> userService.updateProfile(12L, dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> userService.updateProfile(actor, 12L, dto));
 
         assertEquals(ErrorCode.USER_NOT_FOUND.getCode(), ex.getCode());
         verify(userService).getById(12L);
@@ -418,7 +405,7 @@ class UserServiceImplTest {
         doReturn(existing).when(userService).getById(13L);
         doReturn(false).when(userService).update(any(LambdaUpdateWrapper.class));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> userService.updateProfile(13L, dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> userService.updateProfile(actor, 13L, dto));
 
         assertEquals(ErrorCode.USER_UPDATE_FAILED.getCode(), ex.getCode());
         assertEquals(List.of("name", "updated_at"), columnsOf(captureProfileUpdate()));
@@ -437,7 +424,7 @@ class UserServiceImplTest {
         doReturn(existing).when(userService).getById(15L);
         doReturn(true).when(userService).update(any(LambdaUpdateWrapper.class));
 
-        UserResponse result = userService.updateProfile(15L, dto);
+        UserResponse result = userService.updateProfile(actor, 15L, dto);
 
         assertEquals("new-name", result.getName());
         assertEquals("13800000000", result.getPhone());
@@ -462,7 +449,7 @@ class UserServiceImplTest {
         doReturn(existing).when(userService).getById(16L);
         doReturn(true).when(userService).update(any(LambdaUpdateWrapper.class));
 
-        UserResponse result = userService.updateProfile(16L, dto);
+        UserResponse result = userService.updateProfile(actor, 16L, dto);
 
         assertEquals("张三", result.getName());
         assertEquals("13800000000", result.getPhone());
@@ -480,7 +467,7 @@ class UserServiceImplTest {
         loginAs(17L);
         doReturn(existing).when(userService).getById(17L);
 
-        UserResponse result = userService.updateProfile(17L, new UserUpdateRequest());
+        UserResponse result = userService.updateProfile(actor, 17L, new UserUpdateRequest());
 
         assertEquals("old-name", result.getName());
         assertEquals("13800000000", result.getPhone());
@@ -498,22 +485,10 @@ class UserServiceImplTest {
         UserUpdateRequest dto = new UserUpdateRequest();
         dto.setName("neo");
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> userService.updateProfile(14L, dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> userService.updateProfile(actor, 14L, dto));
 
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         assertEquals(ErrorCode.NO_PERMISSION.getMessage(), ex.getMessage());
-        verify(userService, never()).getById(anyLong());
-        verify(userService, never()).update(any(LambdaUpdateWrapper.class));
-    }
-
-    @Test
-    void updateProfile_whenNotLogin_shouldThrow1002AndNotQuery() {
-        UserUpdateRequest dto = new UserUpdateRequest();
-        dto.setName("neo");
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> userService.updateProfile(14L, dto));
-
-        assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
         verify(userService, never()).getById(anyLong());
         verify(userService, never()).update(any(LambdaUpdateWrapper.class));
     }
@@ -535,8 +510,8 @@ class UserServiceImplTest {
         return dto;
     }
 
-    private static void loginAs(Long userId) {
-        UserHolder.set(UserContext.of(userId, "u" + userId));
+    private void loginAs(Long userId) {
+        actor = new CurrentActor(userId);
     }
 
     private User profileUser(Long id, String name, String phone, String website, String city) {

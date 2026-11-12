@@ -99,7 +99,7 @@ class UserLlmConfigFlowIT extends IntegrationTestBase {
         var user = pair.userA();
         otherUserId = pair.userB().getId();
         tokenB = testJwt.authorize(pair.userB());
-        actor = CurrentActor.of(user.getId());
+        actor = new CurrentActor(user.getId());
         token = testJwt.authorize(user);
         probe = mock(ChatModel.class);
         when(clients.buildProbe(any(), any())).thenAnswer(invocation -> {

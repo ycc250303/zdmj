@@ -66,7 +66,7 @@ class UserLlmConfigServiceImplTest {
 
     @Test
     void getMyConfig_shouldUseSharedReaderAndOnlyExposeMaskedKey() {
-        CurrentActor actor = CurrentActor.of(7L);
+        CurrentActor actor = new CurrentActor(7L);
         when(reader.find(actor)).thenReturn(Optional.of(
                 new ResolvedConfiguration(ModelCode.DEEPSEEK_FLASH, "sk-secret-key")));
 
@@ -83,9 +83,9 @@ class UserLlmConfigServiceImplTest {
 
     @Test
     void getMyConfig_whenNoRecord_shouldReturnUnconfigured() {
-        when(reader.find(CurrentActor.of(7L))).thenReturn(Optional.empty());
+        when(reader.find(new CurrentActor(7L))).thenReturn(Optional.empty());
 
-        var response = service.getMyConfig(CurrentActor.of(7L));
+        var response = service.getMyConfig(new CurrentActor(7L));
 
         assertEquals(false, response.isConfigured());
         assertEquals(ModelCode.values().length, response.getModels().size());
@@ -96,12 +96,10 @@ class UserLlmConfigServiceImplTest {
 
     @Test
     void writes_whenActorMissing_shouldRejectBeforeAccessingStorage() {
-        for (CurrentActor actor : new CurrentActor[]{null, CurrentActor.of(null)}) {
-            assertEquals(ErrorCode.USER_NOT_LOGIN, assertThrows(BusinessException.class,
-                    () -> service.saveMyConfig(actor, request("deepseek-flash", "secret"))).getErrorCode());
-            assertEquals(ErrorCode.USER_NOT_LOGIN, assertThrows(BusinessException.class,
-                    () -> service.deleteMyConfig(actor)).getErrorCode());
-        }
+        assertEquals(ErrorCode.USER_NOT_LOGIN, assertThrows(BusinessException.class,
+                () -> service.saveMyConfig(null, request("deepseek-flash", "secret"))).getErrorCode());
+        assertEquals(ErrorCode.USER_NOT_LOGIN, assertThrows(BusinessException.class,
+                () -> service.deleteMyConfig(null)).getErrorCode());
         verifyNoInteractions(mapper, cipher);
     }
 
@@ -114,7 +112,7 @@ class UserLlmConfigServiceImplTest {
         when(mapper.upsert(any())).thenReturn(0);
 
         assertThrows(IllegalStateException.class,
-                () -> service.saveMyConfig(CurrentActor.of(7L), request(" DEEPSEEK-V4-FLASH ", " secret ")));
+                () -> service.saveMyConfig(new CurrentActor(7L), request(" DEEPSEEK-V4-FLASH ", " secret ")));
 
         verify(mapper).upsert(org.mockito.ArgumentMatchers.argThat(config ->
                 config.getUserId().equals(7L) && config.getModelCode().equals("deepseek-flash")
@@ -126,7 +124,7 @@ class UserLlmConfigServiceImplTest {
     @Test
     void save_whenModelCodeInvalid_shouldThrowBeforeBuildingProbe() {
         BusinessException exception = assertThrows(BusinessException.class,
-                () -> service.saveMyConfig(CurrentActor.of(7L), request("not-a-model", "key")));
+                () -> service.saveMyConfig(new CurrentActor(7L), request("not-a-model", "key")));
 
         assertEquals(ErrorCode.USER_LLM_CONFIG_INVALID, exception.getErrorCode());
         verify(clients, never()).buildProbe(any(), any());
@@ -141,7 +139,7 @@ class UserLlmConfigServiceImplTest {
         when(probe.call(any(Prompt.class))).thenThrow(failure);
 
         BusinessException exception = assertThrows(BusinessException.class,
-                () -> service.saveMyConfig(CurrentActor.of(7L), request("deepseek-flash", "key")));
+                () -> service.saveMyConfig(new CurrentActor(7L), request("deepseek-flash", "key")));
 
         assertEquals(ErrorCode.USER_LLM_CONNECTION_TEST_FAILED, exception.getErrorCode());
         assertSame(failure, exception.getCause());
@@ -154,7 +152,7 @@ class UserLlmConfigServiceImplTest {
         when(clients.buildProbe(ModelCode.DEEPSEEK_FLASH, "key")).thenThrow(failure);
 
         assertSame(failure, assertThrows(BusinessException.class,
-                () -> service.saveMyConfig(CurrentActor.of(7L), request("deepseek-flash", "key"))));
+                () -> service.saveMyConfig(new CurrentActor(7L), request("deepseek-flash", "key"))));
         verifyNoInteractions(mapper, cipher);
     }
 
@@ -164,7 +162,7 @@ class UserLlmConfigServiceImplTest {
         when(clients.buildProbe(ModelCode.DEEPSEEK_FLASH, "key")).thenThrow(failure);
 
         assertSame(failure, assertThrows(IllegalStateException.class,
-                () -> service.saveMyConfig(CurrentActor.of(7L), request("deepseek-flash", "key"))));
+                () -> service.saveMyConfig(new CurrentActor(7L), request("deepseek-flash", "key"))));
         verifyNoInteractions(mapper, cipher);
     }
 

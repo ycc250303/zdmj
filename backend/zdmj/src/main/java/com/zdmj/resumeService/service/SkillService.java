@@ -1,5 +1,6 @@
 package com.zdmj.resumeService.service;
 
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.resumeService.dto.SkillRequest;
 import com.zdmj.resumeService.dto.SkillResponse;
 import com.zdmj.resumeService.entity.Skill;
@@ -12,25 +13,28 @@ public interface SkillService {
     /**
      * 为当前用户新增一项技能。
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param skillRequest 技能名称和说明
      * @return 保存后的技能
      */
-    SkillResponse create(SkillRequest skillRequest);
+    SkillResponse create(CurrentActor actor, SkillRequest skillRequest);
 
     /**
      * 更新当前用户的一项技能。说明为空白时清空原说明。
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param skillRequest 含技能编号、名称和说明
      * @return 更新后的技能
      */
-    SkillResponse update(SkillRequest skillRequest);
+    SkillResponse update(CurrentActor actor, SkillRequest skillRequest);
 
     /**
      * 删除当前用户的一项技能。
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param id 技能编号
      */
-    void delete(Long id);
+    void delete(CurrentActor actor, Long id);
 
     /**
      * 把已确认归属的技能写成本次请求。调用方负责创建组校验。

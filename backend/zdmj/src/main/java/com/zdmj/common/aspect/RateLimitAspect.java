@@ -16,7 +16,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.zdmj.common.annotation.RateLimit;
-import com.zdmj.common.context.UserHolder;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 
@@ -52,7 +52,7 @@ public class RateLimitAspect {
         String methodName = method.getName();
 
         for (RateLimit rule : method.getAnnotationsByType(RateLimit.class)) {
-            if (!tryAcquire(className, methodName, rule)) {
+            if (!tryAcquire(className, methodName, rule, joinPoint.getArgs())) {
                 log.debug("限流触发: {}.{} dimension={}", className, methodName, rule.dimension());
                 throw new BusinessException(ErrorCode.RATE_LIMIT_EXCEEDED);
             }
@@ -65,11 +65,12 @@ public class RateLimitAspect {
      * @param className 类名
      * @param methodName 方法名
      * @param rule 限流规则
+     * @param arguments Controller 方法实参，用户限流需要包含操作者
      * @return 是否获取到限流许可
      */
-    private boolean tryAcquire(String className, String methodName, RateLimit rule) {
+    private boolean tryAcquire(String className, String methodName, RateLimit rule, Object[] arguments) {
         long windowMs = rule.timeUnit().toMillis(rule.interval());
-        String key = generateKey(className, methodName, rule.dimension());
+        String key = generateKey(className, methodName, rule.dimension(), arguments);
 
         Long result = redisTemplate.execute(
                 RATE_LIMIT_SCRIPT,
@@ -83,11 +84,11 @@ public class RateLimitAspect {
      * 构建限流 Redis Key。
      * hash tag {@code {Class:method}} 便于 Redis Cluster 同 slot 路由。
      */
-    private String generateKey(String className, String methodName, RateLimit.Dimension dimension) {
+    private String generateKey(String className, String methodName, RateLimit.Dimension dimension, Object[] arguments) {
         String suffix = switch (dimension) {
             case GLOBAL -> null;
             case IP -> getClientIp();
-            case USER -> getCurrentUserId();
+            case USER -> requireUserId(arguments);
         };
         String hashTag = "{" + className + ":" + methodName + "}";
         String key = RATE_LIMIT_KEY_PREFIX + hashTag + ":" + dimension.name().toLowerCase();
@@ -117,8 +118,18 @@ public class RateLimitAspect {
         return ip != null ? ip : "unknown";
     }
 
-    private String getCurrentUserId() {
-        Long userId = UserHolder.getUserId();
-        return userId != null ? userId.toString() : "anonymous";
+    /**
+     * 从入口实参取得用户限流身份；缺少身份属于限流声明错误，立即终止调用。
+     *
+     * @param arguments Controller 方法实参
+     * @return 已认证用户编号
+     */
+    private String requireUserId(Object[] arguments) {
+        for (Object argument : arguments) {
+            if (argument instanceof CurrentActor actor) {
+                return actor.userId().toString();
+            }
+        }
+        throw new IllegalStateException("用户限流方法必须声明 CurrentActor 参数");
     }
 }

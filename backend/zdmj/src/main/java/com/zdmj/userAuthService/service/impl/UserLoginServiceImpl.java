@@ -1,9 +1,9 @@
 package com.zdmj.userAuthService.service.impl;
 
+import com.zdmj.common.context.CurrentActor;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.DateTimeUtil;
@@ -128,13 +128,14 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
     /**
      * 查询当前登录用户的资料。目标编号必须与认证身份一致。
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param id 用户编号
      * @return 用户信息
      * @throws BusinessException 未登录、编号不属于当前用户或用户不存在
      */
     @Override
-    public UserResponse getUserById(Long id) {
-        return convertToResponse(requireOwnedUser(id));
+    public UserResponse getUserById(CurrentActor actor, Long id) {
+        return convertToResponse(requireOwnedUser(actor, id));
     }
 
     @Override
@@ -182,6 +183,7 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
      * 确认目标用户就是当前登录用户后，按请求中的非 null 资料字段生成定向更新，并写入当前更新时间。
      * 返回值按查询结果合并这些字段得到。四个资料字段都未提供时直接返回查询结果。
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param userId 用户编号
      * @param updateDTO 待更新字段
      * @return 合并请求内容后的用户信息
@@ -189,9 +191,9 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public UserResponse updateProfile(Long userId, UserUpdateRequest updateDTO) {
+    public UserResponse updateProfile(CurrentActor actor, Long userId, UserUpdateRequest updateDTO) {
         // 1. 确认目标用户就是当前登录用户
-        User user = requireOwnedUser(userId);
+        User user = requireOwnedUser(actor, userId);
 
         // 2. 只收集本次提供的资料字段
         LambdaUpdateWrapper<User> update = new LambdaUpdateWrapper<User>()
@@ -238,12 +240,13 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
      * 确认目标编号属于当前登录用户，并读取该用户。
      * 编号不一致时不查询数据库。
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param userId 目标用户编号
      * @return 当前用户
      * @throws BusinessException 未登录、编号不属于当前用户或用户不存在
      */
-    private User requireOwnedUser(Long userId) {
-        Long currentUserId = UserHolder.requireUserId();
+    private User requireOwnedUser(CurrentActor actor, Long userId) {
+        Long currentUserId = actor.userId();
         if (userId == null || !userId.equals(currentUserId)) {
             throw new BusinessException(ErrorCode.NO_PERMISSION);
         }

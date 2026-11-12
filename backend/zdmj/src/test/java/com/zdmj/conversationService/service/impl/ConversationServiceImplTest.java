@@ -1,7 +1,6 @@
 package com.zdmj.conversationService.service.impl;
 
-import com.zdmj.common.context.UserContext;
-import com.zdmj.common.context.UserHolder;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.conversationService.dto.ConversationRequest;
@@ -13,7 +12,6 @@ import com.zdmj.conversationService.support.ConversationContextSupport;
 import com.zdmj.resumeService.dto.ResumeContentResponse;
 import com.zdmj.resumeService.dto.ResumePersonalInfoDTO;
 import com.zdmj.resumeService.service.ResumeService;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,6 +41,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ConversationServiceImplTest {
 
+    private final CurrentActor actor = new CurrentActor(1L);
+
     @Mock
     private ConversationMapper conversationMapper;
     @Mock
@@ -57,13 +57,7 @@ class ConversationServiceImplTest {
     @BeforeEach
     void setUp() {
         conversationService = spy(new ConversationServiceImpl(conversationMapper, messageMapper, chatMemory, resumeService));
-        lenient().when(resumeService.getMyResumeContent()).thenReturn(new ResumeContentResponse());
-        UserHolder.set(UserContext.of(1L, "u1"));
-    }
-
-    @AfterEach
-    void tearDown() {
-        UserHolder.clear();
+        lenient().when(resumeService.getMyResumeContent(actor)).thenReturn(new ResumeContentResponse());
     }
 
     @Test
@@ -72,7 +66,7 @@ class ConversationServiceImplTest {
         dto.setConfig(Map.of("model", "gpt"));
         doReturn(true).when(conversationService).save(any(Conversation.class));
 
-        ConversationResponse out = conversationService.create(dto);
+        ConversationResponse out = conversationService.create(actor, dto);
         ConversationResponse actual = Objects.requireNonNull(out);
 
         assertEquals(1L, actual.getUserId());
@@ -88,23 +82,23 @@ class ConversationServiceImplTest {
         ResumePersonalInfoDTO personal = new ResumePersonalInfoDTO();
         personal.setName("测试用户");
         resume.setPersonalInfo(personal);
-        when(resumeService.getMyResumeContent()).thenReturn(resume);
+        when(resumeService.getMyResumeContent(actor)).thenReturn(resume);
         doReturn(true).when(conversationService).save(any(Conversation.class));
 
-        ConversationResponse out = conversationService.create(new ConversationRequest());
+        ConversationResponse out = conversationService.create(actor, new ConversationRequest());
         ConversationResponse actual = Objects.requireNonNull(out);
 
         assertTrue(actual.getContext().stream()
                 .anyMatch(item -> ConversationContextSupport.CONTEXT_TYPE_RESUME.equals(item.get("type"))));
         assertTrue(String.valueOf(actual.getContext().get(0).get("content")).contains("测试用户"));
-        verify(resumeService).getMyResumeContent();
+        verify(resumeService).getMyResumeContent(actor);
     }
 
     @Test
     void createConversation_saveFailed_shouldThrow9001() {
         doReturn(false).when(conversationService).save(any(Conversation.class));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> conversationService.create(new ConversationRequest()));
+        BusinessException ex = assertThrows(BusinessException.class, () -> conversationService.create(actor, new ConversationRequest()));
 
         assertEquals(ErrorCode.CONVERSATION_CREATE_FAILED.getCode(), ex.getCode());
         assertEquals(ErrorCode.CONVERSATION_CREATE_FAILED.getMessage(), ex.getMessage());
@@ -115,7 +109,7 @@ class ConversationServiceImplTest {
     void register_createConversation_withNullDto_shouldDefaultMessageCountZero() {
         doReturn(true).when(conversationService).save(any(Conversation.class));
 
-        ConversationResponse out = conversationService.create(null);
+        ConversationResponse out = conversationService.create(actor, null);
         ConversationResponse actual = Objects.requireNonNull(out);
 
         assertEquals(1L, actual.getUserId());
@@ -125,7 +119,7 @@ class ConversationServiceImplTest {
 
     @Test
     void getById_idNull_shouldThrow1001() {
-        BusinessException ex = assertThrows(BusinessException.class, () -> conversationService.getById(null));
+        BusinessException ex = assertThrows(BusinessException.class, () -> conversationService.getById(actor, null));
 
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
         assertEquals("会话ID不能为空", ex.getMessage());
@@ -139,7 +133,7 @@ class ConversationServiceImplTest {
         db.setUserId(1L);
         doReturn(db).when(conversationMapper).selectById(11L);
 
-        ConversationResponse out = conversationService.getById(11L);
+        ConversationResponse out = conversationService.getById(actor, 11L);
 
         assertEquals(11L, out.getId());
         verify(conversationMapper).selectById(11L);
@@ -152,7 +146,7 @@ class ConversationServiceImplTest {
         other.setUserId(2L);
         doReturn(other).when(conversationMapper).selectById(12L);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> conversationService.getById(12L));
+        BusinessException ex = assertThrows(BusinessException.class, () -> conversationService.getById(actor, 12L));
 
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         assertEquals(ErrorCode.NO_PERMISSION.getMessage(), ex.getMessage());
@@ -163,7 +157,7 @@ class ConversationServiceImplTest {
     void login_getById_notFound_shouldThrow9003() {
         doReturn(null).when(conversationMapper).selectById(13L);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> conversationService.getById(13L));
+        BusinessException ex = assertThrows(BusinessException.class, () -> conversationService.getById(actor, 13L));
 
         assertEquals(ErrorCode.CONVERSATION_NOT_FOUND.getCode(), ex.getCode());
         assertEquals(ErrorCode.CONVERSATION_NOT_FOUND.getMessage(), ex.getMessage());
@@ -172,7 +166,7 @@ class ConversationServiceImplTest {
 
     @Test
     void updateTitle_titleBlank_shouldThrow1001() {
-        BusinessException ex = assertThrows(BusinessException.class, () -> conversationService.updateTitle(1L, "   "));
+        BusinessException ex = assertThrows(BusinessException.class, () -> conversationService.updateTitle(actor, 1L, "   "));
 
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
         assertEquals("会话标题不能为空", ex.getMessage());
@@ -185,7 +179,7 @@ class ConversationServiceImplTest {
         owned.setId(15L);
         owned.setUserId(1L);
         owned.setMessageCount(4);
-        doReturn(owned).when(conversationService).requireOwned(15L);
+        doReturn(owned).when(conversationService).requireOwned(actor, 15L);
         doReturn(1).when(conversationMapper).updateTitleByIdAndUserId(15L, 1L, "new title");
         Conversation refreshed = new Conversation();
         refreshed.setId(15L);
@@ -194,7 +188,7 @@ class ConversationServiceImplTest {
         refreshed.setMessageCount(4);
         doReturn(refreshed).when(conversationMapper).selectById(15L);
 
-        ConversationResponse out = conversationService.updateTitle(15L, "  new title  ");
+        ConversationResponse out = conversationService.updateTitle(actor, 15L, "  new title  ");
 
         assertEquals("new title", out.getTitle());
         assertEquals(4, out.getMessageCount());
@@ -208,9 +202,9 @@ class ConversationServiceImplTest {
         Conversation other = new Conversation();
         other.setId(16L);
         other.setUserId(2L);
-        doReturn(other).when(conversationService).requireOwned(16L);
+        doReturn(other).when(conversationService).requireOwned(actor, 16L);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> conversationService.updateTitle(16L, "new"));
+        BusinessException ex = assertThrows(BusinessException.class, () -> conversationService.updateTitle(actor, 16L, "new"));
 
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         assertEquals(ErrorCode.NO_PERMISSION.getMessage(), ex.getMessage());
@@ -222,10 +216,10 @@ class ConversationServiceImplTest {
         Conversation owned = new Conversation();
         owned.setId(17L);
         owned.setUserId(1L);
-        doReturn(owned).when(conversationService).requireOwned(17L);
+        doReturn(owned).when(conversationService).requireOwned(actor, 17L);
         doReturn(0).when(conversationMapper).updateTitleByIdAndUserId(17L, 1L, "updated");
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> conversationService.updateTitle(17L, "updated"));
+        BusinessException ex = assertThrows(BusinessException.class, () -> conversationService.updateTitle(actor, 17L, "updated"));
 
         assertEquals(ErrorCode.CONVERSATION_UPDATE_FAILED.getCode(), ex.getCode());
         assertEquals(ErrorCode.CONVERSATION_UPDATE_FAILED.getMessage(), ex.getMessage());
@@ -237,10 +231,10 @@ class ConversationServiceImplTest {
         Conversation owned = new Conversation();
         owned.setId(21L);
         owned.setUserId(1L);
-        doReturn(owned).when(conversationService).requireOwned(21L);
+        doReturn(owned).when(conversationService).requireOwned(actor, 21L);
         doReturn(false).when(conversationService).removeById(21L);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> conversationService.delete(21L));
+        BusinessException ex = assertThrows(BusinessException.class, () -> conversationService.delete(actor, 21L));
 
         assertEquals(ErrorCode.CONVERSATION_DELETE_FAILED.getCode(), ex.getCode());
         assertEquals(ErrorCode.CONVERSATION_DELETE_FAILED.getMessage(), ex.getMessage());
@@ -254,11 +248,11 @@ class ConversationServiceImplTest {
         Conversation owned = new Conversation();
         owned.setId(24L);
         owned.setUserId(1L);
-        doReturn(owned).when(conversationService).requireOwned(24L);
+        doReturn(owned).when(conversationService).requireOwned(actor, 24L);
         doReturn(true).when(conversationService).removeById(24L);
         doReturn(3).when(messageMapper).delete(any());
 
-        conversationService.delete(24L);
+        conversationService.delete(actor, 24L);
 
         verify(messageMapper).delete(any());
         verify(chatMemory).clear("24");
@@ -270,9 +264,9 @@ class ConversationServiceImplTest {
         Conversation other = new Conversation();
         other.setId(22L);
         other.setUserId(2L);
-        doReturn(other).when(conversationService).requireOwned(22L);
+        doReturn(other).when(conversationService).requireOwned(actor, 22L);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> conversationService.delete(22L));
+        BusinessException ex = assertThrows(BusinessException.class, () -> conversationService.delete(actor, 22L));
 
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         assertEquals(ErrorCode.NO_PERMISSION.getMessage(), ex.getMessage());
@@ -288,7 +282,7 @@ class ConversationServiceImplTest {
         owned.setUserId(1L);
         owned.setMessageCount(0);
         owned.setConfig(new HashMap<>(Map.of("useSystemKnowledge", false)));
-        doReturn(owned).when(conversationService).requireOwned(23L);
+        doReturn(owned).when(conversationService).requireOwned(actor, 23L);
         doReturn(1).when(conversationMapper).updateConfigByIdAndUserId(eq(23L), eq(1L), any());
         Conversation refreshed = new Conversation();
         refreshed.setId(23L);
@@ -299,7 +293,7 @@ class ConversationServiceImplTest {
                 "ragDocumentIds", List.of(1L, 2L)));
         doReturn(refreshed).when(conversationMapper).selectById(23L);
 
-        ConversationResponse out = conversationService.updateConfig(23L, Map.of(
+        ConversationResponse out = conversationService.updateConfig(actor, 23L, Map.of(
                 "ragDocumentIds", List.of(1L, 2L),
                 "useSystemKnowledge", true,
                 "model", "gpt"));
@@ -317,10 +311,10 @@ class ConversationServiceImplTest {
         owned.setId(25L);
         owned.setUserId(1L);
         owned.setMessageCount(2);
-        doReturn(owned).when(conversationService).requireOwned(25L);
+        doReturn(owned).when(conversationService).requireOwned(actor, 25L);
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> conversationService.updateConfig(25L, Map.of("useSystemKnowledge", true)));
+                () -> conversationService.updateConfig(actor, 25L, Map.of("useSystemKnowledge", true)));
 
         assertEquals(ErrorCode.CONVERSATION_CONFIG_LOCKED.getCode(), ex.getCode());
         verify(conversationMapper, never()).updateConfigByIdAndUserId(any(), any(), any());

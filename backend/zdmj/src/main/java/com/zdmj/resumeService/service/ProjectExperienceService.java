@@ -1,5 +1,6 @@
 package com.zdmj.resumeService.service;
 
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.resumeService.dto.ProjectExperienceRequest;
 import com.zdmj.resumeService.dto.ProjectExperienceResponse;
 import com.zdmj.resumeService.entity.ProjectExperience;
@@ -9,9 +10,9 @@ import com.zdmj.resumeService.entity.ProjectExperience;
  */
 public interface ProjectExperienceService {
 
-    ProjectExperienceResponse create(ProjectExperienceRequest projectExperienceRequest);
+    ProjectExperienceResponse create(CurrentActor actor, ProjectExperienceRequest projectExperienceRequest);
 
-    ProjectExperienceResponse update(ProjectExperienceRequest projectExperienceRequest);
+    ProjectExperienceResponse update(CurrentActor actor, ProjectExperienceRequest projectExperienceRequest);
 
     /**
      * 把已确认归属的项目经历写成本次请求，并校验结束日期。
@@ -22,7 +23,7 @@ public interface ProjectExperienceService {
      */
     ProjectExperienceResponse updateOwned(ProjectExperience existing, ProjectExperienceRequest projectExperienceRequest);
 
-    void delete(Long id);
+    void delete(CurrentActor actor, Long id);
 
     /**
      * 删除已确认属于当前用户的项目经历。

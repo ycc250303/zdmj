@@ -15,7 +15,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class JobRoleDetectionServiceImplTest {
     @Mock ModelGateway gateway;
-    private final CurrentActor actor = CurrentActor.of(1L);
+    private final CurrentActor actor = new CurrentActor(1L);
 
     @Test
     void emptyTextDoesNotCallModel() {

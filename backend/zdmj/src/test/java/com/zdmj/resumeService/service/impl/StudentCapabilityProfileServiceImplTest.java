@@ -1,13 +1,12 @@
 package com.zdmj.resumeService.service.impl;
 
+import com.zdmj.common.context.CurrentActor;
 import static org.mockito.ArgumentMatchers.eq;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zdmj.common.context.UserContext;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.aiService.api.ModelGateway;
@@ -22,7 +21,6 @@ import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
 import com.zdmj.resumeService.entity.StudentCapabilityProfile;
 import com.zdmj.resumeService.mapper.StudentCapabilityProfileMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -51,6 +49,8 @@ import static org.mockito.Mockito.when;
 @SuppressWarnings("null")
 class StudentCapabilityProfileServiceImplTest {
 
+    private final CurrentActor actor = new CurrentActor(1L);
+
     @Mock
     private ModelGateway modelGateway;
     @Mock
@@ -69,19 +69,13 @@ class StudentCapabilityProfileServiceImplTest {
         service = spy(new StudentCapabilityProfileServiceImpl(modelGateway, new ObjectMapper(), fileUploadService,
                 pdfParserUtil, new JobRoleDetectionServiceImpl(modelGateway)));
         ReflectionTestUtils.setField(service, "baseMapper", studentCapabilityProfileMapper);
-        UserHolder.set(UserContext.of(1L, "u1"));
-    }
-
-    @AfterEach
-    void tearDown() {
-        UserHolder.clear();
     }
 
     @Test
     void getCurrentUserProfile_notFound_shouldThrow404() {
         doReturn(null).when(service).getOne(any());
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.getCurrentUserProfile());
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.getCurrentUserProfile(actor));
 
         assertEquals(ErrorCode.CAPABILITY_PROFILE_NOT_FOUND.getCode(), ex.getCode());
         verify(service).getOne(any());
@@ -95,7 +89,7 @@ class StudentCapabilityProfileServiceImplTest {
         profile.setCompetitivenessScore(74);
         doReturn(profile).when(service).getOne(any());
 
-        StudentCapabilityProfileResponse out = service.getCurrentUserProfile();
+        StudentCapabilityProfileResponse out = service.getCurrentUserProfile(actor);
 
         assertNotNull(out);
         assertEquals(74, out.getCompetitivenessScore());
@@ -105,7 +99,7 @@ class StudentCapabilityProfileServiceImplTest {
     void generateProfile_missingInput_shouldThrow400AndSkipLlm() {
         CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(actor, req));
 
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
         verify(modelGateway, never()).generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
@@ -118,7 +112,7 @@ class StudentCapabilityProfileServiceImplTest {
         doThrow(new IllegalStateException("bad schema")).when(modelGateway)
                 .generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(actor, req));
 
         assertEquals(ErrorCode.CAPABILITY_PROFILE_GENERATION_FAILED.getCode(), ex.getCode());
         assertEquals("能力画像生成失败，请稍后重试", ex.getMessage());
@@ -132,7 +126,7 @@ class StudentCapabilityProfileServiceImplTest {
         doThrow(new RuntimeException("timeout")).when(modelGateway)
                 .generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(actor, req));
 
         assertEquals(ErrorCode.CAPABILITY_PROFILE_GENERATION_FAILED.getCode(), ex.getCode());
         assertEquals("大模型生成能力画像失败，请稍后重试", ex.getMessage());
@@ -159,7 +153,7 @@ class StudentCapabilityProfileServiceImplTest {
         doReturn(null).when(service).getOne(any());
         doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
 
-        StudentCapabilityProfileResponse out = service.generateProfile(req);
+        StudentCapabilityProfileResponse out = service.generateProfile(actor, req);
 
         assertNotNull(out);
         assertEquals(7, out.getCompetitivenessScore());
@@ -167,7 +161,7 @@ class StudentCapabilityProfileServiceImplTest {
         assertEquals(1, out.getStrengths().size());
         verify(service).save(any(StudentCapabilityProfile.class));
         verify(service, never()).updateById(any(StudentCapabilityProfile.class));
-        verify(fileUploadService, never()).deleteOwnedByUrl(anyString(), anyString());
+        verify(fileUploadService, never()).deleteOwnedByUrl(eq(actor), anyString(), anyString());
     }
 
     @Test
@@ -176,7 +170,7 @@ class StudentCapabilityProfileServiceImplTest {
         CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setPdfUrl(pdfUrl);
 
-        when(pdfParserUtil.extractTextFromUrl(pdfUrl))
+        when(pdfParserUtil.extractTextFromUrl(actor, pdfUrl))
                 .thenReturn("java spring boot redis mysql project experience");
 
         StudentCapabilityProfileResponse ai = new StudentCapabilityProfileResponse();
@@ -187,10 +181,10 @@ class StudentCapabilityProfileServiceImplTest {
         doReturn(null).when(service).getOne(any());
         doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
 
-        StudentCapabilityProfileResponse out = service.generateProfile(req);
+        StudentCapabilityProfileResponse out = service.generateProfile(actor, req);
 
         assertNotNull(out);
-        verify(fileUploadService).deleteOwnedByUrl(pdfUrl, "profile");
+        verify(fileUploadService).deleteOwnedByUrl(actor, pdfUrl, "profile");
     }
 
     @Test
@@ -199,7 +193,7 @@ class StudentCapabilityProfileServiceImplTest {
         CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setPdfUrl(pdfUrl);
 
-        when(pdfParserUtil.extractTextFromUrl(pdfUrl))
+        when(pdfParserUtil.extractTextFromUrl(actor, pdfUrl))
                 .thenReturn("java spring boot redis mysql project experience");
 
         StudentCapabilityProfileResponse ai = new StudentCapabilityProfileResponse();
@@ -209,13 +203,13 @@ class StudentCapabilityProfileServiceImplTest {
         doReturn(ai).when(modelGateway).generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
         doReturn(null).when(service).getOne(any());
         doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
-        doThrow(new RuntimeException("cos delete failed")).when(fileUploadService).deleteOwnedByUrl(pdfUrl, "profile");
+        doThrow(new RuntimeException("cos delete failed")).when(fileUploadService).deleteOwnedByUrl(actor, pdfUrl, "profile");
 
-        StudentCapabilityProfileResponse out = service.generateProfile(req);
+        StudentCapabilityProfileResponse out = service.generateProfile(actor, req);
 
         assertNotNull(out);
         assertEquals(10, out.getCompetitivenessScore());
-        verify(fileUploadService).deleteOwnedByUrl(pdfUrl, "profile");
+        verify(fileUploadService).deleteOwnedByUrl(actor, pdfUrl, "profile");
     }
 
     @Test
@@ -240,7 +234,7 @@ class StudentCapabilityProfileServiceImplTest {
         doReturn(existing).when(service).getOne(any());
         doReturn(true).when(service).updateById(any(StudentCapabilityProfile.class));
 
-        StudentCapabilityProfileResponse out = service.generateProfile(req);
+        StudentCapabilityProfileResponse out = service.generateProfile(actor, req);
 
         assertNotNull(out);
         assertEquals(66, out.getCompetitivenessScore());
@@ -250,7 +244,7 @@ class StudentCapabilityProfileServiceImplTest {
 
     @Test
     void detect_emptyText_shouldRewriteReasonAndSkipLlm() {
-        JobRoleDetectionResult out = ReflectionTestUtils.invokeMethod(service, "detect", 1L, "  ");
+        JobRoleDetectionResult out = ReflectionTestUtils.invokeMethod(service, "detect", actor, "  ");
 
         assertNotNull(out);
         assertEquals(JobRole.UNKNOWN, out.role());
@@ -262,7 +256,7 @@ class StudentCapabilityProfileServiceImplTest {
     void getCurrentUserProfileOrNull_notFound_shouldReturnNull() {
         doReturn(null).when(service).getOne(any());
 
-        StudentCapabilityProfileResponse out = service.getCurrentUserProfileOrNull();
+        StudentCapabilityProfileResponse out = service.getCurrentUserProfileOrNull(actor);
 
         assertNull(out);
         verify(service).getOne(any());
@@ -278,7 +272,7 @@ class StudentCapabilityProfileServiceImplTest {
         profile.setSuggestions("[{\"category\":\"项目\",\"issue\":\"缺量化\",\"recommendation\":\"补充结果\"}]");
         doReturn(profile).when(service).getOne(any());
 
-        StudentCapabilityProfileResponse out = service.getCurrentUserProfileOrNull();
+        StudentCapabilityProfileResponse out = service.getCurrentUserProfileOrNull(actor);
 
         assertNotNull(out);
         assertNotNull(out.getScoreDetail());
@@ -298,7 +292,7 @@ class StudentCapabilityProfileServiceImplTest {
         doReturn(profile).when(service).getOne(any());
 
         IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> service.getCurrentUserProfileOrNull());
+                () -> service.getCurrentUserProfileOrNull(actor));
 
         assertInstanceOf(JsonProcessingException.class, ex.getCause());
         verify(service, never()).save(any(StudentCapabilityProfile.class));
@@ -398,7 +392,7 @@ class StudentCapabilityProfileServiceImplTest {
         doReturn(ai).when(modelGateway).generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
         doReturn(null).when(service).getOne(any());
 
-        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> service.generateProfile(req));
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> service.generateProfile(actor, req));
 
         assertInstanceOf(JsonProcessingException.class, ex.getCause());
         verify(service, never()).save(any(StudentCapabilityProfile.class));
@@ -406,53 +400,31 @@ class StudentCapabilityProfileServiceImplTest {
     }
 
     @Test
-    void generateProfile_userNotLogin_shouldThrowAndSkipLlm() {
-        UserHolder.clear();
-        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
-        req.setRawText("java spring");
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
-
-        assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
-        verify(modelGateway, never()).generateStructured(any(), any(), any());
-    }
-
-    @Test
     void generateProfile_pdfParseFailed_shouldThrow400() {
         CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setPdfUrl("https://invalid.example.com/resume.pdf");
 
-        when(pdfParserUtil.extractTextFromUrl("https://invalid.example.com/resume.pdf"))
+        when(pdfParserUtil.extractTextFromUrl(actor, "https://invalid.example.com/resume.pdf"))
                 .thenThrow(new RuntimeException("pdf parse failed"));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(actor, req));
 
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
         verify(modelGateway, never()).generateStructured(any(), any(), any());
-        verify(fileUploadService, never()).deleteOwnedByUrl(anyString(), anyString());
+        verify(fileUploadService, never()).deleteOwnedByUrl(eq(actor), anyString(), anyString());
     }
 
     @Test
     void generateProfile_pdfUrlRejected_shouldPropagateBusinessException() {
         CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
         req.setPdfUrl("https://evil.example/resume.pdf");
-        when(pdfParserUtil.extractTextFromUrl("https://evil.example/resume.pdf"))
+        when(pdfParserUtil.extractTextFromUrl(actor, "https://evil.example/resume.pdf"))
                 .thenThrow(new BusinessException(ErrorCode.URL_FORMAT_ERROR, "仅支持本系统已上传的文件"));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(req));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(actor, req));
 
         assertEquals(ErrorCode.URL_FORMAT_ERROR.getCode(), ex.getCode());
         verify(modelGateway, never()).generateStructured(any(), any(), any());
-    }
-
-    @Test
-    void getCurrentUserProfileOrNull_userNotLogin_shouldThrow() {
-        UserHolder.clear();
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.getCurrentUserProfileOrNull());
-
-        assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
-        verify(service, never()).getOne(any());
     }
 
     private static final class JsonWriteFailure extends JsonProcessingException {

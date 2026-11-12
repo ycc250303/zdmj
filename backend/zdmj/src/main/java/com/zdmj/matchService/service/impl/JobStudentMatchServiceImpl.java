@@ -6,7 +6,6 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
@@ -70,8 +69,8 @@ public class JobStudentMatchServiceImpl
     private final TransactionTemplate transactionTemplate;
 
     @Override
-    public PageDTO<JobStudentMatchListItemResponse> getMyPage(Integer page, Integer limit) {
-        Long userId = UserHolder.requireUserId();
+    public PageDTO<JobStudentMatchListItemResponse> getMyPage(CurrentActor actor, Integer page, Integer limit) {
+        Long userId = actor.userId();
         PageRequests.Normalized paging = PageRequests.normalize(page, limit);
         IPage<JobStudentMatchListItemResponse> result =
                 baseMapper.selectMyMatchPage(PageRequests.toPage(paging), userId);
@@ -79,8 +78,8 @@ public class JobStudentMatchServiceImpl
     }
 
     @Override
-    public JobStudentMatchResponse getOrNull(Long jobId) {
-        Long userId = UserHolder.requireUserId();
+    public JobStudentMatchResponse getOrNull(CurrentActor actor, Long jobId) {
+        Long userId = actor.userId();
         if (jobId == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "jobId不能为空");
         }
@@ -96,13 +95,14 @@ public class JobStudentMatchServiceImpl
     /**
      * 生成人岗匹配。读取与模型调用在事务外完成，结果在短事务中按用户与岗位覆盖保存。
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param jobId 岗位编号
      * @param req   自定义权重，可为 null
      * @return 匹配结果
      */
     @Override
-    public JobStudentMatchResponse generate(Long jobId, JobStudentMatchGenerateRequest req) {
-        Long userId = UserHolder.requireUserId();
+    public JobStudentMatchResponse generate(CurrentActor actor, Long jobId, JobStudentMatchGenerateRequest req) {
+        Long userId = actor.userId();
         if (jobId == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "jobId不能为空");
         }
@@ -112,14 +112,14 @@ public class JobStudentMatchServiceImpl
         if (jobDetail == null) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
-        StudentCapabilityProfileResponse studentProfile = studentCapabilityProfileService.getCurrentUserProfileOrNull();
+        StudentCapabilityProfileResponse studentProfile = studentCapabilityProfileService.getCurrentUserProfileOrNull(actor);
         if (studentProfile == null) {
             throw new BusinessException(ErrorCode.MATCH_PRECONDITION_MISSING);
         }
 
         // 2. 按当前岗位描述识别方向，并解析权重。
         JobRoleDetectionResult detected = roleDetectionService.detect(
-                CurrentActor.of(userId), buildJobText(jobDetail));
+                actor, buildJobText(jobDetail));
         JobRole role = detected.role();
         MatchWeightConfigResponse weights = MatchWeightResolver.resolve(
                 role, req == null ? null : req.getWeights());
@@ -135,7 +135,7 @@ public class JobStudentMatchServiceImpl
         // 4. 调用模型输出结构化匹配结果
         JobStudentMatchResponse aiResult;
         try {
-            aiResult = modelGateway.generateStructured(CurrentActor.of(userId),
+            aiResult = modelGateway.generateStructured(actor,
                     new ModelRequest(userMessage, promptName, null), JobStudentMatchResponse.class);
         } catch (IllegalStateException e) {
             log.error("人岗匹配结构化输出解析失败 jobId={} userId={}", jobId, userId, e);
@@ -173,7 +173,7 @@ public class JobStudentMatchServiceImpl
     }
 
     @Override
-    public MatchWeightConfigResponse getDefaultWeights(Long jobId) {
+    public MatchWeightConfigResponse getDefaultWeights(CurrentActor actor, Long jobId) {
         if (jobId == null) {
             return MatchWeightResolver.defaultFor(JobRole.UNKNOWN);
         }
@@ -182,7 +182,7 @@ public class JobStudentMatchServiceImpl
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
         JobRole role = roleDetectionService.detect(
-                CurrentActor.of(UserHolder.requireUserId()), buildJobText(jobDetail)).role();
+                actor, buildJobText(jobDetail)).role();
         return MatchWeightResolver.defaultFor(role);
     }
 

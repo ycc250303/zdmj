@@ -1,7 +1,6 @@
 package com.zdmj.resumeService.service.impl;
 
-import com.zdmj.common.context.UserContext;
-import com.zdmj.common.context.UserHolder;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.resumeService.dto.EducationRequest;
@@ -9,7 +8,6 @@ import com.zdmj.resumeService.entity.Education;
 import com.zdmj.resumeService.dto.EducationResponse;
 import com.zdmj.resumeService.mapper.EducationMapper;
 import com.zdmj.resumeService.mapper.EducationStructMapper;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,6 +31,8 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class EducationServiceImplTest {
 
+    private final CurrentActor actor = new CurrentActor(1L);
+
     @Mock
     private EducationMapper educationMapper;
     @Mock
@@ -44,12 +44,6 @@ class EducationServiceImplTest {
     void setUp() {
         service = spy(new EducationServiceImpl(educationStructMapper));
         ReflectionTestUtils.setField(Objects.requireNonNull(service), "baseMapper", educationMapper);
-        UserHolder.set(UserContext.of(1L, "u1"));
-    }
-
-    @AfterEach
-    void tearDown() {
-        UserHolder.clear();
     }
 
     @Test
@@ -63,7 +57,7 @@ class EducationServiceImplTest {
         dto.setGpa("3.9");
         doReturn(true).when(service).save(any(Education.class));
 
-        EducationResponse out = service.create(dto);
+        EducationResponse out = service.create(actor, dto);
 
         assertEquals(1L, out.getUserId());
         assertEquals("SCU", out.getSchool());
@@ -76,7 +70,7 @@ class EducationServiceImplTest {
         dto.setStartDate(LocalDate.of(2024, 1, 1));
         dto.setEndDate(LocalDate.of(2023, 1, 1));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(actor, dto));
 
         assertEquals(ErrorCode.EDUCATION_GRADUATE_TIME_INVALID.getCode(), ex.getCode());
         verify(service, never()).save(any(Education.class));
@@ -88,7 +82,7 @@ class EducationServiceImplTest {
         dto.setSchool("SCU");
         doReturn(false).when(service).save(any(Education.class));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(actor, dto));
 
         assertEquals(ErrorCode.EDUCATION_ADD_FAILED.getCode(), ex.getCode());
     }
@@ -112,7 +106,7 @@ class EducationServiceImplTest {
         }).when(educationStructMapper).updateEntityFromDto(any(EducationRequest.class), any(Education.class));
         doReturn(true).when(service).updateById(any(Education.class));
 
-        EducationResponse out = service.update(dto);
+        EducationResponse out = service.update(actor, dto);
 
         assertEquals("New School", out.getSchool());
         verify(educationStructMapper).updateEntityFromDto(dto, existing);
@@ -128,7 +122,7 @@ class EducationServiceImplTest {
         existing.setUserId(2L);
         doReturn(existing).when(educationMapper).selectById(10L);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(actor, dto));
 
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         verify(service, never()).updateById(any(Education.class));
@@ -152,7 +146,7 @@ class EducationServiceImplTest {
             return null;
         }).when(educationStructMapper).updateEntityFromDto(any(EducationRequest.class), any(Education.class));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(actor, dto));
 
         assertEquals(ErrorCode.EDUCATION_GRADUATE_TIME_INVALID.getCode(), ex.getCode());
         verify(service, never()).updateById(any(Education.class));
@@ -175,7 +169,7 @@ class EducationServiceImplTest {
         }).when(educationStructMapper).updateEntityFromDto(any(EducationRequest.class), any(Education.class));
         doReturn(false).when(service).updateById(any(Education.class));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(actor, dto));
 
         assertEquals(ErrorCode.EDUCATION_UPDATE_FAILED.getCode(), ex.getCode());
     }
@@ -188,7 +182,7 @@ class EducationServiceImplTest {
         doReturn(existing).when(educationMapper).selectById(11L);
         doReturn(false).when(service).removeById(11L);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.delete(11L));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.delete(actor, 11L));
 
         assertEquals(ErrorCode.EDUCATION_DELETE_FAILED.getCode(), ex.getCode());
         verify(service).removeById(11L);
@@ -201,7 +195,7 @@ class EducationServiceImplTest {
         existing.setUserId(2L);
         doReturn(existing).when(educationMapper).selectById(11L);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.delete(11L));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.delete(actor, 11L));
 
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         verify(service, never()).removeById(11L);

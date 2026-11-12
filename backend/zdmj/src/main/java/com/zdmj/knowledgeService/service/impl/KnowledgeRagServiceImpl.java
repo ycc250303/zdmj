@@ -53,28 +53,31 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
     /**
      * 对话 RAG：retrieveRanked 出排序切块 → 无命中退回求职助手 → 有命中注入 {context} 后流式生成。
      * 不写 messages 表。
+     *
+     * @param actor 已认证操作者，包含用户编号
      */
     @Override
-    public Flux<String> streamAnswer(Long userId, Long conversationId, String userMessage, List<Long> ragDocumentIds,
+    public Flux<String> streamAnswer(CurrentActor actor, Long conversationId, String userMessage, List<Long> ragDocumentIds,
             boolean useSystemKnowledge, Map<String, Object> promptVars) {
+        Long userId = actor.userId();
         Map<String, Object> chatPromptVars =
                 (promptVars == null || promptVars.isEmpty()) ? null : new HashMap<>(promptVars);
 
         // --- 1. 两库都关：不检索、不改写，直接走求职助手 ---
         if (ragDocumentIds != null && ragDocumentIds.isEmpty() && !useSystemKnowledge) {
-            return modelGateway.stream(CurrentActor.of(userId),
+            return modelGateway.stream(actor,
                     conversationId, new ModelRequest(userMessage, SYSTEM_PROMPT, chatPromptVars));
         }
 
         // --- 2. 排序检索（改写 / embed / ANN / 合并截断） ---
-        KnowledgeRetrievalResponse ranked = retrieveRanked(userId, userMessage, ragDocumentIds, useSystemKnowledge);
+        KnowledgeRetrievalResponse ranked = retrieveRanked(actor, userMessage, ragDocumentIds, useSystemKnowledge);
         List<KnowledgeRetrivalDTO> hits = ranked.getHits() == null ? List.of() : ranked.getHits();
 
         // --- 3. 无命中不硬答：空 {context} 会诱导编造 ---
         if (hits.isEmpty()) {
             log.info("RAG 无有效命中，退回求职导师对话: userId={}, useSystemKnowledge={}, queryLen={}",
                     userId, useSystemKnowledge, ranked.getQuery() == null ? 0 : ranked.getQuery().length());
-            return modelGateway.stream(CurrentActor.of(userId),
+            return modelGateway.stream(actor,
                     conversationId, new ModelRequest(ranked.getQuery(), SYSTEM_PROMPT, chatPromptVars));
         }
 
@@ -83,19 +86,19 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         Map<String, Object> ragPromptVars = chatPromptVars == null ? new HashMap<>() : new HashMap<>(chatPromptVars);
         ragPromptVars.put("context", buildContext(hits, ragConfig.getSearch().getContextBudget()));
         log.info("RAG 检索命中 {} 条片段，进入生成阶段 conversationId={}", hits.size(), conversationId);
-        return modelGateway.stream(CurrentActor.of(userId),
+        return modelGateway.stream(actor,
                 conversationId, new ModelRequest(ranked.getQuery(), RAG_PROMPT, ragPromptVars));
     }
 
     /**
      * 排序层：改写 → 每句一次 embed → 双库 ANN → 去重留高分 → 截断 topK。
+     *
+     * @param actor 已认证操作者，包含用户编号
      */
     @Override
-    public KnowledgeRetrievalResponse retrieveRanked(Long userId, String userMessage, List<Long> ragDocumentIds,
+    public KnowledgeRetrievalResponse retrieveRanked(CurrentActor actor, String userMessage, List<Long> ragDocumentIds,
             boolean useSystemKnowledge) {
-        if (userId == null) {
-            throw new BusinessException(ErrorCode.USER_NOT_LOGIN);
-        }
+        Long userId = actor.userId();
 
         // --- 1. 规范化问句，按句长选 topK / minScore ---
         String query = userMessage == null ? "" : userMessage.trim().replaceAll("\\s+", " ");
@@ -121,20 +124,20 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         // --- 3. 查询改写；与原文相同则只检索一路。改写失败时终止 ---
         String rewritten = query;
         if (ragConfig.getRewrite().isEnabled() && StringUtils.hasText(query)) {
-            rewritten = rewriteQuery(userId, query);
+            rewritten = rewriteQuery(actor, query);
         }
         boolean dualPath = !query.equals(rewritten);
         response.setRewrittenQuery(rewritten);
         response.setRewriteUsed(dualPath);
 
         // --- 4. 原文 / 改写各 embed 一次（同句复用向量） ---
-        String vecRaw = toPgVector(userId, query);
-        String vecRewritten = dualPath ? toPgVector(userId, rewritten) : vecRaw;
+        String vecRaw = toPgVector(actor, query);
+        String vecRewritten = dualPath ? toPgVector(actor, rewritten) : vecRaw;
 
         // --- 5. 个人库 + 系统库：每个向量各做一次 ANN ---
         List<KnowledgeRetrivalDTO> combined = new ArrayList<>();
         if (ragDocumentIds == null || !ragDocumentIds.isEmpty()) {
-            Long userKbId = knowledgeBasesService.getOrCreateKnowledgeBaseId();
+            Long userKbId = knowledgeBasesService.getOrCreateKnowledgeBaseId(actor);
             addAnnHits(combined, userId, userKbId, ragDocumentIds, vecRaw, topK, minScore);
             if (dualPath) {
                 addAnnHits(combined, userId, userKbId, ragDocumentIds, vecRewritten, topK, minScore);
@@ -172,15 +175,15 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
     /**
      * 把用户问题改写成更可检索的单句。改写失败或没有返回文本时终止本次检索。
      *
-     * @param userId 当前用户
+     * @param actor 已认证操作者，包含用户编号
      * @param rawText 原始问题，调用前已确认为非空
      * @return 改写后的问题
      */
-    private String rewriteQuery(Long userId, String rawText) {
+    private String rewriteQuery(CurrentActor actor, String rawText) {
         String queryText;
         try {
             queryText = modelGateway.generate(
-                    CurrentActor.of(userId),
+                    actor,
                     new ModelRequest(rawText, QUERY_REWRITE_PROMPT, Map.of("question", rawText)));
         } catch (BusinessException exception) {
             throw exception;
@@ -198,25 +201,25 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
     /**
      * 为检索文本生成向量字面量。文本为空时返回 null，表示这一路没有查询；嵌入失败时终止本次检索。
      *
-     * @param userId 当前用户
+     * @param actor 已认证操作者，包含用户编号
      * @param queryText 待嵌入的问题
      * @return pgvector 字面量；文本为空时返回 null
      */
-    private String toPgVector(Long userId, String queryText) {
+    private String toPgVector(CurrentActor actor, String queryText) {
         if (!StringUtils.hasText(queryText)) {
             return null;
         }
-        String literal = knowledgeEmbeddingService.toPgVector(embedQuery(userId, queryText));
+        String literal = knowledgeEmbeddingService.toPgVector(embedQuery(actor, queryText));
         if (!StringUtils.hasText(literal)) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_RETRIEVAL_FAILED, "查询向量生成失败");
         }
         return literal;
     }
 
-    private float[] embedQuery(Long userId, String queryText) {
+    private float[] embedQuery(CurrentActor actor, String queryText) {
         List<float[]> vectors;
         try {
-            vectors = embeddingGateway.embed(CurrentActor.of(userId), List.of(queryText));
+            vectors = embeddingGateway.embed(actor, List.of(queryText));
         } catch (BusinessException exception) {
             throw exception;
         } catch (RuntimeException exception) {

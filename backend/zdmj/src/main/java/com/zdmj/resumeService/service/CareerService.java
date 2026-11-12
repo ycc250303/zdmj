@@ -1,5 +1,6 @@
 package com.zdmj.resumeService.service;
 
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.resumeService.dto.CareerRequest;
 import com.zdmj.resumeService.dto.CareerResponse;
 import com.zdmj.resumeService.entity.Career;
@@ -9,9 +10,9 @@ import com.zdmj.resumeService.entity.Career;
  */
 public interface CareerService {
 
-    CareerResponse create(CareerRequest careerRequest);
+    CareerResponse create(CurrentActor actor, CareerRequest careerRequest);
 
-    CareerResponse update(CareerRequest careerRequest);
+    CareerResponse update(CurrentActor actor, CareerRequest careerRequest);
 
     /**
      * 把已确认归属的工作经历写成本次请求，并校验结束日期。
@@ -22,7 +23,7 @@ public interface CareerService {
      */
     CareerResponse updateOwned(Career existing, CareerRequest careerRequest);
 
-    void delete(Long id);
+    void delete(CurrentActor actor, Long id);
 
     /**
      * 删除已确认属于当前用户的工作经历。

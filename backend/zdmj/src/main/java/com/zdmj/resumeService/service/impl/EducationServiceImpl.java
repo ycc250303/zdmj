@@ -1,7 +1,7 @@
 package com.zdmj.resumeService.service.impl;
 
+import com.zdmj.common.context.CurrentActor;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.resumeService.dto.EducationRequest;
@@ -24,8 +24,8 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
     private final EducationStructMapper educationPatchMapper;
 
     @Override
-    public EducationResponse create(EducationRequest educationRequest) {
-        Long userId = UserHolder.requireUserId();
+    public EducationResponse create(CurrentActor actor, EducationRequest educationRequest) {
+        Long userId = actor.userId();
         DateRangeUtil.rejectIfEndBeforeStart(
                 educationRequest.getStartDate(),
                 educationRequest.getEndDate(),
@@ -48,8 +48,8 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
     }
 
     @Override
-    public EducationResponse update(EducationRequest educationRequest) {
-        Long userId = UserHolder.requireUserId();
+    public EducationResponse update(CurrentActor actor, EducationRequest educationRequest) {
+        Long userId = actor.userId();
         Education existingEducation = requireEducationAndCheckOwnership(educationRequest.getId(), userId, "修改");
         return updateOwned(existingEducation, educationRequest);
     }
@@ -69,8 +69,8 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
     }
 
     @Override
-    public void delete(Long id) {
-        Long userId = UserHolder.requireUserId();
+    public void delete(CurrentActor actor, Long id) {
+        Long userId = actor.userId();
         requireEducationAndCheckOwnership(id, userId, "删除");
         deleteOwned(id);
     }

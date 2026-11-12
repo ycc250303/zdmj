@@ -1,14 +1,15 @@
 package com.zdmj.resumeService.service;
 
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.resumeService.dto.AwardRequest;
 import com.zdmj.resumeService.dto.AwardResponse;
 import com.zdmj.resumeService.entity.Award;
 
 public interface AwardService {
 
-    AwardResponse create(AwardRequest awardRequest);
+    AwardResponse create(CurrentActor actor, AwardRequest awardRequest);
 
-    AwardResponse update(AwardRequest awardRequest);
+    AwardResponse update(CurrentActor actor, AwardRequest awardRequest);
 
     /**
      * 把已确认归属的获奖记录写成本次请求。
@@ -19,7 +20,7 @@ public interface AwardService {
      */
     AwardResponse updateOwned(Award existing, AwardRequest awardRequest);
 
-    void delete(Long id);
+    void delete(CurrentActor actor, Long id);
 
     /**
      * 删除已确认属于当前用户的获奖记录。

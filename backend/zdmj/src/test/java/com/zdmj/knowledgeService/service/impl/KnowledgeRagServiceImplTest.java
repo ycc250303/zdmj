@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,14 +18,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import com.zdmj.aiService.api.EmbeddingGateway;
 
 import com.zdmj.knowledgeService.config.RagConfig;
-import com.zdmj.common.context.UserContext;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
@@ -41,6 +39,8 @@ import reactor.core.publisher.Flux;
 
 class KnowledgeRagServiceImplTest {
 
+    private CurrentActor actor = new CurrentActor(1L);
+
     private final EmbeddingGateway embeddingGateway = Mockito.mock(EmbeddingGateway.class);
     private final RagConfig ragConfig = new RagConfig();
     private final KnowledgeBasesService knowledgeBasesService = Mockito.mock(KnowledgeBasesService.class);
@@ -48,23 +48,18 @@ class KnowledgeRagServiceImplTest {
     private final KnowledgeVectorMapper knowledgeVectorMapper = Mockito.mock(KnowledgeVectorMapper.class);
     private final ModelGateway modelGateway = Mockito.mock(ModelGateway.class);
 
-    @AfterEach
-    void tearDown() {
-        UserHolder.clear();
-    }
-
     @Test
     @SuppressWarnings("null")
     void streamAnswer_whenEmbeddingFails_shouldStopBeforeAnswer() {
-        UserHolder.set(UserContext.of(401L, "u"));
+        actor = new CurrentActor(401L);
         ragConfig.getRewrite().setEnabled(false);
-        when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(501L);
+        when(knowledgeBasesService.getOrCreateKnowledgeBaseId(actor)).thenReturn(501L);
         when(embeddingGateway.embed(any(), any())).thenThrow(new RuntimeException("embed fail"));
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.streamAnswer(401L, 13L, "hello", null, false, null));
+                () -> service.streamAnswer(actor, 13L, "hello", null, false, null));
 
         assertEquals(ErrorCode.KNOWLEDGE_RETRIEVAL_FAILED.getCode(), ex.getCode());
         assertInstanceOf(RuntimeException.class, ex.getCause());
@@ -76,19 +71,19 @@ class KnowledgeRagServiceImplTest {
     @Test
     @SuppressWarnings("null")
     void streamAnswer_whenRetrievalMisses_shouldUseSystemPrompt() {
-        UserHolder.set(UserContext.of(401L, "u"));
+        actor = new CurrentActor(401L);
         ragConfig.getRewrite().setEnabled(false);
-        when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(501L);
+        when(knowledgeBasesService.getOrCreateKnowledgeBaseId(actor)).thenReturn(501L);
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.1,0.2]");
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
         when(knowledgeVectorMapper.searchBySimilarity(401L, 501L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of());
-        when(modelGateway.stream(eq(CurrentActor.of(401L)), eq(13L), eq(new ModelRequest("hello", "system", null))))
+        when(modelGateway.stream(same(actor), eq(13L), eq(new ModelRequest("hello", "system", null))))
                 .thenReturn(Flux.just("fallback-system"));
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
-        List<String> chunks = service.streamAnswer(401L, 13L, "hello", null, false, null).collectList().block();
+        List<String> chunks = service.streamAnswer(actor, 13L, "hello", null, false, null).collectList().block();
 
         assertEquals(List.of("fallback-system"), chunks);
         verify(knowledgeVectorMapper).searchBySimilarity(401L, 501L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium());
@@ -97,9 +92,9 @@ class KnowledgeRagServiceImplTest {
     @Test
     @SuppressWarnings("null")
     void streamAnswerRagHit_shouldUseRagSystemPromptWithContext() {
-        UserHolder.set(UserContext.of(402L, "u"));
+        actor = new CurrentActor(402L);
         ragConfig.getRewrite().setEnabled(false);
-        when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(502L);
+        when(knowledgeBasesService.getOrCreateKnowledgeBaseId(actor)).thenReturn(502L);
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.1,0.2]");
 
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
@@ -113,26 +108,26 @@ class KnowledgeRagServiceImplTest {
         hit.setMetadata(Map.of("source", "test"));
         when(knowledgeVectorMapper.searchBySimilarity(402L, 502L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of(hit));
-        when(modelGateway.stream(eq(CurrentActor.of(402L)), eq(14L), argThat((ModelRequest req) -> "hello question".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName()))))
+        when(modelGateway.stream(same(actor), eq(14L), argThat((ModelRequest req) -> "hello question".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName()))))
                 .thenReturn(Flux.just("rag-answer"));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
-        List<String> chunks = service.streamAnswer(402L, 14L, "hello question", null, false, null).collectList().block();
+        List<String> chunks = service.streamAnswer(actor, 14L, "hello question", null, false, null).collectList().block();
 
         assertEquals(List.of("rag-answer"), chunks);
         verify(knowledgeVectorMapper).searchBySimilarity(402L, 502L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium());
-        verify(embeddingGateway).embed(eq(CurrentActor.of(402L)), eq(List.of("hello question")));
+        verify(embeddingGateway).embed(same(actor), eq(List.of("hello question")));
     }
 
     @Test
     @SuppressWarnings("null")
     void streamAnswerRewriteEnabled_shouldCallRewritePromptThenRag() {
-        UserHolder.set(UserContext.of(403L, "u"));
+        actor = new CurrentActor(403L);
         ragConfig.getRewrite().setEnabled(true);
-        when(knowledgeBasesService.getOrCreateKnowledgeBaseId()).thenReturn(503L);
-        when(modelGateway.generate(eq(CurrentActor.of(403L)), argThat((ModelRequest req) -> "raw question".equals(req.message()) && "knowledgebase-query-rewrite".equals(req.promptName()))))
+        when(knowledgeBasesService.getOrCreateKnowledgeBaseId(actor)).thenReturn(503L);
+        when(modelGateway.generate(same(actor), argThat((ModelRequest req) -> "raw question".equals(req.message()) && "knowledgebase-query-rewrite".equals(req.promptName()))))
                 .thenReturn("rewritten question");
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.3,0.4]");
 
@@ -146,17 +141,17 @@ class KnowledgeRagServiceImplTest {
         hit.setContent("命中内容");
         when(knowledgeVectorMapper.searchBySimilarity(eq(403L), eq(503L), eq("[0.3,0.4]"), anyInt()))
                 .thenReturn(List.of(hit));
-        when(modelGateway.stream(eq(CurrentActor.of(403L)), eq(15L), argThat((ModelRequest req) -> "raw question".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName()))))
+        when(modelGateway.stream(same(actor), eq(15L), argThat((ModelRequest req) -> "raw question".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName()))))
                 .thenReturn(Flux.just("rewritten-rag-answer"));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
-        List<String> chunks = service.streamAnswer(403L, 15L, "raw question", null, false, null).collectList().block();
+        List<String> chunks = service.streamAnswer(actor, 15L, "raw question", null, false, null).collectList().block();
 
         assertEquals(List.of("rewritten-rag-answer"), chunks);
-        verify(embeddingGateway).embed(eq(CurrentActor.of(403L)), eq(List.of("raw question")));
-        verify(embeddingGateway).embed(eq(CurrentActor.of(403L)), eq(List.of("rewritten question")));
+        verify(embeddingGateway).embed(same(actor), eq(List.of("raw question")));
+        verify(embeddingGateway).embed(same(actor), eq(List.of("rewritten question")));
         verify(knowledgeVectorMapper, Mockito.times(2)).searchBySimilarity(eq(403L), eq(503L), eq("[0.3,0.4]"), anyInt());
     }
 
@@ -164,10 +159,10 @@ class KnowledgeRagServiceImplTest {
     void streamAnswerEmptyDocumentSelection_shouldFallbackSystemPrompt() {
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
-        when(modelGateway.stream(eq(CurrentActor.of(1L)), eq(16L), eq(new ModelRequest("hello", "system", null))))
+        when(modelGateway.stream(same(actor), eq(16L), eq(new ModelRequest("hello", "system", null))))
                 .thenReturn(Flux.just("no-rag"));
 
-        List<String> chunks = service.streamAnswer(1L, 16L, "hello", List.of(), false, null).collectList().block();
+        List<String> chunks = service.streamAnswer(actor, 16L, "hello", List.of(), false, null).collectList().block();
 
         assertEquals(List.of("no-rag"), chunks);
         verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
@@ -176,7 +171,7 @@ class KnowledgeRagServiceImplTest {
     @Test
     @SuppressWarnings("null")
     void streamAnswerSystemKnowledgeOnly_shouldSearchSystemKbWhenUserDocsDisabled() {
-        UserHolder.set(UserContext.of(404L, "u"));
+        actor = new CurrentActor(404L);
         ragConfig.getRewrite().setEnabled(false);
         when(knowledgeBasesService.findKnowledgeBaseIdByScope(KnowledgeScopeEnum.SYSTEM.getCode())).thenReturn(11L);
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.5,0.6]");
@@ -191,42 +186,40 @@ class KnowledgeRagServiceImplTest {
         when(knowledgeVectorMapper.searchBySimilarity(
                 KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.5,0.6]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of(hit));
-        when(modelGateway.stream(eq(CurrentActor.of(404L)), eq(17L), argThat((ModelRequest req) -> "system only".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName()))))
+        when(modelGateway.stream(same(actor), eq(17L), argThat((ModelRequest req) -> "system only".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName()))))
                 .thenReturn(Flux.just("system-rag"));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
-        List<String> chunks = service.streamAnswer(404L, 17L, "system only", List.of(), true, null).collectList().block();
+        List<String> chunks = service.streamAnswer(actor, 17L, "system only", List.of(), true, null).collectList().block();
 
         assertEquals(List.of("system-rag"), chunks);
         verify(knowledgeVectorMapper).searchBySimilarity(
                 KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.5,0.6]", ragConfig.getSearch().getTopkMedium());
-        verify(knowledgeBasesService, never()).getOrCreateKnowledgeBaseId();
+        verify(knowledgeBasesService, never()).getOrCreateKnowledgeBaseId(actor);
         verify(knowledgeVectorMapper, never()).searchBySimilarity(eq(404L), any(), any(), anyInt());
     }
 
     @Test
-    void retrieveRankedNotLogin_shouldThrowUserNotLogin() {
+    void retrieveRankedActorMissing_shouldFailFast() {
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
-        BusinessException ex = assertThrows(BusinessException.class,
+        assertThrows(NullPointerException.class,
                 () -> service.retrieveRanked(null, "hello", List.of(), true));
-
-        assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
         verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
     }
 
     @Test
     void retrieveRanked_whenRewriteFails_shouldStopBeforeEmbedding() {
         ragConfig.getRewrite().setEnabled(true);
-        when(modelGateway.generate(eq(CurrentActor.of(405L)), any())).thenThrow(new RuntimeException("rewrite fail"));
+        when(modelGateway.generate(eq(new CurrentActor(405L)), any())).thenThrow(new RuntimeException("rewrite fail"));
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.retrieveRanked(405L, "raw question", null, true));
+                () -> service.retrieveRanked(new CurrentActor(405L), "raw question", null, true));
 
         assertEquals(ErrorCode.KNOWLEDGE_RETRIEVAL_FAILED.getCode(), ex.getCode());
         assertEquals("rewrite fail", ex.getCause().getMessage());
@@ -238,12 +231,12 @@ class KnowledgeRagServiceImplTest {
     @Test
     void retrieveRanked_whenRewriteReturnsBlank_shouldStopBeforeEmbedding() {
         ragConfig.getRewrite().setEnabled(true);
-        when(modelGateway.generate(eq(CurrentActor.of(405L)), any())).thenReturn("  ");
+        when(modelGateway.generate(eq(new CurrentActor(405L)), any())).thenReturn("  ");
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.retrieveRanked(405L, "raw question", null, true));
+                () -> service.retrieveRanked(new CurrentActor(405L), "raw question", null, true));
 
         assertEquals(ErrorCode.KNOWLEDGE_RETRIEVAL_FAILED.getCode(), ex.getCode());
         assertEquals("查询改写没有返回可用文本", ex.getMessage());
@@ -258,7 +251,7 @@ class KnowledgeRagServiceImplTest {
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
         String longQuery = "this is a long enough query to trigger rewrite if search ran";
 
-        KnowledgeRetrievalResponse out = service.retrieveRanked(405L, longQuery, List.of(), false);
+        KnowledgeRetrievalResponse out = service.retrieveRanked(new CurrentActor(405L), longQuery, List.of(), false);
 
         assertEquals(List.of(), out.getHits());
         assertEquals(longQuery, out.getQuery());
@@ -271,7 +264,7 @@ class KnowledgeRagServiceImplTest {
     @Test
     @SuppressWarnings("null")
     void retrieveRankedSystemKnowledgeOnly_shouldSearchSystemKbWithoutExpand() {
-        UserHolder.set(UserContext.of(406L, "u"));
+        actor = new CurrentActor(406L);
         ragConfig.getRewrite().setEnabled(false);
         when(knowledgeBasesService.findKnowledgeBaseIdByScope(KnowledgeScopeEnum.SYSTEM.getCode())).thenReturn(11L);
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.5,0.6]");
@@ -290,7 +283,7 @@ class KnowledgeRagServiceImplTest {
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
-        KnowledgeRetrievalResponse out = service.retrieveRanked(406L, "system only", List.of(), true);
+        KnowledgeRetrievalResponse out = service.retrieveRanked(actor, "system only", List.of(), true);
 
         assertEquals(1, out.getHits().size());
         assertEquals(3L, out.getHits().get(0).getId());
@@ -299,16 +292,16 @@ class KnowledgeRagServiceImplTest {
         assertEquals(ragConfig.getSearch().getTopkMedium(), out.getTopK());
         verify(knowledgeVectorMapper).searchBySimilarity(
                 KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.5,0.6]", ragConfig.getSearch().getTopkMedium());
-        verify(knowledgeBasesService, never()).getOrCreateKnowledgeBaseId();
+        verify(knowledgeBasesService, never()).getOrCreateKnowledgeBaseId(actor);
     }
 
     @Test
     @SuppressWarnings("null")
     void retrieveRankedRewriteEnabled_shouldSearchRawAndRewrittenThenMerge() {
-        UserHolder.set(UserContext.of(407L, "u"));
+        actor = new CurrentActor(407L);
         ragConfig.getRewrite().setEnabled(true);
         when(knowledgeBasesService.findKnowledgeBaseIdByScope(KnowledgeScopeEnum.SYSTEM.getCode())).thenReturn(11L);
-        when(modelGateway.generate(eq(CurrentActor.of(407L)), argThat((ModelRequest req) -> "raw question".equals(req.message()) && "knowledgebase-query-rewrite".equals(req.promptName()))))
+        when(modelGateway.generate(same(actor), argThat((ModelRequest req) -> "raw question".equals(req.message()) && "knowledgebase-query-rewrite".equals(req.promptName()))))
                 .thenReturn("rewritten question");
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.3,0.4]");
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.3f, 0.4f}));
@@ -331,7 +324,7 @@ class KnowledgeRagServiceImplTest {
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
-        KnowledgeRetrievalResponse out = service.retrieveRanked(407L, "raw question", List.of(), true);
+        KnowledgeRetrievalResponse out = service.retrieveRanked(actor, "raw question", List.of(), true);
 
         assertTrue(out.isRewriteUsed());
         assertEquals("raw question", out.getQuery());
@@ -345,10 +338,10 @@ class KnowledgeRagServiceImplTest {
     @Test
     @SuppressWarnings("null")
     void retrieveRankedShortQuery_shouldRewriteBecauseDualPathKeepsOriginal() {
-        UserHolder.set(UserContext.of(408L, "u"));
+        actor = new CurrentActor(408L);
         ragConfig.getRewrite().setEnabled(true);
         when(knowledgeBasesService.findKnowledgeBaseIdByScope(KnowledgeScopeEnum.SYSTEM.getCode())).thenReturn(11L);
-        when(modelGateway.generate(eq(CurrentActor.of(408L)), argThat((ModelRequest req) -> "Java".equals(req.message()) && "knowledgebase-query-rewrite".equals(req.promptName()))))
+        when(modelGateway.generate(same(actor), argThat((ModelRequest req) -> "Java".equals(req.message()) && "knowledgebase-query-rewrite".equals(req.promptName()))))
                 .thenReturn("Java 后端开发");
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.3,0.4]");
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.3f, 0.4f}));
@@ -365,7 +358,7 @@ class KnowledgeRagServiceImplTest {
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
-        KnowledgeRetrievalResponse out = service.retrieveRanked(408L, "Java", List.of(), true);
+        KnowledgeRetrievalResponse out = service.retrieveRanked(actor, "Java", List.of(), true);
 
         assertTrue(out.isRewriteUsed());
         assertEquals("Java", out.getQuery());
@@ -377,7 +370,7 @@ class KnowledgeRagServiceImplTest {
     @Test
     @SuppressWarnings("null")
     void retrieveRankedMergeOverTopK_shouldTruncateToTopK() {
-        UserHolder.set(UserContext.of(409L, "u"));
+        actor = new CurrentActor(409L);
         ragConfig.getRewrite().setEnabled(false);
         when(knowledgeBasesService.findKnowledgeBaseIdByScope(KnowledgeScopeEnum.SYSTEM.getCode())).thenReturn(11L);
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.1,0.2]");
@@ -400,11 +393,11 @@ class KnowledgeRagServiceImplTest {
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
-        KnowledgeRetrievalResponse out = service.retrieveRanked(409L, "hello question", List.of(), true);
+        KnowledgeRetrievalResponse out = service.retrieveRanked(actor, "hello question", List.of(), true);
 
         assertEquals(topK, out.getHits().size());
         assertEquals(0L, out.getHits().get(0).getId());
         assertEquals((long) (topK - 1), out.getHits().get(topK - 1).getId());
-        verify(embeddingGateway).embed(eq(CurrentActor.of(409L)), eq(List.of("hello question")));
+        verify(embeddingGateway).embed(same(actor), eq(List.of("hello question")));
     }
 }

@@ -10,7 +10,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.springframework.web.multipart.MultipartFile;
 
-import com.zdmj.common.context.UserHolder;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.storage.FileUploadListItemResponse;
@@ -38,11 +38,11 @@ public class TestObjectStorage extends FileUploadService {
     }
 
     @Override
-    public FileUploadResponse uploadFile(MultipartFile file, String prefix) {
+    public FileUploadResponse uploadFile(CurrentActor actor, MultipartFile file, String prefix) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ErrorCode.FILE_EMPTY);
         }
-        long userId = UserHolder.requireUserId();
+        long userId = actor.userId();
         String bizArea = sanitizeBizArea(prefix);
         String fileName = sanitizeFileName(file.getOriginalFilename());
         String key = UserObjectKeys.ownedPrefix(userId) + bizArea + "/" + fileName;
@@ -62,24 +62,24 @@ public class TestObjectStorage extends FileUploadService {
     }
 
     @Override
-    public void deleteOwnedByUrl(String fileUrl, String bizArea) {
+    public void deleteOwnedByUrl(CurrentActor actor, String fileUrl, String bizArea) {
         if (fileUrl == null || fileUrl.isBlank()) {
             return;
         }
-        deleteByKey(extractKeyFromUrl(fileUrl));
+        deleteByKey(actor, extractKeyFromUrl(fileUrl));
         calls.add("deleteOwned:" + fileUrl);
     }
 
     @Override
-    public void deleteByKey(String key) {
-        String owned = requireOwned(key, UserHolder.requireUserId());
+    public void deleteByKey(CurrentActor actor, String key) {
+        String owned = requireOwned(key, actor.userId());
         objects.remove(owned);
         calls.add("delete:" + owned);
     }
 
     @Override
-    public List<FileUploadListItemResponse> listUploadedFiles(String prefix) {
-        long userId = UserHolder.requireUserId();
+    public List<FileUploadListItemResponse> listUploadedFiles(CurrentActor actor, String prefix) {
+        long userId = actor.userId();
         String bizArea = prefix == null || prefix.isBlank() ? null : sanitizeBizArea(prefix);
         String queryPrefix = bizArea == null
                 ? UserObjectKeys.ownedPrefix(userId)
@@ -101,8 +101,8 @@ public class TestObjectStorage extends FileUploadService {
     }
 
     @Override
-    public boolean exists(String key) {
-        String normalized = UserObjectKeys.normalize(key);
+    public boolean exists(CurrentActor actor, String key) {
+        String normalized = requireOwned(key, actor.userId());
         calls.add("exists:" + normalized);
         return normalized != null && objects.containsKey(normalized);
     }
@@ -116,14 +116,12 @@ public class TestObjectStorage extends FileUploadService {
     }
 
     @Override
-    public InputStream openInputStreamFromUrl(String sourceUri, Long ownerUserId) {
-        if (ownerUserId == null) {
-            throw new BusinessException(ErrorCode.USER_NOT_LOGIN);
-        }
+    public InputStream openInputStreamFromUrl(CurrentActor actor, String sourceUri) {
+        java.util.Objects.requireNonNull(actor, "actor 不能为空");
         if (!isManagedCosUrl(sourceUri)) {
             throw new BusinessException(ErrorCode.URL_FORMAT_ERROR, "仅支持本系统已上传的文件");
         }
-        String owned = requireOwned(extractKeyFromUrl(sourceUri), ownerUserId);
+        String owned = requireOwned(extractKeyFromUrl(sourceUri), actor.userId());
         byte[] bytes = objects.get(owned);
         if (bytes == null) {
             throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS);

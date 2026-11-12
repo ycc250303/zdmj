@@ -1,7 +1,7 @@
 package com.zdmj.resumeService.service.impl;
 
+import com.zdmj.common.context.CurrentActor;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.resumeService.dto.CareerRequest;
@@ -24,8 +24,8 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
     private final CareerStructMapper careerPatchMapper;
 
     @Override
-    public CareerResponse create(CareerRequest careerRequest) {
-        Long userId = UserHolder.requireUserId();
+    public CareerResponse create(CurrentActor actor, CareerRequest careerRequest) {
+        Long userId = actor.userId();
         DateRangeUtil.rejectIfEndBeforeStart(
                 careerRequest.getStartDate(),
                 careerRequest.getEndDate(),
@@ -47,8 +47,8 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
     }
 
     @Override
-    public CareerResponse update(CareerRequest careerRequest) {
-        Long userId = UserHolder.requireUserId();
+    public CareerResponse update(CurrentActor actor, CareerRequest careerRequest) {
+        Long userId = actor.userId();
         Career career = requireCareerAndCheckOwnership(careerRequest.getId(), userId, "修改");
         return updateOwned(career, careerRequest);
     }
@@ -66,8 +66,8 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
     }
 
     @Override
-    public void delete(Long id) {
-        Long userId = UserHolder.requireUserId();
+    public void delete(CurrentActor actor, Long id) {
+        Long userId = actor.userId();
         requireCareerAndCheckOwnership(id, userId, "删除");
         deleteOwned(id);
     }

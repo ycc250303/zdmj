@@ -1,5 +1,7 @@
 package com.zdmj.resumeService.controller;
 
+import io.swagger.v3.oas.annotations.Parameter;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.annotation.RateLimit;
 import com.zdmj.common.model.Result;
 
@@ -28,33 +30,36 @@ public class StudentCapabilityProfileController {
     /**
      * 获取当前用户的能力画像
      *
+     * @param actor 已认证操作者，包含用户编号
      * @return 能力画像信息
      */
     @GetMapping("/current")
-    public Result<StudentCapabilityProfileResponse> getCurrentProfile() {
-        return Result.success("获取能力画像成功", profileService.getCurrentUserProfile());
+    public Result<StudentCapabilityProfileResponse> getCurrentProfile(@Parameter(hidden = true) CurrentActor actor) {
+        return Result.success("获取能力画像成功", profileService.getCurrentUserProfile(actor));
     }
 
     /**
      * 仅查询当前用户能力画像（不存在时返回 null，不触发生成）
      *
+     * @param actor 已认证操作者，包含用户编号
      * @return 能力画像信息或 null
      */
     @GetMapping("/current/query")
-    public Result<StudentCapabilityProfileResponse> getCurrentProfileOrNull() {
-        return Result.success("查询能力画像成功", profileService.getCurrentUserProfileOrNull());
+    public Result<StudentCapabilityProfileResponse> getCurrentProfileOrNull(@Parameter(hidden = true) CurrentActor actor) {
+        return Result.success("查询能力画像成功", profileService.getCurrentUserProfileOrNull(actor));
     }
 
     /**
      * 生成能力画像并返回结果。
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param reqDTO 生成参数
      * @return 生成的能力画像
      */
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/generate")
-    public Result<StudentCapabilityProfileResponse> generateProfile(@Validated @RequestBody CapabilityProfileGenerateRequest reqDTO) {
+    public Result<StudentCapabilityProfileResponse> generateProfile(@Parameter(hidden = true) CurrentActor actor, @Validated @RequestBody CapabilityProfileGenerateRequest reqDTO) {
         log.info("生成学生能力画像");
-        return Result.success("生成能力画像成功", profileService.generateProfile(reqDTO));
+        return Result.success("生成能力画像成功", profileService.generateProfile(actor, reqDTO));
     }
 }

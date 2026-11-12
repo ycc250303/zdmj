@@ -1,7 +1,8 @@
 package com.zdmj.userAuthService.controller;
 
+import io.swagger.v3.oas.annotations.Parameter;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.annotation.RateLimit;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.model.Result;
 import com.zdmj.userAuthService.dto.UserResponse;
 import com.zdmj.userAuthService.dto.UserLoginRequest;
@@ -40,7 +41,7 @@ public class UserController {
 
     /**
      * 创建用户（用户注册）
-     * 
+     *
      * @param registerDTO 注册信息
      * @return 注册结果
      */
@@ -53,20 +54,21 @@ public class UserController {
 
     /**
      * 根据ID查询用户信息
-     * 
+     *
+     * @param actor 已认证操作者，包含用户编号
      * @param id 用户ID
      * @return 用户信息
      */
     @GetMapping("/{id}")
-    public Result<UserResponse> getUserById(@PathVariable @Min(value = 1, message = "用户ID不能小于1") Long id) {
+    public Result<UserResponse> getUserById(@Parameter(hidden = true) CurrentActor actor, @PathVariable @Min(value = 1, message = "用户ID不能小于1") Long id) {
         log.info("查询用户信息: {}", id);
-        UserResponse userDTO = userService.getUserById(id);
+        UserResponse userDTO = userService.getUserById(actor, id);
         return Result.success("查询成功", userDTO);
     }
 
     /**
      * 用户登录
-     * 
+     *
      * @param loginDTO 登录凭证（用户名或邮箱、密码）
      * @return 登录结果
      */
@@ -81,7 +83,7 @@ public class UserController {
 
     /**
      * 发送验证码
-     * 
+     *
      * @param email 邮箱地址
      * @param type 验证码类型，必须传入；{@code register} 为注册，{@code reset_password} 为重置密码
      * @return 发送结果
@@ -99,7 +101,7 @@ public class UserController {
 
     /**
      * 重置密码（忘记密码时使用）
-     * 
+     *
      * @param resetPasswordDTO 重置密码信息（包含邮箱、验证码、新密码）
      * @return 重置结果
      */
@@ -113,20 +115,21 @@ public class UserController {
     /**
      * 更新当前登录用户的基本信息
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param updateDTO 更新信息（姓名、电话、主页链接）
      * @return 更新后的用户信息
      */
     @PutMapping("/me")
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 20, interval = 1, timeUnit = TimeUnit.MINUTES)
-    public Result<UserResponse> updateCurrentUser(@Valid @RequestBody UserUpdateRequest updateDTO) {
+    public Result<UserResponse> updateCurrentUser(@Parameter(hidden = true) CurrentActor actor, @Valid @RequestBody UserUpdateRequest updateDTO) {
         log.info("更新当前用户信息请求");
-        UserResponse userDTO = userService.updateProfile(UserHolder.requireUserId(), updateDTO);
+        UserResponse userDTO = userService.updateProfile(actor, actor.userId(), updateDTO);
         return Result.success("更新成功", userDTO);
     }
 
     /**
      * 验证用户名是否存在
-     * 
+     *
      * @param username 用户名
      * @return 是否存在
      */
@@ -142,7 +145,7 @@ public class UserController {
 
     /**
      * 验证邮箱是否存在
-     * 
+     *
      * @param email 邮箱
      * @return 是否存在
      */

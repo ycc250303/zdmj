@@ -1,5 +1,6 @@
 package com.zdmj.knowledgeService.service;
 
+import com.zdmj.common.context.CurrentActor;
 import java.util.List;
 import java.util.Map;
 
@@ -13,13 +14,15 @@ import reactor.core.publisher.Flux;
  */
 public interface KnowledgeRagService {
 
-    Flux<String> streamAnswer(Long userId, Long conversationId, String userMessage, List<Long> ragDocumentIds,
+    Flux<String> streamAnswer(CurrentActor actor, Long conversationId, String userMessage, List<Long> ragDocumentIds,
             boolean useSystemKnowledge, Map<String, Object> promptVars);
 
     /**
      * 排序层检索：改写、每句一次 embed、双路 ANN、minScore、合并后截断 topK。
      * streamAnswer 直接调用本方法；两库都关时不改写、空 hits。
+     *
+     * @param actor 已认证操作者，包含用户编号
      */
-    KnowledgeRetrievalResponse retrieveRanked(Long userId, String userMessage, List<Long> ragDocumentIds,
+    KnowledgeRetrievalResponse retrieveRanked(CurrentActor actor, String userMessage, List<Long> ragDocumentIds,
             boolean useSystemKnowledge);
 }

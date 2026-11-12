@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
@@ -56,8 +55,8 @@ public class StudentCapabilityProfileServiceImpl
     private final JobRoleDetectionService roleDetectionService;
 
     @Override
-    public StudentCapabilityProfileResponse getCurrentUserProfile() {
-        StudentCapabilityProfileResponse dto = getCurrentUserProfileOrNull();
+    public StudentCapabilityProfileResponse getCurrentUserProfile(CurrentActor actor) {
+        StudentCapabilityProfileResponse dto = getCurrentUserProfileOrNull(actor);
         if (dto == null) {
             throw new BusinessException(ErrorCode.CAPABILITY_PROFILE_NOT_FOUND);
         }
@@ -65,8 +64,8 @@ public class StudentCapabilityProfileServiceImpl
     }
 
     @Override
-    public StudentCapabilityProfileResponse getCurrentUserProfileOrNull() {
-        Long userId = UserHolder.requireUserId();
+    public StudentCapabilityProfileResponse getCurrentUserProfileOrNull(CurrentActor actor) {
+        Long userId = actor.userId();
         StudentCapabilityProfile profile = getOne(
                 new LambdaQueryWrapper<StudentCapabilityProfile>()
                         .eq(StudentCapabilityProfile::getUserId, userId));
@@ -80,16 +79,17 @@ public class StudentCapabilityProfileServiceImpl
 
     /**
      * 生成能力画像
+     * @param actor 已认证操作者，包含用户编号
      * @param reqDTO 简历生成请求DTO
      * @return 能力画像DTO
      */
     @Override
-    public StudentCapabilityProfileResponse generateProfile(CapabilityProfileGenerateRequest reqDTO) {
-        Long userId = UserHolder.requireUserId();
+    public StudentCapabilityProfileResponse generateProfile(CurrentActor actor, CapabilityProfileGenerateRequest reqDTO) {
+        Long userId = actor.userId();
         String pdfUrl = StringUtils.hasText(reqDTO.getPdfUrl()) ? reqDTO.getPdfUrl().trim() : null;
-        String sourceText = resolveSourceText(reqDTO);
+        String sourceText = resolveSourceText(actor, reqDTO);
 
-        JobRoleDetectionResult resumeRole = detect(userId, sourceText);
+        JobRoleDetectionResult resumeRole = detect(actor, sourceText);
         JobRole jobRole = resumeRole.role();
         log.info("岗位识别: role={}, confidence={}", jobRole, resumeRole.confidence());
 
@@ -98,7 +98,7 @@ public class StudentCapabilityProfileServiceImpl
         try {
             String promptName = PROFILE_PROMPT_DIRECTORY + jobRole.slug();
             log.info("使用提示词: {}", promptName);
-            aiResult = modelGateway.generateStructured(CurrentActor.of(userId),
+            aiResult = modelGateway.generateStructured(actor,
                     new ModelRequest(sourceText, promptName, null), StudentCapabilityProfileResponse.class);
             normalizeProfileScores(aiResult);
         } catch (BusinessException e) {
@@ -137,19 +137,21 @@ public class StudentCapabilityProfileServiceImpl
         StudentCapabilityProfileResponse responseDto = toDto(newProfile);
         hydrateDtoFromEntity(newProfile, responseDto);
         mergeAiTransientFields(aiResult, responseDto);
-        cleanupUploadedResumeAfterAnalysis(pdfUrl);
+        cleanupUploadedResumeAfterAnalysis(actor, pdfUrl);
         return responseDto;
     }
 
     /**
      * 能力画像分析完成后删除 COS 临时简历；清理失败不影响主流程。
+     *
+     * @param actor 已认证操作者，包含用户编号
      */
-    private void cleanupUploadedResumeAfterAnalysis(String pdfUrl) {
+    private void cleanupUploadedResumeAfterAnalysis(CurrentActor actor, String pdfUrl) {
         if (!StringUtils.hasText(pdfUrl)) {
             return;
         }
         try {
-            fileUploadService.deleteOwnedByUrl(pdfUrl, "profile");
+            fileUploadService.deleteOwnedByUrl(actor, pdfUrl, "profile");
         } catch (Exception e) {
             log.warn("能力画像生成成功但清理 COS 简历失败: url={}, err={}", pdfUrl, e.getMessage());
         }
@@ -221,15 +223,16 @@ public class StudentCapabilityProfileServiceImpl
 
     /**
      * 解析简历文本
+     * @param actor 已认证操作者，包含用户编号
      * @param reqDTO 简历生成请求DTO
      * @return 简历文本
      */
-    private String resolveSourceText(CapabilityProfileGenerateRequest reqDTO) {
+    private String resolveSourceText(CurrentActor actor, CapabilityProfileGenerateRequest reqDTO) {
         String sourceText;
         if (StringUtils.hasText(reqDTO.getPdfUrl())) {
             log.info("从 PDF 解析内容: {}", reqDTO.getPdfUrl());
             try {
-                sourceText = pdfParserUtil.extractTextFromUrl(reqDTO.getPdfUrl());
+                sourceText = pdfParserUtil.extractTextFromUrl(actor, reqDTO.getPdfUrl());
             } catch (BusinessException e) {
                 throw e;
             } catch (Exception e) {
@@ -342,11 +345,12 @@ public class StudentCapabilityProfileServiceImpl
 
     /**
      * 根据简历文本判断岗位画像
+     * @param actor 已认证操作者，包含用户编号
      * @param resumeText 简历文本
      * @return 岗位画像
      */
-    private JobRoleDetectionResult detect(Long userId, String resumeText) {
-        JobRoleDetectionResult detected = roleDetectionService.detect(CurrentActor.of(userId), resumeText);
+    private JobRoleDetectionResult detect(CurrentActor actor, String resumeText) {
+        JobRoleDetectionResult detected = roleDetectionService.detect(actor, resumeText);
         return StringUtils.hasText(resumeText) ? detected
                 : new JobRoleDetectionResult(detected.role(), detected.confidence(), "简历文本为空");
     }

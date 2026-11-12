@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.context.CurrentActor;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.model.CreateGroup;
@@ -79,8 +78,8 @@ public class ResumeServiceImpl implements ResumeService {
     private final ObjectMapper objectMapper;
 
     @Override
-    public List<ResumeContentResponse> getResumeContentList() {
-        Long userId = UserHolder.requireUserId();
+    public List<ResumeContentResponse> getResumeContentList(CurrentActor actor) {
+        Long userId = actor.userId();
         ResumeContentRow row = resumeMapper.selectContentByUserId(userId);
         if (!hasStoredContent(row)) {
             return List.of();
@@ -89,22 +88,22 @@ public class ResumeServiceImpl implements ResumeService {
     }
 
     @Override
-    public ResumeContentResponse getMyResumeContent() {
-        Long userId = UserHolder.requireUserId();
+    public ResumeContentResponse getMyResumeContent(CurrentActor actor) {
+        Long userId = actor.userId();
         ResumeContentRow row = resumeMapper.selectContentByUserId(userId);
         return toContentResponse(row);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public ResumeContentResponse saveMyResumeContent(ResumeContentSaveRequest request) {
-        Long userId = UserHolder.requireUserId();
-        syncSkills(userId, request.getSkills());
-        syncEducations(userId, request.getEducations());
-        syncCareers(userId, request.getCareers());
-        syncProjects(userId, request.getProjects());
-        syncAwards(userId, request.getAwards());
-        syncPersonalInfo(userId, request.getPersonalInfo());
+    public ResumeContentResponse saveMyResumeContent(CurrentActor actor, ResumeContentSaveRequest request) {
+        Long userId = actor.userId();
+        syncSkills(actor, request.getSkills());
+        syncEducations(actor, request.getEducations());
+        syncCareers(actor, request.getCareers());
+        syncProjects(actor, request.getProjects());
+        syncAwards(actor, request.getAwards());
+        syncPersonalInfo(actor, request.getPersonalInfo());
         log.info("全量保存简历成功: userId={}", userId);
         return toContentResponse(resumeMapper.selectContentByUserId(userId));
     }
@@ -165,7 +164,8 @@ public class ResumeServiceImpl implements ResumeService {
         }
     }
 
-    private void syncPersonalInfo(Long userId, ResumePersonalInfoDTO info) {
+    private void syncPersonalInfo(CurrentActor actor, ResumePersonalInfoDTO info) {
+        Long userId = actor.userId();
         if (info == null) {
             return;
         }
@@ -174,16 +174,17 @@ public class ResumeServiceImpl implements ResumeService {
         update.setPhone(info.getPhone());
         update.setWebsite(info.getHomepageUrl());
         update.setPreferredWorkCity(info.getPreferredWorkCity());
-        userService.updateProfile(userId, update);
+        userService.updateProfile(actor, userId, update);
     }
 
     /**
      * 按提交列表替换当前用户的技能。空列表会删除已有技能。
      *
-     * @param userId 用户编号
+     * @param actor 已认证操作者，包含用户编号
      * @param incoming 技能请求，不能为 null
      */
-    private void syncSkills(Long userId, List<SkillRequest> incoming) {
+    private void syncSkills(CurrentActor actor, List<SkillRequest> incoming) {
+        Long userId = actor.userId();
         List<Skill> existing = skillMapper.selectByUserId(userId);
         Map<Long, Skill> owned = indexById(existing, Skill::getId);
         Set<Long> incomingIds = incomingIds(incoming, SkillRequest::getId);
@@ -195,7 +196,7 @@ public class ResumeServiceImpl implements ResumeService {
         for (SkillRequest dto : incoming) {
             validateForSave(dto, CreateGroup.class);
             if (dto.getId() == null) {
-                skillService.create(dto);
+                skillService.create(actor, dto);
             } else {
                 Skill current = owned.get(dto.getId());
                 if (current == null) {
@@ -210,10 +211,11 @@ public class ResumeServiceImpl implements ResumeService {
     /**
      * 同步教育经历。已加载记录直接更新；编号不在其中时再按编号确认归属。
      *
-     * @param userId 用户编号
+     * @param actor 已认证操作者，包含用户编号
      * @param incoming 教育经历请求
      */
-    private void syncEducations(Long userId, List<EducationRequest> incoming) {
+    private void syncEducations(CurrentActor actor, List<EducationRequest> incoming) {
+        Long userId = actor.userId();
         List<Education> existing = educationMapper.selectByUserId(userId);
         Map<Long, Education> owned = indexById(existing, Education::getId);
         Set<Long> incomingIds = incomingIds(incoming, EducationRequest::getId);
@@ -225,7 +227,7 @@ public class ResumeServiceImpl implements ResumeService {
         for (EducationRequest dto : incoming) {
             validateForSave(dto, CreateGroup.class);
             if (dto.getId() == null) {
-                educationService.create(dto);
+                educationService.create(actor, dto);
             } else {
                 Education current = owned.get(dto.getId());
                 if (current == null) {
@@ -237,7 +239,8 @@ public class ResumeServiceImpl implements ResumeService {
         }
     }
 
-    private void syncCareers(Long userId, List<CareerRequest> incoming) {
+    private void syncCareers(CurrentActor actor, List<CareerRequest> incoming) {
+        Long userId = actor.userId();
         List<Career> existing = careerMapper.selectByUserId(userId);
         Map<Long, Career> owned = indexById(existing, Career::getId);
         Set<Long> incomingIds = incomingIds(incoming, CareerRequest::getId);
@@ -249,7 +252,7 @@ public class ResumeServiceImpl implements ResumeService {
         for (CareerRequest dto : incoming) {
             validateForSave(dto, CreateGroup.class);
             if (dto.getId() == null) {
-                careerService.create(dto);
+                careerService.create(actor, dto);
             } else {
                 Career current = owned.get(dto.getId());
                 if (current == null) {
@@ -261,7 +264,8 @@ public class ResumeServiceImpl implements ResumeService {
         }
     }
 
-    private void syncProjects(Long userId, List<ProjectExperienceRequest> incoming) {
+    private void syncProjects(CurrentActor actor, List<ProjectExperienceRequest> incoming) {
+        Long userId = actor.userId();
         List<ProjectExperience> existing = projectExperienceMapper.selectByUserId(userId);
         Map<Long, ProjectExperience> owned = indexById(existing, ProjectExperience::getId);
         Set<Long> incomingIds = incomingIds(incoming, ProjectExperienceRequest::getId);
@@ -273,7 +277,7 @@ public class ResumeServiceImpl implements ResumeService {
         for (ProjectExperienceRequest dto : incoming) {
             validateForSave(dto, CreateGroup.class);
             if (dto.getId() == null) {
-                projectExperienceService.create(dto);
+                projectExperienceService.create(actor, dto);
             } else {
                 ProjectExperience current = owned.get(dto.getId());
                 if (current == null) {
@@ -285,7 +289,8 @@ public class ResumeServiceImpl implements ResumeService {
         }
     }
 
-    private void syncAwards(Long userId, List<AwardRequest> incoming) {
+    private void syncAwards(CurrentActor actor, List<AwardRequest> incoming) {
+        Long userId = actor.userId();
         List<Award> existing = awardMapper.selectByUserId(userId);
         Map<Long, Award> owned = indexById(existing, Award::getId);
         Set<Long> incomingIds = incomingIds(incoming, AwardRequest::getId);
@@ -297,7 +302,7 @@ public class ResumeServiceImpl implements ResumeService {
         for (AwardRequest dto : incoming) {
             validateForSave(dto, CreateGroup.class);
             if (dto.getId() == null) {
-                awardService.create(dto);
+                awardService.create(actor, dto);
             } else {
                 Award current = owned.get(dto.getId());
                 if (current == null) {
@@ -351,21 +356,22 @@ public class ResumeServiceImpl implements ResumeService {
 
     /**
      * 解析导入的简历
-     * 
+     *
+     * @param actor 已认证操作者，包含用户编号
      * @param request 导入请求
      * @return 解析后的简历
      */
     @Override
-    public ResumeImportParseResponse parseImport(ResumeImportParseRequest request) {
+    public ResumeImportParseResponse parseImport(CurrentActor actor, ResumeImportParseRequest request) {
+        java.util.Objects.requireNonNull(actor, "actor 不能为空");
         log.info("开始识别简历结构化字段");
-        Long userId = UserHolder.requireUserId();
 
-        String sourceText = PdfParserUtil.normalizeExtractedText(resolveImportSourceText(request));
+        String sourceText = PdfParserUtil.normalizeExtractedText(resolveImportSourceText(actor, request));
 
         ResumeImportParseResponse parsed;
         try {
             parsed = modelGateway.generateStructured(
-                    CurrentActor.of(userId),
+                    actor,
                     new ModelRequest(sourceText, IMPORT_PROMPT, null), ResumeImportParseResponse.class);
         } catch (BusinessException e) {
             throw e;
@@ -383,15 +389,16 @@ public class ResumeServiceImpl implements ResumeService {
 
     /**
      * 解析导入的简历文本
-     * 
+     *
+     * @param actor 已认证操作者，包含用户编号
      * @param request 导入请求
      * @return 解析后的文本
      */
-    private String resolveImportSourceText(ResumeImportParseRequest request) {
+    private String resolveImportSourceText(CurrentActor actor, ResumeImportParseRequest request) {
         if (StringUtils.hasText(request.getPdfUrl())) {
             log.info("简历识别：从 PDF 解析文本");
             try {
-                String text = pdfParserUtil.extractTextFromUrl(request.getPdfUrl().trim());
+                String text = pdfParserUtil.extractTextFromUrl(actor, request.getPdfUrl().trim());
                 if (!StringUtils.hasText(text)) {
                     throw new BusinessException(ErrorCode.RESUME_IMPORT_TEXT_EMPTY);
                 }

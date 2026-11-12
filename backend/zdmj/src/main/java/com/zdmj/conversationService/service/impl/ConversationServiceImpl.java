@@ -1,8 +1,8 @@
 package com.zdmj.conversationService.service.impl;
 
+import com.zdmj.common.context.CurrentActor;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.conversationService.dto.ConversationRequest;
@@ -41,8 +41,8 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
     private final ResumeService resumeService;
 
     @Override
-    public ConversationResponse create(ConversationRequest request) {
-        Long userId = UserHolder.requireUserId();
+    public ConversationResponse create(CurrentActor actor, ConversationRequest request) {
+        Long userId = actor.userId();
 
         Conversation conversation = new Conversation();
         conversation.setConfig(ConversationContextSupport.freezeConfig(request == null ? null : request.getConfig()));
@@ -54,7 +54,7 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
                 .anyMatch(item -> item != null
                         && ConversationContextSupport.CONTEXT_TYPE_RESUME.equals(String.valueOf(item.get("type"))));
         if (!hasResume) {
-            ConversationContextSupport.buildResumeContextEntry(resumeService.getMyResumeContent())
+            ConversationContextSupport.buildResumeContextEntry(resumeService.getMyResumeContent(actor))
                     .ifPresent(contextList::add);
         }
         conversation.setContext(contextList.isEmpty() ? null : contextList);
@@ -69,38 +69,38 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
     }
 
     @Override
-    public ConversationResponse getById(Long id) {
-        return convertToResponse(requireOwned(id));
+    public ConversationResponse getById(CurrentActor actor, Long id) {
+        return convertToResponse(requireOwned(actor, id));
     }
 
     @Override
-    public Conversation requireOwned(Long id) {
+    public Conversation requireOwned(CurrentActor actor, Long id) {
         if (id == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "会话ID不能为空");
         }
         Conversation conversation = conversationMapper.selectById(id);
         if (conversation == null) {
             throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
-        } else if (!conversation.getUserId().equals(UserHolder.requireUserId())) {
+        } else if (!conversation.getUserId().equals(actor.userId())) {
             throw new BusinessException(ErrorCode.NO_PERMISSION);
         }
         return conversation;
     }
 
     @Override
-    public List<ConversationResponse> getByUserId() {
-        Long userId = UserHolder.requireUserId();
+    public List<ConversationResponse> getByUserId(CurrentActor actor) {
+        Long userId = actor.userId();
         List<Conversation> conversations = conversationMapper.selectByUserId(userId);
         return conversations.stream().map(this::convertToResponse).toList();
     }
 
     @Override
-    public ConversationResponse updateTitle(Long id, String title) {
+    public ConversationResponse updateTitle(CurrentActor actor, Long id, String title) {
         if (title == null || title.trim().isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "会话标题不能为空");
         }
-        Long userId = UserHolder.requireUserId();
-        Conversation conversation = requireOwned(id);
+        Long userId = actor.userId();
+        Conversation conversation = requireOwned(actor, id);
         if (!conversation.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.NO_PERMISSION);
         }
@@ -114,12 +114,12 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
     }
 
     @Override
-    public ConversationResponse updateConfig(Long id, Map<String, Object> config) {
+    public ConversationResponse updateConfig(CurrentActor actor, Long id, Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "会话配置不能为空");
         }
-        Long userId = UserHolder.requireUserId();
-        Conversation conversation = requireOwned(id);
+        Long userId = actor.userId();
+        Conversation conversation = requireOwned(actor, id);
         if (conversation.getMessageCount() != null && conversation.getMessageCount() > 0) {
             throw new BusinessException(ErrorCode.CONVERSATION_CONFIG_LOCKED);
         }
@@ -152,9 +152,9 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void delete(Long id) {
-        Long userId = UserHolder.requireUserId();
-        Conversation conversation = requireOwned(id);
+    public void delete(CurrentActor actor, Long id) {
+        Long userId = actor.userId();
+        Conversation conversation = requireOwned(actor, id);
         if (!conversation.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.NO_PERMISSION);
         }

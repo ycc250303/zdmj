@@ -32,7 +32,7 @@ class EmbeddingGatewayImplTest {
         BusinessException missingActor = assertThrows(BusinessException.class,
                 () -> gateway.embed(null, List.of("hello")));
         BusinessException missingUserId = assertThrows(BusinessException.class,
-                () -> gateway.embed(CurrentActor.of(null), List.of("hello")));
+                () -> gateway.embed(null, List.of("hello")));
 
         assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), missingActor.getCode());
         assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), missingUserId.getCode());
@@ -43,9 +43,9 @@ class EmbeddingGatewayImplTest {
     void embed_whenTextsBlank_shouldThrowBeforeCallingModel() {
         EmbeddingGatewayImpl gateway = gateway();
 
-        assertThrows(IllegalArgumentException.class, () -> gateway.embed(CurrentActor.of(1L), null));
-        assertThrows(IllegalArgumentException.class, () -> gateway.embed(CurrentActor.of(1L), List.of()));
-        assertThrows(IllegalArgumentException.class, () -> gateway.embed(CurrentActor.of(1L), List.of(" ")));
+        assertThrows(IllegalArgumentException.class, () -> gateway.embed(new CurrentActor(1L), null));
+        assertThrows(IllegalArgumentException.class, () -> gateway.embed(new CurrentActor(1L), List.of()));
+        assertThrows(IllegalArgumentException.class, () -> gateway.embed(new CurrentActor(1L), List.of(" ")));
         verify(embeddingModel, never()).embed(anyList());
     }
 
@@ -54,7 +54,7 @@ class EmbeddingGatewayImplTest {
         when(embeddingModel.embed(anyList())).thenReturn(List.of(new float[] {0.1f}));
         EmbeddingGatewayImpl gateway = gateway();
 
-        List<float[]> vectors = gateway.embed(CurrentActor.of(1L), List.of("hello"));
+        List<float[]> vectors = gateway.embed(new CurrentActor(1L), List.of("hello"));
 
         assertEquals(1, vectors.size());
         assertEquals(0.1f, vectors.get(0)[0]);
@@ -67,7 +67,7 @@ class EmbeddingGatewayImplTest {
         EmbeddingGatewayImpl gateway = gateway();
 
         IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> gateway.embed(CurrentActor.of(1L), List.of("hello")));
+                () -> gateway.embed(new CurrentActor(1L), List.of("hello")));
 
         assertEquals("嵌入结果数量与文本数量不一致", ex.getMessage());
     }

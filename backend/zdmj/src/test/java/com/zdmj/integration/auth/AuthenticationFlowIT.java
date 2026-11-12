@@ -29,13 +29,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import com.jayway.jsonpath.JsonPath;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.testsupport.IntegrationTestBase;
 import com.zdmj.testsupport.TestJwt;
 import com.zdmj.testsupport.TestMailSender;
@@ -54,16 +54,18 @@ class AuthenticationFlowIT extends IntegrationTestBase {
     private final TestJwt testJwt;
     private final StringRedisTemplate redisTemplate;
     private final TestMailSender mailSender;
+    private final JdbcTemplate jdbcTemplate;
 
     @Autowired
     AuthenticationFlowIT(com.zdmj.testsupport.DatabaseCleaner databaseCleaner, MockMvc mockMvc,
-            TestUsers testUsers, TestJwt testJwt, StringRedisTemplate redisTemplate, TestMailSender mailSender) {
+            TestUsers testUsers, TestJwt testJwt, StringRedisTemplate redisTemplate, TestMailSender mailSender, JdbcTemplate jdbcTemplate) {
         super(databaseCleaner);
         this.mockMvc = mockMvc;
         this.testUsers = testUsers;
         this.testJwt = testJwt;
         this.redisTemplate = redisTemplate;
         this.mailSender = mailSender;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @ParameterizedTest
@@ -145,6 +147,27 @@ class AuthenticationFlowIT extends IntegrationTestBase {
         updateName(tokenA, pair.userA(), "用户A-已认证");
         assertContextCleared();
         updateName(tokenB, pair.userB(), "用户B-已认证");
+        assertContextCleared();
+    }
+
+    @Test
+    void 客户端传入身份字段_仍使用认证主体且其他用户资料不变() throws Exception {
+        TestUsers.Pair pair = testUsers.createPair();
+        String token = testJwt.authorize(pair.userA());
+
+        mockMvc.perform(put(ME)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .param("userId", pair.userB().getId().toString())
+                        .param("actor.userId", pair.userB().getId().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"认证用户本人\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(pair.userA().getId()));
+
+        assertEquals("认证用户本人", jdbcTemplate.queryForObject(
+                "SELECT name FROM users WHERE id = ?", String.class, pair.userA().getId()));
+        assertEquals(pair.userB().getName(), jdbcTemplate.queryForObject(
+                "SELECT name FROM users WHERE id = ?", String.class, pair.userB().getId()));
         assertContextCleared();
     }
 
@@ -238,8 +261,8 @@ class AuthenticationFlowIT extends IntegrationTestBase {
     }
 
     private static void assertContextCleared() {
-        if (UserHolder.get() != null || SecurityContextHolder.getContext().getAuthentication() != null) {
-            throw new AssertionError("请求结束后用户上下文或安全上下文仍有残留");
+        if (SecurityContextHolder.getContext().getAuthentication() != null) {
+            throw new AssertionError("请求结束后安全上下文仍有残留");
         }
     }
 }

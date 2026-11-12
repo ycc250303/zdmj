@@ -1,7 +1,6 @@
 package com.zdmj.resumeService.service.impl;
 
-import com.zdmj.common.context.UserContext;
-import com.zdmj.common.context.UserHolder;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.resumeService.dto.SkillRequest;
@@ -10,7 +9,6 @@ import com.zdmj.resumeService.entity.Skill;
 import com.zdmj.resumeService.mapper.SkillMapper;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,6 +32,8 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class SkillServiceImplTest {
 
+    private final CurrentActor actor = new CurrentActor(1L);
+
     @Mock
     private SkillMapper skillMapper;
 
@@ -44,12 +44,6 @@ class SkillServiceImplTest {
         Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
         service = spy(new SkillServiceImpl(validator));
         ReflectionTestUtils.setField(Objects.requireNonNull(service), "baseMapper", skillMapper);
-        UserHolder.set(UserContext.of(1L, "u1"));
-    }
-
-    @AfterEach
-    void tearDown() {
-        UserHolder.clear();
     }
 
     @Test
@@ -59,7 +53,7 @@ class SkillServiceImplTest {
         dto.setDescription("  ");
         doReturn(true).when(service).save(any(Skill.class));
 
-        SkillResponse out = service.create(dto);
+        SkillResponse out = service.create(actor, dto);
 
         assertEquals("Java", out.getName());
         assertNull(out.getDescription());
@@ -71,22 +65,11 @@ class SkillServiceImplTest {
     }
 
     @Test
-    void create_userNotLogin_shouldThrowAndSkipSave() {
-        UserHolder.clear();
-        SkillRequest dto = validRequest();
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
-
-        assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
-        verify(service, never()).save(any(Skill.class));
-    }
-
-    @Test
     void create_blankName_shouldThrowAndSkipSave() {
         SkillRequest dto = new SkillRequest();
         dto.setName(" ");
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(actor, dto));
 
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
         assertTrue(ex.getMessage().contains("技能名称不能为空"));
@@ -99,7 +82,7 @@ class SkillServiceImplTest {
         dto.setName("Java");
         dto.setDescription("说".repeat(501));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(actor, dto));
 
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
         assertTrue(ex.getMessage().contains("技能说明长度不能超过500个字符"));
@@ -110,7 +93,7 @@ class SkillServiceImplTest {
     void create_saveFailed_shouldThrowAddFailed() {
         doReturn(false).when(service).save(any(Skill.class));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(validRequest()));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(actor, validRequest()));
 
         assertEquals(ErrorCode.SKILL_ADD_FAILED.getCode(), ex.getCode());
     }
@@ -124,7 +107,7 @@ class SkillServiceImplTest {
         existing.setUserId(2L);
         doReturn(existing).when(skillMapper).selectById(10L);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(actor, dto));
 
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         verify(service, never()).updateById(any(Skill.class));
@@ -144,7 +127,7 @@ class SkillServiceImplTest {
         doReturn(existing).when(skillMapper).selectById(10L);
         doReturn(true).when(service).updateById(any(Skill.class));
 
-        SkillResponse out = service.update(dto);
+        SkillResponse out = service.update(actor, dto);
 
         assertEquals("Spring", out.getName());
         assertNull(out.getDescription());
@@ -161,7 +144,7 @@ class SkillServiceImplTest {
         doReturn(existing).when(skillMapper).selectById(10L);
         doReturn(false).when(service).updateById(any(Skill.class));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(dto));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.update(actor, dto));
 
         assertEquals(ErrorCode.SKILL_UPDATE_FAILED.getCode(), ex.getCode());
     }
@@ -174,7 +157,7 @@ class SkillServiceImplTest {
         doReturn(existing).when(skillMapper).selectById(11L);
         doReturn(false).when(service).removeById(11L);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.delete(11L));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.delete(actor, 11L));
 
         assertEquals(ErrorCode.SKILL_DELETE_FAILED.getCode(), ex.getCode());
         verify(service).removeById(11L);
@@ -187,7 +170,7 @@ class SkillServiceImplTest {
         existing.setUserId(2L);
         doReturn(existing).when(skillMapper).selectById(11L);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.delete(11L));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.delete(actor, 11L));
 
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         verify(service, never()).removeById(11L);

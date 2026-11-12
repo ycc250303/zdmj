@@ -1,7 +1,7 @@
 package com.zdmj.resumeService.service.impl;
 
+import com.zdmj.common.context.CurrentActor;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.zdmj.common.context.UserHolder;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.resumeService.dto.ProjectExperienceRequest;
@@ -26,8 +26,8 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
     private final ProjectExperienceStructMapper projectExperiencePatchMapper;
 
     @Override
-    public ProjectExperienceResponse create(ProjectExperienceRequest projectExperienceRequest) {
-        Long userId = UserHolder.requireUserId();
+    public ProjectExperienceResponse create(CurrentActor actor, ProjectExperienceRequest projectExperienceRequest) {
+        Long userId = actor.userId();
         DateRangeUtil.rejectIfEndBeforeStart(
                 projectExperienceRequest.getStartDate(),
                 projectExperienceRequest.getEndDate(),
@@ -55,8 +55,8 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
     }
 
     @Override
-    public ProjectExperienceResponse update(ProjectExperienceRequest projectExperienceRequest) {
-        Long userId = UserHolder.requireUserId();
+    public ProjectExperienceResponse update(CurrentActor actor, ProjectExperienceRequest projectExperienceRequest) {
+        Long userId = actor.userId();
         ProjectExperience projectExperience = requireProjectExperienceAndCheckOwnership(
                 projectExperienceRequest.getId(), userId, "修改");
         return updateOwned(projectExperience, projectExperienceRequest);
@@ -77,8 +77,8 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
     }
 
     @Override
-    public void delete(Long id) {
-        Long userId = UserHolder.requireUserId();
+    public void delete(CurrentActor actor, Long id) {
+        Long userId = actor.userId();
         requireProjectExperienceAndCheckOwnership(id, userId, "删除");
         deleteOwned(id);
     }

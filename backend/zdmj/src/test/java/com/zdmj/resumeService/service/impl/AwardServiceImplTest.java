@@ -1,13 +1,11 @@
 package com.zdmj.resumeService.service.impl;
 
-import com.zdmj.common.context.UserContext;
-import com.zdmj.common.context.UserHolder;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.resumeService.dto.AwardRequest;
 import com.zdmj.resumeService.dto.AwardResponse;
 import com.zdmj.resumeService.entity.Award;
 import com.zdmj.resumeService.mapper.AwardMapper;
 import com.zdmj.resumeService.mapper.AwardStructMapper;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,6 +25,8 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class AwardServiceImplTest {
 
+    private final CurrentActor actor = new CurrentActor(1L);
+
     @Mock
     private AwardMapper awardMapper;
     @Mock
@@ -38,12 +38,6 @@ class AwardServiceImplTest {
     void setUp() {
         service = spy(new AwardServiceImpl(awardStructMapper));
         ReflectionTestUtils.setField(Objects.requireNonNull(service), "baseMapper", awardMapper);
-        UserHolder.set(UserContext.of(1L, "u1"));
-    }
-
-    @AfterEach
-    void tearDown() {
-        UserHolder.clear();
     }
 
     @Test
@@ -53,7 +47,7 @@ class AwardServiceImplTest {
         dto.setAwardDate(LocalDate.of(2023, 11, 1));
         doReturn(true).when(service).save(any(Award.class));
 
-        AwardResponse out = service.create(dto);
+        AwardResponse out = service.create(actor, dto);
 
         assertEquals(1L, out.getUserId());
         assertEquals("数学建模省一等奖", out.getName());

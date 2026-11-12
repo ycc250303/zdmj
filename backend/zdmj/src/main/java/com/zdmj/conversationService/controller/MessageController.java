@@ -1,5 +1,7 @@
 package com.zdmj.conversationService.controller;
 
+import io.swagger.v3.oas.annotations.Parameter;
+import com.zdmj.common.context.CurrentActor;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -39,28 +41,30 @@ public class MessageController {
     /**
      * 分页查询会话消息列表（须为当前用户所属会话）
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param conversationId 会话ID（必填）
      * @param page           页码，默认 1
      * @param limit          每页条数，默认 20，最大 100
      */
     @GetMapping
-    public Result<PageDTO<MessageResponse>> getMessagesByConversationId(
+    public Result<PageDTO<MessageResponse>> getMessagesByConversationId(@Parameter(hidden = true) CurrentActor actor,
             @RequestParam Long conversationId,
             @RequestParam(required = false, defaultValue = "1") Integer page,
             @RequestParam(required = false, defaultValue = "20") Integer limit) {
         return Result.success("查询消息列表成功",
-                messageService.getMessagesByConversationId(conversationId, page, limit));
+                messageService.getMessagesByConversationId(actor, conversationId, page, limit));
     }
 
     /**
      * 创建流式消息
      *
+     * @param actor 已认证操作者，包含用户编号
      * @param request 流式对话请求
      * @return 流式消息
      */
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 30, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ServerSentEvent<String>> chatStream(@Valid @RequestBody ChatStreamRequest request) {
-        return messageService.createStream(request);
+    public Flux<ServerSentEvent<String>> chatStream(@Parameter(hidden = true) CurrentActor actor, @Valid @RequestBody ChatStreamRequest request) {
+        return messageService.createStream(actor, request);
     }
 }

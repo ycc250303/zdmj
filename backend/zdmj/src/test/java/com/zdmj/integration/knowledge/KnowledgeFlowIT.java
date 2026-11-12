@@ -1,6 +1,11 @@
 package com.zdmj.integration.knowledge;
 
+import com.zdmj.common.context.CurrentActor;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.exception.ErrorCode;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 
 import java.nio.charset.StandardCharsets;
@@ -61,8 +66,8 @@ class KnowledgeFlowIT extends IntegrationTestBase {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT user_id FROM knowledge_documents WHERE id = ?", Long.class, alphaId)).isEqualTo(user.getId());
 
-        knowledgeEmbeddingService.vectorizeAndStore(alphaId);
-        knowledgeEmbeddingService.vectorizeAndStore(betaId);
+        knowledgeEmbeddingService.vectorizeAndStore(new CurrentActor(user.getId()), alphaId);
+        knowledgeEmbeddingService.vectorizeAndStore(new CurrentActor(user.getId()), betaId);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM knowledge_vectors WHERE document_id = ? AND user_id = ?",
                 Integer.class, alphaId, user.getId())).isPositive();
@@ -80,6 +85,32 @@ class KnowledgeFlowIT extends IntegrationTestBase {
                 """));
         assertThat(JsonPath.<Integer>read(closed, "$.data.hits.length()")).isZero();
         assertThat(betaId).isNotEqualTo(alphaId);
+    }
+
+    @Test
+    void 跨用户向量化与删除_拒绝访问且保留原文档和向量() throws Exception {
+        TestUsers.Pair pair = testUsers.createPair();
+        String token = testJwt.authorize(pair.userA());
+        String url = upload(token, "private.md", "个人文档内容");
+        long documentId = createDocument(token, "个人文档", url);
+        var beforeDocument = jdbcTemplate.queryForMap("SELECT * FROM knowledge_documents WHERE id = ?", documentId);
+        var beforeVectors = jdbcTemplate.queryForList(
+                "SELECT * FROM knowledge_vectors WHERE document_id = ? ORDER BY id", documentId);
+        assertThat(beforeVectors).isNotEmpty();
+        CurrentActor otherActor = new CurrentActor(pair.userB().getId());
+
+        assertThatThrownBy(() -> knowledgeEmbeddingService.vectorizeAndStore(otherActor, documentId))
+                .isInstanceOf(BusinessException.class).extracting("code")
+                .isEqualTo(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND.getCode());
+        assertThatThrownBy(() -> knowledgeEmbeddingService.deleteVectors(otherActor, documentId))
+                .isInstanceOf(BusinessException.class).extracting("code")
+                .isEqualTo(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND.getCode());
+
+        assertThat(jdbcTemplate.queryForMap("SELECT * FROM knowledge_documents WHERE id = ?", documentId))
+                .isEqualTo(beforeDocument);
+        assertThat(jdbcTemplate.queryForList(
+                "SELECT * FROM knowledge_vectors WHERE document_id = ? ORDER BY id", documentId))
+                .isEqualTo(beforeVectors);
     }
 
     private String upload(String token, String fileName, String text) throws Exception {

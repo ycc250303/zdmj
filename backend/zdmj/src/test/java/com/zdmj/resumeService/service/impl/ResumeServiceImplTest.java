@@ -1,7 +1,6 @@
 package com.zdmj.resumeService.service.impl;
 
-import com.zdmj.common.context.UserContext;
-import com.zdmj.common.context.UserHolder;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
@@ -29,7 +28,6 @@ import com.zdmj.resumeService.service.EducationService;
 import com.zdmj.resumeService.service.ProjectExperienceService;
 import com.zdmj.resumeService.service.SkillService;
 import jakarta.validation.Validator;
-import org.junit.jupiter.api.AfterEach;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -55,6 +53,8 @@ import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class ResumeServiceImplTest {
+
+    private final CurrentActor actor = new CurrentActor(1L);
 
     @Mock
     private ResumeMapper resumeMapper;
@@ -97,19 +97,13 @@ class ResumeServiceImplTest {
                 skillService, validator, pdfParserUtil, Jackson2ObjectMapperBuilder.json().build());
     }
 
-    @AfterEach
-    void tearDown() {
-        UserHolder.clear();
-    }
-
     @Test
     void getResumeContentList_shouldReturnSingleItemWhenResumeExists() {
-        UserHolder.set(UserContext.of(1L, "u1"));
         ResumeContentRow row = emptyContent();
         row.setSkills("[{\"id\":9,\"name\":\"Java\"}]");
         doReturn(row).when(resumeMapper).selectContentByUserId(1L);
 
-        List<ResumeContentResponse> out = resumeService.getResumeContentList();
+        List<ResumeContentResponse> out = resumeService.getResumeContentList(actor);
 
         assertEquals(1, out.size());
         assertEquals(9L, out.get(0).getSkills().get(0).getId());
@@ -119,17 +113,15 @@ class ResumeServiceImplTest {
 
     @Test
     void getResumeContentList_noResume_shouldReturnEmpty() {
-        UserHolder.set(UserContext.of(1L, "u1"));
         doReturn(emptyContent()).when(resumeMapper).selectContentByUserId(1L);
 
-        List<ResumeContentResponse> out = resumeService.getResumeContentList();
+        List<ResumeContentResponse> out = resumeService.getResumeContentList(actor);
 
         assertEquals(0, out.size());
     }
 
     @Test
     void getMyResumeContent_shouldMapSingleQueryRow() {
-        UserHolder.set(UserContext.of(1L, "u1"));
         ResumeContentRow row = emptyContent();
         row.setSkills("[{\"id\":9,\"name\":\"Java\",\"description\":\"熟悉 Spring\"}]");
         row.setPersonalName("张三");
@@ -144,7 +136,7 @@ class ResumeServiceImplTest {
                 [{"id":3,"name":"测试奖项","awardDate":"2024-05-01"}]""");
         doReturn(row).when(resumeMapper).selectContentByUserId(1L);
 
-        ResumeContentResponse out = resumeService.getMyResumeContent();
+        ResumeContentResponse out = resumeService.getMyResumeContent(actor);
 
         assertEquals(9L, out.getSkills().get(0).getId());
         assertEquals("Java", out.getSkills().get(0).getName());
@@ -162,21 +154,10 @@ class ResumeServiceImplTest {
     }
 
     @Test
-    void getResumeContentList_userNotLogin_shouldThrow() {
-        UserHolder.clear();
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.getResumeContentList());
-
-        assertEquals(ErrorCode.USER_NOT_LOGIN.getCode(), ex.getCode());
-        verify(resumeMapper, never()).selectContentByUserId(any());
-    }
-
-    @Test
     void parseImport_missingInput_shouldThrowValidationError() {
-        UserHolder.set(UserContext.of(1L, "u1"));
         ResumeImportParseRequest request = new ResumeImportParseRequest();
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.parseImport(request));
+        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.parseImport(actor, request));
 
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
         verify(modelGateway, never()).generateStructured(any(), any(), any());
@@ -184,30 +165,27 @@ class ResumeServiceImplTest {
 
     @Test
     void parseImport_blankRawText_shouldThrowTextEmpty() {
-        UserHolder.set(UserContext.of(1L, "u1"));
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("   ");
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.parseImport(request));
+        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.parseImport(actor, request));
 
         assertEquals(ErrorCode.RESUME_IMPORT_TEXT_EMPTY.getCode(), ex.getCode());
     }
 
     @Test
     void parseImport_llmFailure_shouldThrowParseFailed() {
-        UserHolder.set(UserContext.of(1L, "u1"));
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("张三 某某大学 软件工程");
         doThrow(new RuntimeException("llm down")).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest), eq(ResumeImportParseResponse.class));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.parseImport(request));
+        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.parseImport(actor, request));
 
         assertEquals(ErrorCode.RESUME_IMPORT_PARSE_FAILED.getCode(), ex.getCode());
     }
 
     @Test
     void parseImport_success_shouldNormalizeAndUseDeepSeekFlash() {
-        UserHolder.set(UserContext.of(1L, "u1"));
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("resume body");
 
@@ -225,7 +203,7 @@ class ResumeServiceImplTest {
 
         doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest), eq(ResumeImportParseResponse.class));
 
-        ResumeImportParseResponse out = resumeService.parseImport(request);
+        ResumeImportParseResponse out = resumeService.parseImport(actor, request);
 
         assertEquals(1, out.getEducations().size());
         assertEquals("SCU", out.getEducations().get(0).getSchool());
@@ -237,7 +215,6 @@ class ResumeServiceImplTest {
 
     @Test
     void parseImport_yearOnlyDate_shouldNormalizeToNull() {
-        UserHolder.set(UserContext.of(1L, "u1"));
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("resume");
 
@@ -250,7 +227,7 @@ class ResumeServiceImplTest {
 
         doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest), eq(ResumeImportParseResponse.class));
 
-        ResumeImportParseResponse out = resumeService.parseImport(request);
+        ResumeImportParseResponse out = resumeService.parseImport(actor, request);
 
         assertEquals(null, out.getEducations().get(0).getStartDate());
         assertEquals(null, out.getEducations().get(0).getEndDate());
@@ -258,7 +235,6 @@ class ResumeServiceImplTest {
 
     @Test
     void parseImport_chineseYearMonth_shouldUseFirstDay() {
-        UserHolder.set(UserContext.of(1L, "u1"));
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("resume");
 
@@ -270,14 +246,13 @@ class ResumeServiceImplTest {
 
         doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest), eq(ResumeImportParseResponse.class));
 
-        ResumeImportParseResponse out = resumeService.parseImport(request);
+        ResumeImportParseResponse out = resumeService.parseImport(actor, request);
 
         assertEquals("2021-03-01", out.getCareers().get(0).getStartDate());
     }
 
     @Test
     void parseImport_awardYearOnlyInName_shouldNormalizeAward() {
-        UserHolder.set(UserContext.of(1L, "u1"));
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("2024年同济大学本科生奖学金");
 
@@ -288,7 +263,7 @@ class ResumeServiceImplTest {
 
         doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest), eq(ResumeImportParseResponse.class));
 
-        ResumeImportParseResponse out = resumeService.parseImport(request);
+        ResumeImportParseResponse out = resumeService.parseImport(actor, request);
 
         assertEquals(1, out.getAwards().size());
         assertEquals("2024年同济大学本科生奖学金", out.getAwards().get(0).getName());
@@ -298,7 +273,6 @@ class ResumeServiceImplTest {
 
     @Test
     void parseImport_shouldKeepAwardsFromSingleParseCall() {
-        UserHolder.set(UserContext.of(1L, "u1"));
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("""
                 GPA: 4.43/5.00，获同济大学本科优秀学生奖学金二等奖
@@ -319,7 +293,7 @@ class ResumeServiceImplTest {
 
         doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest), eq(ResumeImportParseResponse.class));
 
-        ResumeImportParseResponse out = resumeService.parseImport(request);
+        ResumeImportParseResponse out = resumeService.parseImport(actor, request);
 
         ArgumentCaptor<ModelRequest> parseMsg =
                 ArgumentCaptor.forClass(ModelRequest.class);
@@ -332,7 +306,6 @@ class ResumeServiceImplTest {
 
     @Test
     void parseImport_llmMissesScholarship_shouldNotRegexFillFromSource() {
-        UserHolder.set(UserContext.of(1L, "u1"));
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("""
                 获奖情况
@@ -348,7 +321,7 @@ class ResumeServiceImplTest {
 
         doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest), eq(ResumeImportParseResponse.class));
 
-        ResumeImportParseResponse out = resumeService.parseImport(request);
+        ResumeImportParseResponse out = resumeService.parseImport(actor, request);
 
         assertEquals(1, out.getAwards().size());
         assertTrue(out.getAwards().get(0).getName().contains("数学建模"));
@@ -357,13 +330,12 @@ class ResumeServiceImplTest {
 
     @Test
     void parseImport_emptyAwardsFromLlm_shouldKeepEmptyList() {
-        UserHolder.set(UserContext.of(1L, "u1"));
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("resume body");
 
         doReturn(new ResumeImportParseResponse()).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest), eq(ResumeImportParseResponse.class));
 
-        ResumeImportParseResponse out = resumeService.parseImport(request);
+        ResumeImportParseResponse out = resumeService.parseImport(actor, request);
 
         assertEquals(0, out.getAwards().size());
         verify(modelGateway, times(1)).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest), eq(ResumeImportParseResponse.class));
@@ -371,7 +343,6 @@ class ResumeServiceImplTest {
 
     @Test
     void parseImport_projectDescriptionMentioningAward_shouldNotInventAward() {
-        UserHolder.set(UserContext.of(1L, "u1"));
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         request.setRawText("resume");
 
@@ -385,7 +356,7 @@ class ResumeServiceImplTest {
 
         doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest), eq(ResumeImportParseResponse.class));
 
-        ResumeImportParseResponse out = resumeService.parseImport(request);
+        ResumeImportParseResponse out = resumeService.parseImport(actor, request);
 
         assertEquals(0, out.getAwards().size());
         assertEquals(1, out.getProjects().size());
@@ -393,7 +364,6 @@ class ResumeServiceImplTest {
 
     @Test
     void parseImport_shouldNotTruncateLongRawText() {
-        UserHolder.set(UserContext.of(1L, "u1"));
         ResumeImportParseRequest request = new ResumeImportParseRequest();
         String raw = "a".repeat(16000);
         request.setRawText(raw);
@@ -401,7 +371,7 @@ class ResumeServiceImplTest {
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
         doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest), eq(ResumeImportParseResponse.class));
 
-        ResumeImportParseResponse out = resumeService.parseImport(request);
+        ResumeImportParseResponse out = resumeService.parseImport(actor, request);
 
         ArgumentCaptor<ModelRequest> parseMsg =
                 ArgumentCaptor.forClass(ModelRequest.class);
@@ -413,7 +383,6 @@ class ResumeServiceImplTest {
 
     @Test
     void saveMyResumeContent_shouldSyncSkill() {
-        UserHolder.set(UserContext.of(1L, "u1"));
         doReturn(List.of()).when(educationMapper).selectByUserId(1L);
         doReturn(List.of()).when(careerMapper).selectByUserId(1L);
         doReturn(List.of()).when(projectExperienceMapper).selectByUserId(1L);
@@ -435,16 +404,15 @@ class ResumeServiceImplTest {
         request.setProjects(List.of());
         request.setAwards(List.of());
 
-        resumeService.saveMyResumeContent(request);
+        resumeService.saveMyResumeContent(actor, request);
 
         verify(skillService).updateOwned(eq(existingSkill), any());
         verify(skillMapper, never()).selectById(any());
-        verify(userService, never()).updateProfile(any(), any());
+        verify(userService, never()).updateProfile(eq(actor), any(), any());
     }
 
     @Test
     void saveMyResumeContent_duplicateSkillId_shouldUpdateEachSubmission() {
-        UserHolder.set(UserContext.of(1L, "u1"));
         doReturn(List.of()).when(educationMapper).selectByUserId(1L);
         doReturn(List.of()).when(careerMapper).selectByUserId(1L);
         doReturn(List.of()).when(projectExperienceMapper).selectByUserId(1L);
@@ -469,7 +437,7 @@ class ResumeServiceImplTest {
         request.setProjects(List.of());
         request.setAwards(List.of());
 
-        resumeService.saveMyResumeContent(request);
+        resumeService.saveMyResumeContent(actor, request);
 
         verify(skillService, times(2)).updateOwned(eq(existingSkill), any());
         verify(skillMapper, never()).selectById(any());
@@ -478,7 +446,6 @@ class ResumeServiceImplTest {
 
     @Test
     void saveMyResumeContent_emptySkills_shouldDeleteExisting() {
-        UserHolder.set(UserContext.of(1L, "u1"));
         doReturn(List.of()).when(educationMapper).selectByUserId(1L);
         doReturn(List.of()).when(careerMapper).selectByUserId(1L);
         doReturn(List.of()).when(projectExperienceMapper).selectByUserId(1L);
@@ -496,17 +463,16 @@ class ResumeServiceImplTest {
         request.setProjects(List.of());
         request.setAwards(List.of());
 
-        resumeService.saveMyResumeContent(request);
+        resumeService.saveMyResumeContent(actor, request);
 
         verify(skillService).deleteOwned(9L);
         verify(skillMapper, never()).selectById(any());
-        verify(skillService, never()).create(any());
+        verify(skillService, never()).create(eq(actor), any());
         verify(skillService, never()).updateOwned(any(), any());
     }
 
     @Test
     void saveMyResumeContent_shouldUpdatePersonalInfoThroughUserService() {
-        UserHolder.set(UserContext.of(1L, "u1"));
         doReturn(List.of()).when(educationMapper).selectByUserId(1L);
         doReturn(List.of()).when(careerMapper).selectByUserId(1L);
         doReturn(List.of()).when(projectExperienceMapper).selectByUserId(1L);
@@ -534,10 +500,10 @@ class ResumeServiceImplTest {
         request.setAwards(List.of());
         request.setPersonalInfo(personalInfo);
 
-        resumeService.saveMyResumeContent(request);
+        resumeService.saveMyResumeContent(actor, request);
 
         ArgumentCaptor<UserUpdateRequest> update = ArgumentCaptor.forClass(UserUpdateRequest.class);
-        verify(userService).updateProfile(eq(1L), update.capture());
+        verify(userService).updateProfile(eq(actor), eq(1L), update.capture());
         assertEquals("  张三  ", update.getValue().getName());
         assertEquals("", update.getValue().getPhone());
         assertEquals(" https://example.com ", update.getValue().getWebsite());
@@ -547,7 +513,6 @@ class ResumeServiceImplTest {
 
     @Test
     void saveMyResumeContent_foreignSkillId_shouldRejectWithoutWrite() {
-        UserHolder.set(UserContext.of(1L, "u1"));
         doReturn(List.of()).when(skillMapper).selectByUserId(1L);
         Skill foreign = new Skill();
         foreign.setId(9L);
@@ -565,7 +530,7 @@ class ResumeServiceImplTest {
         request.setProjects(List.of());
         request.setAwards(List.of());
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.saveMyResumeContent(request));
+        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.saveMyResumeContent(actor, request));
 
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         verify(skillService, never()).updateOwned(any(), any());
@@ -573,7 +538,6 @@ class ResumeServiceImplTest {
 
     @Test
     void saveMyResumeContent_missingSkillId_shouldRejectWithoutWrite() {
-        UserHolder.set(UserContext.of(1L, "u1"));
         doReturn(List.of()).when(skillMapper).selectByUserId(1L);
         doReturn(null).when(skillMapper).selectById(9L);
         doReturn(java.util.Set.of()).when(validator).validate(any(), any(Class[].class));
@@ -588,7 +552,7 @@ class ResumeServiceImplTest {
         request.setProjects(List.of());
         request.setAwards(List.of());
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.saveMyResumeContent(request));
+        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.saveMyResumeContent(actor, request));
 
         assertEquals(ErrorCode.SKILL_NOT_FOUND.getCode(), ex.getCode());
         verify(skillService, never()).updateOwned(any(), any());

@@ -1,6 +1,7 @@
 package com.zdmj.common.aspect;
 
 import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -20,6 +21,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -47,6 +49,39 @@ class RateLimitAspectTest {
     @RateLimit(dimension = RateLimit.Dimension.GLOBAL, count = 1)
     @RateLimit(dimension = RateLimit.Dimension.IP, count = 1)
     void multiRuleMethod() {
+    }
+
+    @RateLimit(dimension = RateLimit.Dimension.USER, count = 1)
+    void userRuleMethod(CurrentActor actor) {
+    }
+
+    @Test
+    void 用户限流_分别传入两名操作者_使用各自编号计数() throws Throwable {
+        when(methodSignature.getMethod()).thenReturn(
+                RateLimitAspectTest.class.getDeclaredMethod("userRuleMethod", CurrentActor.class));
+        when(redisTemplate.execute(any(RedisScript.class), any(List.class), any(), any())).thenReturn(1L);
+        when(joinPoint.getArgs()).thenReturn(new Object[] {new CurrentActor(8L)},
+                new Object[] {new CurrentActor(9L)});
+
+        aspect.around(joinPoint);
+        aspect.around(joinPoint);
+
+        for (long userId : new long[] {8L, 9L}) {
+            verify(redisTemplate).execute(any(RedisScript.class),
+                    eq(List.of("ratelimit:{RateLimitAspectTest:userRuleMethod}:user:" + userId)), any(), any());
+        }
+        verify(joinPoint, times(2)).proceed();
+    }
+
+    @Test
+    void 用户限流_实参缺少身份_立即终止且不访问Redis() throws Exception {
+        when(methodSignature.getMethod()).thenReturn(
+                RateLimitAspectTest.class.getDeclaredMethod("userRuleMethod", CurrentActor.class));
+        when(joinPoint.getArgs()).thenReturn(new Object[] {null});
+
+        assertThrows(IllegalStateException.class, () -> aspect.around(joinPoint));
+
+        verify(redisTemplate, never()).execute(any(RedisScript.class), any(List.class), any(), any());
     }
 
     @BeforeEach
