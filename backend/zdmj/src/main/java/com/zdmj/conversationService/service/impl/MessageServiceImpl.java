@@ -31,7 +31,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -130,14 +129,13 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
             PreparedMessages prepared) {
         List<Long> ragDocumentIds = ConversationContextSupport.resolveRagDocumentIds(conversation);
         boolean useSystemKnowledge = ConversationContextSupport.resolveUseSystemKnowledge(conversation);
-        Map<String, Object> promptVars = ConversationContextSupport.buildChatPromptVars(conversation);
         Flux<String> chatFlux = knowledgeRagService.streamAnswer(
                 actor,
                 request.getConversationId(),
                 request.getMessage(),
                 ragDocumentIds,
                 useSystemKnowledge,
-                promptVars);
+                null);
         Disposable upstream = chatFlux.doOnNext(chunk -> {
             if (chunk == null || chunk.isEmpty()) {
                 return;

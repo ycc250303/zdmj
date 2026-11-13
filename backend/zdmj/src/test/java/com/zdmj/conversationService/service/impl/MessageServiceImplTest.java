@@ -160,7 +160,7 @@ class MessageServiceImplTest {
             assertFalse(Thread.currentThread() == caller);
             return Flux.just("he", "llo");
         }).subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic())).when(knowledgeRagService)
-                .streamAnswer(same(actor), eq(302L), eq(message), isNull(), eq(false), any());
+                .streamAnswer(same(actor), eq(302L), eq(message), isNull(), eq(false), isNull());
         AtomicInteger insertTimes = new AtomicInteger(0);
         org.mockito.Mockito.doAnswer(invocation -> {
             Message m = invocation.getArgument(0);
@@ -231,7 +231,7 @@ class MessageServiceImplTest {
         }).when(messageMapper).insert(any(Message.class));
         doReturn(1).when(messageMapper).updateById(any(Message.class));
         doReturn(Flux.concat(Flux.just("x"), Flux.error(new RuntimeException("boom"))))
-                .when(knowledgeRagService).streamAnswer(eq(new CurrentActor(1L)), eq(304L), eq("ask"), isNull(), eq(false), any());
+                .when(knowledgeRagService).streamAnswer(eq(new CurrentActor(1L)), eq(304L), eq("ask"), isNull(), eq(false), isNull());
 
         assertThrows(RuntimeException.class, () -> messageService.createStream(actor, dto).collectList().block());
         ArgumentCaptor<Message> assistantCaptor = ArgumentCaptor.forClass(Message.class);
@@ -256,7 +256,7 @@ class MessageServiceImplTest {
             return 1;
         }).when(messageMapper).insert(any(Message.class));
         doReturn(Flux.just("ok")).when(knowledgeRagService)
-                .streamAnswer(eq(new CurrentActor(1L)), eq(305L), eq("go"), isNull(), eq(false), any());
+                .streamAnswer(eq(new CurrentActor(1L)), eq(305L), eq("go"), isNull(), eq(false), isNull());
         doReturn(0).when(messageMapper).updateById(any(Message.class));
 
         assertThrows(RuntimeException.class, () -> messageService.createStream(actor, dto).collectList().block());
@@ -272,7 +272,7 @@ class MessageServiceImplTest {
         doReturn(conversation).when(conversationService).requireOwned(actor, conversationId);
 
         doReturn(Flux.just("ok")).when(knowledgeRagService)
-                .streamAnswer(eq(new CurrentActor(1L)), eq(conversationId), anyString(), isNull(), eq(false), any());
+                .streamAnswer(eq(new CurrentActor(1L)), eq(conversationId), anyString(), isNull(), eq(false), isNull());
 
         AtomicInteger counter = new AtomicInteger(0);
         doReturn(1).when(conversationMapper).updateTitleByIdAndUserId(eq(conversationId), anyLong(), anyString());
@@ -344,11 +344,11 @@ class MessageServiceImplTest {
             return 1;
         }).when(messageMapper).insert(any(Message.class));
         doReturn(1).when(messageMapper).updateById(any(Message.class));
-        doReturn(Flux.just("ok")).when(knowledgeRagService).streamAnswer(eq(new CurrentActor(1L)), eq(306L), eq("ask"), eq(List.of(9L)), eq(true), any());
+        doReturn(Flux.just("ok")).when(knowledgeRagService).streamAnswer(eq(new CurrentActor(1L)), eq(306L), eq("ask"), eq(List.of(9L)), eq(true), isNull());
 
         messageService.createStream(actor, dto).collectList().block();
 
-        verify(knowledgeRagService).streamAnswer(eq(new CurrentActor(1L)), eq(306L), eq("ask"), eq(List.of(9L)), eq(true), any());
+        verify(knowledgeRagService).streamAnswer(eq(new CurrentActor(1L)), eq(306L), eq("ask"), eq(List.of(9L)), eq(true), isNull());
     }
 
     @Test
@@ -371,7 +371,7 @@ class MessageServiceImplTest {
         java.util.concurrent.atomic.AtomicBoolean upstreamCancelled = new java.util.concurrent.atomic.AtomicBoolean(false);
         doReturn(Flux.concat(Flux.just("部分"), Flux.never()).doOnCancel(() -> upstreamCancelled.set(true)))
                 .when(knowledgeRagService)
-                .streamAnswer(eq(new CurrentActor(1L)), eq(307L), eq("wait"), isNull(), eq(false), any());
+                .streamAnswer(eq(new CurrentActor(1L)), eq(307L), eq("wait"), isNull(), eq(false), isNull());
 
         Disposable subscription = messageService.createStream(actor, dto).subscribe();
         subscription.dispose();

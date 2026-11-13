@@ -9,9 +9,6 @@ import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.support.ConversationContextSupport;
-import com.zdmj.resumeService.dto.ResumeContentResponse;
-import com.zdmj.resumeService.dto.ResumePersonalInfoDTO;
-import com.zdmj.resumeService.service.ResumeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,16 +24,15 @@ import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ConversationServiceImplTest {
@@ -49,15 +45,12 @@ class ConversationServiceImplTest {
     private MessageMapper messageMapper;
     @Mock
     private ChatMemory chatMemory;
-    @Mock
-    private ResumeService resumeService;
 
     private ConversationServiceImpl conversationService;
 
     @BeforeEach
     void setUp() {
-        conversationService = spy(new ConversationServiceImpl(conversationMapper, messageMapper, chatMemory, resumeService));
-        lenient().when(resumeService.getMyResumeContent(actor)).thenReturn(new ResumeContentResponse());
+        conversationService = spy(new ConversationServiceImpl(conversationMapper, messageMapper, chatMemory));
     }
 
     @Test
@@ -71,27 +64,22 @@ class ConversationServiceImplTest {
 
         assertEquals(1L, actual.getUserId());
         assertEquals(0, actual.getMessageCount());
+        assertNull(actual.getContext());
         assertFalse(actual.getConfig().containsKey("model"));
         assertFalse(Boolean.TRUE.equals(actual.getConfig().get(ConversationContextSupport.CONFIG_USE_SYSTEM_KNOWLEDGE)));
         verify(conversationService).save(any(Conversation.class));
     }
 
     @Test
-    void createConversation_shouldInjectResumeContext() {
-        ResumeContentResponse resume = new ResumeContentResponse();
-        ResumePersonalInfoDTO personal = new ResumePersonalInfoDTO();
-        personal.setName("测试用户");
-        resume.setPersonalInfo(personal);
-        when(resumeService.getMyResumeContent(actor)).thenReturn(resume);
+    void createConversation_shouldKeepClientContext() {
+        ConversationRequest dto = new ConversationRequest();
+        Map<String, Object> entry = Map.of("type", "note", "content", "仅客户端上下文");
+        dto.setContext(List.of(entry));
         doReturn(true).when(conversationService).save(any(Conversation.class));
 
-        ConversationResponse out = conversationService.create(actor, new ConversationRequest());
-        ConversationResponse actual = Objects.requireNonNull(out);
+        ConversationResponse out = conversationService.create(actor, dto);
 
-        assertTrue(actual.getContext().stream()
-                .anyMatch(item -> ConversationContextSupport.CONTEXT_TYPE_RESUME.equals(item.get("type"))));
-        assertTrue(String.valueOf(actual.getContext().get(0).get("content")).contains("测试用户"));
-        verify(resumeService).getMyResumeContent(actor);
+        assertEquals(List.of(entry), out.getContext());
     }
 
     @Test
@@ -114,6 +102,7 @@ class ConversationServiceImplTest {
 
         assertEquals(1L, actual.getUserId());
         assertEquals(0, actual.getMessageCount());
+        assertNull(actual.getContext());
         verify(conversationService).save(any(Conversation.class));
     }
 
