@@ -1,5 +1,8 @@
 package com.zdmj.knowledgeService.service.impl;
 
+import com.zdmj.common.storage.FileUploadService;
+import java.io.InputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
@@ -45,6 +48,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeVectorMapper knowledgeVectorMapper;
     private final PdfParserUtil pdfParserUtil;
+    private final FileUploadService fileUploadService;
     private final TransactionTemplate transactionTemplate;
 
     /**
@@ -224,7 +228,11 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
 
     private String extractText(CurrentActor actor, KnowledgeDocument kd) {
         if (kd.getType() != null && kd.getType().equals(KnowledgeTypeEnum.PROJECT_DOCUMENT.getCode())) {
-            return pdfParserUtil.extractTextFromUrl(actor, kd.getContent());
+            try (InputStream input = fileUploadService.openInputStreamFromUrl(actor, kd.getContent())) {
+                return pdfParserUtil.extractText(input);
+            } catch (IOException exception) {
+                throw new BusinessException(ErrorCode.OBJECT_STORAGE_UNAVAILABLE, exception);
+            }
         }
         throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "当前知识类型暂不支持向量化");
     }

@@ -3,7 +3,6 @@ package com.zdmj.common.storage;
 import com.zdmj.common.context.CurrentActor;
 import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,7 +20,6 @@ import java.util.List;
  * 通用文件上传控制器
  * 提供统一的文件上传接口，支持所有模块使用
  */
-@Slf4j
 @RestController
 @RequestMapping("/files")
 @RequiredArgsConstructor
@@ -35,14 +33,14 @@ public class FileUploadController {
      *
      * @param actor 已认证操作者，包含用户编号
      * @param file   上传文件
-     * @param prefix 业务区域前缀，如 knowledge、resume
+     * @param prefix 文件分类：files、resume、profile、knowledge；缺省为 files
      * @return 上传结果（key、url、fileName、fileSize、contentType）
      */
     @PostMapping("/upload")
     public Result<FileUploadResponse> uploadFile(@Parameter(hidden = true) CurrentActor actor,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "prefix", required = false) String prefix) {
-        FileUploadResponse response = fileUploadService.uploadFile(actor, file, prefix);
+        FileUploadResponse response = fileUploadService.uploadFile(actor, file, FileCategory.parse(prefix));
         return Result.success("文件上传成功", response);
     }
 
@@ -64,13 +62,13 @@ public class FileUploadController {
      * 例：GET /files/list?prefix=knowledge
      *
      * @param actor 已认证操作者，包含用户编号
-     * @param prefix 业务区域
+     * @param prefix 文件分类；缺省查询全部分类
      * @return 文件列表（key、url、fileName、bizArea）
      */
     @GetMapping("/list")
     public Result<List<FileUploadListItemResponse>> listByBizArea(@Parameter(hidden = true) CurrentActor actor,
             @RequestParam(value = "prefix", required = false) String prefix) {
-        return Result.success(fileUploadService.listUploadedFiles(actor, prefix));
+        FileCategory category = prefix == null || prefix.isBlank() ? null : FileCategory.parse(prefix);
+        return Result.success(fileUploadService.listUploadedFiles(actor, category));
     }
-
 }

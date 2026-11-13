@@ -39,6 +39,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.PdfParserUtil;
+import com.zdmj.common.storage.FileUploadService;
+import java.io.InputStream;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
 import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
 import com.zdmj.knowledgeService.enums.KnowledgeEmbeddingStatusEnum;
@@ -59,6 +61,8 @@ class KnowledgeEmbeddingServiceImplTest {
     private final EmbeddingGateway embeddingGateway = Mockito.mock(EmbeddingGateway.class);
     private final KnowledgeDocumentMapper knowledgeDocumentMapper = Mockito.mock(KnowledgeDocumentMapper.class);
     private final KnowledgeVectorMapper knowledgeVectorMapper = Mockito.mock(KnowledgeVectorMapper.class);
+    private final FileUploadService fileUploadService = Mockito.mock(FileUploadService.class);
+    private final InputStream input = Mockito.mock(InputStream.class);
     private final PdfParserUtil pdfParserUtil = Mockito.mock(PdfParserUtil.class);
 
     @Test
@@ -112,13 +116,17 @@ class KnowledgeEmbeddingServiceImplTest {
     }
 
     @Test
-    void vectorizeAndStore_shouldEmbedOutsideTransactionAndSaveInside() {
+    void vectorizeAndStore_shouldEmbedOutsideTransactionAndSaveInside() throws Exception {
         KnowledgeDocument kd = projectDocument(110L, "https://cdn.example.com/a.pdf");
         when(knowledgeDocumentMapper.selectById(110L)).thenReturn(kd);
         when(knowledgeDocumentMapper.update(isNull(), any())).thenReturn(1);
         when(knowledgeDocumentMapper.updateById(kd)).thenReturn(1);
         AtomicBoolean inWrite = new AtomicBoolean(false);
-        when(pdfParserUtil.extractTextFromUrl(Mockito.same(actor), Mockito.eq(kd.getContent()))).thenAnswer(invocation -> {
+        when(fileUploadService.openInputStreamFromUrl(actor, kd.getContent())).thenAnswer(invocation -> {
+            assertFalse(inWrite.get());
+            return input;
+        });
+        when(pdfParserUtil.extractText(input)).thenAnswer(invocation -> {
             assertFalse(inWrite.get());
             return "项目说明";
         });
@@ -134,8 +142,10 @@ class KnowledgeEmbeddingServiceImplTest {
 
         assertEquals(KnowledgeEmbeddingStatusEnum.SUCCESS.getCode(), kd.getEmbeddingStatus());
         assertEquals(1, kd.getChunkCount());
-        InOrder order = inOrder(pdfParserUtil, embeddingGateway, knowledgeVectorMapper);
-        order.verify(pdfParserUtil).extractTextFromUrl(Mockito.same(actor), Mockito.eq(kd.getContent()));
+        InOrder order = inOrder(fileUploadService, pdfParserUtil, input, embeddingGateway, knowledgeVectorMapper);
+        order.verify(fileUploadService).openInputStreamFromUrl(Mockito.same(actor), Mockito.eq(kd.getContent()));
+        order.verify(pdfParserUtil).extractText(input);
+        order.verify(input).close();
         order.verify(embeddingGateway).embed(Mockito.same(actor), anyList());
         order.verify(knowledgeVectorMapper).deleteByDocumentIdAndUserId(110L, 1L);
         order.verify(knowledgeVectorMapper).batchInsert(any());
@@ -146,7 +156,8 @@ class KnowledgeEmbeddingServiceImplTest {
         KnowledgeDocument kd = projectDocument(120L, "https://cdn.example.com/b.pdf");
         when(knowledgeDocumentMapper.selectById(120L)).thenReturn(kd);
         when(knowledgeDocumentMapper.update(isNull(), any())).thenReturn(1);
-        when(pdfParserUtil.extractTextFromUrl(new CurrentActor(1L), kd.getContent())).thenReturn("正文");
+        when(fileUploadService.openInputStreamFromUrl(actor, kd.getContent())).thenReturn(input);
+        when(pdfParserUtil.extractText(input)).thenReturn("正文");
         when(textSplitter.apply(any())).thenReturn(List.of(new Document("正文")));
         doThrow(new RuntimeException("embed down")).when(embeddingGateway).embed(any(), anyList());
         KnowledgeEmbeddingServiceImpl service = newService();
@@ -165,7 +176,8 @@ class KnowledgeEmbeddingServiceImplTest {
         KnowledgeDocument changed = projectDocument(130L, "https://cdn.example.com/new.pdf");
         when(knowledgeDocumentMapper.selectById(130L)).thenReturn(loaded, changed);
         when(knowledgeDocumentMapper.update(isNull(), any())).thenReturn(1);
-        when(pdfParserUtil.extractTextFromUrl(new CurrentActor(1L), loaded.getContent())).thenReturn("旧正文");
+        when(fileUploadService.openInputStreamFromUrl(actor, loaded.getContent())).thenReturn(input);
+        when(pdfParserUtil.extractText(input)).thenReturn("旧正文");
         when(textSplitter.apply(any())).thenReturn(List.of(new Document("旧正文")));
         doReturn(List.of(new float[] {0.5f})).when(embeddingGateway).embed(any(), anyList());
         KnowledgeEmbeddingServiceImpl service = newService();
@@ -252,7 +264,7 @@ class KnowledgeEmbeddingServiceImplTest {
     private KnowledgeEmbeddingServiceImpl newService(TransactionTemplate transactionTemplate) {
         return new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingGateway, knowledgeDocumentMapper, knowledgeVectorMapper,
-                pdfParserUtil, transactionTemplate);
+                pdfParserUtil, fileUploadService, transactionTemplate);
     }
 
     private static TransactionTemplate executingTemplate() {

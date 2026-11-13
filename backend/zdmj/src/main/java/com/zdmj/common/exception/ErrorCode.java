@@ -27,6 +27,9 @@ public enum ErrorCode {
     RATE_LIMIT_EXCEEDED(1011, "请求过于频繁，请稍后再试", HttpStatus.TOO_MANY_REQUESTS),
     AUTH_STORE_UNAVAILABLE(1012, "登录状态服务暂不可用", HttpStatus.SERVICE_UNAVAILABLE),
 
+    OBJECT_STORAGE_UNAVAILABLE(1013, "对象存储服务暂不可用", HttpStatus.SERVICE_UNAVAILABLE),
+    FILE_READ_FAILED(1014, "文件读取失败", HttpStatus.INTERNAL_SERVER_ERROR),
+
     // ========== 用户相关 2xxx ==========
     USER_ALREADY_EXISTS(2001, "用户名已存在", HttpStatus.CONFLICT),
     USER_EMAIL_EXISTS(2002, "邮箱已被注册", HttpStatus.CONFLICT),

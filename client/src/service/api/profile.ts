@@ -51,30 +51,14 @@ export function fetchGenerateCapabilityProfile(data: CapabilityProfileApi.Capabi
   });
 }
 
-/**
- * 文件上传结果
- */
-export interface FileUploadResult {
-  key: string;
-  url: string;
-  fileName: string;
-  fileSize: number;
-  contentType: string;
-}
-
-/**
- * 上传文件到腾讯云COS
- * 对应接口：POST /files/upload
- * @param file 要上传的文件
- * @param prefix 文件存储前缀，默认为'profile'
- */
-export function fetchUploadFile(file: File, prefix = 'profile') {
+/** 上传简历文件并生成能力画像。文件只随本次请求提交，不写入对象存储。 */
+export function fetchGenerateCapabilityProfileFromFile(file: File) {
   const formData = new FormData();
   formData.append('file', file);
-  return request<FileUploadResult>({
-    url: '/files/upload',
+  return request<CapabilityProfileApi.StudentCapabilityProfile>({
+    url: '/capability-profile/generate',
     method: 'post',
     data: formData,
-    params: { prefix }
+    timeout: 300000
   });
 }

@@ -376,7 +376,8 @@ class KnowledgeDocumentServiceImplTest {
     @Test
     void createProjectDocumentNonCosUrl_shouldThrowUrlFormatError() {
         actor = new CurrentActor(216L);
-        when(fileUploadService.isManagedCosUrl("https://evil.example/file.pdf")).thenReturn(false);
+        when(fileUploadService.existsByUrl(actor, "https://evil.example/file.pdf"))
+                .thenThrow(new BusinessException(ErrorCode.URL_FORMAT_ERROR));
         KnowledgeDocumentServiceImpl service = spy(new KnowledgeDocumentServiceImpl(
                 knowledgeDocumentMapper, knowledgeBasesService, knowledgeEmbeddingService, fileUploadService));
         KnowledgeDocumentRequest dto = new KnowledgeDocumentRequest();
@@ -388,6 +389,6 @@ class KnowledgeDocumentServiceImplTest {
 
         assertEquals(ErrorCode.URL_FORMAT_ERROR.getCode(), ex.getCode());
         verify(service, never()).save(any(KnowledgeDocument.class));
-        verify(fileUploadService, never()).exists(eq(actor), any());
+        verify(fileUploadService).existsByUrl(actor, "https://evil.example/file.pdf");
     }
 }

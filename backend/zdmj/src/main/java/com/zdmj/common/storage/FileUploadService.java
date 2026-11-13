@@ -1,425 +1,254 @@
 package com.zdmj.common.storage;
 
-import com.zdmj.common.context.CurrentActor;
 import com.qcloud.cos.COSClient;
 import com.qcloud.cos.ClientConfig;
 import com.qcloud.cos.auth.BasicCOSCredentials;
-import com.qcloud.cos.auth.COSCredentials;
+import com.qcloud.cos.region.Region;
 import com.qcloud.cos.exception.CosClientException;
 import com.qcloud.cos.exception.CosServiceException;
-import com.qcloud.cos.model.COSObject;
-import com.qcloud.cos.model.COSObjectSummary;
 import com.qcloud.cos.model.GetObjectMetadataRequest;
 import com.qcloud.cos.model.GetObjectRequest;
 import com.qcloud.cos.model.ListObjectsRequest;
 import com.qcloud.cos.model.ObjectListing;
 import com.qcloud.cos.model.ObjectMetadata;
 import com.qcloud.cos.model.PutObjectRequest;
-import com.qcloud.cos.model.PutObjectResult;
-import com.qcloud.cos.region.Region;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Profile;
-import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.net.URLDecoder;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Supplier;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import org.springframework.core.env.Environment;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.util.UriUtils;
 
-/**
- * 对象存储与用户域文件上传（腾讯云 COS）。
- */
+/** 用户文件存储。对象键统一为 user-{id}/{category}/{file}，所有操作验证用户归属。 */
 @Slf4j
 @Service
 @Profile("!test")
 public class FileUploadService {
+    private final COSClient cosClient;
+    private final String bucketName;
+    private final String baseUrl;
+    private final String host;
 
-    @Value("${cos.secret-id}")
-    private String secretId;
-
-    @Value("${cos.secret-key}")
-    private String secretKey;
-
-    @Value("${cos.region}")
-    private String region;
-
-    @Value("${cos.bucket-name}")
-    private String bucketName;
-
-    /**
-     * 对象存储模式。{@code cos} 连接腾讯云；其他值跳过客户端初始化，供测试替身使用。
-     */
-    @Value("${zdmj.storage.mode:cos}")
-    private String storageMode;
-
-    private COSClient cosClient;
-
-    @FunctionalInterface
-    private interface CosCall<T> {
-        T run() throws CosServiceException, CosClientException;
-    }
-
-    @FunctionalInterface
-    private interface CosVoidCall {
-        void run() throws CosServiceException, CosClientException;
-    }
-
-    @PostConstruct
-    public void init() {
-        if (!"cos".equals(storageMode)) {
-            log.info("对象存储模式为 {}，不初始化 COS 客户端", storageMode);
-            return;
-        }
-        try {
-            if (isBlank(secretId)) {
-                log.warn("COS SecretId未配置或使用默认值，请设置环境变量 COS_SECRET_ID");
-            }
-            if (isBlank(secretKey)) {
-                log.warn("COS SecretKey未配置或使用默认值，请设置环境变量 COS_SECRET_KEY");
-            }
-            if (isBlank(bucketName)) {
-                throw new RuntimeException("COS存储桶名称未配置，请设置环境变量 COS_BUCKET_NAME");
-            }
-
-            COSCredentials cred = new BasicCOSCredentials(secretId, secretKey);
-            ClientConfig clientConfig = new ClientConfig(new Region(region));
-            cosClient = new COSClient(cred, clientConfig);
-            log.info("腾讯云COS客户端初始化成功，地域：{}，存储桶：{}", region, bucketName);
-        } catch (Exception e) {
-            log.error("腾讯云COS客户端初始化失败", e);
-            throw new RuntimeException("COS客户端初始化失败：" + e.getMessage(), e);
-        }
-    }
-
-    @PreDestroy
-    public void destroy() {
-        if (cosClient != null) {
-            cosClient.shutdown();
-            log.info("腾讯云COS客户端已关闭");
-        }
+    public FileUploadService(COSClient cosClient, @Value("${cos.bucket-name}") String bucketName,
+            @Value("${cos.region}") String region) {
+        this.cosClient = Objects.requireNonNull(cosClient);
+        this.bucketName = bucketName;
+        this.host = bucketName + ".cos." + region + ".myqcloud.com";
+        this.baseUrl = "https://" + host + "/";
     }
 
     /**
-     * 上传文件到 COS。
-     *
-     * @param actor 已认证操作者，包含用户编号
-     * @param file 文件
-     * @param prefix 前缀
-     * @return 上传响应
+     * 上传文件
+     * @param actor 当前操作者
+     * @param file 非空上传文件
+     * @param category 文件分类
+     * @return 对象键、地址及原文件信息
+     * @throws BusinessException 文件为空、读取失败或存储不可用
      */
-    public FileUploadResponse uploadFile(CurrentActor actor, MultipartFile file, String prefix) {
+    public FileUploadResponse uploadFile(CurrentActor actor, MultipartFile file, FileCategory category) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ErrorCode.FILE_EMPTY);
         }
-        String key = buildUserScopedKey(actor, prefix, file.getOriginalFilename());
-        String uploadedKey = putObject(file, key);
-        return FileUploadResponse.builder()
-                .key(uploadedKey)
-                .url(getFileUrl(uploadedKey))
-                .fileName(file.getOriginalFilename())
-                .fileSize(file.getSize())
-                .contentType(file.getContentType())
-                .build();
+        String key = UserObjectKeys.ownedPrefix(actor.userId()) + category.path() + "/"
+                + generateFileName(file.getOriginalFilename());
+        ObjectMetadata metadata = new ObjectMetadata();
+        metadata.setContentLength(file.getSize());
+        if (file.getContentType() != null) {
+            metadata.setContentType(file.getContentType());
+        }
+        try (InputStream input = file.getInputStream()) {
+            execute(() -> cosClient.putObject(new PutObjectRequest(bucketName, key, input, metadata)));
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.FILE_READ_FAILED, exception);
+        }
+        log.info("文件上传成功，key={}", key);
+        return FileUploadResponse.builder().key(key).url(fileUrl(key)).fileName(file.getOriginalFilename())
+                .fileSize(file.getSize()).contentType(file.getContentType()).build();
     }
 
     /**
-     * 删除当前用户在指定业务域下上传的文件。
+     * 删除指定 URL 的文件。
      *
-     * @param actor 已认证操作者，包含用户编号
+     * @param actor 当前操作者
+     * @param url 文件 URL
+     * @param category 文件分类
      */
-    public void deleteOwnedByUrl(CurrentActor actor, String fileUrl, String bizArea) {
-        if (fileUrl == null || fileUrl.isBlank()) {
+    public void deleteOwnedByUrl(CurrentActor actor, String url, FileCategory category) {
+        if (url == null || url.isBlank()) {
             return;
         }
-        Long userId = actor.userId();
-        String key = requireOwnedKey(extractKeyFromUrl(fileUrl), userId);
-        String expectedPrefix = UserObjectKeys.ownedPrefix(userId) + sanitizeBizArea(bizArea) + "/";
-        if (!key.startsWith(expectedPrefix)) {
+        String key = requireOwnedKeyFromUrl(actor, url);
+        if (!key.startsWith(UserObjectKeys.ownedPrefix(actor.userId()) + category.path() + "/")) {
             throw new BusinessException(ErrorCode.NO_PERMISSION, "无权删除该文件");
         }
-        deleteObject(key);
-        log.info("用户域文件已清理，key={}", key);
+        deleteByKey(actor, key);
     }
 
+    /** 按对象键删除当前用户文件
+     * @param actor 当前操作者
+     * @param key 对象键    
+     */
     public void deleteByKey(CurrentActor actor, String key) {
-        String ownedKey = requireOwnedKey(key, actor.userId());
-        deleteObject(ownedKey);
-        log.info("文件删除成功，key={}", key);
+        String owned = requireOwnedKey(actor, key);
+        execute(() -> {
+            cosClient.deleteObject(bucketName, owned);
+            return null;
+        });
+        log.info("文件删除成功，key={}", owned);
     }
 
-    public List<FileUploadListItemResponse> listUploadedFiles(CurrentActor actor, String prefix) {
-        Long userId = actor.userId();
-        String queryPrefix = (prefix == null || prefix.isBlank())
-                ? String.format("user-%d/", userId)
-                : String.format("user-%d/%s/", userId, sanitizeBizArea(prefix));
-        List<String> keys = listKeysByPrefix(queryPrefix, userId);
-        List<FileUploadListItemResponse> result = new ArrayList<>(keys.size());
-        for (String key : keys) {
-            result.add(FileUploadListItemResponse.builder()
-                    .key(key)
-                    .url(getFileUrl(key))
-                    .fileName(extractFileName(key))
-                    .bizArea(extractBizArea(key, userId))
-                    .build());
-        }
-        return result;
+    /** 查询分类目录；category 为空时查询当前用户全部文件，并读取所有 COS 分页。 */
+    public List<FileUploadListItemResponse> listUploadedFiles(CurrentActor actor, FileCategory category) {
+        String prefix = UserObjectKeys.ownedPrefix(actor.userId()) + (category == null ? "" : category.path() + "/");
+        return execute(() -> {
+            List<FileUploadListItemResponse> files = new ArrayList<>();
+            ListObjectsRequest request = new ListObjectsRequest();
+            request.setBucketName(bucketName);
+            request.setPrefix(prefix);
+            request.setMaxKeys(1000);
+            ObjectListing listing;
+            do {
+                listing = cosClient.listObjects(request);
+                for (var summary : listing.getObjectSummaries()) {
+                    String key = summary.getKey();
+                    if (key == null || key.endsWith("/") || !key.startsWith(prefix)
+                            || !UserObjectKeys.isOwnedBy(key, actor.userId())) {
+                        continue;
+                    }
+                    String relative = key.substring(UserObjectKeys.ownedPrefix(actor.userId()).length());
+                    int slash = relative.indexOf('/');
+                    files.add(FileUploadListItemResponse.builder().key(key).url(fileUrl(key))
+                            .fileName(key.substring(key.lastIndexOf('/') + 1))
+                            .bizArea(slash > 0 ? relative.substring(0, slash) : "").build());
+                }
+                if (listing.isTruncated() && (listing.getNextMarker() == null
+                        || listing.getNextMarker().equals(request.getMarker()))) {
+                    throw new IllegalStateException("COS 列表缺少有效的下一页标识");
+                }
+                request.setMarker(listing.getNextMarker());
+            } while (listing.isTruncated());
+            return files;
+        });
     }
 
-    public boolean exists(CurrentActor actor, String key) {
-        String ownedKey = requireOwnedKey(key, actor.userId());
-        try {
-            cosClient.getObjectMetadata(new GetObjectMetadataRequest(bucketName, ownedKey));
-            return true;
-        } catch (CosServiceException e) {
-            if (e.getStatusCode() == 404) {
-                return false;
+    /** 地址和归属校验通过后检查存在性；仅对象不存在的 404 返回 false。 */
+    public boolean existsByUrl(CurrentActor actor, String url) {
+        String key = requireOwnedKeyFromUrl(actor, url);
+        return execute(() -> {
+            try {
+                cosClient.getObjectMetadata(new GetObjectMetadataRequest(bucketName, key));
+                return true;
+            } catch (CosServiceException exception) {
+                if (exception.getStatusCode() == 404) {
+                    return false;
+                }
+                throw exception;
             }
-            throw wrapCosServiceException("检查文件是否存在", e);
-        } catch (CosClientException e) {
-            throw wrapCosClientException("检查文件是否存在", e);
-        }
-    }
-
-    public boolean isManagedCosUrl(String sourceUri) {
-        if (isBlank(sourceUri) || isBlank(bucketName) || isBlank(region)) {
-            return false;
-        }
-        try {
-            URI uri = URI.create(sourceUri.trim());
-            if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getUserInfo() != null) {
-                return false;
-            }
-            String host = uri.getHost();
-            if (isBlank(host)) {
-                return false;
-            }
-            String expectedHost = bucketName + ".cos." + region + ".myqcloud.com";
-            return expectedHost.equalsIgnoreCase(host);
-        } catch (Exception ignore) {
-            return false;
-        }
+        });
     }
 
     /**
-     * 校验地址与对象归属后，通过 SDK 读取 COS 对象。调用方负责关闭返回的输入流。
-     *
-     * @param actor 已认证操作者，包含用户编号
-     * @param sourceUri 本系统上传文件的 HTTPS 地址
+     * 通过 SDK 读取已验证的用户对象；调用方负责关闭返回流。
+     * @param actor 当前操作者
+     * @param url 本系统上传文件的 HTTPS 地址
      * @return 对象内容输入流
-     * @throws BusinessException 地址非法、对象不属于操作者或存储读取失败
+     * @throws BusinessException 地址非法、无权访问或存储不可用
      */
-    public InputStream openInputStreamFromUrl(CurrentActor actor, String sourceUri) {
-        ensureInitialized();
-        if (!isManagedCosUrl(sourceUri)) {
+    public InputStream openInputStreamFromUrl(CurrentActor actor, String url) {
+        String key = requireOwnedKeyFromUrl(actor, url);
+        return execute(() -> cosClient.getObject(new GetObjectRequest(bucketName, key)).getObjectContent());
+    }
+
+    private String requireOwnedKeyFromUrl(CurrentActor actor, String url) {
+        URI uri;
+        try {
+            uri = new URI(url == null ? "" : url.trim());
+        } catch (URISyntaxException exception) {
+            throw new BusinessException(ErrorCode.URL_FORMAT_ERROR, exception);
+        }
+        String path = uri.getPath();
+        if (!"https".equalsIgnoreCase(uri.getScheme())
+                || !host.equalsIgnoreCase(uri.getHost())
+                || uri.getRawUserInfo() != null || (uri.getPort() != -1 && uri.getPort() != 443)
+                || uri.getRawQuery() != null || uri.getRawFragment() != null
+                || path == null || !path.startsWith("/") || path.startsWith("//") || path.contains("\\")
+                || uri.getRawPath().matches("(?i).*%(2f|5c).*")) {
             throw new BusinessException(ErrorCode.URL_FORMAT_ERROR, "仅支持本系统已上传的文件");
         }
-        String key = requireOwnedKey(extractKeyFromUrl(sourceUri), actor.userId());
-        return execute("读取文件", () -> {
-            COSObject cosObject = cosClient.getObject(new GetObjectRequest(bucketName, key));
-            return cosObject.getObjectContent();
-        });
+        return requireOwnedKey(actor, path.substring(1));
     }
 
-    public String extractKeyFromUrl(String sourceUri) {
-        if (isBlank(sourceUri)) {
-            return "";
-        }
-        String rawPath = sourceUri.trim();
-        try {
-            URI uri = URI.create(sourceUri.trim());
-            if (!isBlank(uri.getPath())) {
-                rawPath = uri.getPath();
-            }
-        } catch (Exception ignore) {
-            // 非标准 URI 时按原字符串兜底处理
-        }
-        try {
-            rawPath = URLDecoder.decode(rawPath, StandardCharsets.UTF_8);
-        } catch (Exception ignore) {
-            // 保持未解码路径，后续 normalize 会拒绝非法段
-        }
-        String normalized = UserObjectKeys.normalize(rawPath);
-        return normalized == null ? "" : normalized;
-    }
-
-    private String putObject(MultipartFile file, String key) {
-        try {
-            String finalKey = isBlank(key) ? generateKey(null, file.getOriginalFilename()) : key;
-            try (InputStream inputStream = file.getInputStream()) {
-                return execute("文件上传", () -> {
-                    ObjectMetadata metadata = new ObjectMetadata();
-                    metadata.setContentLength(file.getSize());
-                    if (!isBlank(file.getContentType())) {
-                        metadata.setContentType(file.getContentType());
-                    }
-                    PutObjectResult result = cosClient.putObject(new PutObjectRequest(
-                            bucketName, finalKey, inputStream, metadata));
-                    log.info("文件上传成功，key: {}, ETag: {}", finalKey, result.getETag());
-                    return finalKey;
-                });
-            }
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (IOException e) {
-            log.error("文件上传异常", e);
-            throw new RuntimeException("文件上传失败：" + e.getMessage(), e);
-        } catch (Exception e) {
-            log.error("文件上传异常", e);
-            throw new RuntimeException("文件上传失败：" + e.getMessage(), e);
-        }
-    }
-
-    private void deleteObject(String key) {
-        executeVoid("文件删除", () -> {
-            cosClient.deleteObject(bucketName, key);
-            log.info("文件删除成功，key: {}", key);
-        });
-    }
-
-    private String getFileUrl(String key) {
-        ensureInitialized();
-        return String.format("https://%s.cos.%s.myqcloud.com/%s", bucketName, region, key);
-    }
-
-    private List<String> listKeysByPrefix(String prefix, long userId) {
-        ensureInitialized();
-        return execute("查询文件列表", () -> {
-            String normalizedPrefix = prefix == null ? "" : prefix.trim();
-            List<String> keys = new ArrayList<>();
-            String marker = null;
-            do {
-                ListObjectsRequest request = new ListObjectsRequest();
-                request.setBucketName(bucketName);
-                request.setPrefix(normalizedPrefix);
-                request.setMarker(marker);
-                request.setMaxKeys(1000);
-
-                ObjectListing listing = cosClient.listObjects(request);
-                for (COSObjectSummary summary : listing.getObjectSummaries()) {
-                    String objectKey = summary.getKey();
-                    if (objectKey != null && !objectKey.endsWith("/") && UserObjectKeys.isOwnedBy(objectKey, userId)) {
-                        keys.add(objectKey);
-                    }
-                }
-                marker = listing.isTruncated() ? listing.getNextMarker() : null;
-            } while (marker != null);
-            return keys;
-        });
-    }
-
-    private String generateKey(String prefix, String originalFilename) {
-        String extension = "";
-        String fileNameWithoutExt = originalFilename;
-
-        if (!isBlank(originalFilename)) {
-            int dot = originalFilename.lastIndexOf(".");
-            if (dot >= 0) {
-                extension = originalFilename.substring(dot).toLowerCase();
-                fileNameWithoutExt = originalFilename.substring(0, dot);
-            }
-        }
-
-        if (!isBlank(fileNameWithoutExt)) {
-            fileNameWithoutExt = fileNameWithoutExt.replaceAll("[^\\w\\u4e00-\\u9fa5-]", "_");
-        }
-        if (isBlank(fileNameWithoutExt)) {
-            fileNameWithoutExt = "file";
-        }
-
-        String fileName = fileNameWithoutExt + "-" + UUID.randomUUID().toString().replace("-", "") + extension;
-        if (isBlank(prefix)) {
-            return fileName;
-        }
-        return trimTrailingSlash(prefix) + "/" + fileName;
-    }
-
-    private String sanitizeBizArea(String prefix) {
-        String bizArea = (prefix == null || prefix.isBlank()) ? "files" : prefix.trim();
-        return bizArea.replaceAll("[^a-zA-Z0-9_-]", "_");
-    }
-
-    private String buildUserScopedKey(CurrentActor actor, String prefix, String originalFilename) {
-        Long userId = actor.userId();
-        String bizArea = sanitizeBizArea(prefix);
-        String finalPrefix = String.format("user-%d/%s", userId, bizArea);
-        return generateKey(finalPrefix, originalFilename);
-    }
-
-    private static String requireOwnedKey(String key, long userId) {
+    private static String requireOwnedKey(CurrentActor actor, String key) {
         String normalized = UserObjectKeys.normalize(key);
         if (normalized == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "无效的文件路径");
         }
-        if (!UserObjectKeys.isOwnedBy(normalized, userId)) {
+        if (!normalized.startsWith(UserObjectKeys.ownedPrefix(actor.userId()))) {
             throw new BusinessException(ErrorCode.NO_PERMISSION);
         }
         return normalized;
     }
 
-    private String extractFileName(String key) {
-        int idx = key.lastIndexOf('/');
-        return idx >= 0 ? key.substring(idx + 1) : key;
+    private String fileUrl(String key) {
+        return baseUrl + UriUtils.encodePath(key, StandardCharsets.UTF_8);
     }
 
-    private String extractBizArea(String key, Long userId) {
-        String prefix = "user-" + userId + "/";
-        if (!key.startsWith(prefix)) {
-            return "";
-        }
-        String remain = key.substring(prefix.length());
-        int slash = remain.indexOf('/');
-        return slash > 0 ? remain.substring(0, slash) : "";
+    private static String generateFileName(String original) {
+        String name = original == null ? "" : original;
+        name = name.substring(Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\')) + 1);
+        int dot = name.lastIndexOf('.');
+        String extension = dot < 0 ? "" : name.substring(dot).toLowerCase(Locale.ROOT).replaceAll("[^.a-z0-9]", "_");
+        String stem = (dot < 0 ? name : name.substring(0, dot)).replaceAll("[^\\w\\u4e00-\\u9fa5-]", "_");
+        return (stem.isBlank() ? "file" : stem) + "-" + UUID.randomUUID().toString().replace("-", "") + extension;
     }
 
-    private <T> T execute(String action, CosCall<T> call) {
+    private <T> T execute(Supplier<T> operation) {
         try {
-            return call.run();
-        } catch (CosServiceException e) {
-            throw wrapCosServiceException(action, e);
-        } catch (CosClientException e) {
-            throw wrapCosClientException(action, e);
+            return operation.get();
+        } catch (CosClientException exception) {
+            throw new BusinessException(ErrorCode.OBJECT_STORAGE_UNAVAILABLE, exception);
         }
     }
 
-    private void executeVoid(String action, CosVoidCall call) {
-        execute(action, () -> {
-            call.run();
-            return null;
-        });
-    }
-
-    private RuntimeException wrapCosServiceException(String action, CosServiceException e) {
-        log.error("COS服务异常，action={}，错误码：{}，错误消息：{}", action, e.getErrorCode(), e.getErrorMessage(), e);
-        return new RuntimeException(action + "失败：" + e.getErrorMessage(), e);
-    }
-
-    private RuntimeException wrapCosClientException(String action, CosClientException e) {
-        log.error("COS客户端异常，action={}", action, e);
-        return new RuntimeException(action + "失败：" + e.getMessage(), e);
-    }
-
-    private void ensureInitialized() {
-        if (isBlank(region) || isBlank(bucketName) || cosClient == null) {
-            throw new IllegalStateException("COS 客户端未初始化");
+    /** COS 客户端由容器创建和关闭；测试环境使用独立替身。 */
+    @Configuration(proxyBeanMethods = false)
+    @Profile("!test")
+    public static class CosStorageConfiguration {
+        @Bean(destroyMethod = "shutdown")
+        public COSClient cosClient(Environment environment) {
+            if (!"cos".equals(environment.getProperty("zdmj.storage.mode", "cos"))) {
+                throw new IllegalStateException("对象存储模式必须为 cos");
+            }
+            String secretId = required(environment, "cos.secret-id");
+            String secretKey = required(environment, "cos.secret-key");
+            String region = required(environment, "cos.region");
+            required(environment, "cos.bucket-name");
+            return new COSClient(new BasicCOSCredentials(secretId, secretKey), new ClientConfig(new Region(region)));
         }
-    }
 
-    private static String trimTrailingSlash(String value) {
-        return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
-    }
-
-    private static boolean isBlank(String value) {
-        return value == null || value.trim().isEmpty();
+        private static String required(Environment environment, String name) {
+            String value = environment.getProperty(name);
+            if (value == null || value.isBlank()) {
+                throw new IllegalStateException("缺少对象存储配置：" + name);
+            }
+            return value;
+        }
     }
 }

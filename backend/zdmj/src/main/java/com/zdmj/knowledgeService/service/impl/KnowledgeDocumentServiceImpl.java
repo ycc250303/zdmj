@@ -253,12 +253,7 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
                         "项目文档类型（type=1）仅支持PDF和Markdown文件");
             }
 
-            if (!fileUploadService.isManagedCosUrl(content)) {
-                throw new BusinessException(ErrorCode.URL_FORMAT_ERROR,
-                        "项目文档须为本系统已上传的文件");
-            }
-            String cosKey = fileUploadService.extractKeyFromUrl(content);
-            if (cosKey.isBlank() || !fileUploadService.exists(actor, cosKey)) {
+            if (!fileUploadService.existsByUrl(actor, content)) {
                 throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS);
             }
 

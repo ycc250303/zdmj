@@ -7,6 +7,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import com.zdmj.testsupport.TestObjectStorage;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -129,5 +132,68 @@ class KnowledgeFlowIT extends IntegrationTestBase {
                 {"title":"%s","type":1,"content":"%s"}
                 """.formatted(title, url);
         return ApiClient.dataId(api.post(token, "/knowledge-document", json));
+    }
+
+    @Test
+    void 上传分类与默认目录_保持响应字段并按当前用户列出() throws Exception {
+        var pair = testUsers.createPair();
+        String token = testJwt.authorize(pair.userA());
+        for (String category : new String[]{"files", "resume", "profile", "knowledge"}) {
+            String body = ApiClient.requireOk(upload(token, category));
+            assertThat(JsonPath.<String>read(body, "$.data.key"))
+                    .startsWith("user-" + pair.userA().getId() + "/" + category + "/");
+            assertThat(JsonPath.<String>read(body, "$.data.fileName")).isEqualTo("简历.md");
+            assertThat(JsonPath.<Integer>read(body, "$.data.fileSize")).isEqualTo(4);
+            assertThat(JsonPath.<String>read(body, "$.data.contentType")).isEqualTo("text/markdown");
+            assertThat(JsonPath.<String>read(body, "$.data.url")).startsWith(TestObjectStorage.URL_PREFIX);
+        }
+        String defaultUpload = ApiClient.requireOk(upload(token, null));
+        assertThat(JsonPath.<String>read(defaultUpload, "$.data.key")).contains("/files/");
+        assertThat(JsonPath.<Integer>read(ApiClient.requireOk(api.get(token, "/files/list")), "$.data.length()"))
+                .isEqualTo(5);
+        assertThat(JsonPath.<Integer>read(ApiClient.requireOk(api.get(token, "/files/list?prefix=resume")), "$.data.length()"))
+                .isEqualTo(1);
+        String otherToken = testJwt.authorize(pair.userB());
+        assertThat(JsonPath.<Integer>read(ApiClient.requireOk(api.get(otherToken, "/files/list")), "$.data.length()"))
+                .isZero();
+    }
+
+    @Test
+    void 非法分类_上传与列表均拒绝且没有写入对象() throws Exception {
+        String token = testJwt.authorize(testUsers.createPair().userA());
+        for (String category : new String[]{"../resume", "user-2", "avatar", "RESUME"}) {
+            ApiClient.assertProblem(upload(token, category), 400, 1001);
+            ApiClient.assertProblem(api.exchange(get(ApiClient.PREFIX + "/files/list").param("prefix", category), token, null),
+                    400, 1001);
+        }
+        assertThat(JsonPath.<Integer>read(ApiClient.requireOk(api.get(token, "/files/list")), "$.data.length()"))
+                .isZero();
+    }
+
+    @Test
+    void 非托管与跨用户文档来源_创建拒绝且不产生文档() throws Exception {
+        var pair = testUsers.createPair();
+        String tokenA = testJwt.authorize(pair.userA());
+        String tokenB = testJwt.authorize(pair.userB());
+        String ownUrl = JsonPath.read(ApiClient.requireOk(upload(tokenA, "knowledge")), "$.data.url");
+        String foreignUrl = "https://evil.example/" + ownUrl.substring(TestObjectStorage.URL_PREFIX.length());
+        ApiClient.assertProblem(api.post(tokenA, "/knowledge-document", document(foreignUrl)), 400, 1007);
+        ApiClient.assertProblem(api.post(tokenB, "/knowledge-document", document(ownUrl)), 403, 1003);
+        assertThat(JsonPath.<Integer>read(ApiClient.requireOk(api.get(tokenA, "/knowledge-document")), "$.data.total"))
+                .isZero();
+    }
+
+    private MvcResult upload(String token, String category) throws Exception {
+        var request = multipart(ApiClient.PREFIX + "/files/upload")
+                .file(new MockMultipartFile("file", "简历.md", "text/markdown", "text".getBytes(StandardCharsets.UTF_8)))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+        if (category != null) {
+            request.param("prefix", category);
+        }
+        return mockMvc.perform(request).andReturn();
+    }
+
+    private String document(String url) {
+        return "{\"title\":\"文档\",\"type\":1,\"content\":\"" + url + "\"}";
     }
 }

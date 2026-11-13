@@ -9,10 +9,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
+import java.io.InputStream;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import static org.mockito.Mockito.mockConstruction;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -39,30 +43,10 @@ class FileUploadServiceTest {
     private static final long USER_ID = 8L;
 
     @Test
-    void init_stubMode_shouldSkipClient() {
-        FileUploadService service = service("stub", "id", "key", BUCKET);
-        service.init();
-        service.destroy();
-    }
-
-    @Test
-    void init_missingBucket_shouldFail() {
-        FileUploadService service = service("cos", "id", "key", " ");
-        assertThatThrownBy(service::init).isInstanceOf(RuntimeException.class).hasMessageContaining("COS客户端初始化失败");
-    }
-
-    @Test
-    void init_cosMode_shouldCreateClientAndDestroy() {
-        FileUploadService service = service("cos", "", "", BUCKET);
-        service.init();
-        service.destroy();
-    }
-
-    @Test
     void uploadFile_empty_shouldReject() {
         FileUploadService service = ready();
         MockMultipartFile empty = new MockMultipartFile("file", "a.pdf", "application/pdf", new byte[0]);
-        assertThatThrownBy(() -> service.uploadFile(actor, empty, "resume"))
+        assertThatThrownBy(() -> service.uploadFile(actor, empty, FileCategory.RESUME))
                 .isInstanceOf(BusinessException.class)
                 .extracting("code")
                 .isEqualTo(ErrorCode.FILE_EMPTY.getCode());
@@ -71,13 +55,13 @@ class FileUploadServiceTest {
     @Test
     void uploadFile_pdf_shouldStoreUnderUserPrefix() throws Exception {
         FileUploadService service = ready();
-        COSClient cos = clientOf(service);
+        COSClient cos = cosClient;
         PutObjectResult stored = new PutObjectResult();
         stored.setETag("etag-1");
         when(cos.putObject(any(PutObjectRequest.class))).thenReturn(stored);
         MockMultipartFile file = new MockMultipartFile("file", "简历.pdf", "application/pdf", "pdf".getBytes());
 
-        FileUploadResponse response = service.uploadFile(actor, file, "resume");
+        FileUploadResponse response = service.uploadFile(actor, file, FileCategory.RESUME);
 
         assertThat(response.getKey()).startsWith("user-8/resume/");
         assertThat(response.getKey()).endsWith(".pdf");
@@ -89,10 +73,10 @@ class FileUploadServiceTest {
     @Test
     void uploadFile_blankName_shouldUseGeneratedName() throws Exception {
         FileUploadService service = ready();
-        when(clientOf(service).putObject(any(PutObjectRequest.class))).thenReturn(new PutObjectResult());
+        when(cosClient.putObject(any(PutObjectRequest.class))).thenReturn(new PutObjectResult());
         MockMultipartFile file = new MockMultipartFile("file", ".pdf", null, "x".getBytes());
 
-        FileUploadResponse response = service.uploadFile(actor, file, "resume");
+        FileUploadResponse response = service.uploadFile(actor, file, FileCategory.RESUME);
 
         assertThat(response.getKey()).startsWith("user-8/resume/file-");
     }
@@ -100,10 +84,10 @@ class FileUploadServiceTest {
     @Test
     void uploadFile_withoutContentType_shouldStillStore() throws Exception {
         FileUploadService service = ready();
-        when(clientOf(service).putObject(any(PutObjectRequest.class))).thenReturn(new PutObjectResult());
+        when(cosClient.putObject(any(PutObjectRequest.class))).thenReturn(new PutObjectResult());
         MockMultipartFile file = new MockMultipartFile("file", "note", null, "txt".getBytes());
 
-        FileUploadResponse response = service.uploadFile(actor, file, null);
+        FileUploadResponse response = service.uploadFile(actor, file, FileCategory.FILES);
 
         assertThat(response.getKey()).startsWith("user-8/files/");
         assertThat(response.getContentType()).isNull();
@@ -117,25 +101,14 @@ class FileUploadServiceTest {
         when(file.getOriginalFilename()).thenReturn("a.pdf");
         when(file.getInputStream()).thenThrow(new IOException("disk"));
 
-        assertThatThrownBy(() -> service.uploadFile(actor, file, "resume"))
+        assertThatThrownBy(() -> service.uploadFile(actor, file, FileCategory.RESUME))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("文件上传失败");
-    }
-
-    @Test
-    void uploadFile_cosClientFailure_shouldWrap() throws Exception {
-        FileUploadService service = ready();
-        when(clientOf(service).putObject(any(PutObjectRequest.class))).thenThrow(new CosClientException("down"));
-        MockMultipartFile file = new MockMultipartFile("file", "a.pdf", "text/plain", "x".getBytes());
-
-        assertThatThrownBy(() -> service.uploadFile(actor, file, "resume"))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("文件上传失败");
+                .extracting("code").isEqualTo(ErrorCode.FILE_READ_FAILED.getCode());
     }
 
     @Test
     void deleteOwnedByUrl_blank_shouldIgnore() {
-        ready().deleteOwnedByUrl(actor, "  ", "resume");
+        ready().deleteOwnedByUrl(actor, "  ", FileCategory.RESUME);
     }
 
     @Test
@@ -143,7 +116,7 @@ class FileUploadServiceTest {
         FileUploadService service = ready();
         String url = "https://demo-bucket.cos.ap-guangzhou.myqcloud.com/user-8/resume/a.pdf";
 
-        assertThatThrownBy(() -> service.deleteOwnedByUrl(actor, url, "avatar"))
+        assertThatThrownBy(() -> service.deleteOwnedByUrl(actor, url, FileCategory.PROFILE))
                 .isInstanceOf(BusinessException.class)
                 .extracting("code")
                 .isEqualTo(ErrorCode.NO_PERMISSION.getCode());
@@ -154,9 +127,9 @@ class FileUploadServiceTest {
         FileUploadService service = ready();
         String url = "https://demo-bucket.cos.ap-guangzhou.myqcloud.com/user-8/resume/a.pdf";
 
-        service.deleteOwnedByUrl(actor, url, "resume");
+        service.deleteOwnedByUrl(actor, url, FileCategory.RESUME);
 
-        verify(clientOf(service)).deleteObject(BUCKET, "user-8/resume/a.pdf");
+        verify(cosClient).deleteObject(BUCKET, "user-8/resume/a.pdf");
     }
 
     @Test
@@ -165,7 +138,7 @@ class FileUploadServiceTest {
 
         service.deleteByKey(actor, "user-8/resume/a.pdf");
 
-        verify(clientOf(service)).deleteObject(BUCKET, "user-8/resume/a.pdf");
+        verify(cosClient).deleteObject(BUCKET, "user-8/resume/a.pdf");
     }
 
     @Test
@@ -195,10 +168,10 @@ class FileUploadServiceTest {
                 summary("user-9/resume/b.pdf"));
         ObjectListing second = listing(false, null, summary("user-8/avatar/c.png"));
         ObjectListing resumePage = listing(false, null, summary("user-8/resume/a.pdf"));
-        when(clientOf(service).listObjects(any(ListObjectsRequest.class))).thenReturn(first, second, resumePage);
+        when(cosClient.listObjects(any(ListObjectsRequest.class))).thenReturn(first, second, resumePage);
 
-        List<FileUploadListItemResponse> all = service.listUploadedFiles(actor, " ");
-        List<FileUploadListItemResponse> resume = service.listUploadedFiles(actor, "resume");
+        List<FileUploadListItemResponse> all = service.listUploadedFiles(actor, null);
+        List<FileUploadListItemResponse> resume = service.listUploadedFiles(actor, FileCategory.RESUME);
 
         assertThat(all).extracting(FileUploadListItemResponse::getKey)
                 .containsExactly("user-8/resume/a.pdf", "user-8/avatar/c.png");
@@ -212,9 +185,9 @@ class FileUploadServiceTest {
         FileUploadService service = ready();
         CosServiceException missing = new CosServiceException("missing");
         missing.setStatusCode(404);
-        when(clientOf(service).getObjectMetadata(any())).thenThrow(missing);
+        when(cosClient.getObjectMetadata(any())).thenThrow(missing);
 
-        assertThat(service.exists(actor, "user-8/resume/a.pdf")).isFalse();
+        assertThat(service.existsByUrl(actor, "https://demo-bucket.cos.ap-guangzhou.myqcloud.com/user-8/resume/a.pdf")).isFalse();
     }
 
     @Test
@@ -222,31 +195,19 @@ class FileUploadServiceTest {
         FileUploadService service = ready();
         CosServiceException denied = new CosServiceException("denied");
         denied.setStatusCode(403);
-        when(clientOf(service).getObjectMetadata(any())).thenThrow(denied);
+        when(cosClient.getObjectMetadata(any())).thenThrow(denied);
 
-        assertThatThrownBy(() -> service.exists(actor, "user-8/resume/a.pdf"))
+        assertThatThrownBy(() -> service.existsByUrl(actor, "https://demo-bucket.cos.ap-guangzhou.myqcloud.com/user-8/resume/a.pdf"))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("检查文件是否存在失败");
+                .extracting("code").isEqualTo(ErrorCode.OBJECT_STORAGE_UNAVAILABLE.getCode());
     }
 
     @Test
     void exists_present_shouldReturnTrue() throws Exception {
         FileUploadService service = ready();
-        when(clientOf(service).getObjectMetadata(any())).thenReturn(null);
+        when(cosClient.getObjectMetadata(any())).thenReturn(null);
 
-        assertThat(service.exists(actor, "user-8/resume/a.pdf")).isTrue();
-    }
-
-    @Test
-    void isManagedCosUrl_shouldAcceptOnlyBucketHost() {
-        FileUploadService service = ready();
-        String url = "https://demo-bucket.cos.ap-guangzhou.myqcloud.com/user-8/resume/a.pdf";
-        assertThat(service.isManagedCosUrl(url)).isTrue();
-        assertThat(service.isManagedCosUrl("http://demo-bucket.cos.ap-guangzhou.myqcloud.com/a")).isFalse();
-        assertThat(service.isManagedCosUrl("https://user:pw@demo-bucket.cos.ap-guangzhou.myqcloud.com/a")).isFalse();
-        assertThat(service.isManagedCosUrl("https://other.example.com/a")).isFalse();
-        assertThat(service.isManagedCosUrl(" ")).isFalse();
-        assertThat(service.isManagedCosUrl("https://[")).isFalse();
+        assertThat(service.existsByUrl(actor, "https://demo-bucket.cos.ap-guangzhou.myqcloud.com/user-8/resume/a.pdf")).isTrue();
     }
 
     @Test
@@ -256,7 +217,7 @@ class FileUploadServiceTest {
         COSObjectInputStream content = mock(COSObjectInputStream.class);
         when(content.readAllBytes()).thenReturn("pdf".getBytes());
         when(object.getObjectContent()).thenReturn(content);
-        when(clientOf(service).getObject(any(GetObjectRequest.class))).thenReturn(object);
+        when(cosClient.getObject(any(GetObjectRequest.class))).thenReturn(object);
         String url = "https://demo-bucket.cos.ap-guangzhou.myqcloud.com/user-8/resume/a.pdf";
 
         assertThat(service.openInputStreamFromUrl(actor, url).readAllBytes()).isEqualTo("pdf".getBytes());
@@ -274,56 +235,101 @@ class FileUploadServiceTest {
     }
 
     @Test
-    void openInputStream_withoutClient_shouldFailFast() {
-        FileUploadService service = service("cos", "id", "key", BUCKET);
-        set(service, "region", REGION);
-        assertThatThrownBy(() -> service.openInputStreamFromUrl(new CurrentActor(USER_ID), "https://example.com/a"))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("COS 客户端未初始化");
+    void deleteOwnedByUrl_foreignHostWithOwnedPath_shouldRejectBeforeDeleting() throws Exception {
+        FileUploadService service = ready();
+        assertThatThrownBy(() -> service.deleteOwnedByUrl(actor,
+                "https://evil.example/user-8/resume/a.pdf", FileCategory.RESUME))
+                .isInstanceOf(BusinessException.class).extracting("code")
+                .isEqualTo(ErrorCode.URL_FORMAT_ERROR.getCode());
+        org.mockito.Mockito.verifyNoInteractions(cosClient);
     }
 
     @Test
-    void extractKeyFromUrl_shouldNormalizeOrReturnEmpty() {
+    void openInputStream_plusInPath_shouldPreserveObjectKey() throws Exception {
         FileUploadService service = ready();
-        assertThat(service.extractKeyFromUrl(" ")).isEmpty();
-        assertThat(service.extractKeyFromUrl(
-                "https://demo-bucket.cos.ap-guangzhou.myqcloud.com/user-8/resume/%E7%AE%80%E5%8E%86.pdf"))
-                .isEqualTo("user-8/resume/简历.pdf");
-        assertThat(service.extractKeyFromUrl("https://[")).isEmpty();
-        assertThat(service.extractKeyFromUrl("user-8/../secret")).isEmpty();
-    }
-
-    private static FileUploadService ready() {
-        FileUploadService service = service("cos", "id", "key", BUCKET);
-        set(service, "region", REGION);
-        set(service, "cosClient", mock(COSClient.class));
-        return service;
-    }
-
-    private static FileUploadService service(String mode, String secretId, String secretKey, String bucket) {
-        FileUploadService service = new FileUploadService();
-        set(service, "storageMode", mode);
-        set(service, "secretId", secretId);
-        set(service, "secretKey", secretKey);
-        set(service, "bucketName", bucket);
-        set(service, "region", REGION);
-        return service;
-    }
-
-    private static COSClient clientOf(FileUploadService service) throws Exception {
-        Field field = FileUploadService.class.getDeclaredField("cosClient");
-        field.setAccessible(true);
-        return (COSClient) field.get(service);
-    }
-
-    private static void set(Object target, String name, Object value) {
-        try {
-            Field field = target.getClass().getDeclaredField(name);
-            field.setAccessible(true);
-            field.set(target, value);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException(e);
+        COSObject object = new COSObject();
+        object.setObjectContent(new COSObjectInputStream(new java.io.ByteArrayInputStream(new byte[0]),
+                new org.apache.http.client.methods.HttpGet()));
+        when(cosClient.getObject(any(GetObjectRequest.class))).thenReturn(object);
+        try (var input = service.openInputStreamFromUrl(actor,
+                "https://demo-bucket.cos.ap-guangzhou.myqcloud.com/user-8/resume/a+b.pdf")) {
+            assertThat(input.read()).isEqualTo(-1);
         }
+        org.mockito.ArgumentCaptor<GetObjectRequest> request = org.mockito.ArgumentCaptor.forClass(GetObjectRequest.class);
+        verify(cosClient).getObject(request.capture());
+        assertThat(request.getValue().getKey()).isEqualTo("user-8/resume/a+b.pdf");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "https://[", "file:///user-8/resume/a.pdf", "user-8/resume/a.pdf",
+        "http://demo-bucket.cos.ap-guangzhou.myqcloud.com/user-8/resume/a.pdf",
+        "https://evil.example/user-8/resume/a.pdf",
+        "https://user:pw@demo-bucket.cos.ap-guangzhou.myqcloud.com/user-8/resume/a.pdf",
+        "https://demo-bucket.cos.ap-guangzhou.myqcloud.com:444/user-8/resume/a.pdf",
+        "https://demo-bucket.cos.ap-guangzhou.myqcloud.com/user-8/resume/a.pdf?token=x",
+        "https://demo-bucket.cos.ap-guangzhou.myqcloud.com/user-8/resume/a.pdf#fragment",
+        "https://demo-bucket.cos.ap-guangzhou.myqcloud.com/user-8/resume/a%2Fb.pdf",
+        "https://demo-bucket.cos.ap-guangzhou.myqcloud.com/user-8/resume/a%5Cb.pdf",
+        "https://demo-bucket.cos.ap-guangzhou.myqcloud.com/user-8/resume/%"})
+    void urlOperations_shouldRejectInvalidSourceBeforeCallingSdk(String url) {
+        FileUploadService service = ready();
+        assertCode(() -> service.openInputStreamFromUrl(actor, url), ErrorCode.URL_FORMAT_ERROR);
+        assertCode(() -> service.existsByUrl(actor, url), ErrorCode.URL_FORMAT_ERROR);
+        if (!url.isBlank()) {
+            assertCode(() -> service.deleteOwnedByUrl(actor, url, FileCategory.RESUME), ErrorCode.URL_FORMAT_ERROR);
+        }
+        org.mockito.Mockito.verifyNoInteractions(cosClient);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"user-8/../secret", "user-8/%2e%2e/secret", "user-8/resume//a.pdf"})
+    void urlOperations_shouldRejectTraversal(String path) {
+        FileUploadService service = ready();
+        String url = "https://demo-bucket.cos.ap-guangzhou.myqcloud.com/" + path;
+        assertCode(() -> service.openInputStreamFromUrl(actor, url), ErrorCode.VALIDATION_ERROR);
+        assertCode(() -> service.existsByUrl(actor, url), ErrorCode.VALIDATION_ERROR);
+        assertCode(() -> service.deleteOwnedByUrl(actor, url, FileCategory.RESUME), ErrorCode.VALIDATION_ERROR);
+        org.mockito.Mockito.verifyNoInteractions(cosClient);
+    }
+
+    @Test
+    void urlOperations_shouldRejectForeignUser() {
+        FileUploadService service = ready();
+        String url = "https://demo-bucket.cos.ap-guangzhou.myqcloud.com/user-80/resume/a.pdf";
+        assertCode(() -> service.openInputStreamFromUrl(actor, url), ErrorCode.NO_PERMISSION);
+        assertCode(() -> service.existsByUrl(actor, url), ErrorCode.NO_PERMISSION);
+        assertCode(() -> service.deleteOwnedByUrl(actor, url, FileCategory.RESUME), ErrorCode.NO_PERMISSION);
+        org.mockito.Mockito.verifyNoInteractions(cosClient);
+    }
+
+    @Test
+    void upload_storageFailure_shouldCloseStreamAndRetainCause() throws Exception {
+        FileUploadService service = ready();
+        InputStream input = mock(InputStream.class);
+        MultipartFile file = mock(MultipartFile.class);
+        when(file.getInputStream()).thenReturn(input);
+        CosClientException cause = new CosClientException("down");
+        when(cosClient.putObject(any(PutObjectRequest.class))).thenThrow(cause);
+        assertThatThrownBy(() -> service.uploadFile(actor, file, FileCategory.RESUME))
+                .hasCause(cause).extracting("code").isEqualTo(ErrorCode.OBJECT_STORAGE_UNAVAILABLE.getCode());
+        verify(input).close();
+    }
+
+    @Test
+    void list_brokenPagination_shouldFailFast() {
+        ObjectListing broken = listing(true, null);
+        when(cosClient.listObjects(any(ListObjectsRequest.class))).thenReturn(broken);
+        assertThatThrownBy(() -> ready().listUploadedFiles(actor, null)).isInstanceOf(IllegalStateException.class);
+    }
+
+    private static void assertCode(org.assertj.core.api.ThrowableAssert.ThrowingCallable action, ErrorCode code) {
+        assertThatThrownBy(action).isInstanceOf(BusinessException.class).extracting("code").isEqualTo(code.getCode());
+    }
+
+    private final COSClient cosClient = mock(COSClient.class);
+
+    private FileUploadService ready() {
+        return new FileUploadService(cosClient, BUCKET, REGION);
     }
 
     private static ObjectListing listing(boolean truncated, String marker, COSObjectSummary... summaries) {
@@ -340,5 +346,37 @@ class FileUploadServiceTest {
         COSObjectSummary summary = new COSObjectSummary();
         summary.setKey(key);
         return summary;
+    }
+
+    private final ApplicationContextRunner context = new ApplicationContextRunner()
+            .withUserConfiguration(FileUploadService.CosStorageConfiguration.class)
+            .withPropertyValues("cos.secret-id=test-id", "cos.secret-key=test-key",
+                    "cos.region=ap-guangzhou", "cos.bucket-name=test-bucket");
+
+    @ParameterizedTest
+    @ValueSource(strings = {"cos.secret-id", "cos.secret-key", "cos.region", "cos.bucket-name"})
+    void missingConfiguration_shouldFailAtStartup(String property) {
+        context.withPropertyValues(property + "= ").run(result -> assertThat(result).hasFailed());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"local", "stub", "invalid"})
+    void unsupportedMode_shouldFailAtStartup(String mode) {
+        context.withPropertyValues("zdmj.storage.mode=" + mode).run(result -> assertThat(result).hasFailed());
+    }
+
+    @Test
+    void container_shouldCreateAndShutdownClient() {
+        try (var clients = mockConstruction(COSClient.class)) {
+            context.run(result -> assertThat(result).hasSingleBean(COSClient.class));
+            assertThat(clients.constructed()).hasSize(1);
+            verify(clients.constructed().getFirst()).shutdown();
+        }
+    }
+
+    @Test
+    void testProfile_shouldNotCreateRealClient() {
+        context.withPropertyValues("spring.profiles.active=test")
+                .run(result -> assertThat(result).doesNotHaveBean(COSClient.class));
     }
 }

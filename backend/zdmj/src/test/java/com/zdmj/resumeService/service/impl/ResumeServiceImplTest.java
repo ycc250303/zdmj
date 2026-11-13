@@ -37,7 +37,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
+
+import org.springframework.web.multipart.MultipartFile;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -48,6 +52,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -379,6 +385,62 @@ class ResumeServiceImplTest {
         assertEquals(16000, parseMsg.getValue().message().length());
         assertEquals("resume-import-parse", parseMsg.getValue().promptName());
         assertEquals(true, out.getWarnings() == null || out.getWarnings().stream().noneMatch(w -> w.contains("截断")));
+    }
+
+    @Test
+    void parseImport_pdf_shouldCloseStreamBeforeCallingModel() throws Exception {
+        MultipartFile file = mock(MultipartFile.class);
+        InputStream input = mock(InputStream.class);
+        doReturn(false).when(file).isEmpty();
+        doReturn(input).when(file).getInputStream();
+        doReturn("简历文本").when(pdfParserUtil).extractText(same(input));
+        doReturn(new ResumeImportParseResponse()).when(modelGateway)
+                .generateStructured(same(actor), any(), eq(ResumeImportParseResponse.class));
+
+        resumeService.parseImport(actor, file);
+
+        var order = org.mockito.Mockito.inOrder(input, modelGateway);
+        order.verify(input).close();
+        order.verify(modelGateway).generateStructured(same(actor),
+                argThat(value -> value.message().equals("简历文本")), eq(ResumeImportParseResponse.class));
+    }
+
+    @Test
+    void parseImport_pdfFailure_shouldCloseStreamAndStop() throws Exception {
+        MultipartFile file = mock(MultipartFile.class);
+        InputStream input = mock(InputStream.class);
+        doReturn(false).when(file).isEmpty();
+        doReturn(input).when(file).getInputStream();
+        BusinessException failure = new BusinessException(ErrorCode.VALIDATION_ERROR, "文件文本提取失败");
+        doThrow(failure).when(pdfParserUtil).extractText(same(input));
+
+        org.junit.jupiter.api.Assertions.assertSame(failure,
+                assertThrows(BusinessException.class, () -> resumeService.parseImport(actor, file)));
+        verify(input).close();
+        verify(modelGateway, never()).generateStructured(any(), any(), any());
+    }
+
+    @Test
+    void parseImport_emptyFile_shouldReject() {
+        MultipartFile file = mock(MultipartFile.class);
+        doReturn(true).when(file).isEmpty();
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.parseImport(actor, file));
+
+        assertEquals(ErrorCode.FILE_EMPTY.getCode(), ex.getCode());
+        verify(modelGateway, never()).generateStructured(any(), any(), any());
+    }
+
+    @Test
+    void parseImport_unreadableFile_shouldFail() throws Exception {
+        MultipartFile file = mock(MultipartFile.class);
+        doReturn(false).when(file).isEmpty();
+        doThrow(new IOException("disk")).when(file).getInputStream();
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.parseImport(actor, file));
+
+        assertEquals(ErrorCode.FILE_READ_FAILED.getCode(), ex.getCode());
+        verify(modelGateway, never()).generateStructured(any(), any(), any());
     }
 
     @Test
