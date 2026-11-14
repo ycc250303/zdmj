@@ -27,7 +27,7 @@
 
 ## 系统架构
 
-前后端分离：浏览器使用 Vue 管理端，业务由 Spring Boot 统一编排；关系数据与向量检索落在 PostgreSQL（pgvector），登录态、限流与长耗时 LLM 任务走 Redis，简历与知识文档存放腾讯云 COS，对话与结构化分析经 Spring AI 接入通义 / DeepSeek。
+前后端分离：浏览器使用 Vue 管理端，业务由 Spring Boot 统一编排；关系数据与向量检索落在 PostgreSQL（pgvector），登录态、限流与长耗时 LLM 任务走 Redis，知识文档存放在服务器持久化目录，对话与结构化分析经 Spring AI 接入通义 / DeepSeek。
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
@@ -39,11 +39,11 @@
 │  Spring Boot 3.5（按业务域分包）                          │
 │  userAuth / resume / job / match / careerReport          │
 │  knowledge / conversation + common（鉴权、LLM、RAG）        │
-└───────┬────────────┬────────────┬────────────┬──────────┘
-        │            │            │            │
-   PostgreSQL    Redis 7     腾讯云 COS     LLM API
-   + pgvector    会话/限流    简历/文档      DashScope
-                                           / DeepSeek
+└───────┬────────────┬────────────┬──────────┘
+        │            │            │
+   PostgreSQL    Redis 7      LLM API
+   + pgvector    会话/限流    DashScope
+                             / DeepSeek
 ```
 
 画像、匹配、报告、简历识别和知识库向量化在请求内完成并直接返回结果。多轮对话保持 SSE 直出。
@@ -65,7 +65,6 @@
 | Redis | 7 | 会话缓存、接口限流 |
 | Apache Tika | 3.3 | 简历 / 知识文档解析 |
 | MapStruct | 1.5 | 对象映射 |
-| 腾讯云 COS | — | 对象存储 |
 | Maven | 3.9+ | 构建工具 |
 
 数据层用 PostgreSQL + pgvector，关系数据与向量检索共用一套库，避免再引入独立向量组件。Redis 承担登录态和限流计数。画像、匹配、报告在请求内返回；对话仍走 SSE。
@@ -156,7 +155,7 @@ zdmj/
 git clone https://github.com/ycc250303/zdmj.git
 cd zdmj
 cp .env.example .env
-# 编辑 .env：数据库、Redis、DashScope / DeepSeek、COS、邮件、JWT 等
+# 编辑 .env：数据库、Redis、DashScope / DeepSeek、邮件、JWT 等
 ```
 
 根目录 `.env` 由 `application.yml` 的 `spring.config.import` 自动加载，勿提交真实密钥。
@@ -196,7 +195,7 @@ pnpm dev
 Compose 会启动 PostgreSQL（pgvector）、Redis、Spring Boot 后端和 Nginx 前端。
 
 ```bash
-cp .env.example .env   # 填入 DASHSCOPE_API_KEY、COS、JWT 等
+cp .env.example .env   # 填入 DASHSCOPE_API_KEY、JWT 等
 cd deploy
 docker compose --env-file ../.env up -d --build
 ```

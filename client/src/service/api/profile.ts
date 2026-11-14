@@ -51,7 +51,7 @@ export function fetchGenerateCapabilityProfile(data: CapabilityProfileApi.Capabi
   });
 }
 
-/** 上传简历文件并生成能力画像。文件只随本次请求提交，不写入对象存储。 */
+/** 上传简历文件并生成能力画像。文件只随本次请求提交。 */
 export function fetchGenerateCapabilityProfileFromFile(file: File) {
   const formData = new FormData();
   formData.append('file', file);

@@ -170,12 +170,7 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- 腾讯云COS SDK -->
-        <dependency>
-            <groupId>com.qcloud</groupId>
-            <artifactId>cos_api</artifactId>
-            <version>5.6.227</version>
-        </dependency>
+
         <!-- OpenAI 兼容 API（DashScope 兼容模式 / DeepSeek 等） -->
         <dependency>
             <groupId>org.springframework.ai</groupId>

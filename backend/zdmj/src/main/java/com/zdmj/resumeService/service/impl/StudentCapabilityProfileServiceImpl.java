@@ -90,7 +90,7 @@ public class StudentCapabilityProfileServiceImpl
     }
 
     /**
-     * 从上传文件提取文本后生成画像。文件流在提取结束后关闭，文件内容不落库、不进入对象存储。
+     * 从上传文件提取文本后生成画像。文件流在提取结束后关闭，文件内容不落库。
      *
      * @param actor 已认证操作者，包含用户编号
      * @param file 非空简历文件

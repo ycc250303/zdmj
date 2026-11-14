@@ -36,10 +36,4 @@ public interface KnowledgeBasesService {
      */
     Long findKnowledgeBaseIdByScope(int scope);
 
-    /**
-     * 清空知识库
-     *
-     * @param actor 已认证操作者，包含用户编号
-     */
-    void clear(CurrentActor actor);
 }

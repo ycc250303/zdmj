@@ -18,15 +18,6 @@ spring:
     username: test@example.com
     password: ""
 
-zdmj:
-  storage:
-    mode: stub
-
-cos:
-  secret-id: ""
-  secret-key: ""
-  region: ""
-  bucket-name: ""
 
 mybatis-plus:
   configuration:

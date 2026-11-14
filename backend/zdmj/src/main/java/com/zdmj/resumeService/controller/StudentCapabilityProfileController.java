@@ -66,7 +66,7 @@ public class StudentCapabilityProfileController {
     }
 
     /**
-     * 从上传文件提取文本并生成能力画像。文件只在本次请求中读取，不写入对象存储。
+     * 从上传文件提取文本并生成能力画像。文件只在本次请求中读取。
      *
      * @param actor 已认证操作者，包含用户编号
      * @param file 简历文件

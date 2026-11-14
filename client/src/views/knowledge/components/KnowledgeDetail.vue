@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { fetchGetKnowledgeDocumentDetail } from '@/service/api/knowledge';
+import {
+  fetchDownloadKnowledgeDocument,
+  fetchGetKnowledgeDocumentDetail,
+  fetchRetryKnowledgeEmbedding
+} from '@/service/api/knowledge';
 import type { KnowledgeApi } from '@/service/api/knowledge';
 import { $t } from '@/locales';
 
@@ -10,7 +14,7 @@ interface Props {
 }
 
 const props = defineProps<Props>();
-const emit = defineEmits(['update:show']);
+const emit = defineEmits(['update:show', 'refresh']);
 
 const loading = ref(true);
 const detail = ref<KnowledgeApi.KnowledgeDocumentDTO | null>(null);
@@ -51,38 +55,44 @@ async function loadDetail() {
   }
 }
 
-function isGitHubUrl(url: string): boolean {
-  return url.includes('github.com');
-}
+const downloading = ref(false);
+const processing = ref(false);
 
-function isPdfUrl(url: string): boolean {
-  return url.toLowerCase().includes('.pdf');
-}
-
-function handleDownloadContent() {
-  if (!detail.value?.content) {
-    window.$message?.warning('暂无内容链接');
-    return;
+async function handleDownloadContent() {
+  if (!detail.value?.id) return;
+  downloading.value = true;
+  try {
+    const { data, error } = await fetchDownloadKnowledgeDocument(detail.value.id);
+    if (error || !data) return;
+    const url = URL.createObjectURL(data);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = String(detail.value.metadata?.fileName || detail.value.title);
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } finally {
+    downloading.value = false;
   }
-  // 直接打开链接
-  window.open(detail.value.content, '_blank');
 }
 
-const buttonText = computed(() => {
-  if (!detail.value?.content) return $t('page.knowledge.openFile');
-  if (isGitHubUrl(detail.value.content)) return $t('page.knowledge.viewRepo');
-  if (isPdfUrl(detail.value.content)) return $t('page.knowledge.downloadFile');
-  return $t('page.knowledge.openFile');
-});
+async function handleRetry() {
+  if (!detail.value?.id) return;
+  processing.value = true;
+  try {
+    const { error } = await fetchRetryKnowledgeEmbedding(detail.value.id);
+    if (!error) window.$message?.success('文档向量化成功');
+    await loadDetail();
+    emit('refresh');
+  } finally {
+    processing.value = false;
+  }
+}
 
-const buttonIcon = computed(() => {
-  if (!detail.value?.content) return '↗';
-  if (isGitHubUrl(detail.value.content)) return '🐙';
-  if (isPdfUrl(detail.value.content)) return '⬇️';
-  return '↗';
-});
+const buttonText = computed(() => $t('page.knowledge.downloadFile'));
+const buttonIcon = computed(() => '⬇️');
 
-// 向量化状态信息
 const embeddingInfo = computed(() => {
   if (!detail.value) return null;
 
@@ -127,6 +137,16 @@ watch(
             {{ $t('page.knowledge.basicInfo') }}
           </h3>
           <NDescriptions :column="1" bordered label-placement="left" label-style="width: 120px">
+            <NDescriptionsItem label="原文件状态">
+              {{
+                {
+                  0: '正在保存',
+                  1: '可以下载',
+                  2: '保存失败，可删除记录；替换失败可重新处理以恢复原文件',
+                  3: '正在删除，可重试删除'
+                }[detail.fileStatus]
+              }}
+            </NDescriptionsItem>
             <NDescriptionsItem :label="$t('page.knowledge.docTitle')">
               {{ detail.title }}
             </NDescriptionsItem>
@@ -136,14 +156,7 @@ watch(
               </NTag>
             </NDescriptionsItem>
             <NDescriptionsItem :label="$t('page.knowledge.content')">
-              <a
-                :href="detail.content"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="block max-w-md truncate text-blue-500 hover:underline"
-              >
-                {{ detail.content }}
-              </a>
+              <span>{{ detail.metadata?.fileName || detail.title }}</span>
             </NDescriptionsItem>
             <NDescriptionsItem v-if="detail.createdAt" label="创建时间">
               {{ new Date(detail.createdAt).toLocaleString('zh-CN') }}
@@ -183,11 +196,26 @@ watch(
 
     <template #footer>
       <div class="flex justify-end gap-3">
-        <NButton type="primary" @click="handleDownloadContent">
+        <NButton
+          type="primary"
+          :loading="downloading"
+          :disabled="detail?.fileStatus !== 1"
+          @click="handleDownloadContent"
+        >
           <template #icon>
             <div :class="buttonIcon"></div>
           </template>
           {{ buttonText }}
+        </NButton>
+        <NButton
+          v-if="
+            (detail?.fileStatus === 1 && detail.embeddingStatus !== 'SUCCESS') ||
+            (detail?.fileStatus === 2 && detail.metadata?.canRestoreOriginal)
+          "
+          :loading="processing"
+          @click="handleRetry"
+        >
+          重新处理
         </NButton>
         <NButton @click="showModal = false">{{ $t('common.close') }}</NButton>
       </div>

@@ -40,7 +40,7 @@ export function fetchParseResumeImport(data: ResumeApi.ResumeImportParseRequest)
   });
 }
 
-/** 上传简历文件并识别。文件只随本次请求提交，不写入对象存储。 */
+/** 上传简历文件并识别。文件只随本次请求提交。 */
 export function fetchParseResumeImportFile(file: File) {
   const formData = new FormData();
   formData.append('file', file);

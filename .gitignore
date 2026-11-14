@@ -18,3 +18,4 @@ agents.md
 /sql/rag-eval
 /backend/zdmj/src/test/resources/archunit_store
 /.pnpm-store
+/knowledge/

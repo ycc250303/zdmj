@@ -1,18 +1,14 @@
 package com.zdmj.knowledgeService.service.impl;
 
 import com.zdmj.common.context.CurrentActor;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.knowledgeService.dto.KnowledgeBasesResponse;
 import com.zdmj.knowledgeService.entity.KnowledgeBases;
 import com.zdmj.knowledgeService.mapper.KnowledgeBasesMapper;
-import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
-import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 
 import org.springframework.beans.BeanUtils;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,12 +18,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RequiredArgsConstructor
 @Service
-public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper, KnowledgeBases>
-        implements KnowledgeBasesService {
+public class KnowledgeBasesServiceImpl implements KnowledgeBasesService {
 
     private final KnowledgeBasesMapper knowledgeBasesMapper;
-    private final KnowledgeDocumentMapper knowledgeDocumentMapper;
-    private final KnowledgeVectorMapper knowledgeVectorMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -41,9 +34,8 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         knowledgeBases.setScope(1);
 
         // 2.保存知识库
-        boolean saved = save(knowledgeBases);
-        if (!saved) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_SAVE_FAILED);
+        if (knowledgeBasesMapper.insert(knowledgeBases) != 1 || knowledgeBases.getId() == null) {
+            throw new IllegalStateException("知识库插入结果无效");
         }
 
         return convertToResponse(knowledgeBases);
@@ -67,32 +59,12 @@ public class KnowledgeBasesServiceImpl extends ServiceImpl<KnowledgeBasesMapper,
         if (id != null) {
             return id;
         }
-        KnowledgeBases knowledgeBases = new KnowledgeBases();
-        knowledgeBases.setUserId(userId);
-        knowledgeBases.setScope(1);
-        try {
-            boolean saved = save(knowledgeBases);
-            if (!saved) {
-                throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_SAVE_FAILED);
-            }
-            return knowledgeBases.getId();
-        } catch (DataIntegrityViolationException e) {
-            Long existing = knowledgeBasesMapper.selectKnowledgeIdByUserId(userId);
-            if (existing != null) {
-                return existing;
-            }
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_SAVE_FAILED);
+        knowledgeBasesMapper.insertUserBaseIfAbsent(userId);
+        Long existing = knowledgeBasesMapper.selectKnowledgeIdByUserId(userId);
+        if (existing == null) {
+            throw new IllegalStateException("用户知识库未成功建立");
         }
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void clear(CurrentActor actor) {
-        KnowledgeBases knowledgeBases = requireUserKnowledgeBase(actor);
-        Long knowledgeId = knowledgeBases.getId();
-        knowledgeVectorMapper.deleteByKnowledgeId(knowledgeId);
-        knowledgeDocumentMapper.deleteByKnowledgeId(knowledgeId);
-        log.info("清空知识库成功，knowledgeId={}", knowledgeId);
+        return existing;
     }
 
     private KnowledgeBases requireUserKnowledgeBase(CurrentActor actor) {

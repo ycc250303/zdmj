@@ -31,10 +31,7 @@ public class ExpectedFailureLogFilter extends TurboFilter {
             "邮件失败后的验证码清理失败",
             "邮件发送失败",
             "登录状态服务不可用",
-            "腾讯云COS客户端初始化失败",
             "文件上传异常",
-            "COS服务异常",
-            "COS客户端异常",
             "Aggregation Error",
             "Operator called default onErrorDropped");
 

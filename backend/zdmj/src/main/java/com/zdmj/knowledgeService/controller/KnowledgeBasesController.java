@@ -27,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 public class KnowledgeBasesController {
 
     private final KnowledgeBasesService knowledgeBasesService;
+    private final com.zdmj.knowledgeService.service.KnowledgeDocumentService knowledgeDocumentService;
 
     /**
      * 创建知识库
@@ -58,7 +59,7 @@ public class KnowledgeBasesController {
      */
     @DeleteMapping
     public Result<String> clearKnowledgeBases(@Parameter(hidden = true) CurrentActor actor) {
-        knowledgeBasesService.clear(actor);
+        knowledgeDocumentService.clear(actor);
         return Result.success("清空知识库成功", null);
     }
 

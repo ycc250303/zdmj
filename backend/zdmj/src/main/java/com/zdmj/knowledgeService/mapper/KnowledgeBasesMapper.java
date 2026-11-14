@@ -13,6 +13,9 @@ import java.util.List;
  */
 @Mapper
 public interface KnowledgeBasesMapper extends BaseMapper<KnowledgeBases> {
+        /** 按用户唯一约束原子创建知识库，冲突时保留已有记录。 */
+        int insertUserBaseIfAbsent(@Param("userId") Long userId);
+
 
         /**
          * 根据用户ID查询知识库

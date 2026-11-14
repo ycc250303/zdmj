@@ -183,10 +183,7 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
     @Test
     void 知识文档_其他用户查询修改或删除_返回不存在且标题保持不变() throws Exception {
         api.post(tokenA, "/knowledge", null);
-        String url = upload(tokenA, "owned.md", "这份文档归属于当前用户，用于校验其他人不能查看或修改。");
-        long id = ApiClient.dataId(api.post(tokenA, "/knowledge-document", """
-                {"title":"原标题","type":1,"content":"%s"}
-                """.formatted(url)));
+        long id = ApiClient.dataId(uploadResult(tokenA, "owned.md", "这份文档归属于当前用户，用于校验其他人不能查看或修改。"));
         String hidden = ApiClient.requireOk(api.get(tokenB, "/knowledge-document?page=1&limit=20"));
         assertThat(JsonPath.<Integer>read(hidden, "$.data.total")).isZero();
         ApiClient.assertProblem(api.get(tokenB, "/knowledge-document/" + id), 404, 8012);
@@ -244,18 +241,15 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
     }
 
     @Test
-    void 上传文件_其他用户删除_返回无权且文件仍可列出() throws Exception {
-        String key = uploadKey(tokenA, "owned.txt", "用户A的文件");
-        String listed = ApiClient.requireOk(api.get(tokenA, "/files/list?prefix=files"));
-        assertThat(JsonPath.<String>read(listed, "$.data[0].key")).isEqualTo(key);
-        String hidden = ApiClient.requireOk(api.get(tokenB, "/files/list?prefix=files"));
-        assertThat(JsonPath.<Integer>read(hidden, "$.data.length()")).isZero();
-        ApiClient.assertProblem(deleteFile(tokenB, key), 403, 1003);
-        String stillThere = ApiClient.requireOk(api.get(tokenA, "/files/list?prefix=files"));
-        assertThat(JsonPath.<String>read(stillThere, "$.data[0].key")).isEqualTo(key);
-        ApiClient.requireOk(deleteFile(tokenA, key));
-        String after = ApiClient.requireOk(api.get(tokenA, "/files/list?prefix=files"));
-        assertThat(JsonPath.<Integer>read(after, "$.data.length()")).isZero();
+    void 原文件_其他用户下载删除_拒绝且本人仍可下载() throws Exception {
+        long id = ApiClient.dataId(uploadResult(tokenA, "owned.md", "用户A的文件"));
+        ApiClient.assertProblem(api.get(tokenB, "/knowledge-document/" + id + "/download"), 404, 8012);
+        ApiClient.assertProblem(api.delete(tokenB, "/knowledge-document/" + id), 404, 8012);
+        var download = api.get(tokenA, "/knowledge-document/" + id + "/download");
+        assertThat(download.getResponse().getStatus()).isEqualTo(200);
+        assertThat(download.getResponse().getContentAsByteArray()).isEqualTo("用户A的文件".getBytes(StandardCharsets.UTF_8));
+        ApiClient.requireOk(api.delete(tokenA, "/knowledge-document/" + id));
+        ApiClient.assertProblem(api.get(tokenA, "/knowledge-document/" + id + "/download"), 404, 8012);
     }
 
     private void assertAbsentFromList(String token, String path) throws Exception {
@@ -277,25 +271,11 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
                 """));
     }
 
-    private String upload(String token, String fileName, String text) throws Exception {
-        MvcResult result = uploadResult(token, fileName, text);
-        return JsonPath.read(ApiClient.requireOk(result), "$.data.url");
-    }
-
-    private String uploadKey(String token, String fileName, String text) throws Exception {
-        MvcResult result = uploadResult(token, fileName, text);
-        return JsonPath.read(ApiClient.requireOk(result), "$.data.key");
-    }
-
-    private MvcResult deleteFile(String token, String key) throws Exception {
-        return api.exchange(delete(ApiClient.PREFIX + "/files").param("key", key), token, null);
-    }
-
     private MvcResult uploadResult(String token, String fileName, String text) throws Exception {
-        MockMultipartFile file = new MockMultipartFile("file", fileName, "text/plain",
+        MockMultipartFile file = new MockMultipartFile("file", fileName, "text/markdown",
                 text.getBytes(StandardCharsets.UTF_8));
-        return mockMvc.perform(multipart(ApiClient.PREFIX + "/files/upload")
-                        .file(file)
+        return mockMvc.perform(multipart(ApiClient.PREFIX + "/knowledge-document")
+                        .file(file).param("type", "1").param("title", "原标题")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andReturn();
     }

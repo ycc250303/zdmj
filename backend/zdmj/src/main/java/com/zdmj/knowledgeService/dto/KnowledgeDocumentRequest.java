@@ -22,6 +22,7 @@ public class KnowledgeDocumentRequest {
      * 文档标题
      */
     @NotBlank(message = "文档标题不能为空", groups = CreateGroup.class)
+    @jakarta.validation.constraints.Size(max = 500, message = "文档标题不能超过500个字符", groups = {CreateGroup.class, UpdateGroup.class})
     private String title;
 
     /**
@@ -31,8 +32,7 @@ public class KnowledgeDocumentRequest {
     private Integer type;
 
     /**
-     * 来源地址
+     * 编辑时的来源标识，仅用于核对当前文档；上传由服务端生成
      */
-    @NotBlank(message = "来源地址不能为空", groups = CreateGroup.class)
     private String content;
 }

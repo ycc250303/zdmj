@@ -14,7 +14,6 @@ import com.zdmj.testsupport.ExternalAiStubConfig;
 import com.zdmj.testsupport.IntegrationTestBase;
 import com.zdmj.testsupport.TestJwt;
 import com.zdmj.testsupport.TestMailSender;
-import com.zdmj.testsupport.TestObjectStorage;
 import com.zdmj.testsupport.TestUsers;
 
 class ContainerIsolationIT extends IntegrationTestBase {
@@ -26,12 +25,11 @@ class ContainerIsolationIT extends IntegrationTestBase {
     private final ChatModel chatModel;
     private final EmbeddingModel embeddingModel;
     private final TestMailSender testMailSender;
-    private final TestObjectStorage testObjectStorage;
 
     @Autowired
     ContainerIsolationIT(DatabaseCleaner databaseCleaner, TestUsers testUsers, TestJwt testJwt,
             JwtSessionStore jwtSessionStore, JdbcTemplate jdbcTemplate, ChatModel chatModel,
-            EmbeddingModel embeddingModel, TestMailSender testMailSender, TestObjectStorage testObjectStorage) {
+            EmbeddingModel embeddingModel, TestMailSender testMailSender) {
         super(databaseCleaner);
         this.testUsers = testUsers;
         this.testJwt = testJwt;
@@ -40,7 +38,6 @@ class ContainerIsolationIT extends IntegrationTestBase {
         this.chatModel = chatModel;
         this.embeddingModel = embeddingModel;
         this.testMailSender = testMailSender;
-        this.testObjectStorage = testObjectStorage;
     }
 
     @Test
@@ -54,7 +51,6 @@ class ContainerIsolationIT extends IntegrationTestBase {
         assertThat(chatModel.call("ping")).isEqualTo(ExternalAiStubConfig.FIXED_REPLY);
         assertThat(embeddingModel.embed("hello")).hasSize(ExternalAiStubConfig.DIMENSION);
         assertThat(testMailSender.sentMessages()).isEmpty();
-        assertThat(testObjectStorage.calls()).isEmpty();
     }
 
     @Test

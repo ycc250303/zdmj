@@ -21,6 +21,9 @@ public class KnowledgeDocumentResponse {
 
     private String content;
 
+    /** 原文件状态：0 写入中、1 可用、2 写入失败、3 删除中。 */
+    private Integer fileStatus;
+
     private String title;
 
     private String contentHash;

@@ -391,7 +391,7 @@ public class ResumeServiceImpl implements ResumeService {
     }
 
     /**
-     * 从上传文件提取文本后识别简历。文件流在提取结束后关闭，文件内容不落库、不进入对象存储。
+     * 从上传文件提取文本后识别简历。文件流在提取结束后关闭，文件内容不落库。
      *
      * @param actor 已认证操作者，包含用户编号
      * @param file 非空简历文件

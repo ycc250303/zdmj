@@ -87,12 +87,9 @@ logging:
     org.springframework.ai.chat.client.advisor: DEBUG
     com.zdmj: DEBUG
 
-cos:
-  secret-id: ${COS_SECRET_ID:}
-  secret-key: ${COS_SECRET_KEY:}
-  region: ${COS_REGION:}
-  bucket-name: ${COS_BUCKET_NAME:${COS_BUCKET:}}
-  presigned-url-expiration: 3600
+knowledge:
+  storage:
+    root: ${KNOWLEDGE_STORAGE_ROOT}
 
 app:
   remote:

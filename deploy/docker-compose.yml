@@ -69,14 +69,16 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
-      COS_SECRET_ID: ${COS_SECRET_ID}
-      COS_SECRET_KEY: ${COS_SECRET_KEY}
-      COS_REGION: ${COS_REGION}
-      COS_BUCKET: ${COS_BUCKET}
-      COS_BUCKET_NAME: ${COS_BUCKET}
       SPRING_MAIL_USERNAME: ${MAIL_USERNAME}
       SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      KNOWLEDGE_STORAGE_ROOT: /app/data/knowledge
+    volumes:
+      - type: bind
+        source: ${KNOWLEDGE_STORAGE_ROOT}
+        target: /app/data/knowledge
+        bind:
+          create_host_path: false
 
   frontend-main:
     build:

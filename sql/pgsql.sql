@@ -443,13 +443,15 @@ CREATE TABLE IF NOT EXISTS knowledge_documents (
     user_id BIGINT NOT NULL DEFAULT 0,
     -- 用户ID（逻辑外键：users.id）
     type SMALLINT NOT NULL,
-    -- 来源类型（枚举：1=上传pdf文件/2=GitHub仓库/3=DeepWiki/4=markdown）
+    -- 来源类型（枚举：1=上传PDF或Markdown文件/2=GitHub仓库/3=DeepWiki）
     content TEXT NOT NULL,
-    -- 来源地址
+    -- 文件类型保存用户目录相对标识，链接类型保存来源地址
+    file_status SMALLINT NOT NULL DEFAULT 1 CONSTRAINT ck_knowledge_documents_file_status CHECK (file_status BETWEEN 0 AND 3),
+    -- 原文件状态（0=写入中/1=可用/2=失败/3=删除中）
     title VARCHAR(500),
     -- 文档标题
     content_hash VARCHAR(64),
-    -- 文档内容哈希（去重/增量）
+    -- 原文件 SHA-256
     embedding_status SMALLINT NOT NULL DEFAULT 1,
     -- 向量化状态（1=pending/2=running/3=success/4=failed）
     chunk_count INTEGER NOT NULL DEFAULT 0,
@@ -458,7 +460,7 @@ CREATE TABLE IF NOT EXISTS knowledge_documents (
     -- 最近一次向量化完成时间
     last_error TEXT,
     -- 最近错误信息
-    metadata JSONB DEFAULT '{}'::jsonb,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     -- 文档元数据
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

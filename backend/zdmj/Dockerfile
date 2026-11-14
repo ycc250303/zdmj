@@ -27,7 +27,7 @@ RUN apk add --no-cache tzdata && \
     echo $TZ > /etc/timezone
 
 # 创建非root用户
-RUN addgroup -S spring && adduser -S spring -G spring
+RUN addgroup -S -g 10001 spring && adduser -S -u 10001 spring -G spring
 USER spring:spring
 
 # 从构建阶段复制jar文件到 /opt/zdmj 目录

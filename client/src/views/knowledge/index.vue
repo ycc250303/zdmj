@@ -52,6 +52,9 @@ const embeddingStatusLabels = computed<
 
 // 获取向量化状态显示
 function getEmbeddingStatus(item: KnowledgeApi.KnowledgeDocumentDTO) {
+  if (item.fileStatus === 0) return { text: '正在保存', type: 'warning' as const, icon: '⏳' };
+  if (item.fileStatus === 2) return { text: '文件保存失败', type: 'error' as const, icon: '⚠️' };
+  if (item.fileStatus === 3) return { text: '删除尚未完成', type: 'warning' as const, icon: '⏳' };
   const status = item.embeddingStatus || 'PENDING';
   return embeddingStatusLabels.value[status] || embeddingStatusLabels.value.PENDING;
 }
@@ -226,7 +229,7 @@ onMounted(() => {
                 </div>
                 <div class="mb-3 max-w-lg truncate text-xs text-gray-400 dark:text-gray-500">
                   <span class="mr-1">🔗</span>
-                  {{ item.content }}
+                  {{ item.metadata?.fileName || item.title }}
                 </div>
                 <div v-if="item.lastError" class="mt-2 text-xs text-red-500">
                   <span class="mr-1">⚠️</span>
@@ -272,10 +275,20 @@ onMounted(() => {
 
     <!-- 编辑表单 -->
     <div v-else class="py-4">
-      <KnowledgeForm :initial-data="currentEditData" @success="onFormSuccess" @cancel="isEditing = false" />
+      <KnowledgeForm
+        :initial-data="currentEditData"
+        @success="onFormSuccess"
+        @refresh="loadData"
+        @cancel="isEditing = false"
+      />
     </div>
 
     <!-- 详情模态框 -->
-    <KnowledgeDetail :knowledge-id="currentDetailId" :show="showDetail" @update:show="showDetail = $event" />
+    <KnowledgeDetail
+      :knowledge-id="currentDetailId"
+      :show="showDetail"
+      @refresh="loadData"
+      @update:show="showDetail = $event"
+    />
   </div>
 </template>
