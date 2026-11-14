@@ -1,19 +1,21 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
-import { fetchDeleteKnowledgeDocument, fetchGetKnowledgeDocumentList } from '@/service/api/knowledge';
+import {
+  fetchDeleteKnowledgeDocument,
+  fetchDownloadKnowledgeDocument,
+  fetchGetKnowledgeDocumentList,
+  fetchRetryKnowledgeEmbedding
+} from '@/service/api/knowledge';
 import type { KnowledgeApi } from '@/service/api/knowledge';
 import { $t } from '@/locales';
 import KnowledgeForm from './components/KnowledgeForm.vue';
-import KnowledgeDetail from './components/KnowledgeDetail.vue';
 
 const isEditing = ref(false);
 const knowledgeList = ref<KnowledgeApi.KnowledgeDocumentDTO[]>([]);
 const currentEditData = ref<KnowledgeApi.KnowledgeDocumentUpdate | undefined>(undefined);
 const loading = ref(true);
-
-// 详情模态框
-const showDetail = ref(false);
-const currentDetailId = ref<number>(0);
+const downloadingId = ref<number | null>(null);
+const retryingId = ref<number | null>(null);
 
 const pagination = reactive({
   page: 1,
@@ -52,6 +54,9 @@ const embeddingStatusLabels = computed<
 
 // 获取向量化状态显示
 function getEmbeddingStatus(item: KnowledgeApi.KnowledgeDocumentDTO) {
+  if (item.fileStatus === 0) return { text: '正在保存', type: 'warning' as const, icon: '⏳' };
+  if (item.fileStatus === 2) return { text: '文件保存失败', type: 'error' as const, icon: '⚠️' };
+  if (item.fileStatus === 3) return { text: '删除尚未完成', type: 'warning' as const, icon: '⏳' };
   const status = item.embeddingStatus || 'PENDING';
   return embeddingStatusLabels.value[status] || embeddingStatusLabels.value.PENDING;
 }
@@ -118,9 +123,52 @@ async function handleDelete(id: number) {
   }
 }
 
-function handleViewDetail(id: number) {
-  currentDetailId.value = id;
-  showDetail.value = true;
+function formatEmbeddedAt(value: string | null) {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN');
+}
+
+function canDownload(item: KnowledgeApi.KnowledgeDocumentDTO) {
+  return item.fileStatus === 1 && item.id != null;
+}
+
+function canRetry(item: KnowledgeApi.KnowledgeDocumentDTO) {
+  return (
+    (item.fileStatus === 1 && item.embeddingStatus !== 'SUCCESS') ||
+    (item.fileStatus === 2 && Boolean(item.metadata?.canRestoreOriginal))
+  );
+}
+
+async function handleDownload(item: KnowledgeApi.KnowledgeDocumentDTO) {
+  if (!canDownload(item) || item.id == null) return;
+  downloadingId.value = item.id;
+  try {
+    const { data, error } = await fetchDownloadKnowledgeDocument(item.id);
+    if (error || !data) return;
+    const url = URL.createObjectURL(data);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = String(item.metadata?.fileName || item.title);
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } finally {
+    downloadingId.value = null;
+  }
+}
+
+async function handleRetry(item: KnowledgeApi.KnowledgeDocumentDTO) {
+  if (!canRetry(item) || item.id == null) return;
+  retryingId.value = item.id;
+  try {
+    const { error } = await fetchRetryKnowledgeEmbedding(item.id);
+    if (!error) window.$message?.success('文档向量化成功');
+    await loadData();
+  } finally {
+    retryingId.value = null;
+  }
 }
 
 function handlePageChange(page: number) {
@@ -224,9 +272,14 @@ onMounted(() => {
                     {{ getEmbeddingStatus(item).text }}
                   </NTag>
                 </div>
-                <div class="mb-3 max-w-lg truncate text-xs text-gray-400 dark:text-gray-500">
-                  <span class="mr-1">🔗</span>
-                  {{ item.content }}
+                <div class="mb-3 flex items-center gap-4 text-xs text-gray-400 dark:text-gray-500">
+                  <span class="max-w-lg truncate">
+                    <span class="mr-1">🔗</span>
+                    {{ item.metadata?.fileName || item.title }}
+                  </span>
+                  <span class="shrink-0 text-gray-500 dark:text-gray-400">
+                    {{ $t('page.knowledge.lastVectorTime') }}：{{ formatEmbeddedAt(item.lastEmbeddedAt) }}
+                  </span>
                 </div>
                 <div v-if="item.lastError" class="mt-2 text-xs text-red-500">
                   <span class="mr-1">⚠️</span>
@@ -234,8 +287,24 @@ onMounted(() => {
                 </div>
               </div>
               <div class="ml-4 flex gap-2">
-                <NButton size="small" tertiary type="info" @click="handleViewDetail(item.id!)">
-                  {{ $t('page.knowledge.viewDetail') }}
+                <NButton
+                  size="small"
+                  tertiary
+                  type="primary"
+                  :disabled="!canDownload(item)"
+                  :loading="downloadingId === item.id"
+                  @click="handleDownload(item)"
+                >
+                  {{ $t('page.knowledge.downloadFile') }}
+                </NButton>
+                <NButton
+                  v-if="canRetry(item)"
+                  size="small"
+                  secondary
+                  :loading="retryingId === item.id"
+                  @click="handleRetry(item)"
+                >
+                  重新处理
                 </NButton>
                 <NButton
                   v-if="item.type !== 2"
@@ -272,10 +341,13 @@ onMounted(() => {
 
     <!-- 编辑表单 -->
     <div v-else class="py-4">
-      <KnowledgeForm :initial-data="currentEditData" @success="onFormSuccess" @cancel="isEditing = false" />
+      <KnowledgeForm
+        :initial-data="currentEditData"
+        @success="onFormSuccess"
+        @refresh="loadData"
+        @cancel="isEditing = false"
+      />
     </div>
 
-    <!-- 详情模态框 -->
-    <KnowledgeDetail :knowledge-id="currentDetailId" :show="showDetail" @update:show="showDetail = $event" />
   </div>
 </template>

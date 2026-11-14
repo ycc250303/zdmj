@@ -152,11 +152,6 @@ public class ExternalAiStubConfig {
     }
 
     @Bean
-    TestObjectStorage testObjectStorage() {
-        return new TestObjectStorage();
-    }
-
-    @Bean
     DatabaseCleaner databaseCleaner(JdbcTemplate jdbcTemplate, StringRedisTemplate redisTemplate) {
         return new DatabaseCleaner(jdbcTemplate, redisTemplate);
     }

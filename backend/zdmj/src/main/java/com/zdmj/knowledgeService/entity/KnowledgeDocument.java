@@ -21,7 +21,7 @@ import java.util.Map;
 @TableName(value = "knowledge_documents", autoResultMap = true)
 public class KnowledgeDocument extends BaseEntity {
     /**
-     * 知识库ID
+     * 文档主键，对应 id，由数据库生成。
      */
     @TableId(type = IdType.AUTO)
     private Long id;
@@ -37,14 +37,26 @@ public class KnowledgeDocument extends BaseEntity {
     private Long userId;
     
     /**
-     * 来源类型
+     * 来源类型，对应 type：1上传PDF/Markdown，2仓库链接，3外部文档。
      */
     private Integer type;
 
     /**
-     * 来源地址
+     * 文件类型为 user-{id}/{uuid}.pdf 或 .md 相对标识；链接类型为来源 URL。
      */
     private String content;
+
+    /** 原文件状态，对应 file_status：0 写入中、1 可用、2 写入失败、3 删除中。 */
+    private Integer fileStatus;
+
+    /** 文件状态独立于向量化状态；删除中禁止新的下载和向量提交。 */
+    public enum FileStatus {
+        WRITING(0), READY(1), FAILED(2), DELETING(3);
+        private final int code;
+        FileStatus(int code) { this.code = code; }
+        public int code() { return code; }
+    }
+
 
     /**
      * 文档标题
@@ -52,7 +64,7 @@ public class KnowledgeDocument extends BaseEntity {
     private String title;
 
     /**
-     * 文档内容哈希
+     * 原文件 SHA-256，对应 content_hash，为64位十六进制摘要。
      */
     private String contentHash;
 
@@ -77,7 +89,7 @@ public class KnowledgeDocument extends BaseEntity {
     private String lastError;
 
     /**
-     * 文档元数据
+     * 非空文档元数据，对应 metadata；包含下载信息及替换期间的待处理标识。
      */
     @TableField(typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> metadata;

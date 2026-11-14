@@ -1,5 +1,8 @@
 package com.zdmj.resumeService.service.impl;
 
+import java.io.InputStream;
+import java.io.IOException;
+import org.springframework.web.multipart.MultipartFile;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -10,7 +13,6 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.context.CurrentActor;
-import com.zdmj.common.storage.FileUploadService;
 import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.jobService.api.JobRole;
 import com.zdmj.jobService.api.JobRoleDetectionService;
@@ -50,7 +52,6 @@ public class StudentCapabilityProfileServiceImpl
 
     private final ModelGateway modelGateway;
     private final ObjectMapper objectMapper;
-    private final FileUploadService fileUploadService;
     private final PdfParserUtil pdfParserUtil;
     private final JobRoleDetectionService roleDetectionService;
 
@@ -85,9 +86,39 @@ public class StudentCapabilityProfileServiceImpl
      */
     @Override
     public StudentCapabilityProfileResponse generateProfile(CurrentActor actor, CapabilityProfileGenerateRequest reqDTO) {
+        return generateFromText(actor, resolveSourceText(reqDTO));
+    }
+
+    /**
+     * 从上传文件提取文本后生成画像。文件流在提取结束后关闭，文件内容不落库。
+     *
+     * @param actor 已认证操作者，包含用户编号
+     * @param file 非空简历文件
+     * @return 生成后的画像
+     * @throws BusinessException 文件为空、无法读取、提取文本为空或生成失败
+     */
+    @Override
+    public StudentCapabilityProfileResponse generateProfile(CurrentActor actor, MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ErrorCode.FILE_EMPTY);
+        }
+        log.info("从上传文件提取简历文本");
+        String extracted;
+        try (InputStream input = file.getInputStream()) {
+            extracted = pdfParserUtil.extractText(input);
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.FILE_READ_FAILED, exception);
+        }
+        if (!StringUtils.hasText(extracted)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "提取到的文本为空，无法生成画像");
+        }
+        CapabilityProfileGenerateRequest request = new CapabilityProfileGenerateRequest();
+        request.setRawText(extracted);
+        return generateProfile(actor, request);
+    }
+
+    private StudentCapabilityProfileResponse generateFromText(CurrentActor actor, String sourceText) {
         Long userId = actor.userId();
-        String pdfUrl = StringUtils.hasText(reqDTO.getPdfUrl()) ? reqDTO.getPdfUrl().trim() : null;
-        String sourceText = resolveSourceText(actor, reqDTO);
 
         JobRoleDetectionResult resumeRole = detect(actor, sourceText);
         JobRole jobRole = resumeRole.role();
@@ -137,24 +168,7 @@ public class StudentCapabilityProfileServiceImpl
         StudentCapabilityProfileResponse responseDto = toDto(newProfile);
         hydrateDtoFromEntity(newProfile, responseDto);
         mergeAiTransientFields(aiResult, responseDto);
-        cleanupUploadedResumeAfterAnalysis(actor, pdfUrl);
         return responseDto;
-    }
-
-    /**
-     * 能力画像分析完成后删除 COS 临时简历；清理失败不影响主流程。
-     *
-     * @param actor 已认证操作者，包含用户编号
-     */
-    private void cleanupUploadedResumeAfterAnalysis(CurrentActor actor, String pdfUrl) {
-        if (!StringUtils.hasText(pdfUrl)) {
-            return;
-        }
-        try {
-            fileUploadService.deleteOwnedByUrl(actor, pdfUrl, "profile");
-        } catch (Exception e) {
-            log.warn("能力画像生成成功但清理 COS 简历失败: url={}, err={}", pdfUrl, e.getMessage());
-        }
     }
 
     private static StudentCapabilityProfileResponse toDto(StudentCapabilityProfile entity) {
@@ -227,23 +241,13 @@ public class StudentCapabilityProfileServiceImpl
      * @param reqDTO 简历生成请求DTO
      * @return 简历文本
      */
-    private String resolveSourceText(CurrentActor actor, CapabilityProfileGenerateRequest reqDTO) {
+    private String resolveSourceText(CapabilityProfileGenerateRequest reqDTO) {
         String sourceText;
-        if (StringUtils.hasText(reqDTO.getPdfUrl())) {
-            log.info("从 PDF 解析内容: {}", reqDTO.getPdfUrl());
-            try {
-                sourceText = pdfParserUtil.extractTextFromUrl(actor, reqDTO.getPdfUrl());
-            } catch (BusinessException e) {
-                throw e;
-            } catch (Exception e) {
-                log.error("PDF 解析失败", e);
-                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "PDF 解析失败，请检查文件是否合法");
-            }
-        } else if (StringUtils.hasText(reqDTO.getRawText())) {
+        if (StringUtils.hasText(reqDTO.getRawText())) {
             log.info("从纯文本解析内容");
             sourceText = reqDTO.getRawText();
         } else {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "必须提供 pdfUrl 或 rawText");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "必须提供简历文本或简历文件");
         }
         if (!StringUtils.hasText(sourceText)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "提取到的文本为空，无法生成画像");

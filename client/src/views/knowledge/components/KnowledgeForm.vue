@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import type { FormInst, FormRules, UploadFileInfo } from 'naive-ui';
-import { fetchCreateKnowledgeDocument, fetchUpdateKnowledgeDocument, fetchUploadFile } from '@/service/api/knowledge';
+import { fetchCreateKnowledgeDocument, fetchUpdateKnowledgeDocument } from '@/service/api/knowledge';
 import type { KnowledgeApi } from '@/service/api/knowledge';
 import { $t } from '@/locales';
 
@@ -9,11 +9,11 @@ interface Props {
   initialData?: KnowledgeApi.KnowledgeDocumentUpdate;
 }
 const props = defineProps<Props>();
-const emit = defineEmits(['success', 'cancel']);
+const emit = defineEmits(['success', 'cancel', 'refresh']);
 
 const formRef = ref<FormInst | null>(null);
 const loading = ref(false);
-const uploadLoading = ref(false);
+const selectedFile = ref<File | null>(null);
 const fileList = ref<UploadFileInfo[]>([]);
 const isDragging = ref(false);
 
@@ -26,6 +26,8 @@ const formData = reactive<KnowledgeApi.KnowledgeDocumentCreate>({
 watch(
   () => props.initialData,
   newVal => {
+    selectedFile.value = null;
+    fileList.value = [];
     if (newVal) {
       formData.title = newVal.title;
       formData.type = newVal.type;
@@ -39,15 +41,9 @@ const rules = computed<FormRules>(() => ({
   title: [{ required: true, message: '请输入文档标题', trigger: 'blur' }],
   type: [{ required: true, type: 'number', message: '请选择知识类型', trigger: 'change' }],
   content: [
-    { required: true, message: '请上传 PDF 或 Markdown 文件', trigger: ['blur', 'change'] },
     {
-      validator: (_rule, value) => {
-        if (value && !value.startsWith('http://') && !value.startsWith('https://')) {
-          return new Error('内容必须是有效的URL链接');
-        }
-        return true;
-      },
-      trigger: 'blur'
+      validator: () => (selectedFile.value || props.initialData?.id ? true : new Error('请选择 PDF 或 Markdown 文件')),
+      trigger: 'change'
     }
   ]
 }));
@@ -64,6 +60,7 @@ async function handleFileChange(options: { fileList: UploadFileInfo[] }) {
   const file = options.fileList[0];
   if (!file || file.status !== 'pending') return;
 
+  selectedFile.value = null;
   const fileObj = file.file;
   if (!fileObj) return;
 
@@ -75,36 +72,17 @@ async function handleFileChange(options: { fileList: UploadFileInfo[] }) {
     return;
   }
 
-  uploadLoading.value = true;
-  try {
-    const { data, error } = await fetchUploadFile(fileObj);
-
-    if (!error && data) {
-      formData.content = data.url;
-      // 更新文件列表，标记为完成
-      fileList.value = [
-        {
-          id: file.id,
-          name: fileObj.name,
-          status: 'finished',
-          url: data.url
-        }
-      ];
-      window.$message?.success('文件上传成功');
-    } else if (error) {
-      fileList.value = [];
-      window.$message?.error(`文件上传失败: ${error.message || '未知错误'}`);
-    }
-  } catch (err) {
+  if (fileObj.size > 20 * 1024 * 1024) {
+    window.$message?.error('文件大小不能超过 20MB');
     fileList.value = [];
-    window.$message?.error(`文件上传失败: ${(err as Error).message}`);
-  } finally {
-    uploadLoading.value = false;
+    return;
   }
+  selectedFile.value = fileObj;
+  fileList.value = [file];
 }
 
 function handleFileRemove() {
-  formData.content = '';
+  selectedFile.value = null;
   fileList.value = [];
 }
 
@@ -153,45 +131,37 @@ async function handleSubmit() {
   try {
     await formRef.value?.validate();
 
-    // type=1 时额外验证文件类型
-    if (formData.type === 1) {
-      const lowerContent = formData.content.toLowerCase();
-      const isPdf = lowerContent.includes('.pdf') || lowerContent.includes('/pdf/');
-      const isMd = lowerContent.includes('.md') || lowerContent.endsWith('.md');
-      if (!isPdf && !isMd) {
-        window.$message?.error('项目文档类型仅支持 PDF 和 Markdown 文件');
-        return;
-      }
-    }
-
     loading.value = true;
 
     if (props.initialData?.id) {
-      const { data, error } = await fetchUpdateKnowledgeDocument({
-        ...formData,
-        id: props.initialData.id
-      });
+      const { data, error } = await fetchUpdateKnowledgeDocument(
+        {
+          ...formData,
+          id: props.initialData.id
+        },
+        selectedFile.value || undefined
+      );
       if (!error && data) {
         window.$message?.success('知识文档更新成功');
         emit('success', data);
       }
     } else {
-      const { data, error } = await fetchCreateKnowledgeDocument(formData);
+      if (!selectedFile.value) return;
+      const { data, error } = await fetchCreateKnowledgeDocument(formData, selectedFile.value);
       if (!error && data) {
-        window.$message?.success('知识文档创建成功，向量化任务已启动');
+        window.$message?.success('知识文档保存并向量化成功');
         emit('success', data);
+      } else if ((error?.response?.data as { documentId?: number } | undefined)?.documentId) {
+        emit('cancel');
       }
     }
   } catch (errors) {
     console.warn('Validate failed', errors);
   } finally {
+    emit('refresh');
     loading.value = false;
   }
 }
-
-onMounted(() => {
-  // 不再需要加载项目列表
-});
 </script>
 
 <template>
@@ -230,6 +200,7 @@ onMounted(() => {
         <div class="w-full space-y-4">
           <NUpload
             :file-list="fileList"
+            :default-upload="false"
             :max="1"
             accept=".pdf,.md,.markdown"
             @change="handleFileChange"

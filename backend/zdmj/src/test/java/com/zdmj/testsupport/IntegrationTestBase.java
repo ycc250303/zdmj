@@ -20,8 +20,15 @@ public abstract class IntegrationTestBase {
 
     protected final DatabaseCleaner databaseCleaner;
 
-    @Autowired
-    private TestObjectStorage testObjectStorage;
+    private static final java.nio.file.Path STORAGE_ROOT = createStorageRoot();
+
+    private static java.nio.file.Path createStorageRoot() {
+        try {
+            return java.nio.file.Files.createTempDirectory("zdmj-knowledge-it-").toRealPath();
+        } catch (java.io.IOException exception) {
+            throw new IllegalStateException(exception);
+        }
+    }
 
     @Autowired
     private MutableClock mutableClock;
@@ -41,6 +48,7 @@ public abstract class IntegrationTestBase {
         registry.add("spring.datasource.password", TestContainers.POSTGRES::getPassword);
         registry.add("spring.data.redis.host", TestContainers.REDIS::getHost);
         registry.add("spring.data.redis.port", TestContainers::redisPort);
+        registry.add("knowledge.storage.root", () -> STORAGE_ROOT.toString());
         registry.add("app.jwt.secret", () -> TestContainers.JWT_SECRET);
         registry.add("app.ai.user-llm.encryption-key", () -> TestContainers.ENCRYPTION_KEY);
     }
@@ -48,7 +56,13 @@ public abstract class IntegrationTestBase {
     @BeforeEach
     void cleanDatabaseAndRedis() {
         databaseCleaner.clean();
-        testObjectStorage.clear();
+        try (var paths = java.nio.file.Files.walk(STORAGE_ROOT)) {
+            for (var path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                if (!path.equals(STORAGE_ROOT)) { java.nio.file.Files.delete(path); }
+            }
+        } catch (java.io.IOException exception) {
+            throw new IllegalStateException("无法清理隔离测试目录", exception);
+        }
         DateTimeUtil.bind(mutableClock);
         mutableClock.resetToSystem();
         ExternalAiStubConfig.clearModelTransactionObservations();

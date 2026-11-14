@@ -30,12 +30,24 @@ export function fetchSaveMyResumeContent(data: ResumeApi.ResumeContentSaveReques
   return request<ResumeApi.ResumeContentDTO>({ url: '/resumes/me/content', method: 'put', data });
 }
 
-/** 识别简历 PDF 或文本，直接返回结构化结果（不写库） */
+/** 识别简历纯文本，直接返回结构化结果（不写库） */
 export function fetchParseResumeImport(data: ResumeApi.ResumeImportParseRequest) {
   return request<ResumeApi.ResumeImportParseResult>({
     url: '/resumes/import/parse',
     method: 'post',
     data,
+    timeout: 300000
+  });
+}
+
+/** 上传简历文件并识别。文件只随本次请求提交。 */
+export function fetchParseResumeImportFile(file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return request<ResumeApi.ResumeImportParseResult>({
+    url: '/resumes/import/parse',
+    method: 'post',
+    data: formData,
     timeout: 300000
   });
 }

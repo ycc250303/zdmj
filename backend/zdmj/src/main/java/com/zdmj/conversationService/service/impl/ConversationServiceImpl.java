@@ -13,7 +13,6 @@ import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.service.ConversationService;
 import com.zdmj.conversationService.support.ConversationContextSupport;
-import com.zdmj.resumeService.service.ResumeService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -22,7 +21,6 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +36,6 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
     private final ChatMemory chatMemory;
-    private final ResumeService resumeService;
 
     @Override
     public ConversationResponse create(CurrentActor actor, ConversationRequest request) {
@@ -46,18 +43,8 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
 
         Conversation conversation = new Conversation();
         conversation.setConfig(ConversationContextSupport.freezeConfig(request == null ? null : request.getConfig()));
-
-        List<Map<String, Object>> contextList = (request == null || request.getContext() == null)
-                ? new ArrayList<>()
-                : new ArrayList<>(request.getContext());
-        boolean hasResume = contextList.stream()
-                .anyMatch(item -> item != null
-                        && ConversationContextSupport.CONTEXT_TYPE_RESUME.equals(String.valueOf(item.get("type"))));
-        if (!hasResume) {
-            ConversationContextSupport.buildResumeContextEntry(resumeService.getMyResumeContent(actor))
-                    .ifPresent(contextList::add);
-        }
-        conversation.setContext(contextList.isEmpty() ? null : contextList);
+        List<Map<String, Object>> context = request == null ? null : request.getContext();
+        conversation.setContext(context == null || context.isEmpty() ? null : context);
         conversation.setUserId(userId);
         conversation.setMessageCount(0);
 

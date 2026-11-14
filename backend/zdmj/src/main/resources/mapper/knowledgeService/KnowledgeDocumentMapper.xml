@@ -4,4 +4,7 @@
 
     <!-- 根据知识库ID删除知识文档 -->
     <delete id="deleteByKnowledgeId"> DELETE FROM knowledge_documents WHERE knowledge_id = #{knowledgeId} </delete>
+    <select id="selectOwnedForUpdate" resultMap="mybatis-plus_KnowledgeDocument">
+        SELECT id, knowledge_id, user_id, type, content, file_status, title, content_hash, embedding_status, chunk_count, last_embedded_at, last_error, metadata, created_at, updated_at FROM knowledge_documents WHERE id = #{id} AND user_id = #{userId} FOR UPDATE
+    </select>
 </mapper>

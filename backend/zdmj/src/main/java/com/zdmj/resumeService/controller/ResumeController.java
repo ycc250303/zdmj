@@ -11,13 +11,16 @@ import com.zdmj.resumeService.dto.ResumeImportParseResponse;
 import com.zdmj.resumeService.service.ResumeService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -46,9 +49,23 @@ public class ResumeController {
     }
 
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
-    @PostMapping("/import/parse")
+    @PostMapping(value = "/import/parse", consumes = MediaType.APPLICATION_JSON_VALUE)
     public Result<ResumeImportParseResponse> parseResumeImport(@Parameter(hidden = true) CurrentActor actor,
             @Validated @RequestBody ResumeImportParseRequest request) {
         return Result.success("简历识别成功", resumeService.parseImport(actor, request));
+    }
+
+    /**
+     * 从上传文件提取文本并识别简历。文件只在本次请求中读取。
+     *
+     * @param actor 已认证操作者，包含用户编号
+     * @param file 简历文件
+     * @return 识别结果
+     */
+    @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @PostMapping(value = "/import/parse", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Result<ResumeImportParseResponse> parseResumeImportFile(@Parameter(hidden = true) CurrentActor actor,
+            @RequestParam("file") MultipartFile file) {
+        return Result.success("简历识别成功", resumeService.parseImport(actor, file));
     }
 }

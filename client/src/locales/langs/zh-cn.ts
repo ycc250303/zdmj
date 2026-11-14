@@ -863,7 +863,7 @@ const local: App.I18n.Schema = {
       dragUpload: '拖拽文件到此处，或点击上传',
       dragUploadActive: '释放文件即可上传',
       orInputUrl: '或直接输入链接',
-      inputUrlPlaceholder: '输入 COS 文件链接（支持 .pdf 或 .md）',
+      inputUrlPlaceholder: '输入 PDF 或 Markdown 文件链接',
       githubRepoLink: 'GitHub 仓库链接',
       githubRepoPlaceholder: '请输入 GitHub 仓库链接，如 https://github.com/username/repo',
       githubRepoExample: '示例：https://github.com/username/repository',

@@ -199,6 +199,5 @@ export interface ResumeImportParseResult {
 }
 
 export interface ResumeImportParseRequest {
-  pdfUrl?: string;
   rawText?: string;
 }

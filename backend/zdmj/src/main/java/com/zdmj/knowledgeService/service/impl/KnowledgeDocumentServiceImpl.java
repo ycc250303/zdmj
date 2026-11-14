@@ -1,294 +1,368 @@
 package com.zdmj.knowledgeService.service.impl;
 
-import com.zdmj.common.context.CurrentActor;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.LinkedHashMap;
-import java.util.Locale;
-import java.util.Map;
-
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.stereotype.Service;
-
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.zdmj.common.model.PageDTO;
-import com.zdmj.common.model.PageRequests;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.common.model.PageDTO;
+import com.zdmj.common.model.PageRequests;
 import com.zdmj.common.storage.FileUploadService;
+import com.zdmj.common.storage.FileUploadService.StoredFile;
 import com.zdmj.knowledgeService.dto.KnowledgeDocumentPublicResponse;
 import com.zdmj.knowledgeService.dto.KnowledgeDocumentRequest;
 import com.zdmj.knowledgeService.dto.KnowledgeDocumentResponse;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
-import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
+import com.zdmj.knowledgeService.entity.KnowledgeDocument.FileStatus;
 import com.zdmj.knowledgeService.enums.KnowledgeEmbeddingStatusEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
+import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 import com.zdmj.knowledgeService.service.KnowledgeDocumentService;
 import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
-
-import org.springframework.beans.BeanUtils;
-import org.springframework.transaction.annotation.Transactional;
-
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.multipart.MultipartFile;
 
-@Slf4j
+/** 知识文档生命周期：短事务登记状态，事务外读写文件和调用模型。 */
 @RequiredArgsConstructor
 @Service
-public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentMapper, KnowledgeDocument>
-        implements KnowledgeDocumentService {
-
+public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeBasesService knowledgeBasesService;
     private final KnowledgeEmbeddingService knowledgeEmbeddingService;
     private final FileUploadService fileUploadService;
+    private final KnowledgeVectorMapper knowledgeVectorMapper;
+    private final TransactionTemplate transactionTemplate;
 
-    /**
-     * 创建知识文档。文档插入先提交，再在事务外向量化。
-     *
-     * @param actor 已认证操作者，包含用户编号
-     * @param request 知识文档请求
-     * @return 向量化完成后的知识文档
-     */
     @Override
     public KnowledgeDocumentResponse create(CurrentActor actor, KnowledgeDocumentRequest request) {
-
-        // 1. 验证内容
-        validateContent(actor, request);
-
-        // 2. 创建知识文档
-        Long userId = actor.userId();
-        Long knowledgeId = knowledgeBasesService.getOrCreateKnowledgeBaseId(actor);
-        KnowledgeDocument knowledgeDocument = new KnowledgeDocument();
-        knowledgeDocument.setUserId(userId);
-        knowledgeDocument.setKnowledgeId(knowledgeId);
-        knowledgeDocument.setType(request.getType());
-        knowledgeDocument.setContent(request.getContent());
-        knowledgeDocument.setTitle(request.getTitle());
-        knowledgeDocument.setMetadata(buildMetadata(request));
-        assertContentNotExists(knowledgeId, request.getContent());
-
-        // 3. 保存知识文档到数据库
-        boolean saved;
-        try {
-            saved = save(knowledgeDocument);
-        } catch (DataIntegrityViolationException e) {
-            if (isDuplicateContent(e)) {
-                throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_CONTENT_EXISTS);
-            }
-            throw e;
-        }
-        if (!saved) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_CREATE_FAILED);
-        }
-
-        knowledgeEmbeddingService.vectorizeAndStore(actor, knowledgeDocument.getId());
-        KnowledgeDocument stored = knowledgeDocumentMapper.selectById(knowledgeDocument.getId());
-        log.info("创建知识文档并完成向量化，documentId={}, knowledgeId={}",
-                knowledgeDocument.getId(), knowledgeId);
-        return convertToResponse(stored);
+        throw new BusinessException(ErrorCode.VALIDATION_ERROR, "请通过文件表单上传知识文档");
     }
 
-    /**
-     * 根据ID获取知识文档（内部完整实体，含权限校验）
-     *
-     * @param actor 已认证操作者，包含用户编号
-     */
+    /** 先登记文件标识，再同步保存和向量化；失败记录保留用于下载、重试或删除。 */
+    @Override
+    public KnowledgeDocumentResponse upload(CurrentActor actor, KnowledgeDocumentRequest request, MultipartFile file) {
+        validateRequest(request);
+        StoredFile target = fileUploadService.prepare(actor, file);
+        Long knowledgeId = knowledgeBasesService.getOrCreateKnowledgeBaseId(actor);
+        KnowledgeDocument document = new KnowledgeDocument();
+        document.setUserId(actor.userId());
+        document.setKnowledgeId(knowledgeId);
+        document.setType(1);
+        document.setContent(target.key());
+        document.setTitle(request.getTitle().trim());
+        document.setFileStatus(FileStatus.WRITING.code());
+        document.setEmbeddingStatus(KnowledgeEmbeddingStatusEnum.PENDING.getCode());
+        document.setMetadata(fileMetadata(request, target));
+        transactionTemplate.executeWithoutResult(status -> {
+            if (knowledgeDocumentMapper.insert(document) != 1 || document.getId() == null) {
+                throw new IllegalStateException("知识文档插入结果无效");
+            }
+        });
+        try {
+            persist(actor, document.getId(), target, file, false);
+            return retryEmbedding(actor, document.getId());
+        } catch (RuntimeException failure) {
+            throw new OperationFailure(document.getId(), failure);
+        }
+    }
+
+    /** 替换文件先登记待写入标识，旧文件保留到新文件可用；每一步均可由记录定位。 */
+    @Override
+    public KnowledgeDocumentResponse replace(CurrentActor actor, KnowledgeDocumentRequest request, MultipartFile file) {
+        validateRequest(request);
+        StoredFile target = fileUploadService.prepare(actor, file);
+        transactionTemplate.executeWithoutResult(status -> {
+            KnowledgeDocument current = locked(actor, request.getId());
+            requireReady(current);
+            if (current.getMetadata().containsKey("retiredFile")
+                    || Objects.equals(current.getEmbeddingStatus(), KnowledgeEmbeddingStatusEnum.RUNNING.getCode())) {
+                throw conflict();
+            }
+            Map<String, Object> metadata = new LinkedHashMap<>(current.getMetadata());
+            metadata.put("pendingFile", fileMetadata(request, target));
+            metadata.put("pendingKey", target.key());
+            metadata.put("pendingTitle", request.getTitle().trim());
+            change(actor, current.getId(), FileStatus.READY, FileStatus.WRITING, metadata);
+        });
+        try {
+            persist(actor, request.getId(), target, file, true);
+            return retryEmbedding(actor, request.getId());
+        } catch (RuntimeException failure) {
+            throw new OperationFailure(request.getId(), failure);
+        }
+    }
+
+    private void persist(CurrentActor actor, Long id, StoredFile target, MultipartFile file, boolean replacement) {
+        try {
+            String hash = fileUploadService.save(actor, target, file);
+            transactionTemplate.executeWithoutResult(status -> {
+                KnowledgeDocument current = locked(actor, id);
+                if (!Objects.equals(current.getFileStatus(), FileStatus.WRITING.code())) {
+                    throw conflict();
+                }
+                Map<String, Object> metadata;
+                String title = current.getTitle();
+                if (replacement) {
+                    if (!target.key().equals(current.getMetadata().get("pendingKey"))) {
+                        throw conflict();
+                    }
+                    metadata = new LinkedHashMap<>();
+                    ((Map<?, ?>) current.getMetadata().get("pendingFile"))
+                            .forEach((key, value) -> metadata.put(key.toString(), value));
+                    metadata.put("retiredFile", current.getContent());
+                    title = current.getMetadata().get("pendingTitle").toString();
+                } else {
+                    metadata = current.getMetadata();
+                }
+                var update = owned(actor, id).eq(KnowledgeDocument::getFileStatus, FileStatus.WRITING.code())
+                        .set(KnowledgeDocument::getContent, target.key()).set(KnowledgeDocument::getTitle, title)
+                        .set(KnowledgeDocument::getContentHash, hash)
+                        .set(KnowledgeDocument::getFileStatus, FileStatus.READY.code())
+                        .set(KnowledgeDocument::getEmbeddingStatus, KnowledgeEmbeddingStatusEnum.PENDING.getCode())
+                        .set(KnowledgeDocument::getChunkCount, 0).set(KnowledgeDocument::getLastError, null)
+                        .set(KnowledgeDocument::getLastEmbeddedAt, null)
+                        .set(KnowledgeDocument::getMetadata, metadata,
+                                "typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler");
+                if (knowledgeDocumentMapper.update(null, update) != 1) {
+                    throw conflict();
+                }
+                knowledgeVectorMapper.deleteByDocumentIdAndUserId(id, actor.userId());
+            });
+        } catch (RuntimeException failure) {
+            try {
+                knowledgeDocumentMapper.update(null, owned(actor, id)
+                        .eq(KnowledgeDocument::getFileStatus, FileStatus.WRITING.code())
+                        .set(KnowledgeDocument::getFileStatus, FileStatus.FAILED.code()));
+            } catch (RuntimeException markingFailure) {
+                failure.addSuppressed(markingFailure);
+            }
+            throw failure;
+        }
+    }
+
     @Override
     public KnowledgeDocument getById(CurrentActor actor, Long id) {
-        KnowledgeDocument knowledgeDocument = knowledgeDocumentMapper.selectById(id);
-        if (knowledgeDocument == null || !knowledgeDocument.getUserId().equals(actor.userId())) {
+        KnowledgeDocument document = knowledgeDocumentMapper.selectById(id);
+        if (document == null || !actor.userId().equals(document.getUserId())) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_NOT_FOUND);
         }
-        return knowledgeDocument;
+        return document;
     }
 
     @Override
     public KnowledgeDocumentPublicResponse getPublicById(CurrentActor actor, Long id) {
-        return toPublicResponse(getById(actor, id));
+        return publicResponse(getById(actor, id));
     }
 
-    private KnowledgeDocumentPublicResponse toPublicResponse(KnowledgeDocument kd) {
-        KnowledgeDocumentPublicResponse response = new KnowledgeDocumentPublicResponse();
-        response.setId(kd.getId());
-        response.setType(kd.getType());
-        response.setContent(kd.getContent());
-        response.setTitle(kd.getTitle());
-        KnowledgeEmbeddingStatusEnum statusEnum = KnowledgeEmbeddingStatusEnum.fromCode(kd.getEmbeddingStatus());
-        response.setEmbeddingStatus(statusEnum != null ? statusEnum.getName() : null);
-        response.setLastEmbeddedAt(kd.getLastEmbeddedAt());
-        response.setLastError(kd.getLastError());
-        response.setMetadata(kd.getMetadata());
-        return response;
-    }
-
-    /**
-     * 分页查询知识文档
-     *
-     * @param actor 已认证操作者，包含用户编号
-     * @param page  页码
-     * @param limit 每页数量
-     * @return 知识文档列表
-     */
+    @Override
     public PageDTO<KnowledgeDocumentPublicResponse> getByPage(CurrentActor actor, Integer page, Integer limit) {
-        Long userId = actor.userId();
-        PageRequests.Normalized paging = PageRequests.normalize(page, limit);
-        LambdaQueryWrapper<KnowledgeDocument> queryWrapper = new LambdaQueryWrapper<KnowledgeDocument>()
-                .eq(KnowledgeDocument::getUserId, userId)
-                .orderByDesc(KnowledgeDocument::getCreatedAt);
-        Page<KnowledgeDocument> result = knowledgeDocumentMapper.selectPage(PageRequests.toPage(paging), queryWrapper);
-        List<KnowledgeDocumentPublicResponse> list = new ArrayList<>(result.getRecords().size());
-        for (KnowledgeDocument kd : result.getRecords()) {
-            list.add(toPublicResponse(kd));
-        }
+        Page<KnowledgeDocument> result = knowledgeDocumentMapper.selectPage(PageRequests.toPage(PageRequests.normalize(page, limit)),
+                new LambdaQueryWrapper<KnowledgeDocument>().eq(KnowledgeDocument::getUserId, actor.userId())
+                        .orderByDesc(KnowledgeDocument::getCreatedAt).orderByDesc(KnowledgeDocument::getId));
+        List<KnowledgeDocumentPublicResponse> list = result.getRecords().stream().map(this::publicResponse).toList();
         return PageDTO.from(result, list);
     }
 
-    /**
-     * 更新知识文档
-     *
-     * @param actor 已认证操作者，包含用户编号
-     * @param request 知识文档请求
-     * @return 知识文档
-     */
-    public KnowledgeDocumentResponse update(CurrentActor actor, KnowledgeDocumentRequest request) {
-        // 1. 验证内容
-        validateContent(actor, request);
-        // 2. 获取知识文档
-        KnowledgeDocument knowledgeDocument = knowledgeDocumentMapper.selectById(request.getId());
-        if (knowledgeDocument == null || !knowledgeDocument.getUserId().equals(actor.userId())) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_NOT_FOUND);
-        }
-        // 3. 判断内容是否发生变化
-        boolean contentChanged = !request.getType().equals(knowledgeDocument.getType())
-                || !request.getContent().equals(knowledgeDocument.getContent());
-
-        // 4.更新知识文档
-        knowledgeDocument.setType(request.getType());
-        knowledgeDocument.setContent(request.getContent());
-        knowledgeDocument.setTitle(request.getTitle());
-        knowledgeDocument.setMetadata(buildMetadata(request));
-
-        boolean updated = updateById(knowledgeDocument);
-        if (!updated) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_UPDATE_FAILED);
-        }
-        if (contentChanged) {
-            knowledgeEmbeddingService.vectorizeAndStore(actor, knowledgeDocument.getId());
-            knowledgeDocument = knowledgeDocumentMapper.selectById(knowledgeDocument.getId());
-            log.info("更新知识文档并完成向量化，knowledgeId={}", knowledgeDocument.getId());
-        } else {
-            log.info("更新知识文档，knowledgeId={}", knowledgeDocument.getId());
-        }
-
-        return convertToResponse(knowledgeDocument);
-    }
-
-    /**
-     * 删除知识文档
-     *
-     * @param actor 已认证操作者，包含用户编号
-     * @param id 知识文档ID
-     */
+    /** 只更新允许编辑的标题及业务元数据，不写回向量状态与文件位置。 */
     @Override
-    @Transactional(rollbackFor = Exception.class)
+    public KnowledgeDocumentResponse update(CurrentActor actor, KnowledgeDocumentRequest request) {
+        return transactionTemplate.execute(status -> {
+            KnowledgeDocument current = locked(actor, request.getId());
+            requireReady(current);
+            if (request.getContent() != null && !request.getContent().equals(downloadPath(current))
+                    && !request.getContent().equals(current.getContent())) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "替换原文件请提交文件表单");
+            }
+            if (request.getTitle() == null || request.getTitle().isBlank() || request.getTitle().length() > 500) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "文档标题长度必须为 1 至 500 个字符");
+            }
+            Map<String, Object> metadata = new LinkedHashMap<>(current.getMetadata());
+            metadata.putAll(buildMetadata(request));
+            if (knowledgeDocumentMapper.update(null, owned(actor, current.getId())
+                    .eq(KnowledgeDocument::getFileStatus, FileStatus.READY.code())
+                    .set(KnowledgeDocument::getTitle, request.getTitle().trim())
+                    .set(KnowledgeDocument::getMetadata, metadata,
+                            "typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler")) != 1) {
+                throw conflict();
+            }
+            return response(getById(actor, current.getId()));
+        });
+    }
+
+    /** 先阻止新的文件操作，再在事务外删除文件，最后原子删除向量和文档。 */
+    @Override
     public void delete(CurrentActor actor, Long id) {
-        KnowledgeDocument kd = getById(actor, id);
-        knowledgeEmbeddingService.deleteVectors(actor, id);
-        knowledgeDocumentMapper.deleteById(id);
-        log.info("删除知识文档，documentId={}, knowledgeId={}", id, kd.getKnowledgeId());
+        KnowledgeDocument document = transactionTemplate.execute(status -> {
+            KnowledgeDocument current = locked(actor, id);
+            if (Objects.equals(current.getFileStatus(), FileStatus.WRITING.code())) {
+                throw conflict();
+            }
+            if (knowledgeDocumentMapper.update(null, owned(actor, id)
+                    .set(KnowledgeDocument::getFileStatus, FileStatus.DELETING.code())) != 1) {
+                throw conflict();
+            }
+            return current;
+        });
+        fileUploadService.delete(actor, document.getContent());
+        for (String field : List.of("pendingKey", "retiredFile")) {
+            Object key = document.getMetadata().get(field);
+            if (key != null) {
+                fileUploadService.delete(actor, key.toString());
+            }
+        }
+        transactionTemplate.executeWithoutResult(status -> {
+            knowledgeVectorMapper.deleteByDocumentIdAndUserId(id, actor.userId());
+            int count = knowledgeDocumentMapper.delete(ownedQuery(actor, id)
+                    .eq(KnowledgeDocument::getFileStatus, FileStatus.DELETING.code()));
+            if (count != 1) {
+                throw conflict();
+            }
+        });
     }
 
-    private void assertContentNotExists(Long knowledgeId, String content) {
-        Long count = knowledgeDocumentMapper.selectCount(new LambdaQueryWrapper<KnowledgeDocument>()
-                .eq(KnowledgeDocument::getKnowledgeId, knowledgeId)
-                .eq(KnowledgeDocument::getContent, content));
-        if (count != null && count > 0) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_CONTENT_EXISTS);
+    /** 按调用开始时的最大编号分批清空，期间新建的文档不包含在本次范围内。 */
+    @Override
+    public void clear(CurrentActor actor) {
+        Long max = knowledgeDocumentMapper.selectList(new LambdaQueryWrapper<KnowledgeDocument>()
+                .eq(KnowledgeDocument::getUserId, actor.userId()).orderByDesc(KnowledgeDocument::getId)
+                .last("LIMIT 1")).stream().map(KnowledgeDocument::getId).findFirst().orElse(0L);
+        long cursor = 0;
+        while (cursor < max) {
+            List<KnowledgeDocument> batch = knowledgeDocumentMapper.selectList(new LambdaQueryWrapper<KnowledgeDocument>()
+                    .eq(KnowledgeDocument::getUserId, actor.userId()).gt(KnowledgeDocument::getId, cursor)
+                    .le(KnowledgeDocument::getId, max).orderByAsc(KnowledgeDocument::getId).last("LIMIT 100"));
+            if (batch.isEmpty()) { break; }
+            for (KnowledgeDocument document : batch) {
+                delete(actor, document.getId());
+                cursor = document.getId();
+            }
         }
     }
 
-    private static boolean isDuplicateContent(DataIntegrityViolationException e) {
-        Throwable cause = e.getMostSpecificCause();
-        String message = cause != null ? cause.getMessage() : e.getMessage();
-        return message != null && message.contains("uk_knowledge_documents_kid");
+    /** 按文档归属打开本地原文件，文件名、长度和类型取自 metadata。 */
+    @Override
+    public Download openDownload(CurrentActor actor, Long id) {
+        KnowledgeDocument document = getById(actor, id);
+        requireReady(document);
+        Map<String, Object> meta = document.getMetadata();
+        String name = Objects.requireNonNull(meta.get("fileName"), "缺少原始文件名").toString();
+        String type = Objects.requireNonNull(meta.get("contentType"), "缺少文件类型").toString();
+        long size = ((Number) Objects.requireNonNull(meta.get("fileSize"), "缺少文件大小")).longValue();
+        return new Download(fileUploadService.openInputStream(actor, document.getContent()), name, size, type);
     }
 
-    /**
-     * 验证内容
-     *
-     * 验证规则：
-     * - type=1（项目文档）：必须是COS链接的PDF或MD文件
-     * - type=2（GitHub链接）：必须是GitHub链接
-     * - type=3（DeepWiki）：暂不支持
-     *
-     * @param actor 已认证操作者，包含用户编号
-     */
-    private void validateContent(CurrentActor actor, KnowledgeDocumentRequest request) {
-        Integer type = request.getType();
-        String content = request.getContent();
-
-        // type 为空时，说明更新场景下该字段可能未传，直接跳过校验
-        if (type == null || content == null) {
-            return;
+    @Override
+    public KnowledgeDocumentResponse retryEmbedding(CurrentActor actor, Long id) {
+        KnowledgeDocument document = getById(actor, id);
+        if (Objects.equals(document.getFileStatus(), FileStatus.FAILED.code())
+                && document.getMetadata().containsKey("pendingKey")) {
+            String pending = document.getMetadata().get("pendingKey").toString();
+            fileUploadService.delete(actor, pending);
+            transactionTemplate.executeWithoutResult(status -> {
+                KnowledgeDocument current = locked(actor, id);
+                if (!Objects.equals(current.getFileStatus(), FileStatus.FAILED.code())
+                        || !pending.equals(current.getMetadata().get("pendingKey"))) { throw conflict(); }
+                Map<String, Object> metadata = new LinkedHashMap<>(current.getMetadata());
+                List.of("pendingKey", "pendingFile", "pendingTitle").forEach(metadata::remove);
+                change(actor, id, FileStatus.FAILED, FileStatus.READY, metadata);
+            });
+            document = getById(actor, id);
         }
-
-        // 验证URL格式
-        if (!content.startsWith("http://") && !content.startsWith("https://")) {
-            throw new BusinessException(ErrorCode.URL_FORMAT_ERROR,
-                    "内容必须是有效的URL链接");
+        requireReady(document);
+        KnowledgeDocument snapshot = document;
+        Object retired = document.getMetadata().get("retiredFile");
+        if (retired != null) {
+            fileUploadService.delete(actor, retired.toString());
+            transactionTemplate.executeWithoutResult(status -> {
+                KnowledgeDocument current = locked(actor, id);
+                requireReady(current);
+                if (!snapshot.getContent().equals(current.getContent())) { throw conflict(); }
+                Map<String, Object> metadata = new LinkedHashMap<>(current.getMetadata());
+                metadata.remove("retiredFile");
+                change(actor, id, FileStatus.READY, FileStatus.READY, metadata);
+            });
         }
+        knowledgeEmbeddingService.vectorizeAndStore(actor, id);
+        return response(getById(actor, id));
+    }
 
-        // 根据知识类型进行验证
-        if (type == KnowledgeTypeEnum.PROJECT_DOCUMENT.getCode()) {
-            String lowerContent = content.toLowerCase();
-            boolean isPdf = lowerContent.contains(".pdf") || lowerContent.contains("/pdf/");
-            boolean isMd = lowerContent.contains(".md") || content.endsWith(".md");
 
-            if (!isPdf && !isMd) {
-                throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS,
-                        "项目文档类型（type=1）仅支持PDF和Markdown文件");
-            }
+    /** 单实例启动时释放上次进程中断的状态，恢复由用户显式重试或删除触发。 */
+    @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationStartedEvent.class)
+    public void recoverInterruptedOperations() {
+        transactionTemplate.executeWithoutResult(status -> {
+            knowledgeDocumentMapper.update(null, new LambdaUpdateWrapper<KnowledgeDocument>()
+                    .eq(KnowledgeDocument::getFileStatus, FileStatus.WRITING.code())
+                    .set(KnowledgeDocument::getFileStatus, FileStatus.FAILED.code())
+                    .set(KnowledgeDocument::getUpdatedAt, com.zdmj.common.util.DateTimeUtil.now()));
+            knowledgeDocumentMapper.update(null, new LambdaUpdateWrapper<KnowledgeDocument>()
+                    .eq(KnowledgeDocument::getEmbeddingStatus, KnowledgeEmbeddingStatusEnum.RUNNING.getCode())
+                    .set(KnowledgeDocument::getEmbeddingStatus, KnowledgeEmbeddingStatusEnum.FAILED.getCode())
+                    .set(KnowledgeDocument::getLastError, "处理被中断，请重新处理文档")
+                    .set(KnowledgeDocument::getUpdatedAt, com.zdmj.common.util.DateTimeUtil.now()));
+        });
+    }
 
-            if (!fileUploadService.isManagedCosUrl(content)) {
-                throw new BusinessException(ErrorCode.URL_FORMAT_ERROR,
-                        "项目文档须为本系统已上传的文件");
-            }
-            String cosKey = fileUploadService.extractKeyFromUrl(content);
-            if (cosKey.isBlank() || !fileUploadService.exists(actor, cosKey)) {
-                throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS);
-            }
+    private KnowledgeDocument locked(CurrentActor actor, Long id) {
+        KnowledgeDocument document = knowledgeDocumentMapper.selectOwnedForUpdate(id, actor.userId());
+        if (document == null) { throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_NOT_FOUND); }
+        return document;
+    }
 
-        } else if (type == KnowledgeTypeEnum.GITHUB_REPO.getCode()) {
-            // type=2：GitHub链接，必须是GitHub链接
-            if (!content.contains("github.com")) {
-                throw new BusinessException(ErrorCode.URL_FORMAT_ERROR,
-                        "GitHub链接类型（type=2）必须是GitHub链接，当前内容不是GitHub链接");
-            }
-
-        } else if (type == KnowledgeTypeEnum.PROJECT_DEEPWIKI.getCode()) {
-            // type=3：DeepWiki文档，暂不支持
-            throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS,
-                    "项目DeepWiki文档类型（type=3）暂不支持");
-        } else {
-            // 未知的知识类型
-            throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS,
-                    "不支持的知识类型: " + type);
+    private void change(CurrentActor actor, Long id, FileStatus expected, FileStatus next, Map<String, Object> metadata) {
+        if (knowledgeDocumentMapper.update(null, owned(actor, id)
+                .eq(KnowledgeDocument::getFileStatus, expected.code())
+                .set(KnowledgeDocument::getFileStatus, next.code())
+                .set(KnowledgeDocument::getMetadata, metadata,
+                        "typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler")) != 1) {
+            throw conflict();
         }
     }
 
-    /**
-     * 构建知识文档元数据：
-     * - docCategory: learning_path / career_planning / industry_trend / general
-     * - roleType: default
-     * - difficulty: basic
-     * - sourcePriority: 1
-     *
-     * 这些字段用于职业发展报告场景下的检索过滤与重排。
-     */
+    private static LambdaUpdateWrapper<KnowledgeDocument> owned(CurrentActor actor, Long id) {
+        return new LambdaUpdateWrapper<KnowledgeDocument>().eq(KnowledgeDocument::getId, id)
+                .eq(KnowledgeDocument::getUserId, actor.userId())
+                .set(KnowledgeDocument::getUpdatedAt, com.zdmj.common.util.DateTimeUtil.now());
+    }
+
+    private static LambdaQueryWrapper<KnowledgeDocument> ownedQuery(CurrentActor actor, Long id) {
+        return new LambdaQueryWrapper<KnowledgeDocument>().eq(KnowledgeDocument::getId, id)
+                .eq(KnowledgeDocument::getUserId, actor.userId());
+    }
+
+    private static void requireReady(KnowledgeDocument document) {
+        if (!Objects.equals(document.getFileStatus(), FileStatus.READY.code())) { throw conflict(); }
+    }
+
+    private static BusinessException conflict() {
+        return new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_STATE_CONFLICT);
+    }
+
+    private static void validateRequest(KnowledgeDocumentRequest request) {
+        if (request.getTitle() == null || request.getTitle().isBlank() || request.getTitle().length() > 500
+                || request.getType() != null && request.getType() != 1) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "请提供标题和 PDF 或 Markdown 文件");
+        }
+    }
+
+    private Map<String, Object> fileMetadata(KnowledgeDocumentRequest request, StoredFile file) {
+        Map<String, Object> metadata = buildMetadata(request);
+        metadata.put("fileName", file.fileName());
+        metadata.put("fileSize", file.fileSize());
+        metadata.put("contentType", file.contentType());
+        return metadata;
+    }
+
     private Map<String, Object> buildMetadata(KnowledgeDocumentRequest request) {
         Map<String, Object> metadata = new LinkedHashMap<>();
         String title = request == null ? "" : request.getTitle();
@@ -312,9 +386,32 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
         return metadata;
     }
 
-    private KnowledgeDocumentResponse convertToResponse(KnowledgeDocument document) {
+    private static String downloadPath(KnowledgeDocument document) {
+        return "/knowledge-document/" + document.getId() + "/download";
+    }
+
+    private static Map<String, Object> publicMetadata(KnowledgeDocument document) {
+        Map<String, Object> metadata = new LinkedHashMap<>(document.getMetadata());
+        boolean canRestore = metadata.containsKey("pendingKey") && Objects.equals(document.getFileStatus(), FileStatus.FAILED.code());
+        List.of("pendingFile", "pendingKey", "pendingTitle", "retiredFile").forEach(metadata::remove);
+        metadata.put("canRestoreOriginal", canRestore);
+        return metadata;
+    }
+
+    private KnowledgeDocumentResponse response(KnowledgeDocument document) {
         KnowledgeDocumentResponse response = new KnowledgeDocumentResponse();
         BeanUtils.copyProperties(document, response);
+        response.setContent(downloadPath(document));
+        response.setMetadata(publicMetadata(document));
+        return response;
+    }
+
+    private KnowledgeDocumentPublicResponse publicResponse(KnowledgeDocument document) {
+        KnowledgeDocumentPublicResponse response = new KnowledgeDocumentPublicResponse();
+        BeanUtils.copyProperties(document, response);
+        response.setContent(downloadPath(document));
+        response.setMetadata(publicMetadata(document));
+        response.setEmbeddingStatus(KnowledgeEmbeddingStatusEnum.fromCode(document.getEmbeddingStatus()).getName());
         return response;
     }
 }

@@ -24,6 +24,8 @@ export interface KnowledgeDocumentDTO {
   content: string;
   title: string;
   embeddingStatus: EmbeddingStatus | null;
+  /** 0 写入中、1 可用、2 写入失败、3 删除中 */
+  fileStatus: 0 | 1 | 2 | 3;
   lastEmbeddedAt: string | null;
   lastError: string | null;
   metadata: Record<string, any> | null;
@@ -45,12 +47,3 @@ export type KnowledgeQueryParams = Api.Common.PageQueryParams;
 
 /** 分页结果 */
 export type PageResult<T> = Api.Common.PageDTO<T>;
-
-/** 文件上传结果 */
-export interface FileUploadResult {
-  key: string;
-  url: string;
-  fileName: string;
-  fileSize: number;
-  contentType: string;
-}

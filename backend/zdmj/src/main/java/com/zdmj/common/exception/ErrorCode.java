@@ -27,6 +27,9 @@ public enum ErrorCode {
     RATE_LIMIT_EXCEEDED(1011, "请求过于频繁，请稍后再试", HttpStatus.TOO_MANY_REQUESTS),
     AUTH_STORE_UNAVAILABLE(1012, "登录状态服务暂不可用", HttpStatus.SERVICE_UNAVAILABLE),
 
+    FILE_STORAGE_UNAVAILABLE(1013, "文件存储暂不可用", HttpStatus.SERVICE_UNAVAILABLE),
+    FILE_READ_FAILED(1014, "文件读取失败", HttpStatus.INTERNAL_SERVER_ERROR),
+
     // ========== 用户相关 2xxx ==========
     USER_ALREADY_EXISTS(2001, "用户名已存在", HttpStatus.CONFLICT),
     USER_EMAIL_EXISTS(2002, "邮箱已被注册", HttpStatus.CONFLICT),
@@ -95,12 +98,13 @@ public enum ErrorCode {
     KNOWLEDGE_BASE_SAVE_FAILED(8001, "保存知识库失败", HttpStatus.BAD_REQUEST),
     KNOWLEDGE_BASE_DELETE_FAILED(8004, "删除知识库失败", HttpStatus.BAD_REQUEST),
     KNOWLEDGE_BASE_NOT_FOUND(8005, "知识库不存在", HttpStatus.NOT_FOUND),
-    FILE_TYPE_NOT_EXISTS(8009, "文件类型不存在，请不要修改知识内容中的URL", HttpStatus.BAD_REQUEST),
+    FILE_TYPE_NOT_EXISTS(8009, "文件类型不支持", HttpStatus.BAD_REQUEST),
     KNOWLEDGE_BASE_EMBEDDING_FAILED(8010, "向量化任务失败", HttpStatus.BAD_REQUEST),
     KNOWLEDGE_DOCUMENT_CREATE_FAILED(8011, "创建知识文档失败", HttpStatus.BAD_REQUEST),
     KNOWLEDGE_DOCUMENT_NOT_FOUND(8012, "知识文档不存在", HttpStatus.NOT_FOUND),
     KNOWLEDGE_DOCUMENT_UPDATE_FAILED(8013, "更新知识文档失败", HttpStatus.BAD_REQUEST),
     KNOWLEDGE_DOCUMENT_CONTENT_EXISTS(8014, "该知识文档已存在，请勿重复添加", HttpStatus.CONFLICT),
+    KNOWLEDGE_DOCUMENT_STATE_CONFLICT(8016, "文档状态已变化，请刷新后重试", HttpStatus.CONFLICT),
     KNOWLEDGE_RETRIEVAL_FAILED(8015, "知识检索失败", HttpStatus.BAD_REQUEST),
 
     // ========== 对话 9xxx ==========

@@ -1,7 +1,12 @@
 package com.zdmj.resumeService.service.impl;
 
 import com.zdmj.common.context.CurrentActor;
+import java.io.IOException;
+import java.io.InputStream;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
+
+import org.springframework.web.multipart.MultipartFile;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -11,7 +16,6 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
-import com.zdmj.common.storage.FileUploadService;
 import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.jobService.api.JobRole;
 import com.zdmj.jobService.service.impl.JobRoleDetectionServiceImpl;
@@ -37,7 +41,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -54,8 +57,6 @@ class StudentCapabilityProfileServiceImplTest {
     @Mock
     private ModelGateway modelGateway;
     @Mock
-    private FileUploadService fileUploadService;
-    @Mock
     private PdfParserUtil pdfParserUtil;
     @Mock
     private StudentCapabilityProfileMapper studentCapabilityProfileMapper;
@@ -66,7 +67,7 @@ class StudentCapabilityProfileServiceImplTest {
     @BeforeEach
     void setUp() {
         initMybatisPlusLambdaCache();
-        service = spy(new StudentCapabilityProfileServiceImpl(modelGateway, new ObjectMapper(), fileUploadService,
+        service = spy(new StudentCapabilityProfileServiceImpl(modelGateway, new ObjectMapper(),
                 pdfParserUtil, new JobRoleDetectionServiceImpl(modelGateway)));
         ReflectionTestUtils.setField(service, "baseMapper", studentCapabilityProfileMapper);
     }
@@ -161,16 +162,15 @@ class StudentCapabilityProfileServiceImplTest {
         assertEquals(1, out.getStrengths().size());
         verify(service).save(any(StudentCapabilityProfile.class));
         verify(service, never()).updateById(any(StudentCapabilityProfile.class));
-        verify(fileUploadService, never()).deleteOwnedByUrl(eq(actor), anyString(), anyString());
     }
 
     @Test
-    void generateProfile_withPdfUrl_shouldDeleteCosFileAfterSuccess() {
-        String pdfUrl = "https://bucket.cos.ap-shanghai.myqcloud.com/user-1/profile/resume-abc.pdf";
-        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
-        req.setPdfUrl(pdfUrl);
-
-        when(pdfParserUtil.extractTextFromUrl(actor, pdfUrl))
+    void generateProfile_withFile_shouldExtractTextAndCloseStream() throws Exception {
+        MultipartFile file = org.mockito.Mockito.mock(MultipartFile.class);
+        InputStream input = org.mockito.Mockito.mock(InputStream.class);
+        when(file.isEmpty()).thenReturn(false);
+        when(file.getInputStream()).thenReturn(input);
+        when(pdfParserUtil.extractText(same(input)))
                 .thenReturn("java spring boot redis mysql project experience");
 
         StudentCapabilityProfileResponse ai = new StudentCapabilityProfileResponse();
@@ -181,35 +181,21 @@ class StudentCapabilityProfileServiceImplTest {
         doReturn(null).when(service).getOne(any());
         doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
 
-        StudentCapabilityProfileResponse out = service.generateProfile(actor, req);
+        StudentCapabilityProfileResponse out = service.generateProfile(actor, file);
 
         assertNotNull(out);
-        verify(fileUploadService).deleteOwnedByUrl(actor, pdfUrl, "profile");
+        verify(input).close();
     }
 
     @Test
-    void generateProfile_withPdfUrl_whenDeleteFails_shouldStillReturnResult() {
-        String pdfUrl = "https://bucket.cos.ap-shanghai.myqcloud.com/user-1/profile/resume-abc.pdf";
-        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
-        req.setPdfUrl(pdfUrl);
+    void generateProfile_emptyFile_shouldReject() {
+        MultipartFile file = org.mockito.Mockito.mock(MultipartFile.class);
+        when(file.isEmpty()).thenReturn(true);
 
-        when(pdfParserUtil.extractTextFromUrl(actor, pdfUrl))
-                .thenReturn("java spring boot redis mysql project experience");
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(actor, file));
 
-        StudentCapabilityProfileResponse ai = new StudentCapabilityProfileResponse();
-        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
-        detail.setSkillMatchScore(10);
-        ai.setScoreDetail(detail);
-        doReturn(ai).when(modelGateway).generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
-        doReturn(null).when(service).getOne(any());
-        doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
-        doThrow(new RuntimeException("cos delete failed")).when(fileUploadService).deleteOwnedByUrl(actor, pdfUrl, "profile");
-
-        StudentCapabilityProfileResponse out = service.generateProfile(actor, req);
-
-        assertNotNull(out);
-        assertEquals(10, out.getCompetitivenessScore());
-        verify(fileUploadService).deleteOwnedByUrl(actor, pdfUrl, "profile");
+        assertEquals(ErrorCode.FILE_EMPTY.getCode(), ex.getCode());
+        verify(modelGateway, never()).generateStructured(any(), any(), any());
     }
 
     @Test
@@ -400,30 +386,30 @@ class StudentCapabilityProfileServiceImplTest {
     }
 
     @Test
-    void generateProfile_pdfParseFailed_shouldThrow400() {
-        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
-        req.setPdfUrl("https://invalid.example.com/resume.pdf");
+    void generateProfile_pdfParseFailed_shouldThrow400() throws Exception {
+        MultipartFile file = org.mockito.Mockito.mock(MultipartFile.class);
+        InputStream input = org.mockito.Mockito.mock(InputStream.class);
+        when(file.isEmpty()).thenReturn(false);
+        when(file.getInputStream()).thenReturn(input);
+        when(pdfParserUtil.extractText(same(input)))
+                .thenThrow(new BusinessException(ErrorCode.VALIDATION_ERROR, "文件文本提取失败"));
 
-        when(pdfParserUtil.extractTextFromUrl(actor, "https://invalid.example.com/resume.pdf"))
-                .thenThrow(new RuntimeException("pdf parse failed"));
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(actor, req));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(actor, file));
 
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
+        verify(input).close();
         verify(modelGateway, never()).generateStructured(any(), any(), any());
-        verify(fileUploadService, never()).deleteOwnedByUrl(eq(actor), anyString(), anyString());
     }
 
     @Test
-    void generateProfile_pdfUrlRejected_shouldPropagateBusinessException() {
-        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
-        req.setPdfUrl("https://evil.example/resume.pdf");
-        when(pdfParserUtil.extractTextFromUrl(actor, "https://evil.example/resume.pdf"))
-                .thenThrow(new BusinessException(ErrorCode.URL_FORMAT_ERROR, "仅支持本系统已上传的文件"));
+    void generateProfile_unreadableFile_shouldFail() throws Exception {
+        MultipartFile file = org.mockito.Mockito.mock(MultipartFile.class);
+        when(file.isEmpty()).thenReturn(false);
+        when(file.getInputStream()).thenThrow(new IOException("disk"));
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(actor, req));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(actor, file));
 
-        assertEquals(ErrorCode.URL_FORMAT_ERROR.getCode(), ex.getCode());
+        assertEquals(ErrorCode.FILE_READ_FAILED.getCode(), ex.getCode());
         verify(modelGateway, never()).generateStructured(any(), any(), any());
     }
 

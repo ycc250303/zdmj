@@ -105,22 +105,12 @@ logging:
     org.springframework.ai.chat.client.advisor: DEBUG
     com.zdmj: DEBUG
 
-# 腾讯云COS配置
+# 知识库原文件保存目录
 # 注意：生产环境建议使用环境变量配置敏感信息，避免将密钥直接写在配置文件中
 # 环境变量优先级高于配置文件中的值
-cos:
-  # 腾讯云SecretId（访问密钥ID）
-  secret-id: your-cos-secret-id
-  secret-key: your-cos-secret-key
-  # 地域（Region）
-  # 生产环境建议使用环境变量：export COS_REGION=ap-shanghai
-  region: your-cos-region
-  
-  # 存储桶名称（Bucket Name）
-  bucket-name: your-cos-bucket-name
-  
-  # 预签名URL过期时间（秒），默认1小时（3600秒）
-  presigned-url-expiration: 3600
+knowledge:
+  storage:
+    root: ${KNOWLEDGE_STORAGE_ROOT}
 
 app:
   remote:

@@ -12,8 +12,10 @@ import com.zdmj.resumeService.service.StudentCapabilityProfileService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 学生就业能力画像控制器
@@ -57,9 +59,24 @@ public class StudentCapabilityProfileController {
      * @return 生成的能力画像
      */
     @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
-    @PostMapping("/generate")
+    @PostMapping(value = "/generate", consumes = MediaType.APPLICATION_JSON_VALUE)
     public Result<StudentCapabilityProfileResponse> generateProfile(@Parameter(hidden = true) CurrentActor actor, @Validated @RequestBody CapabilityProfileGenerateRequest reqDTO) {
         log.info("生成学生能力画像");
         return Result.success("生成能力画像成功", profileService.generateProfile(actor, reqDTO));
+    }
+
+    /**
+     * 从上传文件提取文本并生成能力画像。文件只在本次请求中读取。
+     *
+     * @param actor 已认证操作者，包含用户编号
+     * @param file 简历文件
+     * @return 生成的能力画像
+     */
+    @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @PostMapping(value = "/generate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Result<StudentCapabilityProfileResponse> generateProfileFromFile(@Parameter(hidden = true) CurrentActor actor,
+            @RequestParam("file") MultipartFile file) {
+        log.info("从上传文件生成学生能力画像");
+        return Result.success("生成能力画像成功", profileService.generateProfile(actor, file));
     }
 }

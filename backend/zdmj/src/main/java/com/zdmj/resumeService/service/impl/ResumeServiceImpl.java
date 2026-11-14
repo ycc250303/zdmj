@@ -1,5 +1,8 @@
 package com.zdmj.resumeService.service.impl;
 
+import java.io.InputStream;
+import java.io.IOException;
+import org.springframework.web.multipart.MultipartFile;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.aiService.api.ModelGateway;
@@ -366,7 +369,7 @@ public class ResumeServiceImpl implements ResumeService {
         java.util.Objects.requireNonNull(actor, "actor 不能为空");
         log.info("开始识别简历结构化字段");
 
-        String sourceText = PdfParserUtil.normalizeExtractedText(resolveImportSourceText(actor, request));
+        String sourceText = PdfParserUtil.normalizeExtractedText(resolveImportSourceText(request));
 
         ResumeImportParseResponse parsed;
         try {
@@ -388,28 +391,42 @@ public class ResumeServiceImpl implements ResumeService {
     }
 
     /**
-     * 解析导入的简历文本
+     * 从上传文件提取文本后识别简历。文件流在提取结束后关闭，文件内容不落库。
      *
      * @param actor 已认证操作者，包含用户编号
-     * @param request 导入请求
-     * @return 解析后的文本
+     * @param file 非空简历文件
+     * @return 识别结果
+     * @throws BusinessException 文件为空、无法读取、提取文本为空或识别失败
      */
-    private String resolveImportSourceText(CurrentActor actor, ResumeImportParseRequest request) {
-        if (StringUtils.hasText(request.getPdfUrl())) {
-            log.info("简历识别：从 PDF 解析文本");
-            try {
-                String text = pdfParserUtil.extractTextFromUrl(actor, request.getPdfUrl().trim());
-                if (!StringUtils.hasText(text)) {
-                    throw new BusinessException(ErrorCode.RESUME_IMPORT_TEXT_EMPTY);
-                }
-                return text;
-            } catch (BusinessException e) {
-                throw e;
-            } catch (Exception e) {
-                log.error("PDF 解析失败", e);
-                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "PDF 解析失败，请检查文件是否合法");
-            }
+    @Override
+    public ResumeImportParseResponse parseImport(CurrentActor actor, MultipartFile file) {
+        java.util.Objects.requireNonNull(actor, "actor 不能为空");
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ErrorCode.FILE_EMPTY);
         }
+        log.info("简历识别：从上传文件提取文本");
+        String extracted;
+        try (InputStream input = file.getInputStream()) {
+            extracted = pdfParserUtil.extractText(input);
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.FILE_READ_FAILED, exception);
+        }
+        if (!StringUtils.hasText(extracted)) {
+            throw new BusinessException(ErrorCode.RESUME_IMPORT_TEXT_EMPTY);
+        }
+        ResumeImportParseRequest request = new ResumeImportParseRequest();
+        request.setRawText(extracted);
+        return parseImport(actor, request);
+    }
+
+    /**
+     * 解析导入的简历文本。
+     *
+     * @param request 纯文本请求
+     * @return 去除首尾空白后的文本
+     * @throws BusinessException 未提供文本或文本为空白
+     */
+    private String resolveImportSourceText(ResumeImportParseRequest request) {
         if (request.getRawText() != null) {
             String text = request.getRawText().trim();
             if (!StringUtils.hasText(text)) {
@@ -418,7 +435,7 @@ public class ResumeServiceImpl implements ResumeService {
             log.info("简历识别：使用纯文本");
             return text;
         }
-        throw new BusinessException(ErrorCode.VALIDATION_ERROR, "必须提供 pdfUrl 或 rawText");
+        throw new BusinessException(ErrorCode.VALIDATION_ERROR, "必须提供简历文本或简历文件");
     }
 
     /**

@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import type { UploadCustomRequestOptions, UploadFileInfo } from 'naive-ui';
-import { fetchUploadFile } from '@/service/api/profile';
-import { fetchParseResumeImport } from '@/service/api/resume';
+import { fetchParseResumeImportFile } from '@/service/api/resume';
 import { useResumeStore } from '@/store/modules/resume';
 import { $t } from '@/locales';
 import ResumeDetailPanel from './components/ResumeDetailPanel.vue';
@@ -35,13 +34,7 @@ async function handlePdfUpload({ file, onFinish, onError }: UploadCustomRequestO
 
   importing.value = true;
   try {
-    const { data: uploadData, error: uploadError } = await fetchUploadFile(fileObj, 'resume');
-    if (uploadError || !uploadData?.url) {
-      window.$message?.error($t('page.resumeImport.uploadFail'));
-      fail();
-      return;
-    }
-    const { data: parseData, error: parseError } = await fetchParseResumeImport({ pdfUrl: uploadData.url });
+    const { data: parseData, error: parseError } = await fetchParseResumeImportFile(fileObj);
     if (parseError || !parseData) {
       window.$message?.error($t('page.resumeImport.parseFail'));
       fail();

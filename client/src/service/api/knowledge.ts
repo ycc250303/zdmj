@@ -52,21 +52,21 @@ export function fetchGetKnowledgeDocumentDetail(id: number) {
 }
 
 /** 创建知识文档 */
-export function fetchCreateKnowledgeDocument(data: KnowledgeApi.KnowledgeDocumentCreate) {
+export function fetchCreateKnowledgeDocument(data: KnowledgeApi.KnowledgeDocumentCreate, file: File) {
   return request<KnowledgeApi.KnowledgeDocumentDTO>({
     url: '/knowledge-document',
     method: 'post',
-    data,
+    data: documentBody(data, file),
     timeout: 300000
   });
 }
 
 /** 更新知识文档 */
-export function fetchUpdateKnowledgeDocument(data: KnowledgeApi.KnowledgeDocumentUpdate) {
+export function fetchUpdateKnowledgeDocument(data: KnowledgeApi.KnowledgeDocumentUpdate, file?: File) {
   return request<KnowledgeApi.KnowledgeDocumentDTO>({
     url: '/knowledge-document',
     method: 'put',
-    data,
+    data: documentBody(data, file),
     timeout: 300000
   });
 }
@@ -76,25 +76,36 @@ export function fetchDeleteKnowledgeDocument(id: number) {
   return request<undefined>({ url: `/knowledge-document/${id}`, method: 'delete' });
 }
 
-// ========== 文件上传 ==========
+/** 构建文档表单，文件标识由服务器生成。 */
+function documentBody(data: KnowledgeApi.KnowledgeDocumentCreate | KnowledgeApi.KnowledgeDocumentUpdate, file?: File) {
+  if (!file) return data;
+  const body = new FormData();
+  body.append('title', data.title);
+  body.append('type', String(data.type));
+  body.append('file', file);
+  if ('id' in data) body.append('id', String(data.id));
+  return body;
+}
 
-/** 上传文件到腾讯云COS */
-export function fetchUploadFile(file: File, prefix = 'knowledge') {
-  const formData = new FormData();
-  formData.append('file', file);
-  return request<KnowledgeApi.FileUploadResult>({
-    url: '/files/upload',
+/** 下载原文件，认证头由统一请求层提供。 */
+export function fetchDownloadKnowledgeDocument(id: number) {
+  return request<Blob, 'blob'>({ url: `/knowledge-document/${id}/download`, responseType: 'blob' });
+}
+
+/** 同步重新生成文档向量。 */
+export function fetchRetryKnowledgeEmbedding(id: number) {
+  return request<KnowledgeApi.KnowledgeDocumentDTO>({
+    url: `/knowledge-document/${id}/embedding`,
     method: 'post',
-    data: formData,
-    params: { prefix }
+    timeout: 300000
   });
 }
 
 // ========== 兼容性函数 (保持向后兼容) ==========
 
 /** @deprecated 使用 fetchCreateKnowledgeDocument 代替 */
-export function fetchCreateKnowledge(data: KnowledgeApi.KnowledgeDocumentCreate) {
-  return fetchCreateKnowledgeDocument(data);
+export function fetchCreateKnowledge(data: KnowledgeApi.KnowledgeDocumentCreate, file: File) {
+  return fetchCreateKnowledgeDocument(data, file);
 }
 
 /** @deprecated 使用 fetchGetKnowledgeDocumentList 代替 */

@@ -13,4 +13,8 @@
     <select id="selectKnowledgeIdByScope" resultType="java.lang.Long">
         SELECT id FROM knowledge_bases WHERE scope = #{scope} ORDER BY id LIMIT 1
     </select>
+    <insert id="insertUserBaseIfAbsent">
+        INSERT INTO knowledge_bases (user_id, scope) VALUES (#{userId}, 1)
+        ON CONFLICT DO NOTHING
+    </insert>
 </mapper>

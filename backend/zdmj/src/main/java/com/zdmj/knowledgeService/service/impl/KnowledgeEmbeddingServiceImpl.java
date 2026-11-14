@@ -1,5 +1,8 @@
 package com.zdmj.knowledgeService.service.impl;
 
+import com.zdmj.common.storage.FileUploadService;
+import java.io.InputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
@@ -12,7 +15,6 @@ import java.util.Objects;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.transformer.splitter.TextSplitter;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -45,6 +47,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeVectorMapper knowledgeVectorMapper;
     private final PdfParserUtil pdfParserUtil;
+    private final FileUploadService fileUploadService;
     private final TransactionTemplate transactionTemplate;
 
     /**
@@ -69,7 +72,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
         // 2. 标记为进行中
         if (markStatus(documentId, userId, contentSnapshot,
                 KnowledgeEmbeddingStatusEnum.RUNNING.getCode(), null) != 1) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
+            throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_STATE_CONFLICT);
         }
 
         try {
@@ -86,20 +89,14 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
                 return null;
             });
         } catch (RuntimeException exception) {
-            markStatus(documentId, userId, contentSnapshot,
-                    KnowledgeEmbeddingStatusEnum.FAILED.getCode(), exception.getMessage());
+            try {
+                markStatus(documentId, userId, contentSnapshot,
+                        KnowledgeEmbeddingStatusEnum.FAILED.getCode(), "文档处理失败，请重新处理");
+            } catch (RuntimeException markingFailure) {
+                exception.addSuppressed(markingFailure);
+            }
             throw exception;
         }
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void deleteVectors(CurrentActor actor, Long DocumentId) {
-        KnowledgeDocument kd = knowledgeDocumentMapper.selectById(DocumentId);
-        if (kd == null || !actor.userId().equals(kd.getUserId())) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
-        }
-        runDeleteTaskByUser(DocumentId, kd.getUserId());
     }
 
     /**
@@ -113,13 +110,20 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
      * @return 更新行数
      */
     private int markStatus(Long documentId, Long userId, String contentSnapshot, Integer embeddingStatus, String lastError) {
-        Integer updated = transactionTemplate.execute(status -> knowledgeDocumentMapper.update(null,
-                new LambdaUpdateWrapper<KnowledgeDocument>()
+        var update = new LambdaUpdateWrapper<KnowledgeDocument>()
                         .eq(KnowledgeDocument::getId, documentId)
                         .eq(KnowledgeDocument::getUserId, userId)
                         .eq(KnowledgeDocument::getContent, contentSnapshot)
                         .set(KnowledgeDocument::getEmbeddingStatus, embeddingStatus)
-                        .set(KnowledgeDocument::getLastError, lastError)));
+                        .eq(KnowledgeDocument::getFileStatus, 1)
+                        .set(KnowledgeDocument::getUpdatedAt, com.zdmj.common.util.DateTimeUtil.now())
+                        .set(KnowledgeDocument::getLastError, lastError);
+        if (embeddingStatus.equals(KnowledgeEmbeddingStatusEnum.RUNNING.getCode())) {
+            update.ne(KnowledgeDocument::getEmbeddingStatus, KnowledgeEmbeddingStatusEnum.RUNNING.getCode());
+        } else {
+            update.eq(KnowledgeDocument::getEmbeddingStatus, KnowledgeEmbeddingStatusEnum.RUNNING.getCode());
+        }
+        Integer updated = transactionTemplate.execute(status -> knowledgeDocumentMapper.update(null, update));
         return updated == null ? 0 : updated;
     }
 
@@ -154,7 +158,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
                 Map<String, Object> meta = new HashMap<>();
                 meta.put("DocumentId", String.valueOf(source.getId()));
                 meta.put("KnowledgeId", String.valueOf(source.getKnowledgeId()));
-                meta.put("content", source.getContent());
+                meta.put("source", "/knowledge-document/" + source.getId() + "/download");
                 row.setMetadata(meta);
                 rows.add(row);
             }
@@ -171,11 +175,12 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
      * @param rows 已算好的向量行
      */
     private void saveVectors(Long documentId, Long userId, String contentSnapshot, List<KnowledgeVector> rows) {
-        KnowledgeDocument current = knowledgeDocumentMapper.selectById(documentId);
+        KnowledgeDocument current = knowledgeDocumentMapper.selectOwnedForUpdate(documentId, userId);
         if (current == null || !userId.equals(current.getUserId()) || current.getKnowledgeId() == null) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
         }
-        if (!Objects.equals(contentSnapshot, current.getContent())) {
+        if (!Objects.equals(contentSnapshot, current.getContent()) || !Objects.equals(current.getFileStatus(), 1)
+                || !Objects.equals(current.getEmbeddingStatus(), KnowledgeEmbeddingStatusEnum.RUNNING.getCode())) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "文档内容已变化");
         }
         knowledgeVectorMapper.deleteByDocumentIdAndUserId(documentId, userId);
@@ -184,8 +189,15 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
         current.setChunkCount(rows.size());
         current.setLastEmbeddedAt(LocalDateTime.now());
         current.setLastError(null);
-        current.setContentHash(sha256(current.getContent()));
-        if (knowledgeDocumentMapper.updateById(current) != 1) {
+        if (knowledgeDocumentMapper.update(null, new LambdaUpdateWrapper<KnowledgeDocument>()
+                .eq(KnowledgeDocument::getId, documentId).eq(KnowledgeDocument::getUserId, userId)
+                .eq(KnowledgeDocument::getContent, contentSnapshot).eq(KnowledgeDocument::getFileStatus, 1)
+                .eq(KnowledgeDocument::getEmbeddingStatus, KnowledgeEmbeddingStatusEnum.RUNNING.getCode())
+                .set(KnowledgeDocument::getEmbeddingStatus, current.getEmbeddingStatus())
+                .set(KnowledgeDocument::getChunkCount, rows.size())
+                .set(KnowledgeDocument::getLastEmbeddedAt, current.getLastEmbeddedAt())
+                .set(KnowledgeDocument::getLastError, null)
+                .set(KnowledgeDocument::getUpdatedAt, com.zdmj.common.util.DateTimeUtil.now())) != 1) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED);
         }
         log.info("向量化完成: documentId={}, chunks={}", documentId, rows.size());
@@ -206,25 +218,13 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
         return sb.toString();
     }
 
-    private void runDeleteTaskByUser(Long DocumentId, Long userId) {
-        try {
-            knowledgeVectorMapper.deleteByDocumentIdAndUserId(DocumentId, userId);
-            KnowledgeDocument kd = knowledgeDocumentMapper.selectById(DocumentId);
-            if (kd != null && userId.equals(kd.getUserId())) {
-                kd.setChunkCount(0);
-                kd.setEmbeddingStatus(KnowledgeEmbeddingStatusEnum.PENDING.getCode());
-                kd.setLastEmbeddedAt(null);
-                kd.setLastError(null);
-                knowledgeDocumentMapper.updateById(kd);
-            }
-        } catch (Exception e) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_DELETE_FAILED);
-        }
-    }
-
     private String extractText(CurrentActor actor, KnowledgeDocument kd) {
         if (kd.getType() != null && kd.getType().equals(KnowledgeTypeEnum.PROJECT_DOCUMENT.getCode())) {
-            return pdfParserUtil.extractTextFromUrl(actor, kd.getContent());
+            try (InputStream input = fileUploadService.openInputStream(actor, kd.getContent())) {
+                return pdfParserUtil.extractText(input);
+            } catch (IOException exception) {
+                throw new BusinessException(ErrorCode.FILE_STORAGE_UNAVAILABLE, exception);
+            }
         }
         throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "当前知识类型暂不支持向量化");
     }
@@ -237,8 +237,8 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
             for (byte b : digest)
                 hex.append(String.format("%02x", b));
             return hex.toString();
-        } catch (Exception e) {
-            return null;
+        } catch (java.security.NoSuchAlgorithmException exception) {
+            throw new IllegalStateException(exception);
         }
     }
 

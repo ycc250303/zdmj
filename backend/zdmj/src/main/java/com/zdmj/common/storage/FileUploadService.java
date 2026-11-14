@@ -1,425 +1,248 @@
 package com.zdmj.common.storage;
 
 import com.zdmj.common.context.CurrentActor;
-import com.qcloud.cos.COSClient;
-import com.qcloud.cos.ClientConfig;
-import com.qcloud.cos.auth.BasicCOSCredentials;
-import com.qcloud.cos.auth.COSCredentials;
-import com.qcloud.cos.exception.CosClientException;
-import com.qcloud.cos.exception.CosServiceException;
-import com.qcloud.cos.model.COSObject;
-import com.qcloud.cos.model.COSObjectSummary;
-import com.qcloud.cos.model.GetObjectMetadataRequest;
-import com.qcloud.cos.model.GetObjectRequest;
-import com.qcloud.cos.model.ListObjectsRequest;
-import com.qcloud.cos.model.ObjectListing;
-import com.qcloud.cos.model.ObjectMetadata;
-import com.qcloud.cos.model.PutObjectRequest;
-import com.qcloud.cos.model.PutObjectResult;
-import com.qcloud.cos.region.Region;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
-import lombok.extern.slf4j.Slf4j;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.channels.FileChannel;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.security.DigestInputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URI;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
-
-/**
- * 对象存储与用户域文件上传（腾讯云 COS）。
- */
-@Slf4j
+/** 用户原文件存储。路径仅由认证用户编号和服务器生成的 UUID 组成。 */
 @Service
-@Profile("!test")
 public class FileUploadService {
+    private static final long MAX_SIZE = 20L * 1024 * 1024;
+    private final Path root;
 
-    @Value("${cos.secret-id}")
-    private String secretId;
-
-    @Value("${cos.secret-key}")
-    private String secretKey;
-
-    @Value("${cos.region}")
-    private String region;
-
-    @Value("${cos.bucket-name}")
-    private String bucketName;
-
-    /**
-     * 对象存储模式。{@code cos} 连接腾讯云；其他值跳过客户端初始化，供测试替身使用。
-     */
-    @Value("${zdmj.storage.mode:cos}")
-    private String storageMode;
-
-    private COSClient cosClient;
-
-    @FunctionalInterface
-    private interface CosCall<T> {
-        T run() throws CosServiceException, CosClientException;
-    }
-
-    @FunctionalInterface
-    private interface CosVoidCall {
-        void run() throws CosServiceException, CosClientException;
-    }
-
-    @PostConstruct
-    public void init() {
-        if (!"cos".equals(storageMode)) {
-            log.info("对象存储模式为 {}，不初始化 COS 客户端", storageMode);
-            return;
-        }
+    /** 检查已有持久化目录并验证写入、原子移动能力，配置错误立即终止启动。 */
+    public FileUploadService(@Value("${knowledge.storage.root}") String directory) {
+        root = Path.of(directory).toAbsolutePath().normalize();
         try {
-            if (isBlank(secretId)) {
-                log.warn("COS SecretId未配置或使用默认值，请设置环境变量 COS_SECRET_ID");
+            if (!Path.of(directory).isAbsolute() || !Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)
+                    || !root.equals(root.toRealPath())) {
+                throw new IllegalStateException("知识文件根目录必须是已存在的绝对路径，且不能包含符号链接");
             }
-            if (isBlank(secretKey)) {
-                log.warn("COS SecretKey未配置或使用默认值，请设置环境变量 COS_SECRET_KEY");
+            Path probe = Files.createTempFile(root, ".probe-", ".part");
+            Path moved = probe.resolveSibling(probe.getFileName() + ".ready");
+            try {
+                Files.move(probe, moved, StandardCopyOption.ATOMIC_MOVE);
+            } finally {
+                Files.deleteIfExists(probe);
+                Files.deleteIfExists(moved);
             }
-            if (isBlank(bucketName)) {
-                throw new RuntimeException("COS存储桶名称未配置，请设置环境变量 COS_BUCKET_NAME");
-            }
-
-            COSCredentials cred = new BasicCOSCredentials(secretId, secretKey);
-            ClientConfig clientConfig = new ClientConfig(new Region(region));
-            cosClient = new COSClient(cred, clientConfig);
-            log.info("腾讯云COS客户端初始化成功，地域：{}，存储桶：{}", region, bucketName);
-        } catch (Exception e) {
-            log.error("腾讯云COS客户端初始化失败", e);
-            throw new RuntimeException("COS客户端初始化失败：" + e.getMessage(), e);
+        } catch (IOException exception) {
+            throw new IllegalStateException("知识文件目录不可写或不支持原子移动", exception);
         }
     }
 
-    @PreDestroy
-    public void destroy() {
-        if (cosClient != null) {
-            cosClient.shutdown();
-            log.info("腾讯云COS客户端已关闭");
-        }
-    }
-
-    /**
-     * 上传文件到 COS。
-     *
-     * @param actor 已认证操作者，包含用户编号
-     * @param file 文件
-     * @param prefix 前缀
-     * @return 上传响应
-     */
-    public FileUploadResponse uploadFile(CurrentActor actor, MultipartFile file, String prefix) {
+    /** 校验大小、类型和原始名称，并生成尚未写入的文件描述。 */
+    public StoredFile prepare(CurrentActor actor, MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ErrorCode.FILE_EMPTY);
         }
-        String key = buildUserScopedKey(actor, prefix, file.getOriginalFilename());
-        String uploadedKey = putObject(file, key);
-        return FileUploadResponse.builder()
-                .key(uploadedKey)
-                .url(getFileUrl(uploadedKey))
-                .fileName(file.getOriginalFilename())
-                .fileSize(file.getSize())
-                .contentType(file.getContentType())
-                .build();
+        if (file.getSize() > MAX_SIZE) {
+            throw new BusinessException(ErrorCode.FILE_SIZE_EXCEEDED);
+        }
+        String name = Objects.requireNonNullElse(file.getOriginalFilename(), "");
+        name = name.substring(Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\')) + 1);
+        if (name.isBlank() || name.length() > 255 || name.chars().anyMatch(Character::isISOControl)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "文件名称无效");
+        }
+        String lower = name.toLowerCase(Locale.ROOT);
+        String extension = lower.endsWith(".pdf") ? ".pdf"
+                : lower.endsWith(".md") || lower.endsWith(".markdown") ? ".md" : null;
+        if (extension == null) {
+            throw new BusinessException(ErrorCode.FILE_TYPE_NOT_EXISTS, "仅支持 PDF 和 Markdown 文件");
+        }
+        return new StoredFile("user-" + actor.userId() + "/" + UUID.randomUUID().toString().replace("-", "")
+                + extension, name, file.getSize(), extension.equals(".pdf") ? "application/pdf" : "text/markdown");
     }
 
     /**
-     * 删除当前用户在指定业务域下上传的文件。
-     *
-     * @param actor 已认证操作者，包含用户编号
+     * 同步写入临时文件、刷新内容并原子移动为正式文件，返回原文件 SHA-256。
+     * @param actor 已认证操作者
+     * @param target 本组件生成并已登记到数据库的文件描述
+     * @param file 请求中的原文件
+     * @return 原文件内容摘要
+     * @throws BusinessException 读取失败、文件超限或持久化目录不可用
      */
-    public void deleteOwnedByUrl(CurrentActor actor, String fileUrl, String bizArea) {
-        if (fileUrl == null || fileUrl.isBlank()) {
-            return;
-        }
-        Long userId = actor.userId();
-        String key = requireOwnedKey(extractKeyFromUrl(fileUrl), userId);
-        String expectedPrefix = UserObjectKeys.ownedPrefix(userId) + sanitizeBizArea(bizArea) + "/";
-        if (!key.startsWith(expectedPrefix)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION, "无权删除该文件");
-        }
-        deleteObject(key);
-        log.info("用户域文件已清理，key={}", key);
-    }
-
-    public void deleteByKey(CurrentActor actor, String key) {
-        String ownedKey = requireOwnedKey(key, actor.userId());
-        deleteObject(ownedKey);
-        log.info("文件删除成功，key={}", key);
-    }
-
-    public List<FileUploadListItemResponse> listUploadedFiles(CurrentActor actor, String prefix) {
-        Long userId = actor.userId();
-        String queryPrefix = (prefix == null || prefix.isBlank())
-                ? String.format("user-%d/", userId)
-                : String.format("user-%d/%s/", userId, sanitizeBizArea(prefix));
-        List<String> keys = listKeysByPrefix(queryPrefix, userId);
-        List<FileUploadListItemResponse> result = new ArrayList<>(keys.size());
-        for (String key : keys) {
-            result.add(FileUploadListItemResponse.builder()
-                    .key(key)
-                    .url(getFileUrl(key))
-                    .fileName(extractFileName(key))
-                    .bizArea(extractBizArea(key, userId))
-                    .build());
-        }
-        return result;
-    }
-
-    public boolean exists(CurrentActor actor, String key) {
-        String ownedKey = requireOwnedKey(key, actor.userId());
+    public String save(CurrentActor actor, StoredFile target, MultipartFile file) {
+        Path destination = resolve(actor, target.key());
+        Path temporary = destination.resolveSibling(destination.getFileName() + ".part");
         try {
-            cosClient.getObjectMetadata(new GetObjectMetadataRequest(bucketName, ownedKey));
-            return true;
-        } catch (CosServiceException e) {
-            if (e.getStatusCode() == 404) {
-                return false;
-            }
-            throw wrapCosServiceException("检查文件是否存在", e);
-        } catch (CosClientException e) {
-            throw wrapCosClientException("检查文件是否存在", e);
-        }
-    }
-
-    public boolean isManagedCosUrl(String sourceUri) {
-        if (isBlank(sourceUri) || isBlank(bucketName) || isBlank(region)) {
-            return false;
-        }
-        try {
-            URI uri = URI.create(sourceUri.trim());
-            if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getUserInfo() != null) {
-                return false;
-            }
-            String host = uri.getHost();
-            if (isBlank(host)) {
-                return false;
-            }
-            String expectedHost = bucketName + ".cos." + region + ".myqcloud.com";
-            return expectedHost.equalsIgnoreCase(host);
-        } catch (Exception ignore) {
-            return false;
-        }
-    }
-
-    /**
-     * 校验地址与对象归属后，通过 SDK 读取 COS 对象。调用方负责关闭返回的输入流。
-     *
-     * @param actor 已认证操作者，包含用户编号
-     * @param sourceUri 本系统上传文件的 HTTPS 地址
-     * @return 对象内容输入流
-     * @throws BusinessException 地址非法、对象不属于操作者或存储读取失败
-     */
-    public InputStream openInputStreamFromUrl(CurrentActor actor, String sourceUri) {
-        ensureInitialized();
-        if (!isManagedCosUrl(sourceUri)) {
-            throw new BusinessException(ErrorCode.URL_FORMAT_ERROR, "仅支持本系统已上传的文件");
-        }
-        String key = requireOwnedKey(extractKeyFromUrl(sourceUri), actor.userId());
-        return execute("读取文件", () -> {
-            COSObject cosObject = cosClient.getObject(new GetObjectRequest(bucketName, key));
-            return cosObject.getObjectContent();
-        });
-    }
-
-    public String extractKeyFromUrl(String sourceUri) {
-        if (isBlank(sourceUri)) {
-            return "";
-        }
-        String rawPath = sourceUri.trim();
-        try {
-            URI uri = URI.create(sourceUri.trim());
-            if (!isBlank(uri.getPath())) {
-                rawPath = uri.getPath();
-            }
-        } catch (Exception ignore) {
-            // 非标准 URI 时按原字符串兜底处理
-        }
-        try {
-            rawPath = URLDecoder.decode(rawPath, StandardCharsets.UTF_8);
-        } catch (Exception ignore) {
-            // 保持未解码路径，后续 normalize 会拒绝非法段
-        }
-        String normalized = UserObjectKeys.normalize(rawPath);
-        return normalized == null ? "" : normalized;
-    }
-
-    private String putObject(MultipartFile file, String key) {
-        try {
-            String finalKey = isBlank(key) ? generateKey(null, file.getOriginalFilename()) : key;
-            try (InputStream inputStream = file.getInputStream()) {
-                return execute("文件上传", () -> {
-                    ObjectMetadata metadata = new ObjectMetadata();
-                    metadata.setContentLength(file.getSize());
-                    if (!isBlank(file.getContentType())) {
-                        metadata.setContentType(file.getContentType());
+            Files.createDirectories(destination.getParent());
+            requireDirectory(destination.getParent());
+            MessageDigest digest = sha256();
+            try (InputStream input = new DigestInputStream(uploadInput(file), digest);
+                    var output = FileChannel.open(temporary, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE,
+                            LinkOption.NOFOLLOW_LINKS)) {
+                byte[] buffer = new byte[8192];
+                long size = 0;
+                int count;
+                while ((count = input.read(buffer)) != -1) {
+                    size += count;
+                    if (size > MAX_SIZE) {
+                        throw new BusinessException(ErrorCode.FILE_SIZE_EXCEEDED);
                     }
-                    PutObjectResult result = cosClient.putObject(new PutObjectRequest(
-                            bucketName, finalKey, inputStream, metadata));
-                    log.info("文件上传成功，key: {}, ETag: {}", finalKey, result.getETag());
-                    return finalKey;
-                });
-            }
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (IOException e) {
-            log.error("文件上传异常", e);
-            throw new RuntimeException("文件上传失败：" + e.getMessage(), e);
-        } catch (Exception e) {
-            log.error("文件上传异常", e);
-            throw new RuntimeException("文件上传失败：" + e.getMessage(), e);
-        }
-    }
-
-    private void deleteObject(String key) {
-        executeVoid("文件删除", () -> {
-            cosClient.deleteObject(bucketName, key);
-            log.info("文件删除成功，key: {}", key);
-        });
-    }
-
-    private String getFileUrl(String key) {
-        ensureInitialized();
-        return String.format("https://%s.cos.%s.myqcloud.com/%s", bucketName, region, key);
-    }
-
-    private List<String> listKeysByPrefix(String prefix, long userId) {
-        ensureInitialized();
-        return execute("查询文件列表", () -> {
-            String normalizedPrefix = prefix == null ? "" : prefix.trim();
-            List<String> keys = new ArrayList<>();
-            String marker = null;
-            do {
-                ListObjectsRequest request = new ListObjectsRequest();
-                request.setBucketName(bucketName);
-                request.setPrefix(normalizedPrefix);
-                request.setMarker(marker);
-                request.setMaxKeys(1000);
-
-                ObjectListing listing = cosClient.listObjects(request);
-                for (COSObjectSummary summary : listing.getObjectSummaries()) {
-                    String objectKey = summary.getKey();
-                    if (objectKey != null && !objectKey.endsWith("/") && UserObjectKeys.isOwnedBy(objectKey, userId)) {
-                        keys.add(objectKey);
+                    var bytes = java.nio.ByteBuffer.wrap(buffer, 0, count);
+                    while (bytes.hasRemaining()) {
+                        output.write(bytes);
                     }
                 }
-                marker = listing.isTruncated() ? listing.getNextMarker() : null;
-            } while (marker != null);
-            return keys;
-        });
+                if (size != target.fileSize()) {
+                    throw new IOException("文件实际长度与声明不一致");
+                }
+                output.force(true);
+            }
+            validateContent(temporary, target.contentType());
+            if (Files.exists(destination, LinkOption.NOFOLLOW_LINKS)) {
+                throw new IllegalStateException("原文件标识已被使用");
+            }
+            Files.move(temporary, destination, StandardCopyOption.ATOMIC_MOVE);
+            try (FileChannel directory = FileChannel.open(destination.getParent(), StandardOpenOption.READ)) {
+                directory.force(true);
+            }
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.FILE_STORAGE_UNAVAILABLE, exception);
+        }
     }
 
-    private String generateKey(String prefix, String originalFilename) {
-        String extension = "";
-        String fileNameWithoutExt = originalFilename;
+    /** 打开已授权原文件，调用方负责关闭；缺失或不可读立即返回存储故障。 */
+    public InputStream openInputStream(CurrentActor actor, String key) {
+        try {
+            Path path = resolve(actor, key);
+            requireDirectory(path.getParent());
+            return Files.newInputStream(path, LinkOption.NOFOLLOW_LINKS);
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.FILE_STORAGE_UNAVAILABLE, exception);
+        }
+    }
 
-        if (!isBlank(originalFilename)) {
-            int dot = originalFilename.lastIndexOf(".");
-            if (dot >= 0) {
-                extension = originalFilename.substring(dot).toLowerCase();
-                fileNameWithoutExt = originalFilename.substring(0, dot);
+    /** 删除原文件及未完成写入的临时文件；已经不存在时视为清理完成。 */
+    public void delete(CurrentActor actor, String key) {
+        try {
+            Path path = resolve(actor, key);
+            requireDirectory(path.getParent());
+            Files.deleteIfExists(path);
+            Files.deleteIfExists(path.resolveSibling(path.getFileName() + ".part"));
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.FILE_STORAGE_UNAVAILABLE, exception);
+        }
+    }
+
+    /** 请求输入故障与磁盘写入故障分别保留对应异常语义。 */
+    private InputStream uploadInput(MultipartFile file) {
+        try {
+            return new java.io.FilterInputStream(file.getInputStream()) {
+                @Override
+                public int read(byte[] bytes, int offset, int length) {
+                    try {
+                        return in.read(bytes, offset, length);
+                    } catch (IOException exception) {
+                        throw new BusinessException(ErrorCode.FILE_READ_FAILED, exception);
+                    }
+                }
+                @Override
+                public void close() {
+                    try {
+                        in.close();
+                    } catch (IOException exception) {
+                        throw new BusinessException(ErrorCode.FILE_READ_FAILED, exception);
+                    }
+                }
+            };
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.FILE_READ_FAILED, exception);
+        }
+    }
+
+    /** 验证 PDF 文件头或严格 UTF-8 文本，避免仅依赖客户端扩展名。 */
+    private void validateContent(Path path, String contentType) throws IOException {
+        if (contentType.equals("application/pdf")) {
+            try (InputStream input = Files.newInputStream(path, LinkOption.NOFOLLOW_LINKS)) {
+                if (!java.util.Arrays.equals(input.readNBytes(5), "%PDF-".getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
+                    throw new BusinessException(ErrorCode.VALIDATION_ERROR, "PDF 文件内容无效");
+                }
+            }
+        } else {
+            var decoder = java.nio.charset.StandardCharsets.UTF_8.newDecoder();
+            try (var reader = new java.io.InputStreamReader(Files.newInputStream(path, LinkOption.NOFOLLOW_LINKS), decoder)) {
+                char[] buffer = new char[8192];
+                int count;
+                while ((count = reader.read(buffer)) != -1) {
+                    for (int i = 0; i < count; i++) {
+                        char character = buffer[i];
+                        if (Character.isISOControl(character) && character != '\n' && character != '\r' && character != '\t') {
+                            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Markdown 文件必须是 UTF-8 文本");
+                        }
+                    }
+                }
+            } catch (java.nio.charset.CharacterCodingException exception) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Markdown 文件必须是 UTF-8 文本", exception);
             }
         }
-
-        if (!isBlank(fileNameWithoutExt)) {
-            fileNameWithoutExt = fileNameWithoutExt.replaceAll("[^\\w\\u4e00-\\u9fa5-]", "_");
-        }
-        if (isBlank(fileNameWithoutExt)) {
-            fileNameWithoutExt = "file";
-        }
-
-        String fileName = fileNameWithoutExt + "-" + UUID.randomUUID().toString().replace("-", "") + extension;
-        if (isBlank(prefix)) {
-            return fileName;
-        }
-        return trimTrailingSlash(prefix) + "/" + fileName;
     }
 
-    private String sanitizeBizArea(String prefix) {
-        String bizArea = (prefix == null || prefix.isBlank()) ? "files" : prefix.trim();
-        return bizArea.replaceAll("[^a-zA-Z0-9_-]", "_");
-    }
-
-    private String buildUserScopedKey(CurrentActor actor, String prefix, String originalFilename) {
-        Long userId = actor.userId();
-        String bizArea = sanitizeBizArea(prefix);
-        String finalPrefix = String.format("user-%d/%s", userId, bizArea);
-        return generateKey(finalPrefix, originalFilename);
-    }
-
-    private static String requireOwnedKey(String key, long userId) {
-        String normalized = UserObjectKeys.normalize(key);
-        if (normalized == null) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "无效的文件路径");
+    private Path resolve(CurrentActor actor, String key) {
+        String prefix = "user-" + actor.userId() + "/";
+        if (key == null || !key.matches("user-[1-9][0-9]*/[a-f0-9]{32}\\.(pdf|md)")) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "文件标识无效");
         }
-        if (!UserObjectKeys.isOwnedBy(normalized, userId)) {
+        if (!key.startsWith(prefix)) {
             throw new BusinessException(ErrorCode.NO_PERMISSION);
         }
-        return normalized;
-    }
-
-    private String extractFileName(String key) {
-        int idx = key.lastIndexOf('/');
-        return idx >= 0 ? key.substring(idx + 1) : key;
-    }
-
-    private String extractBizArea(String key, Long userId) {
-        String prefix = "user-" + userId + "/";
-        if (!key.startsWith(prefix)) {
-            return "";
+        Path path = root.resolve(key).normalize();
+        if (!path.startsWith(root)) {
+            throw new IllegalStateException("文件路径超出持久化目录");
         }
-        String remain = key.substring(prefix.length());
-        int slash = remain.indexOf('/');
-        return slash > 0 ? remain.substring(0, slash) : "";
+        requireDirectory(path.getParent());
+        return path;
     }
 
-    private <T> T execute(String action, CosCall<T> call) {
+    private void requireDirectory(Path directory) {
         try {
-            return call.run();
-        } catch (CosServiceException e) {
-            throw wrapCosServiceException(action, e);
-        } catch (CosClientException e) {
-            throw wrapCosClientException(action, e);
+            if (!root.equals(root.toRealPath()) || (Files.exists(directory, LinkOption.NOFOLLOW_LINKS)
+                    && (!Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)
+                    || !directory.equals(directory.toRealPath())))) {
+                throw new IllegalStateException("文件目录包含符号链接或无效路径");
+            }
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.FILE_STORAGE_UNAVAILABLE, exception);
         }
     }
 
-    private void executeVoid(String action, CosVoidCall call) {
-        execute(action, () -> {
-            call.run();
-            return null;
-        });
-    }
-
-    private RuntimeException wrapCosServiceException(String action, CosServiceException e) {
-        log.error("COS服务异常，action={}，错误码：{}，错误消息：{}", action, e.getErrorCode(), e.getErrorMessage(), e);
-        return new RuntimeException(action + "失败：" + e.getErrorMessage(), e);
-    }
-
-    private RuntimeException wrapCosClientException(String action, CosClientException e) {
-        log.error("COS客户端异常，action={}", action, e);
-        return new RuntimeException(action + "失败：" + e.getMessage(), e);
-    }
-
-    private void ensureInitialized() {
-        if (isBlank(region) || isBlank(bucketName) || cosClient == null) {
-            throw new IllegalStateException("COS 客户端未初始化");
+    private static MessageDigest sha256() {
+        try {
+            return MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException(exception);
         }
     }
 
-    private static String trimTrailingSlash(String value) {
-        return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
-    }
-
-    private static boolean isBlank(String value) {
-        return value == null || value.trim().isEmpty();
+    /** 原文件描述：相对标识、下载文件名、字节数和服务器确定的媒体类型。 */
+    public record StoredFile(String key, String fileName, long fileSize, String contentType) {
+        public StoredFile {
+            Objects.requireNonNull(key);
+            Objects.requireNonNull(fileName);
+            Objects.requireNonNull(contentType);
+            if (fileSize <= 0 || fileSize > MAX_SIZE) {
+                throw new IllegalArgumentException("原文件长度无效");
+            }
+        }
     }
 }

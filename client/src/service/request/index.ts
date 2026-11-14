@@ -90,6 +90,9 @@ export const request = createFlatRequest(
       return null;
     },
     async onError(error) {
+      if (error.response?.data instanceof Blob && error.response.data.type.includes('json')) {
+        error.response.data = JSON.parse(await error.response.data.text());
+      }
       const { httpStatus, message, backendErrorCode } = resolveRequestErrorInfo(error);
 
       if (shouldForceLogout(httpStatus, backendErrorCode)) {

@@ -39,6 +39,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.PdfParserUtil;
+import com.zdmj.common.storage.FileUploadService;
+import java.io.InputStream;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
 import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
 import com.zdmj.knowledgeService.enums.KnowledgeEmbeddingStatusEnum;
@@ -59,6 +61,8 @@ class KnowledgeEmbeddingServiceImplTest {
     private final EmbeddingGateway embeddingGateway = Mockito.mock(EmbeddingGateway.class);
     private final KnowledgeDocumentMapper knowledgeDocumentMapper = Mockito.mock(KnowledgeDocumentMapper.class);
     private final KnowledgeVectorMapper knowledgeVectorMapper = Mockito.mock(KnowledgeVectorMapper.class);
+    private final FileUploadService fileUploadService = Mockito.mock(FileUploadService.class);
+    private final InputStream input = Mockito.mock(InputStream.class);
     private final PdfParserUtil pdfParserUtil = Mockito.mock(PdfParserUtil.class);
 
     @Test
@@ -82,11 +86,8 @@ class KnowledgeEmbeddingServiceImplTest {
 
         BusinessException vectorize = assertThrows(BusinessException.class,
                 () -> service.vectorizeAndStore(actor, 115L));
-        BusinessException delete = assertThrows(BusinessException.class,
-                () -> service.deleteVectors(actor, 115L));
 
         assertEquals(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND.getCode(), vectorize.getCode());
-        assertEquals(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND.getCode(), delete.getCode());
         verify(knowledgeDocumentMapper, never()).update(isNull(), any());
         Mockito.verifyNoInteractions(pdfParserUtil, textSplitter, embeddingGateway, knowledgeVectorMapper);
     }
@@ -112,13 +113,17 @@ class KnowledgeEmbeddingServiceImplTest {
     }
 
     @Test
-    void vectorizeAndStore_shouldEmbedOutsideTransactionAndSaveInside() {
+    void vectorizeAndStore_shouldEmbedOutsideTransactionAndSaveInside() throws Exception {
         KnowledgeDocument kd = projectDocument(110L, "https://cdn.example.com/a.pdf");
         when(knowledgeDocumentMapper.selectById(110L)).thenReturn(kd);
+        when(knowledgeDocumentMapper.selectOwnedForUpdate(110L, 1L)).thenReturn(kd);
         when(knowledgeDocumentMapper.update(isNull(), any())).thenReturn(1);
-        when(knowledgeDocumentMapper.updateById(kd)).thenReturn(1);
         AtomicBoolean inWrite = new AtomicBoolean(false);
-        when(pdfParserUtil.extractTextFromUrl(Mockito.same(actor), Mockito.eq(kd.getContent()))).thenAnswer(invocation -> {
+        when(fileUploadService.openInputStream(actor, kd.getContent())).thenAnswer(invocation -> {
+            assertFalse(inWrite.get());
+            return input;
+        });
+        when(pdfParserUtil.extractText(input)).thenAnswer(invocation -> {
             assertFalse(inWrite.get());
             return "项目说明";
         });
@@ -134,8 +139,10 @@ class KnowledgeEmbeddingServiceImplTest {
 
         assertEquals(KnowledgeEmbeddingStatusEnum.SUCCESS.getCode(), kd.getEmbeddingStatus());
         assertEquals(1, kd.getChunkCount());
-        InOrder order = inOrder(pdfParserUtil, embeddingGateway, knowledgeVectorMapper);
-        order.verify(pdfParserUtil).extractTextFromUrl(Mockito.same(actor), Mockito.eq(kd.getContent()));
+        InOrder order = inOrder(fileUploadService, pdfParserUtil, input, embeddingGateway, knowledgeVectorMapper);
+        order.verify(fileUploadService).openInputStream(Mockito.same(actor), Mockito.eq(kd.getContent()));
+        order.verify(pdfParserUtil).extractText(input);
+        order.verify(input).close();
         order.verify(embeddingGateway).embed(Mockito.same(actor), anyList());
         order.verify(knowledgeVectorMapper).deleteByDocumentIdAndUserId(110L, 1L);
         order.verify(knowledgeVectorMapper).batchInsert(any());
@@ -146,7 +153,8 @@ class KnowledgeEmbeddingServiceImplTest {
         KnowledgeDocument kd = projectDocument(120L, "https://cdn.example.com/b.pdf");
         when(knowledgeDocumentMapper.selectById(120L)).thenReturn(kd);
         when(knowledgeDocumentMapper.update(isNull(), any())).thenReturn(1);
-        when(pdfParserUtil.extractTextFromUrl(new CurrentActor(1L), kd.getContent())).thenReturn("正文");
+        when(fileUploadService.openInputStream(actor, kd.getContent())).thenReturn(input);
+        when(pdfParserUtil.extractText(input)).thenReturn("正文");
         when(textSplitter.apply(any())).thenReturn(List.of(new Document("正文")));
         doThrow(new RuntimeException("embed down")).when(embeddingGateway).embed(any(), anyList());
         KnowledgeEmbeddingServiceImpl service = newService();
@@ -163,9 +171,11 @@ class KnowledgeEmbeddingServiceImplTest {
     void vectorizeAndStore_whenContentChangesBeforeSave_shouldNotReplaceVectors() {
         KnowledgeDocument loaded = projectDocument(130L, "https://cdn.example.com/old.pdf");
         KnowledgeDocument changed = projectDocument(130L, "https://cdn.example.com/new.pdf");
-        when(knowledgeDocumentMapper.selectById(130L)).thenReturn(loaded, changed);
+        when(knowledgeDocumentMapper.selectById(130L)).thenReturn(loaded);
+        when(knowledgeDocumentMapper.selectOwnedForUpdate(130L, 1L)).thenReturn(changed);
         when(knowledgeDocumentMapper.update(isNull(), any())).thenReturn(1);
-        when(pdfParserUtil.extractTextFromUrl(new CurrentActor(1L), loaded.getContent())).thenReturn("旧正文");
+        when(fileUploadService.openInputStream(actor, loaded.getContent())).thenReturn(input);
+        when(pdfParserUtil.extractText(input)).thenReturn("旧正文");
         when(textSplitter.apply(any())).thenReturn(List.of(new Document("旧正文")));
         doReturn(List.of(new float[] {0.5f})).when(embeddingGateway).embed(any(), anyList());
         KnowledgeEmbeddingServiceImpl service = newService();
@@ -176,36 +186,6 @@ class KnowledgeEmbeddingServiceImplTest {
         assertEquals("文档内容已变化", ex.getMessage());
         verify(knowledgeVectorMapper, never()).batchInsert(any());
         verify(embeddingGateway).embed(any(), anyList());
-    }
-
-    @Test
-    void deleteVectorsSuccess_shouldResetDocumentEmbeddingFields() {
-        KnowledgeDocument kd = new KnowledgeDocument();
-        kd.setId(8101L);
-        kd.setUserId(1L);
-        kd.setChunkCount(12);
-        kd.setEmbeddingStatus(KnowledgeEmbeddingStatusEnum.SUCCESS.getCode());
-        when(knowledgeDocumentMapper.selectById(8101L)).thenReturn(kd);
-        KnowledgeEmbeddingServiceImpl service = newService();
-
-        service.deleteVectors(actor, 8101L);
-
-        assertEquals(0, kd.getChunkCount());
-        assertEquals(KnowledgeEmbeddingStatusEnum.PENDING.getCode(), kd.getEmbeddingStatus());
-        assertNull(kd.getLastEmbeddedAt());
-        verify(knowledgeVectorMapper).deleteByDocumentIdAndUserId(8101L, 1L);
-        verify(knowledgeDocumentMapper).updateById(kd);
-    }
-
-    @Test
-    void deleteVectorsNotFound_shouldThrowKnowledgeBaseNotFound() {
-        when(knowledgeDocumentMapper.selectById(8201L)).thenReturn(null);
-        KnowledgeEmbeddingServiceImpl service = newService();
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.deleteVectors(actor, 8201L));
-
-        assertEquals(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND.getCode(), ex.getCode());
-        verify(knowledgeVectorMapper, never()).deleteByDocumentIdAndUserId(Mockito.anyLong(), Mockito.anyLong());
     }
 
     @Test
@@ -229,22 +209,6 @@ class KnowledgeEmbeddingServiceImplTest {
         assertTrue(vector.contains("3.25"));
     }
 
-    @Test
-    void deleteVectorsWhenMapperThrows_shouldThrowKnowledgeBaseDeleteFailed() {
-        KnowledgeDocument kd = new KnowledgeDocument();
-        kd.setId(8301L);
-        kd.setUserId(1L);
-        when(knowledgeDocumentMapper.selectById(8301L)).thenReturn(kd);
-        Mockito.doThrow(new RuntimeException("db down"))
-                .when(knowledgeVectorMapper).deleteByDocumentIdAndUserId(8301L, 1L);
-        KnowledgeEmbeddingServiceImpl service = newService();
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.deleteVectors(actor, 8301L));
-
-        assertEquals(ErrorCode.KNOWLEDGE_BASE_DELETE_FAILED.getCode(), ex.getCode());
-        verify(knowledgeVectorMapper).deleteByDocumentIdAndUserId(8301L, 1L);
-    }
-
     private KnowledgeEmbeddingServiceImpl newService() {
         return newService(executingTemplate());
     }
@@ -252,7 +216,7 @@ class KnowledgeEmbeddingServiceImplTest {
     private KnowledgeEmbeddingServiceImpl newService(TransactionTemplate transactionTemplate) {
         return new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingGateway, knowledgeDocumentMapper, knowledgeVectorMapper,
-                pdfParserUtil, transactionTemplate);
+                pdfParserUtil, fileUploadService, transactionTemplate);
     }
 
     private static TransactionTemplate executingTemplate() {
@@ -284,6 +248,8 @@ class KnowledgeEmbeddingServiceImplTest {
         document.setKnowledgeId(500L);
         document.setType(KnowledgeTypeEnum.PROJECT_DOCUMENT.getCode());
         document.setContent(content);
+        document.setFileStatus(1);
+        document.setEmbeddingStatus(2);
         return document;
     }
 

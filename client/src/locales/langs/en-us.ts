@@ -724,7 +724,7 @@ const local: App.I18n.Schema = {
       dragUpload: 'Drag file here or click to upload',
       dragUploadActive: 'Release to upload',
       orInputUrl: 'Or enter URL directly',
-      inputUrlPlaceholder: 'Enter COS file URL (support .pdf or .md)',
+      inputUrlPlaceholder: 'Enter a PDF or Markdown file URL',
       githubRepoLink: 'GitHub Repository Link',
       githubRepoPlaceholder: 'Enter GitHub repo link, e.g. https://github.com/username/repo',
       githubRepoExample: 'Example: https://github.com/username/repository',

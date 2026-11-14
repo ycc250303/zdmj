@@ -1,8 +1,6 @@
 /** 用户画像生成请求参数 */
 export interface CapabilityProfileGenerateReq {
-  /** COS 上传后返回的 PDF 文件 URL，和 rawText 二选一即可 */
-  pdfUrl?: string;
-  /** 前端自行拼接的文本内容，和 pdfUrl 二选一即可 */
+  /** 简历纯文本。上传文件时改用 multipart，不使用这个字段。 */
   rawText?: string;
 }
 

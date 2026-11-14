@@ -5,6 +5,7 @@ import com.zdmj.resumeService.dto.ResumeContentResponse;
 import com.zdmj.resumeService.dto.ResumeContentSaveRequest;
 import com.zdmj.resumeService.dto.ResumeImportParseRequest;
 import com.zdmj.resumeService.dto.ResumeImportParseResponse;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -39,11 +40,22 @@ public interface ResumeService {
     ResumeContentResponse saveMyResumeContent(CurrentActor actor, ResumeContentSaveRequest request);
 
     /**
-     * 识别简历文本，不写入经历表。
+     * 识别简历纯文本，不写入经历表。
      *
      * @param actor 已认证操作者，包含用户编号
-     * @param request 导入请求
+     * @param request 纯文本请求
      * @return 识别结果
+     * @throws com.zdmj.common.exception.BusinessException 文本为空或识别失败
      */
     ResumeImportParseResponse parseImport(CurrentActor actor, ResumeImportParseRequest request);
+
+    /**
+     * 从上传文件提取文本后识别简历，不保存文件，也不写入经历表。
+     *
+     * @param actor 已认证操作者，包含用户编号
+     * @param file 非空简历文件
+     * @return 识别结果
+     * @throws com.zdmj.common.exception.BusinessException 文件为空、无法读取、提取文本为空或识别失败
+     */
+    ResumeImportParseResponse parseImport(CurrentActor actor, MultipartFile file);
 }

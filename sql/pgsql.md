@@ -237,7 +237,7 @@
 
 ### 4.2 表 `knowledge_documents`
 
-> 一个 `knowledge_bases` 下挂多条文档；**来源类型**为 `type`，**来源地址**为 `content`（与 Java 实体字段名一致）。
+> 一个 `knowledge_bases` 下挂多条文档；**来源类型**为 `type`，**文件标识或来源地址**为 `content`（与 Java 实体字段名一致）。
 
 | 字段名称             | 字段类型         | 字段含义                           | 约束                                          | 枚举/JSON字段含义                               |
 | -------------------- | ---------------- | ---------------------------------- | --------------------------------------------- | ----------------------------------------------- |
@@ -245,18 +245,21 @@
 | `knowledge_id`     | `BIGINT`       | 知识库ID                           | `NOT NULL`，逻辑外键 `knowledge_bases.id` | -                                               |
 | `user_id`          | `BIGINT`       | 归属用户                           | `NOT NULL, DEFAULT 0`                       | 用户文档为真实 `users.id`；系统库下约定 `0` |
 | `type`             | `SMALLINT`     | 来源类型                           | `NOT NULL`                                  | `1=上传文件, 2=GitHub仓库, 3=DeepWiki`        |
-| `content`          | `TEXT`         | 来源地址（如 COS URL、仓库地址等） | `NOT NULL`                                  | -                                               |
+| `content`          | `TEXT`         | 上传原文件的用户目录相对标识；其他类型为来源地址 | `NOT NULL`                                  | -                                               |
 | `title`            | `VARCHAR(500)` | 文档标题                           | 可空                                          | -                                               |
-| `content_hash`     | `VARCHAR(64)`  | 文档内容哈希                       | 可空                                          | -                                               |
+| `content_hash`     | `VARCHAR(64)`  | 原文件 SHA-256                       | 可空                                          | -                                               |
+| `file_status` | `SMALLINT` | 原文件状态 | `NOT NULL DEFAULT 1, CHECK (0..3)` | `0=写入中, 1=可用, 2=失败, 3=删除中` |
 | `embedding_status` | `SMALLINT`     | 文档向量化状态                     | `NOT NULL, DEFAULT 1`                       | `1=pending, 2=running, 3=success, 4=failed`   |
 | `chunk_count`      | `INTEGER`      | 该文档分块数                       | `NOT NULL, DEFAULT 0`                       | -                                               |
 | `last_embedded_at` | `TIMESTAMP`    | 最近向量化完成时间                 | 可空                                          | -                                               |
 | `last_error`       | `TEXT`         | 最近错误信息                       | 可空                                          | -                                               |
-| `metadata`         | `JSONB`        | 扩展元数据                         | `DEFAULT '{}'::jsonb`                       | -                                               |
+| `metadata`         | `JSONB`        | 扩展元数据                         | `NOT NULL DEFAULT '{}'::jsonb`              | -                                               |
 | `created_at`       | `TIMESTAMP`    | 创建时间                           | `DEFAULT CURRENT_TIMESTAMP`                 | -                                               |
 | `updated_at`       | `TIMESTAMP`    | 更新时间                           | `DEFAULT CURRENT_TIMESTAMP`                 | -                                               |
 
-**唯一索引**：`uk_knowledge_documents_kid_content` — `UNIQUE (knowledge_id, content)`，同一库内相同来源地址只保留一条。
+原文件标识采用 `user-{id}/{32位UUID}.pdf|md`；metadata 的 `fileName/fileSize/contentType` 用于下载，内部 `pendingKey/pendingFile/pendingTitle/retiredFile` 用于替换与故障清理。文件与嵌入状态独立；首次写入失败保留记录，失败替换可恢复原件，删除失败保留删除中状态。发布前检查原文件、长度和摘要。
+
+**唯一索引**：`uk_knowledge_documents_kid_content` — `UNIQUE (knowledge_id, content)`，同一库内相同文件标识只保留一条。
 
 **其他索引**：`idx_knowledge_documents_user_id`、`idx_knowledge_documents_type`、`idx_knowledge_documents_embedding_status`（`(knowledge_id, embedding_status)`）、`idx_knowledge_documents_content_hash`。`knowledge_id` 单列条件使用唯一索引和向量化状态索引的前缀。
 

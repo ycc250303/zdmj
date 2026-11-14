@@ -13,14 +13,6 @@ public interface KnowledgeEmbeddingService {
     void vectorizeAndStore(CurrentActor actor, Long knowledgeDocumentId);
 
     /**
-     * 删除知识文档对应的向量。
-     *
-     * @param actor 已认证操作者，包含用户编号
-     * @param knowledgeDocumentId 知识文档 ID
-     */
-    void deleteVectors(CurrentActor actor, Long knowledgeDocumentId);
-
-    /**
      * 将浮点数组转换为 PostgreSQL 向量字面量。
      *
      * @param vector 浮点数组

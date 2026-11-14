@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { fetchGenerateCapabilityProfile, fetchQueryCapabilityProfile, fetchUploadFile } from '@/service/api/profile';
+import {
+  fetchGenerateCapabilityProfile,
+  fetchGenerateCapabilityProfileFromFile,
+  fetchQueryCapabilityProfile
+} from '@/service/api/profile';
 import type { CapabilityProfileApi } from '@/service/api/profile';
 import { fetchGetResumeFullContentList } from '@/service/api/resume';
 import type { ResumeApi } from '@/service/api/resume';
@@ -22,9 +26,6 @@ const generateMethod = ref<string>('0');
 
 // 文件上传相关
 const fileList = ref<any[]>([]);
-const uploadedFileUrl = ref('');
-/** 已上传到 COS 的本地文件标识，避免重复上传同一文件 */
-const lastUploadedFileKey = ref('');
 
 // 纯文本输入
 const rawTextInput = ref('');
@@ -172,10 +173,6 @@ function getSelectedFile(): File | null {
   return file?.name ? file : null;
 }
 
-function getFileKey(file: File) {
-  return `${file.name}:${file.size}:${file.lastModified}`;
-}
-
 function fileNameHasNonAscii(name: string) {
   return [...name].some(char => char.codePointAt(0)! > 127);
 }
@@ -194,59 +191,8 @@ function validateResumeFile(file: File): boolean {
   return true;
 }
 
-/** 生成前确保简历文件已在 COS；若本地已选新文件则自动上传 */
-async function ensureResumeFileOnCos(): Promise<string | null> {
-  const file = getSelectedFile();
-
-  if (file) {
-    if (!validateResumeFile(file)) {
-      return null;
-    }
-    const fileKey = getFileKey(file);
-    if (uploadedFileUrl.value && lastUploadedFileKey.value === fileKey) {
-      return uploadedFileUrl.value;
-    }
-    const { data, error } = await fetchUploadFile(file, 'profile');
-    if (!error && data?.url) {
-      uploadedFileUrl.value = data.url;
-      lastUploadedFileKey.value = fileKey;
-      return data.url;
-    }
-    window.$message?.error(
-      `${$t('page.profile.capability.uploadFailed')}: ${error?.message || $t('page.profile.capability.unknownError')}`
-    );
-    return null;
-  }
-
-  if (uploadedFileUrl.value) {
-    return uploadedFileUrl.value;
-  }
-
-  window.$message?.warning($t('page.profile.capability.selectFileFirst'));
-  return null;
-}
-
 function handleFileChange(options: any) {
-  const newFileList = Array.isArray(options) ? options : options?.fileList || [];
-  fileList.value = newFileList;
-  if (newFileList.length === 0) {
-    uploadedFileUrl.value = '';
-    lastUploadedFileKey.value = '';
-    return;
-  }
-  const file = getSelectedFile();
-  if (file && getFileKey(file) !== lastUploadedFileKey.value) {
-    uploadedFileUrl.value = '';
-  }
-}
-
-function isAbsoluteUrl(value: string) {
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch {
-    return false;
-  }
+  fileList.value = Array.isArray(options) ? options : options?.fileList || [];
 }
 
 async function requestFromResume(): Promise<CapabilityProfileApi.CapabilityProfileGenerateReq | null> {
@@ -263,15 +209,16 @@ async function requestFromResume(): Promise<CapabilityProfileApi.CapabilityProfi
   return { rawText: resumeText };
 }
 
-async function requestFromFile(): Promise<CapabilityProfileApi.CapabilityProfileGenerateReq | null> {
-  const pdfUrl = await ensureResumeFileOnCos();
-  if (!pdfUrl || !isAbsoluteUrl(pdfUrl)) {
-    if (pdfUrl) {
-      window.$message?.error($t('page.profile.capability.urlInvalid'));
-    }
+function requestFromFile(): File | null {
+  const file = getSelectedFile();
+  if (!file) {
+    window.$message?.warning($t('page.profile.capability.selectFileFirst'));
     return null;
   }
-  return { pdfUrl };
+  if (!validateResumeFile(file)) {
+    return null;
+  }
+  return file;
 }
 
 function requestFromText(): CapabilityProfileApi.CapabilityProfileGenerateReq | null {
@@ -307,19 +254,27 @@ async function handleGenerate() {
   generating.value = true;
 
   try {
-    let requestData: CapabilityProfileApi.CapabilityProfileGenerateReq | null = null;
-    if (generateMethod.value === '0') {
-      requestData = await requestFromResume();
-    } else if (generateMethod.value === '1') {
-      requestData = await requestFromFile();
-    } else if (generateMethod.value === '2') {
-      requestData = requestFromText();
-    }
-    if (!requestData) {
+    let data: CapabilityProfileApi.StudentCapabilityProfile | null = null;
+    let error: { message?: string; response?: { data?: { detail?: string; msg?: string } } } | null = null;
+    if (generateMethod.value === '1') {
+      const file = requestFromFile();
+      if (!file) {
+        return;
+      }
+      const result = await fetchGenerateCapabilityProfileFromFile(file);
+      data = result.data;
+      error = result.error;
+    } else if (generateMethod.value === '0' || generateMethod.value === '2') {
+      const requestData = generateMethod.value === '0' ? await requestFromResume() : requestFromText();
+      if (!requestData) {
+        return;
+      }
+      const result = await fetchGenerateCapabilityProfile(requestData);
+      data = result.data;
+      error = result.error;
+    } else {
       return;
     }
-
-    const { data, error } = await fetchGenerateCapabilityProfile(requestData);
     if (!error && data) {
       profile.value = data;
       window.$message?.success($t('page.profile.capability.generateSuccess'));
