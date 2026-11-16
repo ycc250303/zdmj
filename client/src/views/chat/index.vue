@@ -304,7 +304,7 @@ const loadConversations = async () => {
 
 // 新��会话
 const handleNewChat = async () => {
-  const { data, error } = await fetchCreateConversation({ config: buildConversationConfig(), context: [] });
+  const { data, error } = await fetchCreateConversation({ config: buildConversationConfig() });
   if (!error && data) {
     conversations.value = [data, ...conversations.value.filter(item => item.id !== data.id)];
     await handleSelectConversation(data.id);
@@ -377,7 +377,7 @@ const handleSend = async () => {
 
   // 如果没有当前会话，先创建一个（此时尚无消息，config 仍可改）
   if (!currentConversationId.value) {
-    const { data, error } = await fetchCreateConversation({ config: buildConversationConfig(), context: [] });
+    const { data, error } = await fetchCreateConversation({ config: buildConversationConfig() });
     if (error || !data?.id) {
       message.error('创建会话失败');
       return;

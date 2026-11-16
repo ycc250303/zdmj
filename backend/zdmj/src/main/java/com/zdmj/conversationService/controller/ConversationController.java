@@ -66,7 +66,7 @@ public class ConversationController {
      */
     @GetMapping
     public Result<List<ConversationResponse>> getConversations(@Parameter(hidden = true) CurrentActor actor) {
-        return Result.success("会话查询成功", conversationService.getByUserId(actor));
+        return Result.success("会话列表查询成功", conversationService.getByUserId(actor));
     }
 
     /**

@@ -3,7 +3,6 @@ package com.zdmj.conversationService.service;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.conversationService.dto.ConversationRequest;
 import com.zdmj.conversationService.dto.ConversationResponse;
-import com.zdmj.conversationService.entity.Conversation;
 
 import java.util.List;
 import java.util.Map;
@@ -26,13 +25,6 @@ public interface ConversationService {
      * @param actor 已认证操作者，包含用户编号
      */
     ConversationResponse getById(CurrentActor actor, Long id);
-
-    /**
-     * 鉴权加载会话实体（供本域与 MessageService 使用）
-     *
-     * @param actor 已认证操作者，包含用户编号
-     */
-    Conversation requireOwned(CurrentActor actor, Long id);
 
     /**
      * 查询当前用户会话列表

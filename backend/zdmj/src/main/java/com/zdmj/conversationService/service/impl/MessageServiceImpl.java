@@ -1,7 +1,6 @@
 package com.zdmj.conversationService.service.impl;
 
 import com.zdmj.common.context.CurrentActor;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.model.PageDTO;
@@ -15,7 +14,6 @@ import com.zdmj.conversationService.entity.Message;
 import com.zdmj.conversationService.enums.MessageRoleEnum;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
-import com.zdmj.conversationService.service.ConversationService;
 import com.zdmj.conversationService.service.MessageService;
 import com.zdmj.conversationService.support.ConversationContextSupport;
 import com.zdmj.knowledgeService.service.KnowledgeRagService;
@@ -25,7 +23,6 @@ import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
-import org.springframework.beans.BeanUtils;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -38,10 +35,10 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 @RequiredArgsConstructor
 @Service
-public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> implements MessageService {
+public class MessageServiceImpl implements MessageService {
 
     private final MessageMapper messageMapper;
-    private final ConversationService conversationService;
+    private final ConversationServiceImpl conversationService;
     private final ConversationMapper conversationMapper;
     private final KnowledgeRagService knowledgeRagService;
     private final TransactionTemplate transactionTemplate;
@@ -59,7 +56,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
      */
     @Override
     public Flux<ServerSentEvent<String>> createStream(CurrentActor actor, ChatStreamRequest request) {
-        Conversation conversation = requireConversationAccess(actor, request.getConversationId());
+        Conversation conversation = conversationService.requireOwned(actor, request.getConversationId());
         Long userId = actor.userId();
         PreparedMessages prepared = transactionTemplate.execute(status -> insertMessages(request, userId));
         if (prepared == null) {
@@ -172,7 +169,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
      */
     @Override
     public PageDTO<MessageResponse> getMessagesByConversationId(CurrentActor actor, Long conversationId, Integer page, Integer limit) {
-        requireConversationAccess(actor, conversationId);
+        conversationService.requireOwned(actor, conversationId);
         PageRequests.Normalized paging = PageRequests.normalize(page, limit);
         var mpPage = messageMapper.selectPageByConversationId(PageRequests.toPage(paging), conversationId);
         List<MessageResponse> list = mpPage.getRecords().stream().map(this::convertToResponse).toList();
@@ -180,19 +177,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     }
 
     /**
-     * 校验会话 ID 有效且存在，且属于当前用户（发送消息、拉取消息列表前调用）。
-     *
-     * @param actor 已认证操作者，包含用户编号
-     */
-    private Conversation requireConversationAccess(CurrentActor actor, Long conversationId) {
-        if (conversationId == null) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "会话ID不能为空");
-        }
-        return conversationService.requireOwned(actor, conversationId);
-    }
-
-    /**
-     * 生成 OpenAI 兼容的 delta JSON 片段，便于前端/Apifox 自动合并。
+     * 生成 OpenAI 兼容的 delta JSON 片段，便于前端合并。
      * 格式示例：{"choices":[{"delta":{"content":"你"}}]}
      */
     private String toOpenAiDeltaJson(String content) {
@@ -205,7 +190,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
                                             "delta",
                                             java.util.Map.of("content", content)))));
         } catch (JsonProcessingException e) {
-            return "{\"choices\":[{\"delta\":{\"content\":\"\"}}]}";
+            throw new IllegalStateException("流式增量无法序列化", e);
         }
     }
 
@@ -214,19 +199,29 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
      *
      * @param assistantMsg 占位助手消息
      * @param content 已生成的文本，失败或中断时可能不完整
-     * @return 更新行数；事务未返回结果时为 0
+     * @return 更新行数
+     * @throws IllegalStateException 事务未返回结果
      */
     private int persistAssistantContent(Message assistantMsg, String content) {
         Integer updated = transactionTemplate.execute(status -> {
             assistantMsg.setContent(content);
             return messageMapper.updateById(assistantMsg);
         });
-        return updated == null ? 0 : updated;
+        if (updated == null) {
+            throw new IllegalStateException("助手消息回写未返回结果");
+        }
+        return updated;
     }
 
     private MessageResponse convertToResponse(Message message) {
         MessageResponse response = new MessageResponse();
-        BeanUtils.copyProperties(message, response);
+        response.setId(message.getId());
+        response.setConversationId(message.getConversationId());
+        response.setUserId(message.getUserId());
+        response.setRole(message.getRole());
+        response.setContent(message.getContent());
+        response.setSequence(message.getSequence());
+        response.setCreatedAt(message.getCreatedAt());
         return response;
     }
 }

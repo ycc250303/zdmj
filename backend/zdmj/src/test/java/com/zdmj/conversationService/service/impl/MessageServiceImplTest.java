@@ -54,7 +54,6 @@ import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.entity.Message;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
-import com.zdmj.conversationService.service.ConversationService;
 import com.zdmj.conversationService.support.ConversationContextSupport;
 import com.zdmj.knowledgeService.service.KnowledgeRagService;
 
@@ -69,7 +68,7 @@ class MessageServiceImplTest {
     @Mock
     private MessageMapper messageMapper;
     @Mock
-    private ConversationService conversationService;
+    private ConversationServiceImpl conversationService;
     @Mock
     private ConversationMapper conversationMapper;
     @Mock

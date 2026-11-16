@@ -3,7 +3,6 @@ package com.zdmj.conversationService.dto;
 import lombok.Data;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -19,8 +18,6 @@ public class ConversationResponse {
     private String title;
 
     private Map<String, Object> config;
-
-    private List<Map<String, Object>> context;
 
     private Integer messageCount;
 

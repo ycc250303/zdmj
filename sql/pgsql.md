@@ -295,16 +295,14 @@
 | ------------------- | ---------------- | ---------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | `id`              | `BIGSERIAL`    | 会话ID           | `PK`                                    | -                                                                                                      |
 | `user_id`         | `BIGINT`       | 用户ID           | `NOT NULL`，逻辑外键 `users.id`       | -                                                                                                      |
-| `project_id`      | `BIGINT`       | 关联项目ID       | 可空，逻辑外键 `project_experiences.id` | -                                                                                                      |
 | `title`           | `VARCHAR(255)` | 会话标题         | 可空                                      | -                                                                                                      |
 | `config`          | `JSONB`        | 对话配置（首条消息发出后不可改） | `DEFAULT '{}'::jsonb`                   | `useSystemKnowledge`、`ragDocumentIds`（缺省键表示检索用户库全部文档） |
-| `context`         | `JSONB`        | RAG上下文列表    | `DEFAULT '[]'::jsonb`                   | 示例：`[{"type":"knowledge_base","id":456,"name":"知识库名称"}]`                                     |
 | `message_count`   | `INTEGER`      | 消息总数         | `DEFAULT 0`                             | -                                                                                                      |
 | `last_message_at` | `TIMESTAMP`    | 最后一条消息时间 | 可空                                      | -                                                                                                      |
 | `created_at`      | `TIMESTAMP`    | 创建时间         | `DEFAULT CURRENT_TIMESTAMP`             | -                                                                                                      |
 | `updated_at`      | `TIMESTAMP`    | 更新时间         | `DEFAULT CURRENT_TIMESTAMP`             | -                                                                                                      |
 
-**索引**：`idx_conversations_user_id`、`idx_conversations_user_id_created_at`、`idx_conversations_project_id`、`idx_conversations_user_id_project_id`、`idx_conversations_last_message_at`。
+**索引**：`idx_conversations_user_id`、`idx_conversations_user_id_created_at`、`idx_conversations_last_message_at`。
 
 ### 6.2 表 `messages`
 

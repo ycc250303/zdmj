@@ -528,16 +528,6 @@ CREATE TABLE IF NOT EXISTS conversations (
     --   "useSystemKnowledge": true,
     --   "ragDocumentIds": [1, 2]
     -- }
-    context JSONB DEFAULT '[]'::jsonb,
-    -- 上下文信息（可关联知识库等，用于RAG检索）
-    -- context 示例
-    -- [
-    --   {
-    --     "type": "knowledge_base",
-    --     "id": 456,
-    --     "name": "知识库名称"
-    --   }
-    -- ]
     message_count INTEGER DEFAULT 0,
     -- 消息总数（用于快速统计）
     last_message_at TIMESTAMP,
@@ -563,6 +553,14 @@ CREATE TABLE IF NOT EXISTS messages (
     -- 消息内容
     sequence INTEGER NOT NULL,
     -- 消息序号（在会话中的顺序，从1开始）
+    metadata JSONB DEFAULT '{}'::jsonb,
+    -- 消息元数据
+    -- metadata 示例
+    -- {
+    --   "model": "模型名称",
+    --   "inputTokens": 输入Token数量,
+    --   "outputTokens": 输出Token数量
+    -- }
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 消息创建时间
 );
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);

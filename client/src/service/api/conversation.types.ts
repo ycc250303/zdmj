@@ -1,8 +1,6 @@
 /** 会话 DTO */
 export interface ConversationDTO {
-  id?: number;
   config?: Record<string, any>;
-  context?: Array<Record<string, any>>;
 }
 
 /** 会话实体 */
@@ -11,7 +9,6 @@ export interface Conversation {
   userId: number;
   title: string;
   config: Record<string, any>;
-  context: Array<Record<string, any>>;
   messageCount?: number;
   createdAt: string;
   updatedAt: string;

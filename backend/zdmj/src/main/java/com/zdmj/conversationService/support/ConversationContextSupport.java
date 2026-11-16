@@ -1,7 +1,6 @@
 package com.zdmj.conversationService.support;
 
 import com.zdmj.conversationService.entity.Conversation;
-import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
