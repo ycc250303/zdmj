@@ -4,13 +4,13 @@ import com.zdmj.common.context.CurrentActor;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.common.util.DateTimeUtil;   
 import com.zdmj.resumeService.dto.EducationRequest;
 import com.zdmj.resumeService.dto.EducationResponse;
 import com.zdmj.resumeService.entity.Education;
 import com.zdmj.resumeService.mapper.EducationMapper;
 import com.zdmj.resumeService.mapper.EducationStructMapper;
 import com.zdmj.resumeService.service.EducationService;
-import com.zdmj.resumeService.utils.DateRangeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -26,7 +26,7 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
     @Override
     public EducationResponse create(CurrentActor actor, EducationRequest educationRequest) {
         Long userId = actor.userId();
-        DateRangeUtil.rejectIfEndBeforeStart(
+        DateTimeUtil.rejectIfEndBeforeStart(
                 educationRequest.getStartDate(),
                 educationRequest.getEndDate(),
                 ErrorCode.EDUCATION_GRADUATE_TIME_INVALID);
@@ -57,7 +57,7 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
     @Override
     public EducationResponse updateOwned(Education existing, EducationRequest educationRequest) {
         educationPatchMapper.updateEntityFromDto(educationRequest, existing);
-        DateRangeUtil.rejectIfEndBeforeStart(
+        DateTimeUtil.rejectIfEndBeforeStart(
                 existing.getStartDate(),
                 existing.getEndDate(),
                 ErrorCode.EDUCATION_GRADUATE_TIME_INVALID);

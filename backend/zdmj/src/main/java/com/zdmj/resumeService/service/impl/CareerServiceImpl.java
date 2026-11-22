@@ -4,13 +4,13 @@ import com.zdmj.common.context.CurrentActor;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.resumeService.dto.CareerRequest;
 import com.zdmj.resumeService.dto.CareerResponse;
 import com.zdmj.resumeService.entity.Career;
 import com.zdmj.resumeService.mapper.CareerMapper;
 import com.zdmj.resumeService.mapper.CareerStructMapper;
 import com.zdmj.resumeService.service.CareerService;
-import com.zdmj.resumeService.utils.DateRangeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -26,7 +26,7 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
     @Override
     public CareerResponse create(CurrentActor actor, CareerRequest careerRequest) {
         Long userId = actor.userId();
-        DateRangeUtil.rejectIfEndBeforeStart(
+        DateTimeUtil.rejectIfEndBeforeStart(
                 careerRequest.getStartDate(),
                 careerRequest.getEndDate(),
                 ErrorCode.CAREER_LEAVE_TIME_INVALID);
@@ -56,7 +56,7 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
     @Override
     public CareerResponse updateOwned(Career existing, CareerRequest careerRequest) {
         careerPatchMapper.updateEntityFromDto(careerRequest, existing);
-        DateRangeUtil.rejectIfEndBeforeStart(
+        DateTimeUtil.rejectIfEndBeforeStart(
                 existing.getStartDate(), existing.getEndDate(), ErrorCode.CAREER_LEAVE_TIME_INVALID);
         if (!updateById(existing)) {
             throw new BusinessException(ErrorCode.CAREER_UPDATE_FAILED);
