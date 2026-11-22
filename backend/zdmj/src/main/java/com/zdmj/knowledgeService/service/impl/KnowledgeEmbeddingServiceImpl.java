@@ -24,6 +24,7 @@ import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.PdfParserUtil;
+import com.zdmj.knowledgeService.config.KnowledgeDocumentConfig;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
 import com.zdmj.knowledgeService.entity.KnowledgeVector;
 import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
@@ -49,6 +50,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
     private final PdfParserUtil pdfParserUtil;
     private final FileUploadService fileUploadService;
     private final TransactionTemplate transactionTemplate;
+    private final KnowledgeDocumentConfig documentConfig;
 
     /**
      * 向量化一篇知识文档。
@@ -218,15 +220,23 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
         return sb.toString();
     }
 
-    private String extractText(CurrentActor actor, KnowledgeDocument kd) {
-        if (kd.getType() != null && kd.getType().equals(KnowledgeTypeEnum.PROJECT_DOCUMENT.getCode())) {
-            try (InputStream input = fileUploadService.openInputStream(actor, kd.getContent())) {
-                return pdfParserUtil.extractText(input);
-            } catch (IOException exception) {
-                throw new BusinessException(ErrorCode.FILE_STORAGE_UNAVAILABLE, exception);
-            }
+    /**
+     * 读取知识文档原文件，按知识库配置的容量提取完整文本。
+     *
+     * @param actor 已认证操作者
+     * @param document 已完成归属校验的知识文档
+     * @return 规范化后的完整文本
+     * @throws BusinessException 类型不支持、文本超过配置容量、文件读取失败或解析失败
+     */
+    private String extractText(CurrentActor actor, KnowledgeDocument document) {
+        if (!Objects.equals(document.getType(), KnowledgeTypeEnum.PROJECT_DOCUMENT.getCode())) {
+            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "当前知识类型暂不支持向量化");
         }
-        throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "当前知识类型暂不支持向量化");
+        try (InputStream input = fileUploadService.openInputStream(actor, document.getContent())) {
+            return pdfParserUtil.extractText(input, documentConfig.maxExtractedChars());
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.FILE_STORAGE_UNAVAILABLE, "知识文档原文件读取失败", exception);
+        }
     }
 
     private static String sha256(String input) {
