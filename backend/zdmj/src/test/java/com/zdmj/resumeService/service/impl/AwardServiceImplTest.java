@@ -42,15 +42,14 @@ class AwardServiceImplTest {
 
     @Test
     void create_success_shouldSaveAward() {
-        AwardRequest dto = new AwardRequest();
-        dto.setName("数学建模省一等奖");
-        dto.setAwardDate(LocalDate.of(2023, 11, 1));
+        AwardRequest dto = new AwardRequest(null, "数学建模省一等奖", LocalDate.of(2023, 11, 1), null);
+
         doReturn(true).when(service).save(any(Award.class));
 
         AwardResponse out = service.create(actor, dto);
 
-        assertEquals(1L, out.getUserId());
-        assertEquals("数学建模省一等奖", out.getName());
+        assertEquals(1L, out.userId());
+        assertEquals("数学建模省一等奖", out.name());
         verify(service).save(any(Award.class));
     }
 }

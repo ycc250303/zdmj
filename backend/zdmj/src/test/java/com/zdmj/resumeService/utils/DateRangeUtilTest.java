@@ -1,6 +1,7 @@
 package com.zdmj.resumeService.utils;
 
 import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.common.exception.ErrorCode;
 import org.junit.jupiter.api.Test;
 
@@ -14,7 +15,7 @@ class DateRangeUtilTest {
 
     @Test
     void rejectIfEndBeforeStart_whenEndBeforeStart_shouldThrowGivenErrorCode() {
-        BusinessException ex = assertThrows(BusinessException.class, () -> DateRangeUtil.rejectIfEndBeforeStart(
+        BusinessException ex = assertThrows(BusinessException.class, () -> DateTimeUtil.rejectIfEndBeforeStart(
                 LocalDate.of(2024, 1, 1), LocalDate.of(2023, 1, 1), ErrorCode.CAREER_LEAVE_TIME_INVALID));
 
         assertEquals(ErrorCode.CAREER_LEAVE_TIME_INVALID.getCode(), ex.getCode());
@@ -22,11 +23,11 @@ class DateRangeUtilTest {
 
     @Test
     void rejectIfEndBeforeStart_whenEitherDateMissingOrEndNotBeforeStart_shouldPass() {
-        assertDoesNotThrow(() -> DateRangeUtil.rejectIfEndBeforeStart(
+        assertDoesNotThrow(() -> DateTimeUtil.rejectIfEndBeforeStart(
                 null, LocalDate.of(2024, 1, 1), ErrorCode.PROJECT_END_TIME_INVALID));
-        assertDoesNotThrow(() -> DateRangeUtil.rejectIfEndBeforeStart(
+        assertDoesNotThrow(() -> DateTimeUtil.rejectIfEndBeforeStart(
                 LocalDate.of(2024, 1, 1), null, ErrorCode.EDUCATION_GRADUATE_TIME_INVALID));
-        assertDoesNotThrow(() -> DateRangeUtil.rejectIfEndBeforeStart(
+        assertDoesNotThrow(() -> DateTimeUtil.rejectIfEndBeforeStart(
                 LocalDate.of(2024, 1, 1), LocalDate.of(2024, 1, 1), ErrorCode.CAREER_LEAVE_TIME_INVALID));
     }
 }

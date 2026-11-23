@@ -51,20 +51,17 @@ class ProjectExperienceServiceImplTest {
 
     @Test
     void create_success_shouldSetDefaultStatusAndSave() {
-        ProjectExperienceRequest dto = new ProjectExperienceRequest();
-        dto.setName("Resume Parser");
-        dto.setRole("Backend");
-        dto.setDescription("desc");
-        dto.setContribution("contrib");
-        dto.setHighlights(List.of("实现分布式锁"));
+        ProjectExperienceRequest dto = new ProjectExperienceRequest(null, "Resume Parser", null, null, "Backend",
+                "desc", "contrib", null, List.of("实现分布式锁"), null);
+
         doReturn(true).when(service).save(any(ProjectExperience.class));
 
         ProjectExperienceResponse out = service.create(actor, dto);
 
-        assertEquals(1L, out.getUserId());
-        assertEquals(List.of("实现分布式锁"), out.getHighlights());
-        assertEquals(ProjectStatusEnum.COMMITTED.getCode(), out.getStatus());
-        assertNull(out.getLookupResult());
+        assertEquals(1L, out.userId());
+        assertEquals(List.of("实现分布式锁"), out.highlights());
+        assertEquals(ProjectStatusEnum.COMMITTED.getCode(), out.status());
+        assertNull(out.lookupResult());
         ArgumentCaptor<ProjectExperience> saved = ArgumentCaptor.forClass(ProjectExperience.class);
         verify(service).save(saved.capture());
         assertEquals(List.of("实现分布式锁"), saved.getValue().getHighlights());
@@ -72,9 +69,8 @@ class ProjectExperienceServiceImplTest {
 
     @Test
     void create_invalidDate_shouldThrowAndSkipSave() {
-        ProjectExperienceRequest dto = new ProjectExperienceRequest();
-        dto.setStartDate(LocalDate.of(2024, 1, 1));
-        dto.setEndDate(LocalDate.of(2023, 1, 1));
+        ProjectExperienceRequest dto = new ProjectExperienceRequest(null, null, LocalDate.of(2024, 1, 1),
+                LocalDate.of(2023, 1, 1), null, null, null, null, null, null);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.create(actor, dto));
 
@@ -84,8 +80,9 @@ class ProjectExperienceServiceImplTest {
 
     @Test
     void create_saveFailed_shouldThrowAddFailed() {
-        ProjectExperienceRequest dto = new ProjectExperienceRequest();
-        dto.setName("Resume Parser");
+        ProjectExperienceRequest dto = new ProjectExperienceRequest(null, "Resume Parser", null, null, null, null,
+                null, null, null, null);
+
         doReturn(false).when(service).save(any(ProjectExperience.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.create(actor, dto));
@@ -95,8 +92,9 @@ class ProjectExperienceServiceImplTest {
 
     @Test
     void update_notOwner_shouldThrowNoPermission() {
-        ProjectExperienceRequest dto = new ProjectExperienceRequest();
-        dto.setId(10L);
+        ProjectExperienceRequest dto = new ProjectExperienceRequest(10L, null, null, null, null, null, null, null,
+                null, null);
+
         ProjectExperience existing = new ProjectExperience();
         existing.setId(10L);
         existing.setUserId(2L);
@@ -112,8 +110,9 @@ class ProjectExperienceServiceImplTest {
 
     @Test
     void update_invalidDate_shouldThrowAndSkipUpdate() {
-        ProjectExperienceRequest dto = new ProjectExperienceRequest();
-        dto.setId(10L);
+        ProjectExperienceRequest dto = new ProjectExperienceRequest(10L, null, null, null, null, null, null, null,
+                null, null);
+
         ProjectExperience existing = new ProjectExperience();
         existing.setId(10L);
         existing.setUserId(1L);
@@ -136,9 +135,9 @@ class ProjectExperienceServiceImplTest {
 
     @Test
     void update_success_shouldPatchAndUpdateById() {
-        ProjectExperienceRequest dto = new ProjectExperienceRequest();
-        dto.setId(10L);
-        dto.setName("NewName");
+        ProjectExperienceRequest dto = new ProjectExperienceRequest(10L, "NewName", null, null, null, null, null,
+                null, null, null);
+
         ProjectExperience existing = new ProjectExperience();
         existing.setId(10L);
         existing.setUserId(1L);
@@ -147,7 +146,7 @@ class ProjectExperienceServiceImplTest {
         doAnswer(invocation -> {
             ProjectExperienceRequest argDto = invocation.getArgument(0);
             ProjectExperience argEntity = invocation.getArgument(1);
-            argEntity.setName(argDto.getName());
+            argEntity.setName(argDto.name());
             return null;
         }).when(projectExperienceStructMapper)
                 .updateEntityFromDto(any(ProjectExperienceRequest.class), any(ProjectExperience.class));
@@ -155,16 +154,16 @@ class ProjectExperienceServiceImplTest {
 
         ProjectExperienceResponse out = service.update(actor, dto);
 
-        assertEquals("NewName", out.getName());
+        assertEquals("NewName", out.name());
         verify(projectExperienceStructMapper).updateEntityFromDto(dto, existing);
         verify(service).updateById(existing);
     }
 
     @Test
     void update_updateFailed_shouldThrowUpdateFailed() {
-        ProjectExperienceRequest dto = new ProjectExperienceRequest();
-        dto.setId(10L);
-        dto.setName("NewName");
+        ProjectExperienceRequest dto = new ProjectExperienceRequest(10L, "NewName", null, null, null, null, null,
+                null, null, null);
+
         ProjectExperience existing = new ProjectExperience();
         existing.setId(10L);
         existing.setUserId(1L);
@@ -172,7 +171,7 @@ class ProjectExperienceServiceImplTest {
         doAnswer(invocation -> {
             ProjectExperienceRequest argDto = invocation.getArgument(0);
             ProjectExperience argEntity = invocation.getArgument(1);
-            argEntity.setName(argDto.getName());
+            argEntity.setName(argDto.name());
             return null;
         }).when(projectExperienceStructMapper)
                 .updateEntityFromDto(any(ProjectExperienceRequest.class), any(ProjectExperience.class));

@@ -15,6 +15,8 @@ import lombok.Data;
  *   <li>{@code gap}：差距描述（自然语言）</li>
  *   <li>{@code evidence}：支撑判断的关键证据片段（命中或差距）</li>
  * </ul>
+ *
+ * <p>模型结果整理过程中需要修改评分和证据，因此保留可变字段。</p>
  */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)

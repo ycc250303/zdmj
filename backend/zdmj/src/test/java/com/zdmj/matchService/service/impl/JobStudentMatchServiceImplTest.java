@@ -219,8 +219,8 @@ class JobStudentMatchServiceImplTest {
 
         JobStudentMatchResponse dto = matchService.getOrNull(actor, 99L);
 
-        assertTrue(dto.getDimensions().isEmpty());
-        assertNull(dto.getWeights());
+        assertTrue(dto.dimensions().isEmpty());
+        assertNull(dto.weights());
     }
 
     @Test
@@ -272,15 +272,8 @@ class JobStudentMatchServiceImplTest {
 
     @Test
     void getMyPage_shouldNormalizePagingAndDelegateToMapper() {
-        JobStudentMatchListItemResponse item = new JobStudentMatchListItemResponse();
-        item.setId(1L);
-        item.setJobId(11L);
-        item.setJobName("Java 后端");
-        item.setCompanyName("ZDMJ");
-        item.setOverallScore(82);
-        item.setKeySkillMatchRate(new BigDecimal("0.7500"));
-        item.setSummary("可投递");
-        item.setUpdatedAt(LocalDateTime.of(2026, 8, 13, 12, 0));
+        JobStudentMatchListItemResponse item = new JobStudentMatchListItemResponse(1L, 11L, "Java 后端", "ZDMJ", 82,
+                new BigDecimal("0.7500"), "可投递", LocalDateTime.of(2026, 8, 13, 12, 0));
 
         Page<JobStudentMatchListItemResponse> mpPage = new Page<>(1, 20);
         mpPage.setRecords(List.of(item));
@@ -293,7 +286,7 @@ class JobStudentMatchServiceImplTest {
         assertEquals(20, page.getLimit());
         assertEquals(1L, page.getTotal());
         assertEquals(1, page.getList().size());
-        assertEquals(11L, page.getList().get(0).getJobId());
+        assertEquals(11L, page.getList().get(0).jobId());
         verify(matchMapper).selectMyMatchPage(any(Page.class), eq(USER_ID));
     }
 
@@ -402,12 +395,10 @@ class JobStudentMatchServiceImplTest {
     }
 
     private static JobListItemResponse buildJobDetail() {
-        JobListItemResponse dto = new JobListItemResponse();
-        dto.setJobName("Java 后端开发");
-        dto.setCompanyName("ZDMJ");
-        dto.setDescription("Java + Spring + MySQL + Redis\n开发业务接口\n维护线上服务\n熟悉 Spring Boot\n熟悉 MySQL 索引");
-        dto.setLocation("深圳");
-        dto.setKeywords(List.of("Java", "Spring", "MySQL", "Redis"));
+        JobListItemResponse dto = new JobListItemResponse(null, "Java 后端开发", null, "ZDMJ",
+                "Java + Spring + MySQL + Redis\n开发业务接口\n维护线上服务\n熟悉 Spring Boot\n熟悉 MySQL 索引", "深圳", null, null,
+                null, null, null, List.of("Java", "Spring", "MySQL", "Redis"), null, null, null);
+
         return dto;
     }
 
@@ -422,17 +413,15 @@ class JobStudentMatchServiceImplTest {
         p.setPracticalAbility("实习 3 个月");
         p.setSummary("Java 方向应届生");
         p.setStrengths(List.of("基础扎实"));
-        StudentCapabilityProfileResponse.Suggestion gap = new StudentCapabilityProfileResponse.Suggestion();
-        gap.setCategory("技能缺失");
-        gap.setIssue("缺少 Kafka 相关实践");
-        gap.setRecommendation("在项目中补充消息队列场景");
+        StudentCapabilityProfileResponse.Suggestion gap = new StudentCapabilityProfileResponse.Suggestion("技能缺失",
+                null, "缺少 Kafka 相关实践", "在项目中补充消息队列场景");
+
         p.setSuggestions(List.of(gap));
         return p;
     }
 
     private static JobStudentMatchResponse buildAiResult() {
-        JobStudentMatchResponse dto = new JobStudentMatchResponse();
-        dto.setTargetRoleType("java-backend");
+
         Map<String, DimensionMatchResponse> dims = new LinkedHashMap<>();
         for (MatchDimension d : MatchDimension.values()) {
             DimensionMatchResponse dim = new DimensionMatchResponse();
@@ -443,12 +432,7 @@ class JobStudentMatchServiceImplTest {
             dim.setEvidence(List.of("e1", "e2"));
             dims.put(d.getCode(), dim);
         }
-        dto.setDimensions(dims);
-        dto.setMatchedHighlights(List.of("Java 基础扎实"));
-        dto.setCriticalGaps(List.of("缺少消息队列经验"));
-        dto.setMatchedKeywords(List.of("Java", "Spring", "MySQL"));
-        dto.setMissingKeywords(List.of("Redis"));
-        dto.setSummary("整体可投递");
-        return dto;
+        return new JobStudentMatchResponse(null, null, "java-backend", null, dims, null, List.of("Java 基础扎实"),
+                List.of("缺少消息队列经验"), List.of("Java", "Spring", "MySQL"), List.of("Redis"), null, "整体可投递");
     }
 }

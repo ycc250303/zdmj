@@ -98,7 +98,7 @@ class StudentCapabilityProfileServiceImplTest {
 
     @Test
     void generateProfile_missingInput_shouldThrow400AndSkipLlm() {
-        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
+        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest(null);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.generateProfile(actor, req));
 
@@ -108,8 +108,8 @@ class StudentCapabilityProfileServiceImplTest {
 
     @Test
     void generateProfile_llmIllegalState_shouldThrow500() {
-        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
-        req.setRawText("java spring boot redis mysql");
+        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest("java spring boot redis mysql");
+
         doThrow(new IllegalStateException("bad schema")).when(modelGateway)
                 .generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
 
@@ -122,8 +122,8 @@ class StudentCapabilityProfileServiceImplTest {
 
     @Test
     void generateProfile_llmRuntime_shouldThrow500() {
-        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
-        req.setRawText("java spring boot redis mysql");
+        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest("java spring boot redis mysql");
+
         doThrow(new RuntimeException("timeout")).when(modelGateway)
                 .generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
 
@@ -136,19 +136,18 @@ class StudentCapabilityProfileServiceImplTest {
 
     @Test
     void generateProfile_newProfile_shouldNormalizeAndSave() {
-        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
-        req.setRawText("java spring boot redis mysql");
+        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest("java spring boot redis mysql");
 
         StudentCapabilityProfileResponse ai = new StudentCapabilityProfileResponse();
-        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
-        detail.setContentCompletenessScore(7);
+        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail(
+                null, null, 7, null, null);
+
         ai.setScoreDetail(detail);
         ai.setStrengths(List.of("技术栈匹配"));
         ai.setSummary("可投递初级 Java 岗位");
-        StudentCapabilityProfileResponse.Suggestion suggestion = new StudentCapabilityProfileResponse.Suggestion();
-        suggestion.setCategory("技能缺失");
-        suggestion.setIssue("缺少 JVM 调优相关实践");
-        suggestion.setRecommendation("补充压测数据");
+        StudentCapabilityProfileResponse.Suggestion suggestion = new StudentCapabilityProfileResponse.Suggestion(
+                "技能缺失", null, "缺少 JVM 调优相关实践", "补充压测数据");
+
         ai.setSuggestions(List.of(suggestion));
         doReturn(ai).when(modelGateway).generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
         doReturn(null).when(service).getOne(any());
@@ -174,8 +173,9 @@ class StudentCapabilityProfileServiceImplTest {
                 .thenReturn("java spring boot redis mysql project experience");
 
         StudentCapabilityProfileResponse ai = new StudentCapabilityProfileResponse();
-        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
-        detail.setProjectExperienceScore(20);
+        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail(20,
+                null, null, null, null);
+
         ai.setScoreDetail(detail);
         doReturn(ai).when(modelGateway).generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
         doReturn(null).when(service).getOne(any());
@@ -200,16 +200,12 @@ class StudentCapabilityProfileServiceImplTest {
 
     @Test
     void generateProfile_existingProfile_shouldUpdateById() {
-        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
-        req.setRawText("java spring boot redis mysql");
+        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest("java spring boot redis mysql");
 
         StudentCapabilityProfileResponse ai = new StudentCapabilityProfileResponse();
-        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
-        detail.setProjectExperienceScore(30);
-        detail.setSkillMatchScore(15);
-        detail.setContentCompletenessScore(10);
-        detail.setStructureClarityScore(8);
-        detail.setExpressionProfessionalismScore(3);
+        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail(30,
+                15, 10, 8, 3);
+
         ai.setScoreDetail(detail);
         ai.setCompetitivenessScore(66);
         doReturn(ai).when(modelGateway).generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
@@ -262,9 +258,9 @@ class StudentCapabilityProfileServiceImplTest {
 
         assertNotNull(out);
         assertNotNull(out.getScoreDetail());
-        assertEquals(8, out.getScoreDetail().getContentCompletenessScore());
+        assertEquals(8, out.getScoreDetail().contentCompletenessScore());
         assertEquals(1, out.getSuggestions().size());
-        assertEquals("项目", out.getSuggestions().get(0).getCategory());
+        assertEquals("项目", out.getSuggestions().get(0).category());
         verify(service).getOne(any());
     }
 
@@ -288,8 +284,9 @@ class StudentCapabilityProfileServiceImplTest {
     @Test
     void normalizeProfileScores_scoreDetailOutOfRange_shouldThrow() {
         StudentCapabilityProfileResponse dto = new StudentCapabilityProfileResponse();
-        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
-        detail.setProjectExperienceScore(50);
+        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail(50,
+                null, null, null, null);
+
         dto.setScoreDetail(detail);
 
         BusinessException ex = assertThrows(BusinessException.class,
@@ -302,12 +299,9 @@ class StudentCapabilityProfileServiceImplTest {
     @Test
     void normalizeProfileScores_scoreDetailInRange_shouldRecomputeTotal() {
         StudentCapabilityProfileResponse dto = new StudentCapabilityProfileResponse();
-        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
-        detail.setProjectExperienceScore(40);
-        detail.setSkillMatchScore(20);
-        detail.setContentCompletenessScore(15);
-        detail.setStructureClarityScore(15);
-        detail.setExpressionProfessionalismScore(10);
+        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail(40,
+                20, 15, 15, 10);
+
         dto.setScoreDetail(detail);
 
         ReflectionTestUtils.invokeMethod(service, "normalizeProfileScores", dto);
@@ -359,8 +353,8 @@ class StudentCapabilityProfileServiceImplTest {
 
     @Test
     void generateProfile_whenScoreSerializationFails_shouldThrowAndSkipSave() {
-        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest();
-        req.setRawText("java spring boot redis mysql");
+        CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest("java spring boot redis mysql");
+
         ReflectionTestUtils.setField(service, "objectMapper", new ObjectMapper() {
             @Override
             public String writeValueAsString(Object value) throws JsonProcessingException {
@@ -372,8 +366,9 @@ class StudentCapabilityProfileServiceImplTest {
         });
 
         StudentCapabilityProfileResponse ai = new StudentCapabilityProfileResponse();
-        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail();
-        detail.setContentCompletenessScore(7);
+        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail(
+                null, null, 7, null, null);
+
         ai.setScoreDetail(detail);
         doReturn(ai).when(modelGateway).generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
         doReturn(null).when(service).getOne(any());

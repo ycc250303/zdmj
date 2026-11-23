@@ -22,7 +22,6 @@ import com.zdmj.userAuthService.service.UserLoginService;
 import com.zdmj.userAuthService.service.VerificationCodeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.BeanUtils;
 import org.springframework.dao.DataAccessException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -54,23 +53,23 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
     @Transactional(rollbackFor = Exception.class)
     public UserResponse register(UserRegisterRequest registerDTO) {
         // 1. 检查用户名是否已存在
-        if (existsByUsername(registerDTO.getUsername())) {
+        if (existsByUsername(registerDTO.username())) {
             throw new BusinessException(ErrorCode.USER_ALREADY_EXISTS);
         }
 
         // 2. 检查邮箱是否已存在
-        if (existsByEmail(registerDTO.getEmail())) {
+        if (existsByEmail(registerDTO.email())) {
             throw new BusinessException(ErrorCode.USER_EMAIL_EXISTS);
         }
 
         // 3. 创建用户
         User user = new User();
-        user.setUsername(registerDTO.getUsername());
-        user.setPassword(PASSWORD_ENCODER.encode(registerDTO.getPassword()));
-        user.setEmail(registerDTO.getEmail());
+        user.setUsername(registerDTO.username());
+        user.setPassword(PASSWORD_ENCODER.encode(registerDTO.password()));
+        user.setEmail(registerDTO.email());
 
         // 4. 验证验证码
-        verificationCodeService.verifyAndConsume(registerDTO.getEmail(), registerDTO.getVerificationCode(),
+        verificationCodeService.verifyAndConsume(registerDTO.email(), registerDTO.verificationCode(),
                 VerificationCodeScene.REGISTER);
 
         // 5. 保存用户
@@ -91,7 +90,7 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
     @Override
     public UserLoginResponse login(UserLoginRequest loginDTO) {
         // 1. 根据用户名或邮箱查询用户
-        String usernameOrEmail = loginDTO.getUsernameOrEmail();
+        String usernameOrEmail = loginDTO.usernameOrEmail();
 
         // 判断是用户名还是邮箱（简单判断：包含@符号则为邮箱）
         User user = usernameOrEmail.contains("@")
@@ -104,7 +103,7 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
         }
 
         // 3. 验证密码
-        if (!PASSWORD_ENCODER.matches(loginDTO.getPassword(), user.getPassword())) {
+        if (!PASSWORD_ENCODER.matches(loginDTO.password(), user.getPassword())) {
             throw new BusinessException(ErrorCode.USER_PASSWORD_WRONG);
         }
 
@@ -118,11 +117,7 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
         log.info("用户登录成功: {}", user.getUsername());
 
         // 构建登录响应
-        UserLoginResponse response = new UserLoginResponse();
-        response.setToken(token);
-        response.setUser(convertToResponse(user));
-
-        return response;
+        return new UserLoginResponse(token, convertToResponse(user));
     }
 
     /**
@@ -161,13 +156,13 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
     @Transactional(rollbackFor = Exception.class)
     public void resetPassword(UserResetPasswordRequest resetPasswordDTO) {
         // 1. 根据邮箱查询用户
-        User user = getUserByEmail(resetPasswordDTO.getEmail());
+        User user = getUserByEmail(resetPasswordDTO.email());
         if (user == null) {
             throw new BusinessException(ErrorCode.USER_EMAIL_NOT_REGISTERED);
         }
 
-        String encodedPassword = PASSWORD_ENCODER.encode(resetPasswordDTO.getNewPassword());
-        verificationCodeService.verifyAndConsume(resetPasswordDTO.getEmail(), resetPasswordDTO.getVerificationCode(),
+        String encodedPassword = PASSWORD_ENCODER.encode(resetPasswordDTO.newPassword());
+        verificationCodeService.verifyAndConsume(resetPasswordDTO.email(), resetPasswordDTO.verificationCode(),
                 VerificationCodeScene.RESET_PASSWORD);
         boolean updated = update(new LambdaUpdateWrapper<User>()
                 .eq(User::getId, user.getId())
@@ -176,7 +171,7 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
         if (!updated) {
             throw new BusinessException(ErrorCode.PASSWORD_CHANGE_FAILED);
         }
-        log.info("用户密码重置成功: userId={}, email={}", user.getId(), resetPasswordDTO.getEmail());
+        log.info("用户密码重置成功: userId={}, email={}", user.getId(), resetPasswordDTO.email());
     }
 
     /**
@@ -199,26 +194,26 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
         LambdaUpdateWrapper<User> update = new LambdaUpdateWrapper<User>()
                 .eq(User::getId, user.getId());
         boolean changed = false;
-        if (updateDTO.getName() != null) {
-            String name = updateDTO.getName().trim();
+        if (updateDTO.name() != null) {
+            String name = updateDTO.name().trim();
             user.setName(name);
             update.set(User::getName, name);
             changed = true;
         }
-        if (updateDTO.getPhone() != null) {
-            String phone = updateDTO.getPhone().trim();
+        if (updateDTO.phone() != null) {
+            String phone = updateDTO.phone().trim();
             user.setPhone(phone);
             update.set(User::getPhone, phone);
             changed = true;
         }
-        if (updateDTO.getWebsite() != null) {
-            String website = updateDTO.getWebsite().trim();
+        if (updateDTO.website() != null) {
+            String website = updateDTO.website().trim();
             user.setWebsite(website);
             update.set(User::getWebsite, website);
             changed = true;
         }
-        if (updateDTO.getPreferredWorkCity() != null) {
-            String city = updateDTO.getPreferredWorkCity().trim();
+        if (updateDTO.preferredWorkCity() != null) {
+            String city = updateDTO.preferredWorkCity().trim();
             user.setPreferredWorkCity(city);
             update.set(User::getPreferredWorkCity, city);
             changed = true;
@@ -272,8 +267,7 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
      * 将User实体转换为UserResponse
      */
     private UserResponse convertToResponse(User user) {
-        UserResponse dto = new UserResponse();
-        BeanUtils.copyProperties(user, dto);
-        return dto;
+        return new UserResponse(user.getId(), user.getUsername(), user.getEmail(), user.getName(), user.getPhone(),
+                user.getWebsite(), user.getPreferredWorkCity());
     }
 }

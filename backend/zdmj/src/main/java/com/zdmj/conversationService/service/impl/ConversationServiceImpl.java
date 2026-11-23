@@ -45,7 +45,7 @@ public class ConversationServiceImpl implements ConversationService {
     @Override
     public ConversationResponse create(CurrentActor actor, ConversationRequest request) {
         Conversation conversation = new Conversation();
-        conversation.setConfig(ConversationContextSupport.freezeConfig(request == null ? null : request.getConfig()));
+        conversation.setConfig(ConversationContextSupport.freezeConfig(request == null ? null : request.config()));
         conversation.setUserId(actor.userId());
         conversation.setMessageCount(0);
         if (conversationMapper.insert(conversation) != 1) {
@@ -165,13 +165,8 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     private ConversationResponse convertToResponse(Conversation conversation) {
-        ConversationResponse response = new ConversationResponse();
-        response.setId(conversation.getId());
-        response.setUserId(conversation.getUserId());
-        response.setTitle(conversation.getTitle());
-        response.setConfig(conversation.getConfig());
-        response.setMessageCount(conversation.getMessageCount());
-        response.setLastMessageAt(conversation.getLastMessageAt());
-        return response;
+        return new ConversationResponse(conversation.getId(), conversation.getUserId(),
+                conversation.getTitle(), conversation.getConfig(), conversation.getMessageCount(),
+                conversation.getLastMessageAt());
     }
 }

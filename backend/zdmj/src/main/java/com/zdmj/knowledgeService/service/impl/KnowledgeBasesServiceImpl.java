@@ -8,7 +8,6 @@ import com.zdmj.knowledgeService.entity.KnowledgeBases;
 import com.zdmj.knowledgeService.mapper.KnowledgeBasesMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -76,8 +75,7 @@ public class KnowledgeBasesServiceImpl implements KnowledgeBasesService {
     }
 
     private KnowledgeBasesResponse convertToResponse(KnowledgeBases knowledgeBases) {
-        KnowledgeBasesResponse response = new KnowledgeBasesResponse();
-        BeanUtils.copyProperties(knowledgeBases, response);
-        return response;
+        return new KnowledgeBasesResponse(knowledgeBases.getId(), knowledgeBases.getUserId(),
+                knowledgeBases.getScope());
     }
 }

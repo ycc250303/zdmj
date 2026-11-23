@@ -72,6 +72,11 @@ class KnowledgeFlowIT extends IntegrationTestBase {
                 "SELECT count(*) FROM knowledge_vectors WHERE document_id = ? AND user_id = ?",
                 Integer.class, alphaId, user.getId())).isPositive();
 
+        jdbcTemplate.update("""
+                UPDATE knowledge_documents SET metadata = metadata || '{"docCategory":"learning"}'::jsonb
+                WHERE id = ?
+                """, alphaId);
+
         String scoped = ApiClient.requireOk(api.post(token, "/knowledge/retrievals", """
                 {"query":"检索甲","ragDocumentIds":[%d],"useSystemKnowledge":false}
                 """.formatted(alphaId)));
@@ -79,6 +84,22 @@ class KnowledgeFlowIT extends IntegrationTestBase {
         assertThat(hitIds).isNotEmpty();
         assertThat(hitIds).allMatch(id -> id.longValue() == alphaId);
         assertThat(JsonPath.<String>read(scoped, "$.data.hits[0].content")).contains("固定知识片段甲");
+        assertThat(JsonPath.<String>read(scoped, "$.data.hits[0].metadata.DocumentId"))
+                .isEqualTo(String.valueOf(alphaId));
+        assertThat(JsonPath.<String>read(scoped, "$.data.hits[0].metadata.source"))
+                .isEqualTo("/knowledge-document/" + alphaId + "/download");
+        assertThat(JsonPath.<Number>read(scoped, "$.data.hits[0].chunkIndex").intValue()).isZero();
+        assertThat(JsonPath.<Number>read(scoped, "$.data.hits[0].score").doubleValue()).isCloseTo(1.0,
+                org.assertj.core.data.Offset.offset(0.0001));
+        assertThat(JsonPath.<Object>read(scoped, "$.data.hits[0].docCategory")).isNull();
+
+        String unscoped = ApiClient.requireOk(api.post(token, "/knowledge/retrievals", """
+                {"query":"检索甲","useSystemKnowledge":false}
+                """));
+        List<String> categories = JsonPath.read(unscoped,
+                "$.data.hits[?(@.documentId == " + alphaId + ")].docCategory");
+        assertThat(categories).containsExactly("learning");
+
 
         String closed = ApiClient.requireOk(api.post(token, "/knowledge/retrievals", """
                 {"query":"检索甲","ragDocumentIds":[],"useSystemKnowledge":false}

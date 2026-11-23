@@ -1,27 +1,27 @@
 package com.zdmj.aiService.dto;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-
-import java.lang.reflect.Field;
 
 import org.junit.jupiter.api.Test;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.aiService.entity.UserLlmConfig;
 
 class SensitiveModelConfigOutputTest {
 
     @Test
     void generatedStringExcludesModelCredentials() throws Exception {
-        Object[][] fields = {{UserLlmConfig.class, "apiKeyCiphertext"},
-                {UserLlmConfigRequest.class, "apiKey"}};
-        for (Object[] entry : fields) {
-            Class<?> type = (Class<?>) entry[0];
-            String name = (String) entry[1];
-            Object object = type.getConstructor().newInstance();
-            Field field = type.getDeclaredField(name);
-            field.setAccessible(true);
-            field.set(object, "credential-secret");
-            assertFalse(object.toString().contains("credential-secret"), type.getSimpleName() + "." + name);
-        }
+        var entity = new UserLlmConfig();
+        entity.setApiKeyCiphertext("ciphertext-secret");
+        assertFalse(entity.toString().contains("ciphertext-secret"));
+
+        var mapper = new ObjectMapper();
+        var request = mapper.readValue("""
+                {"modelCode":"deepseek-flash","apiKey":"credential-secret"}
+                """, UserLlmConfigRequest.class);
+        assertFalse(request.toString().contains("credential-secret"));
+        assertEquals("deepseek-flash", request.modelCode());
+        assertEquals("credential-secret", request.apiKey());
     }
 }

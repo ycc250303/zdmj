@@ -1,35 +1,30 @@
 package com.zdmj.conversationService.dto;
 
 import com.zdmj.conversationService.enums.MessageRoleEnum;
-import lombok.Data;
 
 import java.time.LocalDateTime;
 
 /**
  * 消息响应（镜像当前 Message Entity JSON）
+ *
+ * @param id 消息编号，对应 messages.id
+ * @param conversationId 会话编号
+ * @param userId 所属用户编号
+ * @param role 消息角色，对应 messages.role：1 用户、2 助手、3 系统
+ * @param content 消息正文
+ * @param sequence 会话内消息顺序
+ * @param createdAt 创建时间
  */
-@Data
-public class MessageResponse {
-
-    private Long id;
-
-    private Long conversationId;
-
-    private Long userId;
-
-    private Integer role;
-
-    private String content;
-
-    private Integer sequence;
-
-    private LocalDateTime createdAt;
+public record MessageResponse(
+        Long id,
+        Long conversationId,
+        Long userId,
+        Integer role,
+        String content,
+        Integer sequence,
+        LocalDateTime createdAt) {
 
     public MessageRoleEnum getRoleEnum() {
         return MessageRoleEnum.fromCode(this.role);
-    }
-
-    public void setRoleEnum(MessageRoleEnum roleEnum) {
-        this.role = roleEnum != null ? roleEnum.getCode() : null;
     }
 }

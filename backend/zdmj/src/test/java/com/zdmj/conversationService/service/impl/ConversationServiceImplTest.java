@@ -54,8 +54,7 @@ class ConversationServiceImplTest {
 
     @Test
     void createConversation_withDto_shouldReturnConversationAndMessageCountZero() {
-        ConversationRequest dto = new ConversationRequest();
-        dto.setConfig(Map.of("model", "gpt"));
+        ConversationRequest dto = new ConversationRequest(Map.of("model", "gpt"));
         doAnswer(invocation -> {
             Conversation saved = invocation.getArgument(0);
             saved.setId(1L);
@@ -64,11 +63,11 @@ class ConversationServiceImplTest {
 
         ConversationResponse actual = conversationService.create(actor, dto);
 
-        assertEquals(1L, actual.getId());
-        assertEquals(1L, actual.getUserId());
-        assertEquals(0, actual.getMessageCount());
-        assertFalse(actual.getConfig().containsKey("model"));
-        assertFalse(Boolean.TRUE.equals(actual.getConfig().get(ConversationContextSupport.CONFIG_USE_SYSTEM_KNOWLEDGE)));
+        assertEquals(1L, actual.id());
+        assertEquals(1L, actual.userId());
+        assertEquals(0, actual.messageCount());
+        assertFalse(actual.config().containsKey("model"));
+        assertFalse(Boolean.TRUE.equals(actual.config().get(ConversationContextSupport.CONFIG_USE_SYSTEM_KNOWLEDGE)));
         verify(conversationMapper).insert(any(Conversation.class));
     }
 
@@ -77,7 +76,7 @@ class ConversationServiceImplTest {
         when(conversationMapper.insert(any(Conversation.class))).thenReturn(0);
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> conversationService.create(actor, new ConversationRequest()));
+                () -> conversationService.create(actor, new ConversationRequest(null)));
 
         assertEquals(ErrorCode.CONVERSATION_CREATE_FAILED.getCode(), ex.getCode());
         assertEquals(ErrorCode.CONVERSATION_CREATE_FAILED.getMessage(), ex.getMessage());
@@ -94,8 +93,8 @@ class ConversationServiceImplTest {
 
         ConversationResponse actual = conversationService.create(actor, null);
 
-        assertEquals(1L, actual.getUserId());
-        assertEquals(0, actual.getMessageCount());
+        assertEquals(1L, actual.userId());
+        assertEquals(0, actual.messageCount());
         verify(conversationMapper).insert(any(Conversation.class));
     }
 
@@ -117,7 +116,7 @@ class ConversationServiceImplTest {
 
         ConversationResponse out = conversationService.getById(actor, 11L);
 
-        assertEquals(11L, out.getId());
+        assertEquals(11L, out.id());
         verify(conversationMapper).selectById(11L);
     }
 
@@ -167,8 +166,8 @@ class ConversationServiceImplTest {
 
         ConversationResponse out = conversationService.updateTitle(actor, 15L, "  new title  ");
 
-        assertEquals("new title", out.getTitle());
-        assertEquals(4, out.getMessageCount());
+        assertEquals("new title", out.title());
+        assertEquals(4, out.messageCount());
         verify(conversationMapper).updateTitleByIdAndUserId(15L, 1L, "new title");
     }
 
@@ -275,7 +274,7 @@ class ConversationServiceImplTest {
                 "useSystemKnowledge", true,
                 "model", "gpt"));
 
-        assertTrue(Boolean.TRUE.equals(out.getConfig().get("useSystemKnowledge")));
+        assertTrue(Boolean.TRUE.equals(out.config().get("useSystemKnowledge")));
         ArgumentCaptor<Map<String, Object>> configCaptor = ArgumentCaptor.forClass(Map.class);
         verify(conversationMapper).updateConfigByIdAndUserId(eq(23L), eq(1L), configCaptor.capture());
         assertFalse(configCaptor.getValue().containsKey("model"));

@@ -99,13 +99,7 @@ class KnowledgeRagServiceImplTest {
 
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
 
-        KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO();
-        hit.setId(1L);
-        hit.setDocumentId(900L);
-        hit.setChunkIndex(0);
-        hit.setScore(0.9);
-        hit.setContent("关键知识片段");
-        hit.setMetadata(Map.of("source", "test"));
+        KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO(1L, 900L, 0, "关键知识片段", 0.9, Map.of("source", "test"), null);
         when(knowledgeVectorMapper.searchBySimilarity(402L, 502L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of(hit));
         when(modelGateway.stream(same(actor), eq(14L), argThat((ModelRequest req) -> "hello question".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName()))))
@@ -133,12 +127,7 @@ class KnowledgeRagServiceImplTest {
 
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.3f, 0.4f}));
 
-        KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO();
-        hit.setId(2L);
-        hit.setDocumentId(901L);
-        hit.setChunkIndex(1);
-        hit.setScore(0.91);
-        hit.setContent("命中内容");
+        KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO(2L, 901L, 1, "命中内容", 0.91, null, null);
         when(knowledgeVectorMapper.searchBySimilarity(eq(403L), eq(503L), eq("[0.3,0.4]"), anyInt()))
                 .thenReturn(List.of(hit));
         when(modelGateway.stream(same(actor), eq(15L), argThat((ModelRequest req) -> "raw question".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName()))))
@@ -177,12 +166,7 @@ class KnowledgeRagServiceImplTest {
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.5,0.6]");
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.5f, 0.6f}));
 
-        KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO();
-        hit.setId(3L);
-        hit.setDocumentId(902L);
-        hit.setChunkIndex(0);
-        hit.setScore(0.88);
-        hit.setContent("系统库片段");
+        KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO(3L, 902L, 0, "系统库片段", 0.88, null, null);
         when(knowledgeVectorMapper.searchBySimilarity(
                 KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.5,0.6]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of(hit));
@@ -253,10 +237,10 @@ class KnowledgeRagServiceImplTest {
 
         KnowledgeRetrievalResponse out = service.retrieveRanked(new CurrentActor(405L), longQuery, List.of(), false);
 
-        assertEquals(List.of(), out.getHits());
-        assertEquals(longQuery, out.getQuery());
-        assertEquals(longQuery, out.getRewrittenQuery());
-        assertFalse(out.isRewriteUsed());
+        assertEquals(List.of(), out.hits());
+        assertEquals(longQuery, out.query());
+        assertEquals(longQuery, out.rewrittenQuery());
+        assertFalse(out.rewriteUsed());
         verify(modelGateway, never()).generate(any(), any());
         verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
     }
@@ -270,12 +254,7 @@ class KnowledgeRagServiceImplTest {
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.5,0.6]");
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.5f, 0.6f}));
 
-        KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO();
-        hit.setId(3L);
-        hit.setDocumentId(902L);
-        hit.setChunkIndex(0);
-        hit.setScore(0.88);
-        hit.setContent("系统库片段");
+        KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO(3L, 902L, 0, "系统库片段", 0.88, null, null);
         when(knowledgeVectorMapper.searchBySimilarity(
                 KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.5,0.6]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of(hit));
@@ -285,11 +264,11 @@ class KnowledgeRagServiceImplTest {
 
         KnowledgeRetrievalResponse out = service.retrieveRanked(actor, "system only", List.of(), true);
 
-        assertEquals(1, out.getHits().size());
-        assertEquals(3L, out.getHits().get(0).getId());
-        assertEquals("system only", out.getQuery());
-        assertFalse(out.isRewriteUsed());
-        assertEquals(ragConfig.getSearch().getTopkMedium(), out.getTopK());
+        assertEquals(1, out.hits().size());
+        assertEquals(3L, out.hits().get(0).id());
+        assertEquals("system only", out.query());
+        assertFalse(out.rewriteUsed());
+        assertEquals(ragConfig.getSearch().getTopkMedium(), out.topK());
         verify(knowledgeVectorMapper).searchBySimilarity(
                 KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.5,0.6]", ragConfig.getSearch().getTopkMedium());
         verify(knowledgeBasesService, never()).getOrCreateKnowledgeBaseId(actor);
@@ -306,16 +285,8 @@ class KnowledgeRagServiceImplTest {
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.3,0.4]");
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.3f, 0.4f}));
 
-        KnowledgeRetrivalDTO rawHit = new KnowledgeRetrivalDTO();
-        rawHit.setId(21L);
-        rawHit.setDocumentId(901L);
-        rawHit.setChunkIndex(0);
-        rawHit.setScore(0.80);
-        KnowledgeRetrivalDTO rewrittenHit = new KnowledgeRetrivalDTO();
-        rewrittenHit.setId(22L);
-        rewrittenHit.setDocumentId(901L);
-        rewrittenHit.setChunkIndex(1);
-        rewrittenHit.setScore(0.91);
+        KnowledgeRetrivalDTO rawHit = new KnowledgeRetrivalDTO(21L, 901L, 0, null, 0.80, null, null);
+        KnowledgeRetrivalDTO rewrittenHit = new KnowledgeRetrivalDTO(22L, 901L, 1, null, 0.91, null, null);
         when(knowledgeVectorMapper.searchBySimilarity(
                 eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(11L), eq("[0.3,0.4]"), anyInt()))
                 .thenReturn(List.of(rawHit))
@@ -326,11 +297,11 @@ class KnowledgeRagServiceImplTest {
 
         KnowledgeRetrievalResponse out = service.retrieveRanked(actor, "raw question", List.of(), true);
 
-        assertTrue(out.isRewriteUsed());
-        assertEquals("raw question", out.getQuery());
-        assertEquals("rewritten question", out.getRewrittenQuery());
-        assertEquals(2, out.getHits().size());
-        assertEquals(22L, out.getHits().get(0).getId());
+        assertTrue(out.rewriteUsed());
+        assertEquals("raw question", out.query());
+        assertEquals("rewritten question", out.rewrittenQuery());
+        assertEquals(2, out.hits().size());
+        assertEquals(22L, out.hits().get(0).id());
         verify(knowledgeVectorMapper, Mockito.times(2)).searchBySimilarity(
                 eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(11L), eq("[0.3,0.4]"), anyInt());
     }
@@ -346,11 +317,7 @@ class KnowledgeRagServiceImplTest {
         when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.3,0.4]");
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.3f, 0.4f}));
 
-        KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO();
-        hit.setId(31L);
-        hit.setDocumentId(901L);
-        hit.setChunkIndex(0);
-        hit.setScore(0.85);
+        KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO(31L, 901L, 0, null, 0.85, null, null);
         when(knowledgeVectorMapper.searchBySimilarity(
                 eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(11L), eq("[0.3,0.4]"), anyInt()))
                 .thenReturn(List.of(hit));
@@ -360,9 +327,9 @@ class KnowledgeRagServiceImplTest {
 
         KnowledgeRetrievalResponse out = service.retrieveRanked(actor, "Java", List.of(), true);
 
-        assertTrue(out.isRewriteUsed());
-        assertEquals("Java", out.getQuery());
-        assertEquals("Java 后端开发", out.getRewrittenQuery());
+        assertTrue(out.rewriteUsed());
+        assertEquals("Java", out.query());
+        assertEquals("Java 后端开发", out.rewrittenQuery());
         verify(knowledgeVectorMapper, Mockito.times(2)).searchBySimilarity(
                 eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(11L), eq("[0.3,0.4]"), anyInt());
     }
@@ -379,11 +346,7 @@ class KnowledgeRagServiceImplTest {
         int topK = ragConfig.getSearch().getTopkMedium();
         List<KnowledgeRetrivalDTO> overflow = new ArrayList<>();
         for (int i = 0; i < topK + 3; i++) {
-            KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO();
-            hit.setId((long) i);
-            hit.setDocumentId(900L);
-            hit.setChunkIndex(i);
-            hit.setScore(1.0 - i * 0.01);
+            KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO((long) i, 900L, i, null, 1.0 - i * 0.01, null, null);
             overflow.add(hit);
         }
         when(knowledgeVectorMapper.searchBySimilarity(
@@ -395,9 +358,9 @@ class KnowledgeRagServiceImplTest {
 
         KnowledgeRetrievalResponse out = service.retrieveRanked(actor, "hello question", List.of(), true);
 
-        assertEquals(topK, out.getHits().size());
-        assertEquals(0L, out.getHits().get(0).getId());
-        assertEquals((long) (topK - 1), out.getHits().get(topK - 1).getId());
+        assertEquals(topK, out.hits().size());
+        assertEquals(0L, out.hits().get(0).id());
+        assertEquals((long) (topK - 1), out.hits().get(topK - 1).id());
         verify(embeddingGateway).embed(same(actor), eq(List.of("hello question")));
     }
 }

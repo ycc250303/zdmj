@@ -2,41 +2,27 @@ package com.zdmj.knowledgeService.dto;
 
 import java.util.List;
 
-import lombok.Data;
-
 /**
  * 知识库排序检索结果：改写后的 query 与 ANN 合并排序列表（尚未整篇展开）。
+ *
+ * @param query 归一化后的原始问句
+ * @param rewrittenQuery 检索改写问句；未改写时与 {@link #query} 相同
+ * @param topK 本路 ANN 的 topK（由问句长度决定）
+ * @param minScore 相似度下限
+ * @param rewriteUsed 是否使用不同的改写问句执行双路检索
+ * @param hits 按 score 降序的命中（双路合并去重后）
  */
-@Data
-public class KnowledgeRetrievalResponse {
+public record KnowledgeRetrievalResponse(
+        String query,
+        String rewrittenQuery,
+        Integer topK,
+        Double minScore,
+        boolean rewriteUsed,
+        List<KnowledgeRetrivalDTO> hits) {
 
-    /**
-     * 归一化后的原始问句
-     */
-    private String query;
-
-    /**
-     * 检索改写问句；未改写时与 {@link #query} 相同
-     */
-    private String rewrittenQuery;
-
-    /**
-     * 本路 ANN 的 topK（由问句长度决定）
-     */
-    private Integer topK;
-
-    /**
-     * 相似度下限
-     */
-    private Double minScore;
-
-    /**
-     * 是否实际调用了改写模型
-     */
-    private boolean rewriteUsed;
-
-    /**
-     * 按 score 降序的命中（双路合并去重后）
-     */
-    private List<KnowledgeRetrivalDTO> hits;
+    /** 复制集合结构，保留既有空值和元素语义。 */
+    public KnowledgeRetrievalResponse {
+        hits = hits == null ? null
+                : java.util.Collections.unmodifiableList(new java.util.ArrayList<>(hits));
+    }
 }

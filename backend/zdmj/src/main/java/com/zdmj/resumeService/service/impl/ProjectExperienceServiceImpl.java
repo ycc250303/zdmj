@@ -4,6 +4,7 @@ import com.zdmj.common.context.CurrentActor;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.resumeService.dto.ProjectExperienceRequest;
 import com.zdmj.resumeService.dto.ProjectExperienceResponse;
 import com.zdmj.resumeService.entity.ProjectExperience;
@@ -11,10 +12,8 @@ import com.zdmj.resumeService.enums.ProjectStatusEnum;
 import com.zdmj.resumeService.mapper.ProjectExperienceMapper;
 import com.zdmj.resumeService.mapper.ProjectExperienceStructMapper;
 import com.zdmj.resumeService.service.ProjectExperienceService;
-import com.zdmj.resumeService.utils.DateRangeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -28,22 +27,22 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
     @Override
     public ProjectExperienceResponse create(CurrentActor actor, ProjectExperienceRequest projectExperienceRequest) {
         Long userId = actor.userId();
-        DateRangeUtil.rejectIfEndBeforeStart(
-                projectExperienceRequest.getStartDate(),
-                projectExperienceRequest.getEndDate(),
+        DateTimeUtil.rejectIfEndBeforeStart(
+                projectExperienceRequest.startDate(),
+                projectExperienceRequest.endDate(),
                 ErrorCode.PROJECT_END_TIME_INVALID);
 
         ProjectExperience projectExperience = new ProjectExperience();
         projectExperience.setUserId(userId);
-        projectExperience.setName(projectExperienceRequest.getName());
-        projectExperience.setStartDate(projectExperienceRequest.getStartDate());
-        projectExperience.setEndDate(projectExperienceRequest.getEndDate());
-        projectExperience.setRole(projectExperienceRequest.getRole());
-        projectExperience.setDescription(projectExperienceRequest.getDescription());
-        projectExperience.setContribution(projectExperienceRequest.getContribution());
-        projectExperience.setTechStack(projectExperienceRequest.getTechStack());
-        projectExperience.setHighlights(projectExperienceRequest.getHighlights());
-        projectExperience.setUrl(projectExperienceRequest.getUrl());
+        projectExperience.setName(projectExperienceRequest.name());
+        projectExperience.setStartDate(projectExperienceRequest.startDate());
+        projectExperience.setEndDate(projectExperienceRequest.endDate());
+        projectExperience.setRole(projectExperienceRequest.role());
+        projectExperience.setDescription(projectExperienceRequest.description());
+        projectExperience.setContribution(projectExperienceRequest.contribution());
+        projectExperience.setTechStack(projectExperienceRequest.techStack());
+        projectExperience.setHighlights(projectExperienceRequest.highlights());
+        projectExperience.setUrl(projectExperienceRequest.url());
         projectExperience.setStatus(ProjectStatusEnum.COMMITTED.getCode());
         projectExperience.setLookupResult(null);
         boolean saved = save(projectExperience);
@@ -58,14 +57,14 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
     public ProjectExperienceResponse update(CurrentActor actor, ProjectExperienceRequest projectExperienceRequest) {
         Long userId = actor.userId();
         ProjectExperience projectExperience = requireProjectExperienceAndCheckOwnership(
-                projectExperienceRequest.getId(), userId, "修改");
+                projectExperienceRequest.id(), userId, "修改");
         return updateOwned(projectExperience, projectExperienceRequest);
     }
 
     @Override
     public ProjectExperienceResponse updateOwned(ProjectExperience existing, ProjectExperienceRequest projectExperienceRequest) {
         projectExperiencePatchMapper.updateEntityFromDto(projectExperienceRequest, existing);
-        DateRangeUtil.rejectIfEndBeforeStart(
+        DateTimeUtil.rejectIfEndBeforeStart(
                 existing.getStartDate(),
                 existing.getEndDate(),
                 ErrorCode.PROJECT_END_TIME_INVALID);
@@ -92,9 +91,12 @@ public class ProjectExperienceServiceImpl extends ServiceImpl<ProjectExperienceM
     }
 
     private ProjectExperienceResponse convertToResponse(ProjectExperience projectExperience) {
-        ProjectExperienceResponse response = new ProjectExperienceResponse();
-        BeanUtils.copyProperties(projectExperience, response);
-        return response;
+        return new ProjectExperienceResponse(projectExperience.getId(), projectExperience.getUserId(),
+                projectExperience.getName(), projectExperience.getStartDate(), projectExperience.getEndDate(),
+                projectExperience.getRole(), projectExperience.getDescription(),
+                projectExperience.getContribution(), projectExperience.getTechStack(),
+                projectExperience.getHighlights(), projectExperience.getUrl(), projectExperience.getStatus(),
+                projectExperience.getLookupResult());
     }
 
     private ProjectExperience requireProjectExperience(Long id) {

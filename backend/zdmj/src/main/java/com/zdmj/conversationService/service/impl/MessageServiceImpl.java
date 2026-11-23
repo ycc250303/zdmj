@@ -56,7 +56,7 @@ public class MessageServiceImpl implements MessageService {
      */
     @Override
     public Flux<ServerSentEvent<String>> createStream(CurrentActor actor, ChatStreamRequest request) {
-        Conversation conversation = conversationService.requireOwned(actor, request.getConversationId());
+        Conversation conversation = conversationService.requireOwned(actor, request.conversationId());
         Long userId = actor.userId();
         PreparedMessages prepared = transactionTemplate.execute(status -> insertMessages(request, userId));
         if (prepared == null) {
@@ -83,7 +83,7 @@ public class MessageServiceImpl implements MessageService {
     }
 
     private PreparedMessages insertMessages(ChatStreamRequest request, Long userId) {
-        Integer newCount = conversationMapper.incrementMessageCountAndGet(request.getConversationId(), userId, 2);
+        Integer newCount = conversationMapper.incrementMessageCountAndGet(request.conversationId(), userId, 2);
         if (newCount == null || newCount < 2) {
             throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
         }
@@ -91,17 +91,17 @@ public class MessageServiceImpl implements MessageService {
         int assistantSeq = newCount;
 
         Message userMsg = new Message();
-        userMsg.setConversationId(request.getConversationId());
+        userMsg.setConversationId(request.conversationId());
         userMsg.setUserId(userId);
         userMsg.setRole(MessageRoleEnum.USER.getCode());
-        userMsg.setContent(request.getMessage());
+        userMsg.setContent(request.message());
         userMsg.setSequence(userSeq);
         if (messageMapper.insert(userMsg) != 1) {
             throw new BusinessException(ErrorCode.MESSAGE_CREATE_FAILED);
         }
 
         Message assistantMsg = new Message();
-        assistantMsg.setConversationId(request.getConversationId());
+        assistantMsg.setConversationId(request.conversationId());
         assistantMsg.setUserId(userId);
         assistantMsg.setRole(MessageRoleEnum.ASSISTANT.getCode());
         assistantMsg.setContent("");
@@ -110,11 +110,11 @@ public class MessageServiceImpl implements MessageService {
             throw new BusinessException(ErrorCode.MESSAGE_CREATE_FAILED);
         }
         if (newCount == 2) {
-            String title = request.getMessage().strip().replaceAll("(?U)\\s+", " ");
+            String title = request.message().strip().replaceAll("(?U)\\s+", " ");
             if (title.codePointCount(0, title.length()) > 30) {
                 title = title.substring(0, title.offsetByCodePoints(0, 30)) + "…";
             }
-            if (conversationMapper.updateTitleByIdAndUserId(request.getConversationId(), userId, title) != 1) {
+            if (conversationMapper.updateTitleByIdAndUserId(request.conversationId(), userId, title) != 1) {
                 throw new IllegalStateException("首次会话标题必须更新一条记录");
             }
         }
@@ -128,8 +128,8 @@ public class MessageServiceImpl implements MessageService {
         boolean useSystemKnowledge = ConversationContextSupport.resolveUseSystemKnowledge(conversation);
         Flux<String> chatFlux = knowledgeRagService.streamAnswer(
                 actor,
-                request.getConversationId(),
-                request.getMessage(),
+                request.conversationId(),
+                request.message(),
                 ragDocumentIds,
                 useSystemKnowledge,
                 null);
@@ -214,14 +214,8 @@ public class MessageServiceImpl implements MessageService {
     }
 
     private MessageResponse convertToResponse(Message message) {
-        MessageResponse response = new MessageResponse();
-        response.setId(message.getId());
-        response.setConversationId(message.getConversationId());
-        response.setUserId(message.getUserId());
-        response.setRole(message.getRole());
-        response.setContent(message.getContent());
-        response.setSequence(message.getSequence());
-        response.setCreatedAt(message.getCreatedAt());
-        return response;
+        return new MessageResponse(message.getId(), message.getConversationId(),
+                message.getUserId(), message.getRole(), message.getContent(), message.getSequence(),
+                message.getCreatedAt());
     }
 }

@@ -115,8 +115,8 @@ class KnowledgeDocumentServiceImplTest {
         when(mapper.selectById(9L)).thenReturn(document);
         when(mapper.update(isNull(), any())).thenReturn(1);
         var result = service().update(actor, request("职业规划"));
-        assertThat(result.getContent()).isEqualTo("/knowledge-document/9/download");
-        assertThat(result.getMetadata()).containsEntry("fileName", "a.md").doesNotContainKey("retiredFile");
+        assertThat(result.content()).isEqualTo("/knowledge-document/9/download");
+        assertThat(result.metadata()).containsEntry("fileName", "a.md").doesNotContainKey("retiredFile");
         verifyNoInteractions(files, embedding, vectors);
     }
 
@@ -137,6 +137,6 @@ class KnowledgeDocumentServiceImplTest {
     }
 
     private KnowledgeDocumentRequest request(String title) {
-        var r = new KnowledgeDocumentRequest(); r.setId(9L); r.setTitle(title); r.setType(1); return r;
+        var r = new KnowledgeDocumentRequest(9L, title, 1, null);    return r;
     }
 }

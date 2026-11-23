@@ -112,8 +112,8 @@ public class StudentCapabilityProfileServiceImpl
         if (!StringUtils.hasText(extracted)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "提取到的文本为空，无法生成画像");
         }
-        CapabilityProfileGenerateRequest request = new CapabilityProfileGenerateRequest();
-        request.setRawText(extracted);
+        CapabilityProfileGenerateRequest request = new CapabilityProfileGenerateRequest(extracted);
+
         return generateProfile(actor, request);
     }
 
@@ -243,9 +243,9 @@ public class StudentCapabilityProfileServiceImpl
      */
     private String resolveSourceText(CapabilityProfileGenerateRequest reqDTO) {
         String sourceText;
-        if (StringUtils.hasText(reqDTO.getRawText())) {
+        if (StringUtils.hasText(reqDTO.rawText())) {
             log.info("从纯文本解析内容");
-            sourceText = reqDTO.getRawText();
+            sourceText = reqDTO.rawText();
         } else {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "必须提供简历文本或简历文件");
         }
@@ -282,11 +282,11 @@ public class StudentCapabilityProfileServiceImpl
         if (detail == null) {
             return;
         }
-        assertScoreInRange(detail.getProjectExperienceScore(), MAX_PROJECT_EXPERIENCE_SCORE, "projectExperienceScore");
-        assertScoreInRange(detail.getSkillMatchScore(), MAX_SKILL_MATCH_SCORE, "skillMatchScore");
-        assertScoreInRange(detail.getContentCompletenessScore(), MAX_CONTENT_COMPLETENESS_SCORE, "contentCompletenessScore");
-        assertScoreInRange(detail.getStructureClarityScore(), MAX_STRUCTURE_CLARITY_SCORE, "structureClarityScore");
-        assertScoreInRange(detail.getExpressionProfessionalismScore(), MAX_EXPRESSION_PROFESSIONALISM_SCORE,
+        assertScoreInRange(detail.projectExperienceScore(), MAX_PROJECT_EXPERIENCE_SCORE, "projectExperienceScore");
+        assertScoreInRange(detail.skillMatchScore(), MAX_SKILL_MATCH_SCORE, "skillMatchScore");
+        assertScoreInRange(detail.contentCompletenessScore(), MAX_CONTENT_COMPLETENESS_SCORE, "contentCompletenessScore");
+        assertScoreInRange(detail.structureClarityScore(), MAX_STRUCTURE_CLARITY_SCORE, "structureClarityScore");
+        assertScoreInRange(detail.expressionProfessionalismScore(), MAX_EXPRESSION_PROFESSIONALISM_SCORE,
                 "expressionProfessionalismScore");
     }
 
@@ -310,11 +310,11 @@ public class StudentCapabilityProfileServiceImpl
         }
         StudentCapabilityProfileResponse.ScoreDetail detail = dto.getScoreDetail();
         if (detail != null && hasAnyScoreDetailValue(detail)) {
-            int sum = safeScore(detail.getProjectExperienceScore())
-                    + safeScore(detail.getSkillMatchScore())
-                    + safeScore(detail.getContentCompletenessScore())
-                    + safeScore(detail.getStructureClarityScore())
-                    + safeScore(detail.getExpressionProfessionalismScore());
+            int sum = safeScore(detail.projectExperienceScore())
+                    + safeScore(detail.skillMatchScore())
+                    + safeScore(detail.contentCompletenessScore())
+                    + safeScore(detail.structureClarityScore())
+                    + safeScore(detail.expressionProfessionalismScore());
             if (dto.getCompetitivenessScore() != null && dto.getCompetitivenessScore() != sum) {
                 log.debug("忽略模型返回的 competitivenessScore={}，已按 scoreDetail 重算为 {}",
                         dto.getCompetitivenessScore(), sum);
@@ -329,11 +329,11 @@ public class StudentCapabilityProfileServiceImpl
     }
 
     private static boolean hasAnyScoreDetailValue(StudentCapabilityProfileResponse.ScoreDetail detail) {
-        return detail.getProjectExperienceScore() != null
-                || detail.getSkillMatchScore() != null
-                || detail.getContentCompletenessScore() != null
-                || detail.getStructureClarityScore() != null
-                || detail.getExpressionProfessionalismScore() != null;
+        return detail.projectExperienceScore() != null
+                || detail.skillMatchScore() != null
+                || detail.contentCompletenessScore() != null
+                || detail.structureClarityScore() != null
+                || detail.expressionProfessionalismScore() != null;
     }
 
     private static int safeScore(Integer value) {

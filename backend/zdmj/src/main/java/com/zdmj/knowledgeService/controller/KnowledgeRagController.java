@@ -41,8 +41,8 @@ public class KnowledgeRagController {
     @PostMapping
     public Result<KnowledgeRetrievalResponse> retrieve(@Parameter(hidden = true) CurrentActor actor, @Valid @RequestBody KnowledgeRetrievalRequest request) {
         return Result.success("检索成功", knowledgeRagService.retrieveRanked(actor,
-                request.getQuery(),
-                request.getRagDocumentIds(),
-                request.isUseSystemKnowledge()));
+                request.query(),
+                request.ragDocumentIds(),
+                request.useSystemKnowledge()));
     }
 }

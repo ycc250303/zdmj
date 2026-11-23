@@ -48,27 +48,22 @@ class EducationServiceImplTest {
 
     @Test
     void create_success_shouldFillUserAndSave() {
-        EducationRequest dto = new EducationRequest();
-        dto.setSchool("SCU");
-        dto.setMajor("SE");
-        dto.setDegree(3);
-        dto.setStartDate(LocalDate.of(2020, 9, 1));
-        dto.setEndDate(LocalDate.of(2024, 6, 30));
-        dto.setGpa("3.9");
+        EducationRequest dto = new EducationRequest(null, "SCU", "SE", 3, LocalDate.of(2020, 9, 1),
+                LocalDate.of(2024, 6, 30), "3.9");
+
         doReturn(true).when(service).save(any(Education.class));
 
         EducationResponse out = service.create(actor, dto);
 
-        assertEquals(1L, out.getUserId());
-        assertEquals("SCU", out.getSchool());
+        assertEquals(1L, out.userId());
+        assertEquals("SCU", out.school());
         verify(service).save(any(Education.class));
     }
 
     @Test
     void create_invalidDate_shouldThrowAndSkipSave() {
-        EducationRequest dto = new EducationRequest();
-        dto.setStartDate(LocalDate.of(2024, 1, 1));
-        dto.setEndDate(LocalDate.of(2023, 1, 1));
+        EducationRequest dto = new EducationRequest(null, null, null, null, LocalDate.of(2024, 1, 1),
+                LocalDate.of(2023, 1, 1), null);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.create(actor, dto));
 
@@ -78,8 +73,8 @@ class EducationServiceImplTest {
 
     @Test
     void create_saveFailed_shouldThrowAddFailed() {
-        EducationRequest dto = new EducationRequest();
-        dto.setSchool("SCU");
+        EducationRequest dto = new EducationRequest(null, "SCU", null, null, null, null, null);
+
         doReturn(false).when(service).save(any(Education.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.create(actor, dto));
@@ -89,9 +84,8 @@ class EducationServiceImplTest {
 
     @Test
     void update_success_shouldPatchAndUpdateById() {
-        EducationRequest dto = new EducationRequest();
-        dto.setId(10L);
-        dto.setSchool("New School");
+        EducationRequest dto = new EducationRequest(10L, "New School", null, null, null, null, null);
+
         Education existing = new Education();
         existing.setId(10L);
         existing.setUserId(1L);
@@ -101,22 +95,22 @@ class EducationServiceImplTest {
         doAnswer(invocation -> {
             EducationRequest argDto = invocation.getArgument(0);
             Education argEntity = invocation.getArgument(1);
-            argEntity.setSchool(argDto.getSchool());
+            argEntity.setSchool(argDto.school());
             return null;
         }).when(educationStructMapper).updateEntityFromDto(any(EducationRequest.class), any(Education.class));
         doReturn(true).when(service).updateById(any(Education.class));
 
         EducationResponse out = service.update(actor, dto);
 
-        assertEquals("New School", out.getSchool());
+        assertEquals("New School", out.school());
         verify(educationStructMapper).updateEntityFromDto(dto, existing);
         verify(service).updateById(existing);
     }
 
     @Test
     void update_notOwner_shouldThrowNoPermission() {
-        EducationRequest dto = new EducationRequest();
-        dto.setId(10L);
+        EducationRequest dto = new EducationRequest(10L, null, null, null, null, null, null);
+
         Education existing = new Education();
         existing.setId(10L);
         existing.setUserId(2L);
@@ -131,8 +125,8 @@ class EducationServiceImplTest {
 
     @Test
     void update_invalidDateAfterPatch_shouldThrowAndSkipUpdateById() {
-        EducationRequest dto = new EducationRequest();
-        dto.setId(10L);
+        EducationRequest dto = new EducationRequest(10L, null, null, null, null, null, null);
+
         Education existing = new Education();
         existing.setId(10L);
         existing.setUserId(1L);
@@ -154,9 +148,8 @@ class EducationServiceImplTest {
 
     @Test
     void update_updateFailed_shouldThrowUpdateFailed() {
-        EducationRequest dto = new EducationRequest();
-        dto.setId(10L);
-        dto.setSchool("New School");
+        EducationRequest dto = new EducationRequest(10L, "New School", null, null, null, null, null);
+
         Education existing = new Education();
         existing.setId(10L);
         existing.setUserId(1L);
@@ -164,7 +157,7 @@ class EducationServiceImplTest {
         doAnswer(invocation -> {
             EducationRequest argDto = invocation.getArgument(0);
             Education argEntity = invocation.getArgument(1);
-            argEntity.setSchool(argDto.getSchool());
+            argEntity.setSchool(argDto.school());
             return null;
         }).when(educationStructMapper).updateEntityFromDto(any(EducationRequest.class), any(Education.class));
         doReturn(false).when(service).updateById(any(Education.class));

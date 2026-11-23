@@ -85,6 +85,42 @@ class JobQueryFlowIT extends IntegrationTestBase {
         assertThat(JsonPath.<String>read(detail, "$.data.companyName")).isEqualTo("星云科技");
         assertThat(JsonPath.<String>read(detail, "$.data.location")).isEqualTo("上海");
         assertThat(JsonPath.<Integer>read(detail, "$.data.salaryMin")).isEqualTo(20000);
+        assertThat(JsonPath.<List<String>>read(detail, "$.data.keywords")).containsExactly("Java");
+        assertThat(JsonPath.<List<String>>read(detail, "$.data.companyIndustries")).containsExactly("互联网");
+        assertThat(JsonPath.<List<String>>read(page1, "$.data.list[0].keywords")).containsExactly("Java");
+        assertThat(JsonPath.<List<String>>read(page1, "$.data.list[0].companyIndustries"))
+                .containsExactly("互联网");
+    }
+
+    @Test
+    void 匹配列表_构造映射保留分数精度与时间_仅返回当前用户记录() throws Exception {
+        var pair = testUsers.createPair();
+        String token = testJwt.authorize(pair.userA());
+        long jobId = createJob(token, "后端工程师", "星云科技", "互联网", 2, 20000, 30000);
+        var updatedAt = LocalDateTime.of(2024, 9, 3, 10, 0);
+        Long matchId = jdbcTemplate.queryForObject("""
+                INSERT INTO job_student_matches
+                    (user_id, job_id, overall_score, key_skill_match_rate, summary, updated_at)
+                VALUES (?, ?, 83, 0.8125, '适合投递', ?) RETURNING id
+                """, Long.class, pair.userA().getId(), jobId, Timestamp.valueOf(updatedAt));
+        jdbcTemplate.update("""
+                INSERT INTO job_student_matches (user_id, job_id, overall_score, summary)
+                VALUES (?, ?, 60, '其他用户结果')
+                """, pair.userB().getId(), jobId);
+
+        String response = ApiClient.requireOk(api.get(token, "/matches?page=1&limit=20"));
+
+        assertThat(JsonPath.<Integer>read(response, "$.data.total")).isEqualTo(1);
+        assertThat(JsonPath.<Number>read(response, "$.data.list[0].id").longValue()).isEqualTo(matchId);
+        assertThat(JsonPath.<Number>read(response, "$.data.list[0].jobId").longValue()).isEqualTo(jobId);
+        assertThat(JsonPath.<String>read(response, "$.data.list[0].jobName")).isEqualTo("后端工程师");
+        assertThat(JsonPath.<String>read(response, "$.data.list[0].companyName")).isEqualTo("星云科技");
+        assertThat(JsonPath.<Integer>read(response, "$.data.list[0].overallScore")).isEqualTo(83);
+        assertThat(JsonPath.<Number>read(response, "$.data.list[0].keySkillMatchRate").doubleValue())
+                .isEqualTo(0.8125);
+        assertThat(JsonPath.<String>read(response, "$.data.list[0].summary")).isEqualTo("适合投递");
+        assertThat(JsonPath.<String>read(response, "$.data.list[0].updatedAt"))
+                .isEqualTo("2024-09-03T10:00:00");
     }
 
     private long createJob(String token, String jobName, String companyName, String industry, int salaryType,

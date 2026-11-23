@@ -72,12 +72,12 @@ class UserLlmConfigServiceImplTest {
 
         var response = service.getMyConfig(actor);
 
-        assertEquals(true, response.isConfigured());
-        assertEquals("deepseek-flash", response.getModelCode());
-        assertEquals(ModelCode.DEEPSEEK_FLASH.displayName(), response.getModelDisplayName());
-        assertEquals(UserApiKeyCipher.mask("sk-secret-key"), response.getApiKeyMasked());
+        assertEquals(true, response.configured());
+        assertEquals("deepseek-flash", response.modelCode());
+        assertEquals(ModelCode.DEEPSEEK_FLASH.displayName(), response.modelDisplayName());
+        assertEquals(UserApiKeyCipher.mask("sk-secret-key"), response.apiKeyMasked());
         assertEquals(java.util.Arrays.stream(ModelCode.values()).map(ModelCode::code).toList(),
-                response.getModels().stream().map(option -> option.code()).toList());
+                response.models().stream().map(option -> option.code()).toList());
         verifyNoInteractions(mapper, cipher);
     }
 
@@ -87,10 +87,10 @@ class UserLlmConfigServiceImplTest {
 
         var response = service.getMyConfig(new CurrentActor(7L));
 
-        assertEquals(false, response.isConfigured());
-        assertEquals(ModelCode.values().length, response.getModels().size());
-        org.junit.jupiter.api.Assertions.assertNull(response.getApiKeyMasked());
-        org.junit.jupiter.api.Assertions.assertNull(response.getModelCode());
+        assertEquals(false, response.configured());
+        assertEquals(ModelCode.values().length, response.models().size());
+        org.junit.jupiter.api.Assertions.assertNull(response.apiKeyMasked());
+        org.junit.jupiter.api.Assertions.assertNull(response.modelCode());
         verifyNoInteractions(mapper, cipher);
     }
 
@@ -167,9 +167,8 @@ class UserLlmConfigServiceImplTest {
     }
 
     private static UserLlmConfigRequest request(String modelCode, String apiKey) {
-        UserLlmConfigRequest request = new UserLlmConfigRequest();
-        request.setModelCode(modelCode);
-        request.setApiKey(apiKey);
+        UserLlmConfigRequest request = new UserLlmConfigRequest(modelCode, apiKey);
+
         return request;
     }
 }

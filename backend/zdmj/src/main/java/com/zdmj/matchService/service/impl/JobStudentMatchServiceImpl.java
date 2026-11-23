@@ -122,14 +122,14 @@ public class JobStudentMatchServiceImpl
                 actor, buildJobText(jobDetail));
         JobRole role = detected.role();
         MatchWeightConfigResponse weights = MatchWeightResolver.resolve(
-                role, req == null ? null : req.getWeights());
+                role, req == null ? null : req.weights());
         String promptName = MATCH_PROMPT_DIRECTORY + role.slug();
         log.info("人岗匹配开始: jobId={}, userId={}, role={}, prompt={}", jobId, userId, role, promptName);
 
         // 3. 拼装模型上下文
-        List<String> jobKeywords = jobDetail.getKeywords() == null
+        List<String> jobKeywords = jobDetail.keywords() == null
                 ? List.of()
-                : jobDetail.getKeywords().stream().filter(StringUtils::hasText).map(String::trim).toList();
+                : jobDetail.keywords().stream().filter(StringUtils::hasText).map(String::trim).toList();
         String userMessage = buildUserMessage(jobDetail, studentProfile, weights, jobKeywords);
 
         // 4. 调用模型输出结构化匹配结果
@@ -144,13 +144,13 @@ public class JobStudentMatchServiceImpl
             log.error("人岗匹配 LLM 调用失败 jobId={} userId={}", jobId, userId, e);
             throw new BusinessException(ErrorCode.MATCH_GENERATION_FAILED);
         }
-        if (aiResult == null || aiResult.getDimensions() == null) {
+        if (aiResult == null || aiResult.dimensions() == null) {
             throw new BusinessException(ErrorCode.MATCH_GENERATION_FAILED);
         }
 
         // 5. 重算关键词匹配率与综合分
-        Map<String, DimensionMatchResponse> dims = sanitizeDimensions(aiResult.getDimensions());
-        KeywordMatchResult kw = recomputeKeywordMatch(jobKeywords, aiResult.getMatchedKeywords(), studentProfile);
+        Map<String, DimensionMatchResponse> dims = sanitizeDimensions(aiResult.dimensions());
+        KeywordMatchResult kw = recomputeKeywordMatch(jobKeywords, aiResult.matchedKeywords(), studentProfile);
         int basicScore = clamp(getDimensionScore(dims, MatchDimension.BASIC));
         int skillScore = clamp(getDimensionScore(dims, MatchDimension.PROFESSIONAL_SKILL));
         int qualityScore = clamp(getDimensionScore(dims, MatchDimension.PROFESSIONAL_QUALITY));
@@ -159,8 +159,8 @@ public class JobStudentMatchServiceImpl
 
         JobStudentMatch entity = buildMatch(userId, jobId, role, promptName, weights,
                 basicScore, skillScore, qualityScore, potentialScore, overall,
-                dims, aiResult.getMatchedHighlights(), aiResult.getCriticalGaps(),
-                kw.matched, kw.missing, kw.rate, aiResult.getSummary());
+                dims, aiResult.matchedHighlights(), aiResult.criticalGaps(),
+                kw.matched, kw.missing, kw.rate, aiResult.summary());
         if (jobService.getDetail(jobId) == null) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
@@ -201,10 +201,10 @@ public class JobStudentMatchServiceImpl
         sb.append("以下是用于人岗匹配分析的全部上下文。请严格基于这些文本输出 JSON 结果。\n\n");
 
         sb.append("## 岗位基础信息\n");
-        sb.append("- 岗位名称：").append(safe(jobDetail.getJobName())).append('\n');
-        sb.append("- 公司名称：").append(safe(jobDetail.getCompanyName())).append('\n');
-        sb.append("- 工作地点：").append(safe(jobDetail.getLocation())).append('\n');
-        sb.append("- 岗位描述：").append(safe(jobDetail.getDescription())).append('\n');
+        sb.append("- 岗位名称：").append(safe(jobDetail.jobName())).append('\n');
+        sb.append("- 公司名称：").append(safe(jobDetail.companyName())).append('\n');
+        sb.append("- 工作地点：").append(safe(jobDetail.location())).append('\n');
+        sb.append("- 岗位描述：").append(safe(jobDetail.description())).append('\n');
         sb.append("- 岗位关键词：").append(joinList(jobKeywords)).append("\n\n");
 
         sb.append("## 学生就业能力画像（七维）\n");
@@ -220,11 +220,11 @@ public class JobStudentMatchServiceImpl
         }
         if (studentProfile.getSuggestions() != null && !studentProfile.getSuggestions().isEmpty()) {
             String gapSummary = studentProfile.getSuggestions().stream()
-                    .filter(s -> s != null && StringUtils.hasText(s.getIssue()))
+                    .filter(s -> s != null && StringUtils.hasText(s.issue()))
                     .limit(6)
                     .map(s -> {
-                        String cat = StringUtils.hasText(s.getCategory()) ? s.getCategory() + "：" : "";
-                        return cat + s.getIssue().trim();
+                        String cat = StringUtils.hasText(s.category()) ? s.category() + "：" : "";
+                        return cat + s.issue().trim();
                     })
                     .reduce((a, b) -> a + "；" + b)
                     .orElse("");
@@ -267,13 +267,13 @@ public class JobStudentMatchServiceImpl
                 关键词：%s
                 公司行业：%s
                 """.formatted(
-                textOrBlank(job.getJobName()),
-                textOrBlank(job.getCompanyName()),
-                textOrBlank(job.getLocation()),
-                textOrBlank(job.getSalary()),
-                textOrBlank(job.getDescription()),
-                joinList(job.getKeywords()),
-                joinList(job.getCompanyIndustries()));
+                textOrBlank(job.jobName()),
+                textOrBlank(job.companyName()),
+                textOrBlank(job.location()),
+                textOrBlank(job.salary()),
+                textOrBlank(job.description()),
+                joinList(job.keywords()),
+                joinList(job.companyIndustries()));
     }
 
     private static String textOrBlank(String value) {
@@ -507,27 +507,14 @@ public class JobStudentMatchServiceImpl
         if (entity == null) {
             return null;
         }
-        JobStudentMatchResponse dto = new JobStudentMatchResponse();
-        dto.setId(entity.getId());
-        dto.setJobId(entity.getJobId());
-        dto.setTargetRoleType(entity.getTargetRoleType());
-        dto.setOverallScore(entity.getOverallScore());
-
         Map<String, DimensionMatchResponse> dims = readJson(entity.getDimensionDetail(),
                 new TypeReference<Map<String, DimensionMatchResponse>>() {});
-        dto.setDimensions(dims == null ? new LinkedHashMap<>() : dims);
-
         MatchWeightConfigResponse weights = readJson(entity.getWeights(),
                 new TypeReference<MatchWeightConfigResponse>() {});
-        dto.setWeights(weights);
-
-        dto.setMatchedHighlights(entity.getMatchedHighlights());
-        dto.setCriticalGaps(entity.getCriticalGaps());
-        dto.setMatchedKeywords(entity.getMatchedKeywords());
-        dto.setMissingKeywords(entity.getMissingKeywords());
-        dto.setKeySkillMatchRate(entity.getKeySkillMatchRate());
-        dto.setSummary(entity.getSummary());
-        return dto;
+        return new JobStudentMatchResponse(entity.getId(), entity.getJobId(), entity.getTargetRoleType(),
+                entity.getOverallScore(), dims == null ? new LinkedHashMap<>() : dims, weights,
+                entity.getMatchedHighlights(), entity.getCriticalGaps(), entity.getMatchedKeywords(),
+                entity.getMissingKeywords(), entity.getKeySkillMatchRate(), entity.getSummary());
     }
 
     /**

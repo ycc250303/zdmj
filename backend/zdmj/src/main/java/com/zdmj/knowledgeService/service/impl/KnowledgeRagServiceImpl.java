@@ -71,14 +71,14 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
 
         // --- 2. 排序检索（改写 / embed / ANN / 合并截断） ---
         KnowledgeRetrievalResponse ranked = retrieveRanked(actor, userMessage, ragDocumentIds, useSystemKnowledge);
-        List<KnowledgeRetrivalDTO> hits = ranked.getHits() == null ? List.of() : ranked.getHits();
+        List<KnowledgeRetrivalDTO> hits = ranked.hits() == null ? List.of() : ranked.hits();
 
         // --- 3. 无命中不硬答：空 {context} 会诱导编造 ---
         if (hits.isEmpty()) {
             log.info("RAG 无有效命中，退回求职导师对话: userId={}, useSystemKnowledge={}, queryLen={}",
-                    userId, useSystemKnowledge, ranked.getQuery() == null ? 0 : ranked.getQuery().length());
+                    userId, useSystemKnowledge, ranked.query() == null ? 0 : ranked.query().length());
             return modelGateway.stream(actor,
-                    conversationId, new ModelRequest(ranked.getQuery(), SYSTEM_PROMPT, chatPromptVars));
+                    conversationId, new ModelRequest(ranked.query(), SYSTEM_PROMPT, chatPromptVars));
         }
 
         // --- 4. 用排序切块拼 {context}，user 消息仍用原文 ---
@@ -87,7 +87,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         ragPromptVars.put("context", buildContext(hits, ragConfig.getSearch().getContextBudget()));
         log.info("RAG 检索命中 {} 条片段，进入生成阶段 conversationId={}", hits.size(), conversationId);
         return modelGateway.stream(actor,
-                conversationId, new ModelRequest(ranked.getQuery(), RAG_PROMPT, ragPromptVars));
+                conversationId, new ModelRequest(ranked.query(), RAG_PROMPT, ragPromptVars));
     }
 
     /**
@@ -108,17 +108,9 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
                 ? search.getMinScoreShort()
                 : search.getMinScoreDefault();
 
-        KnowledgeRetrievalResponse response = new KnowledgeRetrievalResponse();
-        response.setQuery(query);
-        response.setRewrittenQuery(query);
-        response.setTopK(topK);
-        response.setMinScore(minScore);
-        response.setRewriteUsed(false);
-        response.setHits(List.of());
-
         // --- 2. 两库都关：返回元数据，不改写、不检索 ---
         if (ragDocumentIds != null && ragDocumentIds.isEmpty() && !useSystemKnowledge) {
-            return response;
+            return new KnowledgeRetrievalResponse(query, query, topK, minScore, false, List.of());
         }
 
         // --- 3. 查询改写；与原文相同则只检索一路。改写失败时终止 ---
@@ -127,8 +119,6 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
             rewritten = rewriteQuery(actor, query);
         }
         boolean dualPath = !query.equals(rewritten);
-        response.setRewrittenQuery(rewritten);
-        response.setRewriteUsed(dualPath);
 
         // --- 4. 原文 / 改写各 embed 一次（同句复用向量） ---
         String vecRaw = toPgVector(actor, query);
@@ -157,8 +147,8 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         }
 
         // --- 6. 去重留高分，截断为 topK ---
-        response.setHits(mergeAndSort(combined, topK));
-        return response;
+        return new KnowledgeRetrievalResponse(query, rewritten, topK, minScore, dualPath,
+                mergeAndSort(combined, topK));
     }
 
     /** 按句长选 topK / minScore */
@@ -254,7 +244,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         }
         // --- 2. SQL 的 LIMIT 只保证候选数，不够像的在这里丢掉 ---
         for (KnowledgeRetrivalDTO hit : raw) {
-            if (hit.getScore() != null && hit.getScore() >= minScore) {
+            if (hit.score() != null && hit.score() >= minScore) {
                 out.add(hit);
             }
         }
@@ -265,18 +255,18 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         // --- 1. 同 documentId+chunkIndex 留更高分 ---
         Map<String, KnowledgeRetrivalDTO> map = new LinkedHashMap<>();
         for (KnowledgeRetrivalDTO item : list) {
-            String key = (item.getDocumentId() == null ? "" : item.getDocumentId().toString()) + "-" +
-                    (item.getChunkIndex() == null ? "" : item.getChunkIndex().toString());
+            String key = (item.documentId() == null ? "" : item.documentId().toString()) + "-" +
+                    (item.chunkIndex() == null ? "" : item.chunkIndex().toString());
             KnowledgeRetrivalDTO old = map.get(key);
             if (old == null
-                    || (item.getScore() != null && old.getScore() != null && item.getScore() > old.getScore())) {
+                    || (item.score() != null && old.score() != null && item.score() > old.score())) {
                 map.put(key, item);
             }
         }
         // --- 2. score 降序，截断为 topK ---
         List<KnowledgeRetrivalDTO> sorted = map.values().stream()
                 .sorted(Comparator.comparing(
-                        KnowledgeRetrivalDTO::getScore,
+                        KnowledgeRetrivalDTO::score,
                         Comparator.nullsLast(Double::compare))
                         .reversed())
                 .collect(Collectors.toList());
@@ -291,7 +281,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         log.info("RAG 检索明细: conversationId={} userId={} hitCount={}", conversationId, userId, n);
         for (int i = 0; i < n; i++) {
             KnowledgeRetrivalDTO r = hits.get(i);
-            String full = r.getContent() == null ? "" : r.getContent();
+            String full = r.content() == null ? "" : r.content();
             String preview = full.trim();
             int fullLen = preview.length();
             if (preview.length() > RAG_LOG_CONTENT_PREVIEW_MAX) {
@@ -301,11 +291,11 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
             log.info(
                     "RAG 命中 [{}/{}] vectorId={} documentId={} chunkIndex={} score={} metadata={} contentPreview={}",
                     i + 1, n,
-                    r.getId(),
-                    r.getDocumentId(),
-                    r.getChunkIndex(),
-                    r.getScore(),
-                    r.getMetadata(),
+                    r.id(),
+                    r.documentId(),
+                    r.chunkIndex(),
+                    r.score(),
+                    r.metadata(),
                     preview);
         }
     }
@@ -318,15 +308,15 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         // --- 1. 丢掉空 content，避免分隔符堆出空白上下文 ---
         List<KnowledgeRetrivalDTO> nonEmpty = new ArrayList<>();
         for (KnowledgeRetrivalDTO item : list) {
-            String body = item.getContent() == null ? "" : item.getContent().trim();
+            String body = item.content() == null ? "" : item.content().trim();
             if (!body.isEmpty()) {
                 nonEmpty.add(item);
             }
         }
         // --- 2. 改回 documentId + chunkIndex，与切块入库顺序一致 ---
         nonEmpty.sort(Comparator
-                .comparing(KnowledgeRetrivalDTO::getDocumentId, Comparator.nullsLast(Long::compareTo))
-                .thenComparing(KnowledgeRetrivalDTO::getChunkIndex, Comparator.nullsLast(Integer::compareTo)));
+                .comparing(KnowledgeRetrivalDTO::documentId, Comparator.nullsLast(Long::compareTo))
+                .thenComparing(KnowledgeRetrivalDTO::chunkIndex, Comparator.nullsLast(Integer::compareTo)));
         List<String> context = new ArrayList<>();
         int remaining = safeBudget;
         if (!nonEmpty.isEmpty()) {
@@ -336,7 +326,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
                 if (remaining <= 0) {
                     break;
                 }
-                String body = item.getContent().trim();
+                String body = item.content().trim();
                 int maxPiece = Math.min(perChunkCeiling, remaining);
                 String piece = body.length() > maxPiece
                         ? body.substring(0, Math.min(maxPiece, body.length())) + "...(truncated)"

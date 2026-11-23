@@ -1,6 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper">
+  <resultMap id="KnowledgeRetrievalMap" type="com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO">
+    <constructor>
+      <idArg name="id" column="id" javaType="java.lang.Long" />
+      <arg name="documentId" column="documentId" javaType="java.lang.Long" />
+      <arg name="chunkIndex" column="chunkIndex" javaType="java.lang.Integer" />
+      <arg name="content" column="content" javaType="java.lang.String" />
+      <arg name="score" column="score" javaType="java.lang.Double" />
+      <arg name="metadata" column="metadata" javaType="java.util.Map"
+          typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" />
+      <arg name="docCategory" column="docCategory" javaType="java.lang.String" />
+    </constructor>
+  </resultMap>
+
   <!-- 根据知识库ID删除向量 -->
   <delete id="deleteByDocumentIdAndUserId" parameterType="long">
     DELETE FROM knowledge_vectors WHERE document_id = #{DocumentId} AND user_id = #{userId}
@@ -42,7 +55,7 @@
       pgvector 运算符 <=> 表示余弦距离（与索引 vector_cosine_ops 一致）。
       相似度常用写法：score = 1 - distance，便于设阈值（如 0.28）。
     -->
-    <select id="searchBySimilarity" resultType="com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO">
+    <select id="searchBySimilarity" resultMap="KnowledgeRetrievalMap">
       SELECT
           kv.id,
           kv.document_id AS documentId,
@@ -60,13 +73,14 @@
       LIMIT #{limit}
   </select>
 
-  <select id="searchBySimilarityInDocuments" resultType="com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO">
+  <select id="searchBySimilarityInDocuments" resultMap="KnowledgeRetrievalMap">
       SELECT
           kv.id,
           kv.document_id AS documentId,
           kv.chunk_index AS chunkIndex,
           kv.content,
           kv.metadata,
+          NULL::text AS docCategory,
           (1 - (kv.embedding <![CDATA[ <=> ]]> CAST(#{queryEmbedding} AS vector))) AS score
       FROM knowledge_vectors kv
       JOIN knowledge_documents kd ON kd.id = kv.document_id

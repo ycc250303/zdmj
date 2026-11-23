@@ -9,6 +9,8 @@ import java.util.List;
 
 /**
  * 全量保存当前用户简历内容（技能 + 全部经历）。
+ *
+ * <p>使用属性绑定区分省略列表与显式空值：省略时使用空列表，显式 null 由校验拒绝。</p>
  */
 @Data
 public class ResumeContentSaveRequest {

@@ -112,8 +112,8 @@ class ResumeServiceImplTest {
         List<ResumeContentResponse> out = resumeService.getResumeContentList(actor);
 
         assertEquals(1, out.size());
-        assertEquals(9L, out.get(0).getSkills().get(0).getId());
-        assertEquals("Java", out.get(0).getSkills().get(0).getName());
+        assertEquals(9L, out.get(0).skills().get(0).id());
+        assertEquals("Java", out.get(0).skills().get(0).name());
         verify(educationMapper, never()).selectByUserId(any());
     }
 
@@ -144,24 +144,24 @@ class ResumeServiceImplTest {
 
         ResumeContentResponse out = resumeService.getMyResumeContent(actor);
 
-        assertEquals(9L, out.getSkills().get(0).getId());
-        assertEquals("Java", out.getSkills().get(0).getName());
-        assertEquals("熟悉 Spring", out.getSkills().get(0).getDescription());
-        assertEquals("测试大学", out.getEducations().get(0).getSchool());
-        assertEquals(LocalDate.of(2020, 9, 1), out.getEducations().get(0).getStartDate());
-        assertEquals(3, out.getEducations().get(0).getDegree());
-        assertEquals("测试项目", out.getProjects().get(0).getName());
-        assertEquals(List.of("Java"), out.getProjects().get(0).getTechStack());
-        assertEquals(LocalDate.of(2024, 5, 1), out.getAwards().get(0).getAwardDate());
-        assertEquals("张三", out.getPersonalInfo().getName());
-        assertEquals("https://example.com", out.getPersonalInfo().getHomepageUrl());
-        assertEquals("上海", out.getPersonalInfo().getPreferredWorkCity());
+        assertEquals(9L, out.skills().get(0).id());
+        assertEquals("Java", out.skills().get(0).name());
+        assertEquals("熟悉 Spring", out.skills().get(0).description());
+        assertEquals("测试大学", out.educations().get(0).school());
+        assertEquals(LocalDate.of(2020, 9, 1), out.educations().get(0).startDate());
+        assertEquals(3, out.educations().get(0).degree());
+        assertEquals("测试项目", out.projects().get(0).name());
+        assertEquals(List.of("Java"), out.projects().get(0).techStack());
+        assertEquals(LocalDate.of(2024, 5, 1), out.awards().get(0).awardDate());
+        assertEquals("张三", out.personalInfo().name());
+        assertEquals("https://example.com", out.personalInfo().homepageUrl());
+        assertEquals("上海", out.personalInfo().preferredWorkCity());
         verify(educationMapper, never()).selectByUserId(any());
     }
 
     @Test
     void parseImport_missingInput_shouldThrowValidationError() {
-        ResumeImportParseRequest request = new ResumeImportParseRequest();
+        ResumeImportParseRequest request = new ResumeImportParseRequest(null);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.parseImport(actor, request));
 
@@ -171,8 +171,7 @@ class ResumeServiceImplTest {
 
     @Test
     void parseImport_blankRawText_shouldThrowTextEmpty() {
-        ResumeImportParseRequest request = new ResumeImportParseRequest();
-        request.setRawText("   ");
+        ResumeImportParseRequest request = new ResumeImportParseRequest("   ");
 
         BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.parseImport(actor, request));
 
@@ -181,8 +180,8 @@ class ResumeServiceImplTest {
 
     @Test
     void parseImport_llmFailure_shouldThrowParseFailed() {
-        ResumeImportParseRequest request = new ResumeImportParseRequest();
-        request.setRawText("张三 某某大学 软件工程");
+        ResumeImportParseRequest request = new ResumeImportParseRequest("张三 某某大学 软件工程");
+
         doThrow(new RuntimeException("llm down")).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest), eq(ResumeImportParseResponse.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> resumeService.parseImport(actor, request));
@@ -192,8 +191,7 @@ class ResumeServiceImplTest {
 
     @Test
     void parseImport_success_shouldNormalizeAndUseDeepSeekFlash() {
-        ResumeImportParseRequest request = new ResumeImportParseRequest();
-        request.setRawText("resume body");
+        ResumeImportParseRequest request = new ResumeImportParseRequest("resume body");
 
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
         ResumeImportParseResponse.EducationItem edu = new ResumeImportParseResponse.EducationItem();
@@ -221,8 +219,7 @@ class ResumeServiceImplTest {
 
     @Test
     void parseImport_yearOnlyDate_shouldNormalizeToNull() {
-        ResumeImportParseRequest request = new ResumeImportParseRequest();
-        request.setRawText("resume");
+        ResumeImportParseRequest request = new ResumeImportParseRequest("resume");
 
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
         ResumeImportParseResponse.EducationItem edu = new ResumeImportParseResponse.EducationItem();
@@ -241,8 +238,7 @@ class ResumeServiceImplTest {
 
     @Test
     void parseImport_chineseYearMonth_shouldUseFirstDay() {
-        ResumeImportParseRequest request = new ResumeImportParseRequest();
-        request.setRawText("resume");
+        ResumeImportParseRequest request = new ResumeImportParseRequest("resume");
 
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
         ResumeImportParseResponse.CareerItem career = new ResumeImportParseResponse.CareerItem();
@@ -259,8 +255,7 @@ class ResumeServiceImplTest {
 
     @Test
     void parseImport_awardYearOnlyInName_shouldNormalizeAward() {
-        ResumeImportParseRequest request = new ResumeImportParseRequest();
-        request.setRawText("2024年同济大学本科生奖学金");
+        ResumeImportParseRequest request = new ResumeImportParseRequest("2024年同济大学本科生奖学金");
 
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
         ResumeImportParseResponse.AwardItem award = new ResumeImportParseResponse.AwardItem();
@@ -279,11 +274,11 @@ class ResumeServiceImplTest {
 
     @Test
     void parseImport_shouldKeepAwardsFromSingleParseCall() {
-        ResumeImportParseRequest request = new ResumeImportParseRequest();
-        request.setRawText("""
-                GPA: 4.43/5.00，获同济大学本科优秀学生奖学金二等奖
-                以项目负责人身份获 2025 年中国高校计算机大赛智能交互创新赛全国一等奖、AIGC 创新赛全国三等奖
-                """);
+        ResumeImportParseRequest request = new ResumeImportParseRequest(
+                """
+    GPA: 4.43/5.00，获同济大学本科优秀学生奖学金二等奖
+    以项目负责人身份获 2025 年中国高校计算机大赛智能交互创新赛全国一等奖、AIGC 创新赛全国三等奖
+    """);
 
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
         ResumeImportParseResponse.AwardItem scholarship = new ResumeImportParseResponse.AwardItem();
@@ -312,12 +307,12 @@ class ResumeServiceImplTest {
 
     @Test
     void parseImport_llmMissesScholarship_shouldNotRegexFillFromSource() {
-        ResumeImportParseRequest request = new ResumeImportParseRequest();
-        request.setRawText("""
-                获奖情况
-                2024年同济大学本科生奖学金
-                2023年全国大学生数学建模竞赛省一等奖
-                """);
+        ResumeImportParseRequest request = new ResumeImportParseRequest(
+                """
+    获奖情况
+    2024年同济大学本科生奖学金
+    2023年全国大学生数学建模竞赛省一等奖
+    """);
 
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
         ResumeImportParseResponse.AwardItem competition = new ResumeImportParseResponse.AwardItem();
@@ -336,8 +331,7 @@ class ResumeServiceImplTest {
 
     @Test
     void parseImport_emptyAwardsFromLlm_shouldKeepEmptyList() {
-        ResumeImportParseRequest request = new ResumeImportParseRequest();
-        request.setRawText("resume body");
+        ResumeImportParseRequest request = new ResumeImportParseRequest("resume body");
 
         doReturn(new ResumeImportParseResponse()).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest), eq(ResumeImportParseResponse.class));
 
@@ -349,8 +343,7 @@ class ResumeServiceImplTest {
 
     @Test
     void parseImport_projectDescriptionMentioningAward_shouldNotInventAward() {
-        ResumeImportParseRequest request = new ResumeImportParseRequest();
-        request.setRawText("resume");
+        ResumeImportParseRequest request = new ResumeImportParseRequest("resume");
 
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
         ResumeImportParseResponse.ProjectItem project = new ResumeImportParseResponse.ProjectItem();
@@ -370,9 +363,8 @@ class ResumeServiceImplTest {
 
     @Test
     void parseImport_shouldNotTruncateLongRawText() {
-        ResumeImportParseRequest request = new ResumeImportParseRequest();
         String raw = "a".repeat(16000);
-        request.setRawText(raw);
+        ResumeImportParseRequest request = new ResumeImportParseRequest(raw);
 
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
         doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest), eq(ResumeImportParseResponse.class));
@@ -457,9 +449,8 @@ class ResumeServiceImplTest {
         doReturn(emptyContent()).when(resumeMapper).selectContentByUserId(1L);
 
         var request = new com.zdmj.resumeService.dto.ResumeContentSaveRequest();
-        var skill = new com.zdmj.resumeService.dto.SkillRequest();
-        skill.setId(9L);
-        skill.setName("Java");
+        var skill = new com.zdmj.resumeService.dto.SkillRequest(9L, "Java", null);
+
         request.setSkills(List.of(skill));
         request.setEducations(List.of());
         request.setCareers(List.of());
@@ -486,12 +477,10 @@ class ResumeServiceImplTest {
         doReturn(java.util.Set.of()).when(validator).validate(any(), any(Class[].class));
         doReturn(emptyContent()).when(resumeMapper).selectContentByUserId(1L);
 
-        SkillRequest first = new SkillRequest();
-        first.setId(9L);
-        first.setName("Java");
-        SkillRequest second = new SkillRequest();
-        second.setId(9L);
-        second.setName("Python");
+        SkillRequest first = new SkillRequest(9L, "Java", null);
+
+        SkillRequest second = new SkillRequest(9L, "Python", null);
+
         ResumeContentSaveRequest request = new ResumeContentSaveRequest();
         request.setSkills(List.of(first, second));
         request.setEducations(List.of());
@@ -546,15 +535,11 @@ class ResumeServiceImplTest {
         doReturn(java.util.Set.of()).when(validator).validate(any(), any(Class[].class));
         doReturn(emptyContent()).when(resumeMapper).selectContentByUserId(1L);
 
-        ResumePersonalInfoDTO personalInfo = new ResumePersonalInfoDTO();
-        personalInfo.setName("  张三  ");
-        personalInfo.setPhone("");
-        personalInfo.setHomepageUrl(" https://example.com ");
-        personalInfo.setPreferredWorkCity(" 上海 ");
+        ResumePersonalInfoDTO personalInfo = new ResumePersonalInfoDTO("  张三  ", "", " https://example.com ", " 上海 ");
+
         ResumeContentSaveRequest request = new ResumeContentSaveRequest();
-        SkillRequest skill = new SkillRequest();
-        skill.setId(9L);
-        skill.setName("Java");
+        SkillRequest skill = new SkillRequest(9L, "Java", null);
+
         request.setSkills(List.of(skill));
         request.setEducations(List.of());
         request.setCareers(List.of());
@@ -566,10 +551,10 @@ class ResumeServiceImplTest {
 
         ArgumentCaptor<UserUpdateRequest> update = ArgumentCaptor.forClass(UserUpdateRequest.class);
         verify(userService).updateProfile(eq(actor), eq(1L), update.capture());
-        assertEquals("  张三  ", update.getValue().getName());
-        assertEquals("", update.getValue().getPhone());
-        assertEquals(" https://example.com ", update.getValue().getWebsite());
-        assertEquals(" 上海 ", update.getValue().getPreferredWorkCity());
+        assertEquals("  张三  ", update.getValue().name());
+        assertEquals("", update.getValue().phone());
+        assertEquals(" https://example.com ", update.getValue().website());
+        assertEquals(" 上海 ", update.getValue().preferredWorkCity());
         verify(skillMapper, never()).selectById(any());
     }
 
@@ -582,9 +567,8 @@ class ResumeServiceImplTest {
         doReturn(foreign).when(skillMapper).selectById(9L);
         doReturn(java.util.Set.of()).when(validator).validate(any(), any(Class[].class));
 
-        SkillRequest skill = new SkillRequest();
-        skill.setId(9L);
-        skill.setName("Java");
+        SkillRequest skill = new SkillRequest(9L, "Java", null);
+
         ResumeContentSaveRequest request = new ResumeContentSaveRequest();
         request.setSkills(List.of(skill));
         request.setEducations(List.of());
@@ -604,9 +588,8 @@ class ResumeServiceImplTest {
         doReturn(null).when(skillMapper).selectById(9L);
         doReturn(java.util.Set.of()).when(validator).validate(any(), any(Class[].class));
 
-        SkillRequest skill = new SkillRequest();
-        skill.setId(9L);
-        skill.setName("Java");
+        SkillRequest skill = new SkillRequest(9L, "Java", null);
+
         ResumeContentSaveRequest request = new ResumeContentSaveRequest();
         request.setSkills(List.of(skill));
         request.setEducations(List.of());

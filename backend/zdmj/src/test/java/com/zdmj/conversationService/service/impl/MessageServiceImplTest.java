@@ -128,9 +128,7 @@ class MessageServiceImplTest {
 
     @Test
     void createStream_saveFailedOnUserMessage_shouldThrow9005() {
-        ChatStreamRequest dto = new ChatStreamRequest();
-        dto.setConversationId(301L);
-        dto.setMessage("hello");
+        ChatStreamRequest dto = new ChatStreamRequest(301L, "hello");
         Conversation conversation = new Conversation();
         conversation.setId(301L);
         conversation.setMessageCount(0);
@@ -147,9 +145,7 @@ class MessageServiceImplTest {
     @ParameterizedTest
     @MethodSource("titleCases")
     void login_createStream_successCompleted_shouldPersistTitleAndEmitDelta(String message, String title) {
-        ChatStreamRequest dto = new ChatStreamRequest();
-        dto.setConversationId(302L);
-        dto.setMessage(message);
+        ChatStreamRequest dto = new ChatStreamRequest(302L, message);
         Conversation conversation = new Conversation();
         conversation.setId(302L);
         conversation.setMessageCount(0);
@@ -194,9 +190,7 @@ class MessageServiceImplTest {
 
     @Test
     void login_createStream_secondInsertSaveFailed_shouldThrow9005() {
-        ChatStreamRequest dto = new ChatStreamRequest();
-        dto.setConversationId(303L);
-        dto.setMessage("q");
+        ChatStreamRequest dto = new ChatStreamRequest(303L, "q");
         Conversation conversation = new Conversation();
         conversation.setId(303L);
         conversation.setMessageCount(2);
@@ -214,9 +208,7 @@ class MessageServiceImplTest {
 
     @Test
     void reset_createStream_streamError_shouldPersistPartialAndEmitError() {
-        ChatStreamRequest dto = new ChatStreamRequest();
-        dto.setConversationId(304L);
-        dto.setMessage("ask");
+        ChatStreamRequest dto = new ChatStreamRequest(304L, "ask");
         Conversation conversation = new Conversation();
         conversation.setId(304L);
         conversation.setMessageCount(1);
@@ -240,9 +232,7 @@ class MessageServiceImplTest {
 
     @Test
     void update_createStream_updateFailedOnAssistantPersist_shouldEmitPersistError() {
-        ChatStreamRequest dto = new ChatStreamRequest();
-        dto.setConversationId(305L);
-        dto.setMessage("go");
+        ChatStreamRequest dto = new ChatStreamRequest(305L, "go");
         Conversation conversation = new Conversation();
         conversation.setId(305L);
         conversation.setMessageCount(1);
@@ -290,12 +280,8 @@ class MessageServiceImplTest {
         }).when(messageMapper).insert(any(Message.class));
         doReturn(1).when(messageMapper).updateById(any(Message.class));
 
-        ChatStreamRequest dto1 = new ChatStreamRequest();
-        dto1.setConversationId(conversationId);
-        dto1.setMessage("hello-1");
-        ChatStreamRequest dto2 = new ChatStreamRequest();
-        dto2.setConversationId(conversationId);
-        dto2.setMessage("hello-2");
+        ChatStreamRequest dto1 = new ChatStreamRequest(conversationId, "hello-1");
+        ChatStreamRequest dto2 = new ChatStreamRequest(conversationId, "hello-2");
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
@@ -325,9 +311,7 @@ class MessageServiceImplTest {
 
     @Test
     void createStream_shouldUseConversationConfigForRag() {
-        ChatStreamRequest dto = new ChatStreamRequest();
-        dto.setConversationId(306L);
-        dto.setMessage("ask");
+        ChatStreamRequest dto = new ChatStreamRequest(306L, "ask");
         Conversation conversation = new Conversation();
         conversation.setId(306L);
         conversation.setConfig(Map.of(
@@ -352,9 +336,7 @@ class MessageServiceImplTest {
 
     @Test
     void createStream_whenClientCancels_shouldPersistPartialAndStopUpstream() {
-        ChatStreamRequest dto = new ChatStreamRequest();
-        dto.setConversationId(307L);
-        dto.setMessage("wait");
+        ChatStreamRequest dto = new ChatStreamRequest(307L, "wait");
         Conversation conversation = new Conversation();
         conversation.setId(307L);
         conversation.setMessageCount(1);
