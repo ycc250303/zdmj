@@ -7,4 +7,28 @@
         WHERE conversation_id = #{conversationId}
         ORDER BY sequence ASC NULLS LAST, id ASC
     </select>
+    <select id="selectContextHistory" resultType="com.zdmj.conversationService.entity.Message">
+        WITH recent_questions AS (
+            SELECT id FROM messages
+            WHERE user_id = #{userId} AND conversation_id = #{conversationId} AND role = 1
+            ORDER BY sequence DESC LIMIT #{maxTurns}
+        )
+        SELECT m.* FROM messages m
+        WHERE m.user_id = #{userId} AND m.conversation_id = #{conversationId}
+          AND (m.id IN (SELECT id FROM recent_questions)
+            OR (m.role = 2 AND m.reply_to_message_id IN (SELECT id FROM recent_questions)))
+        ORDER BY m.sequence ASC
+    </select>
+    <select id="hasProcessing" resultType="boolean">
+        SELECT EXISTS (SELECT 1 FROM messages WHERE user_id = #{userId}
+            AND conversation_id = #{conversationId} AND role = 2 AND generation_status = 1)
+    </select>
+    <update id="finishAssistant">
+        UPDATE messages SET content = #{content}, generation_status = #{generationStatus}
+        WHERE id = #{id} AND user_id = #{userId} AND conversation_id = #{conversationId}
+          AND role = 2 AND generation_status = 1
+    </update>
+    <update id="recoverInterrupted">
+        UPDATE messages SET generation_status = 3 WHERE role = 2 AND generation_status = 1
+    </update>
 </mapper>

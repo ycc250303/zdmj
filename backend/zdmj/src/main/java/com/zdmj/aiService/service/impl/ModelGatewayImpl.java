@@ -1,11 +1,13 @@
 package com.zdmj.aiService.service.impl;
 
 import java.util.Map;
+import java.util.Objects;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.messages.AssistantMessage;
 
 import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
-import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.converter.StructuredOutputConverter;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -42,22 +44,19 @@ public class ModelGatewayImpl implements ModelGateway {
     private final PromptLoader promptLoader;
     private final UserModelConfigurationReader configurationReader;
     private final ModelClientFactory clients;
-    private final MessageChatMemoryAdvisor memoryAdvisor;
 
     /**
-     * 装配提示词、用户配置查询、供应商客户端和会话记忆。
+     * 装配提示词、用户配置查询和供应商客户端。
      *
      * @param promptLoader            提示词加载
      * @param configurationReader     用户模型配置读取与解密
      * @param clients                 供应商客户端参数
-     * @param chatMemory              会话记忆，由会话模块提供存储与窗口
      */
     public ModelGatewayImpl(PromptLoader promptLoader, UserModelConfigurationReader configurationReader,
-            ModelClientFactory clients, ChatMemory chatMemory) {
+            ModelClientFactory clients) {
         this.promptLoader = promptLoader;
         this.configurationReader = configurationReader;
         this.clients = clients;
-        this.memoryAdvisor = MessageChatMemoryAdvisor.builder(chatMemory).build();
     }
 
     /**
@@ -95,21 +94,12 @@ public class ModelGatewayImpl implements ModelGateway {
      * 流式生成文本。
      *
      * @param actor 当前操作者
-     * @param conversationId 非空的会话主键
      * @param request 模型请求
      * @return 文本流
      */
     @Override
-    public Flux<String> stream(CurrentActor actor, Long conversationId, ModelRequest request) {
-        if (conversationId == null) {
-            throw new IllegalArgumentException("会话主键不能为空");
-        }
-        return prepare(actor, request)
-                .advisors(advisor -> advisor.advisors(memoryAdvisor)
-                        .param(ChatMemory.CONVERSATION_ID, String.valueOf(conversationId)))
-                .user(request.message())
-                .stream()
-                .content();
+    public Flux<String> stream(CurrentActor actor, ModelRequest request) {
+        return prepare(actor, request).user(request.message()).stream().content();
     }
 
     /** 每次读取配置并构建无默认记忆的客户端；未配置时立即终止。 */
@@ -121,10 +111,20 @@ public class ModelGatewayImpl implements ModelGateway {
 
     private ChatClientRequestSpec prepare(CurrentActor actor, ModelRequest request) {
         requireActor(actor);
+        Objects.requireNonNull(request, "模型输入不能为空");
         ChatClientRequestSpec spec = userChatClient(actor).prompt();
-        if (StringUtils.hasText(request.promptName())) {
-            spec.system(renderPlaceholders(promptLoader.load(request.promptName()), request.promptVars()));
+        String system = StringUtils.hasText(request.promptName())
+                ? renderPlaceholders(promptLoader.load(request.promptName()), request.promptVars()) : "";
+        if (StringUtils.hasText(request.historyNotice())) {
+            system += "\n\n【历史回复完成情况】\n" + request.historyNotice();
         }
+        if (StringUtils.hasText(system)) {
+            spec.system(system);
+        }
+        spec.messages(request.history().stream().map(message -> switch (message.role()) {
+            case USER -> (Message) new UserMessage(message.content());
+            case ASSISTANT -> new AssistantMessage(message.content());
+        }).toList());
         return spec;
     }
 

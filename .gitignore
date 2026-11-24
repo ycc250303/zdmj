@@ -19,3 +19,9 @@ agents.md
 /backend/zdmj/src/test/resources/archunit_store
 /.pnpm-store
 /knowledge/
+
+# AOCI agent host integration (machine-bound; do not commit)
+.codex/config.toml
+.codex/config.toml.backup.*
+/.aoci
+*.txt

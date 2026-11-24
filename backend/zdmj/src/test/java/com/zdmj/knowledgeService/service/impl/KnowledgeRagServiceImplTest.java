@@ -59,12 +59,12 @@ class KnowledgeRagServiceImplTest {
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.streamAnswer(actor, 13L, "hello", null, false, null));
+                () -> service.streamAnswer(actor, 13L, answerRequest("hello", null), null, false));
 
         assertEquals(ErrorCode.KNOWLEDGE_RETRIEVAL_FAILED.getCode(), ex.getCode());
         assertInstanceOf(RuntimeException.class, ex.getCause());
         assertEquals("embed fail", ex.getCause().getMessage());
-        verify(modelGateway, never()).stream(any(), any(), any());
+        verify(modelGateway, never()).stream(any(), any());
         verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
     }
 
@@ -78,12 +78,12 @@ class KnowledgeRagServiceImplTest {
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
         when(knowledgeVectorMapper.searchBySimilarity(401L, 501L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of());
-        when(modelGateway.stream(same(actor), eq(13L), eq(new ModelRequest("hello", "system", null))))
+        when(modelGateway.stream(same(actor), eq(answerRequest("hello", "system"))))
                 .thenReturn(Flux.just("fallback-system"));
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
-        List<String> chunks = service.streamAnswer(actor, 13L, "hello", null, false, null).collectList().block();
+        List<String> chunks = service.streamAnswer(actor, 13L, answerRequest("hello", null), null, false).collectList().block();
 
         assertEquals(List.of("fallback-system"), chunks);
         verify(knowledgeVectorMapper).searchBySimilarity(401L, 501L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium());
@@ -100,15 +100,17 @@ class KnowledgeRagServiceImplTest {
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
 
         KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO(1L, 900L, 0, "关键知识片段", 0.9, Map.of("source", "test"), null);
+
         when(knowledgeVectorMapper.searchBySimilarity(402L, 502L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of(hit));
-        when(modelGateway.stream(same(actor), eq(14L), argThat((ModelRequest req) -> "hello question".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName()))))
+        when(modelGateway.stream(same(actor), argThat((ModelRequest req) -> "hello question".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName())
+                && req.history().equals(answerRequest("unused", null).history()) && "上一轮生成失败".equals(req.historyNotice()))))
                 .thenReturn(Flux.just("rag-answer"));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
-        List<String> chunks = service.streamAnswer(actor, 14L, "hello question", null, false, null).collectList().block();
+        List<String> chunks = service.streamAnswer(actor, 14L, answerRequest("hello question", null), null, false).collectList().block();
 
         assertEquals(List.of("rag-answer"), chunks);
         verify(knowledgeVectorMapper).searchBySimilarity(402L, 502L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium());
@@ -128,15 +130,17 @@ class KnowledgeRagServiceImplTest {
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.3f, 0.4f}));
 
         KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO(2L, 901L, 1, "命中内容", 0.91, null, null);
+
         when(knowledgeVectorMapper.searchBySimilarity(eq(403L), eq(503L), eq("[0.3,0.4]"), anyInt()))
                 .thenReturn(List.of(hit));
-        when(modelGateway.stream(same(actor), eq(15L), argThat((ModelRequest req) -> "raw question".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName()))))
+        when(modelGateway.stream(same(actor), argThat((ModelRequest req) -> "raw question".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName())
+                && req.history().equals(answerRequest("unused", null).history()) && "上一轮生成失败".equals(req.historyNotice()))))
                 .thenReturn(Flux.just("rewritten-rag-answer"));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
-        List<String> chunks = service.streamAnswer(actor, 15L, "raw question", null, false, null).collectList().block();
+        List<String> chunks = service.streamAnswer(actor, 15L, answerRequest("raw question", null), null, false).collectList().block();
 
         assertEquals(List.of("rewritten-rag-answer"), chunks);
         verify(embeddingGateway).embed(same(actor), eq(List.of("raw question")));
@@ -148,10 +152,10 @@ class KnowledgeRagServiceImplTest {
     void streamAnswerEmptyDocumentSelection_shouldFallbackSystemPrompt() {
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
-        when(modelGateway.stream(same(actor), eq(16L), eq(new ModelRequest("hello", "system", null))))
+        when(modelGateway.stream(same(actor), eq(answerRequest("hello", "system"))))
                 .thenReturn(Flux.just("no-rag"));
 
-        List<String> chunks = service.streamAnswer(actor, 16L, "hello", List.of(), false, null).collectList().block();
+        List<String> chunks = service.streamAnswer(actor, 16L, answerRequest("hello", null), List.of(), false).collectList().block();
 
         assertEquals(List.of("no-rag"), chunks);
         verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
@@ -167,16 +171,18 @@ class KnowledgeRagServiceImplTest {
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.5f, 0.6f}));
 
         KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO(3L, 902L, 0, "系统库片段", 0.88, null, null);
+
         when(knowledgeVectorMapper.searchBySimilarity(
                 KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.5,0.6]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of(hit));
-        when(modelGateway.stream(same(actor), eq(17L), argThat((ModelRequest req) -> "system only".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName()))))
+        when(modelGateway.stream(same(actor), argThat((ModelRequest req) -> "system only".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName())
+                && req.history().equals(answerRequest("unused", null).history()) && "上一轮生成失败".equals(req.historyNotice()))))
                 .thenReturn(Flux.just("system-rag"));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
-        List<String> chunks = service.streamAnswer(actor, 17L, "system only", List.of(), true, null).collectList().block();
+        List<String> chunks = service.streamAnswer(actor, 17L, answerRequest("system only", null), List.of(), true).collectList().block();
 
         assertEquals(List.of("system-rag"), chunks);
         verify(knowledgeVectorMapper).searchBySimilarity(
@@ -209,7 +215,7 @@ class KnowledgeRagServiceImplTest {
         assertEquals("rewrite fail", ex.getCause().getMessage());
         verify(embeddingGateway, never()).embed(any(), any());
         verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
-        verify(modelGateway, never()).stream(any(), any(), any());
+        verify(modelGateway, never()).stream(any(), any());
     }
 
     @Test
@@ -255,6 +261,7 @@ class KnowledgeRagServiceImplTest {
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.5f, 0.6f}));
 
         KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO(3L, 902L, 0, "系统库片段", 0.88, null, null);
+
         when(knowledgeVectorMapper.searchBySimilarity(
                 KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.5,0.6]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of(hit));
@@ -286,7 +293,9 @@ class KnowledgeRagServiceImplTest {
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.3f, 0.4f}));
 
         KnowledgeRetrivalDTO rawHit = new KnowledgeRetrivalDTO(21L, 901L, 0, null, 0.80, null, null);
+
         KnowledgeRetrivalDTO rewrittenHit = new KnowledgeRetrivalDTO(22L, 901L, 1, null, 0.91, null, null);
+
         when(knowledgeVectorMapper.searchBySimilarity(
                 eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(11L), eq("[0.3,0.4]"), anyInt()))
                 .thenReturn(List.of(rawHit))
@@ -318,6 +327,7 @@ class KnowledgeRagServiceImplTest {
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.3f, 0.4f}));
 
         KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO(31L, 901L, 0, null, 0.85, null, null);
+
         when(knowledgeVectorMapper.searchBySimilarity(
                 eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(11L), eq("[0.3,0.4]"), anyInt()))
                 .thenReturn(List.of(hit));
@@ -347,6 +357,7 @@ class KnowledgeRagServiceImplTest {
         List<KnowledgeRetrivalDTO> overflow = new ArrayList<>();
         for (int i = 0; i < topK + 3; i++) {
             KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO((long) i, 900L, i, null, 1.0 - i * 0.01, null, null);
+
             overflow.add(hit);
         }
         when(knowledgeVectorMapper.searchBySimilarity(
@@ -362,5 +373,11 @@ class KnowledgeRagServiceImplTest {
         assertEquals(0L, out.hits().get(0).id());
         assertEquals((long) (topK - 1), out.hits().get(topK - 1).id());
         verify(embeddingGateway).embed(same(actor), eq(List.of("hello question")));
+    }
+    private static ModelRequest answerRequest(String message, String prompt) {
+        return new ModelRequest(message, prompt, null,
+                List.of(new ModelRequest.HistoryMessage(ModelRequest.HistoryMessage.Role.USER, "之前的任务"),
+                        new ModelRequest.HistoryMessage(ModelRequest.HistoryMessage.Role.ASSISTANT, "部分回复")),
+                "上一轮生成失败");
     }
 }

@@ -17,7 +17,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -65,9 +64,6 @@ class UserLlmConfigFlowIT extends IntegrationTestBase {
     @Autowired
     @Qualifier("modelGatewayImpl")
     private ModelGatewayImpl gateway;
-
-    @Autowired
-    private ChatMemory chatMemory;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -151,7 +147,7 @@ class UserLlmConfigFlowIT extends IntegrationTestBase {
         assertThatThrownBy(() -> gateway.generate(actor, new ModelRequest("hi", null, null)))
                 .isInstanceOfSatisfying(BusinessException.class,
                         failure -> assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.USER_LLM_NOT_CONFIGURED));
-        assertThatThrownBy(() -> gateway.stream(actor, 11L, new ModelRequest("hi", null, null)))
+        assertThatThrownBy(() -> gateway.stream(actor, new ModelRequest("hi", null, null)))
                 .isInstanceOfSatisfying(BusinessException.class,
                         failure -> assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.USER_LLM_NOT_CONFIGURED));
     }
@@ -350,8 +346,7 @@ class UserLlmConfigFlowIT extends IntegrationTestBase {
 
     private void assertReplies(String expected) {
         assertThat(gateway.generate(actor, new ModelRequest("hi", null, null))).isEqualTo(expected);
-        chatMemory.clear("11");
-        assertThat(gateway.stream(actor, 11L, new ModelRequest("hi", null, null))
+        assertThat(gateway.stream(actor, new ModelRequest("hi", null, null))
                 .collectList().block(Duration.ofSeconds(10))).containsExactly(expected);
     }
 

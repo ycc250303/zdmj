@@ -115,6 +115,8 @@ public enum ErrorCode {
     MESSAGE_CREATE_FAILED(9005, "创建消息失败", HttpStatus.BAD_REQUEST),
     CONVERSATION_CONFIG_LOCKED(9006, "会话已开始对话，无法修改检索配置", HttpStatus.CONFLICT),
 
+    CONVERSATION_GENERATING(9007, "会话正在生成回复，请等待本轮结束", HttpStatus.CONFLICT),
+
     // ========== 岗位 jobService 100xx ==========
     JOB_NOT_FOUND(10001, "岗位不存在", HttpStatus.NOT_FOUND),
     // ========== 人岗匹配 matchService 110xx ==========

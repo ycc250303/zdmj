@@ -50,50 +50,54 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
     private final KnowledgeVectorMapper knowledgeVectorMapper;
     private final ModelGateway modelGateway;
 
-    /**
-     * 对话 RAG：retrieveRanked 出排序切块 → 无命中退回求职助手 → 有命中注入 {context} 后流式生成。
-     * 不写 messages 表。
+    /** 
+     * 检索知识并生成回复，三个检索分支使用同一份历史。
      *
-     * @param actor 已认证操作者，包含用户编号
+     * @param actor 已认证操作者
+     * @param conversationId 会话编号
+     * @param request 模型请求
+     * @param ragDocumentIds 私有文档范围，空列表关闭私有检索，null 表示全部
+     * @param useSystemKnowledge 是否检索系统知识库
+     * @return 模型增量文本，检索及生成错误立即传播
      */
     @Override
-    public Flux<String> streamAnswer(CurrentActor actor, Long conversationId, String userMessage, List<Long> ragDocumentIds,
-            boolean useSystemKnowledge, Map<String, Object> promptVars) {
-        Long userId = actor.userId();
-        Map<String, Object> chatPromptVars =
-                (promptVars == null || promptVars.isEmpty()) ? null : new HashMap<>(promptVars);
-
-        // --- 1. 两库都关：不检索、不改写，直接走求职助手 ---
-        if (ragDocumentIds != null && ragDocumentIds.isEmpty() && !useSystemKnowledge) {
-            return modelGateway.stream(actor,
-                    conversationId, new ModelRequest(userMessage, SYSTEM_PROMPT, chatPromptVars));
+    public Flux<String> streamAnswer(CurrentActor actor, Long conversationId, ModelRequest request,
+            List<Long> ragDocumentIds, boolean useSystemKnowledge) {
+        // 1. 准备提示词
+        String prompt = SYSTEM_PROMPT;
+        Map<String, Object> variables = request.promptVars() == null
+                ? null : new HashMap<>(request.promptVars());
+        // 注意，此处 ragDocumentIds == null 表示检索用户知识库 + 系统知识库全部文档
+        if (ragDocumentIds == null || !ragDocumentIds.isEmpty() || useSystemKnowledge) {
+            // 2. 检索
+            KnowledgeRetrievalResponse ranked = retrieveRanked(actor, request.message(), ragDocumentIds, useSystemKnowledge);
+            // 3. 获取符合条件的文段
+            List<KnowledgeRetrivalDTO> hits = ranked.hits() == null ? List.of() : ranked.hits();
+            if (!hits.isEmpty()) {
+                // 4. 记录检索明细
+                logRagRetrievalHits(hits, actor.userId(), conversationId);
+                // 5. 准备上下文
+                variables = variables == null ? new HashMap<>() : variables;
+                variables.put("context", buildContext(hits, ragConfig.getSearch().getContextBudget()));
+                // 6. 准备提示词
+                prompt = RAG_PROMPT;
+            }
+            // 7. 记录检索完成
+            log.info("RAG 检索完成 conversationId={} hitCount={}", conversationId, hits.size());
         }
-
-        // --- 2. 排序检索（改写 / embed / ANN / 合并截断） ---
-        KnowledgeRetrievalResponse ranked = retrieveRanked(actor, userMessage, ragDocumentIds, useSystemKnowledge);
-        List<KnowledgeRetrivalDTO> hits = ranked.hits() == null ? List.of() : ranked.hits();
-
-        // --- 3. 无命中不硬答：空 {context} 会诱导编造 ---
-        if (hits.isEmpty()) {
-            log.info("RAG 无有效命中，退回求职导师对话: userId={}, useSystemKnowledge={}, queryLen={}",
-                    userId, useSystemKnowledge, ranked.query() == null ? 0 : ranked.query().length());
-            return modelGateway.stream(actor,
-                    conversationId, new ModelRequest(ranked.query(), SYSTEM_PROMPT, chatPromptVars));
-        }
-
-        // --- 4. 用排序切块拼 {context}，user 消息仍用原文 ---
-        logRagRetrievalHits(hits, userId, conversationId);
-        Map<String, Object> ragPromptVars = chatPromptVars == null ? new HashMap<>() : new HashMap<>(chatPromptVars);
-        ragPromptVars.put("context", buildContext(hits, ragConfig.getSearch().getContextBudget()));
-        log.info("RAG 检索命中 {} 条片段，进入生成阶段 conversationId={}", hits.size(), conversationId);
-        return modelGateway.stream(actor,
-                conversationId, new ModelRequest(ranked.query(), RAG_PROMPT, ragPromptVars));
+        // 8. 返回模型流
+        return modelGateway.stream(actor, new ModelRequest(request.message(), prompt, variables,
+                request.history(), request.historyNotice()));
     }
 
     /**
      * 排序层：改写 → 每句一次 embed → 双库 ANN → 去重留高分 → 截断 topK。
      *
      * @param actor 已认证操作者，包含用户编号
+     * @param userMessage 用户问题
+     * @param ragDocumentIds 私有文档范围，空列表关闭私有检索，null 表示全部
+     * @param useSystemKnowledge 是否检索系统知识库
+     * @return 知识检索响应
      */
     @Override
     public KnowledgeRetrievalResponse retrieveRanked(CurrentActor actor, String userMessage, List<Long> ragDocumentIds,
@@ -276,7 +280,14 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         return new ArrayList<>(sorted.subList(0, topK));
     }
 
+    /**
+     * 记录检索明细
+     * @param hits 检索命中结果
+     * @param userId 用户编号
+     * @param conversationId 会话编号
+     */
     private void logRagRetrievalHits(List<KnowledgeRetrivalDTO> hits, Long userId, Long conversationId) {
+        // 1. 记录检索明细
         int n = hits.size();
         log.info("RAG 检索明细: conversationId={} userId={} hitCount={}", conversationId, userId, n);
         for (int i = 0; i < n; i++) {

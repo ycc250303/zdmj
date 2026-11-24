@@ -20,7 +20,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ChatClient.CallResponseSpec;
 import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec;
-import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.converter.StructuredOutputConverter;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -124,8 +123,7 @@ class ModelGatewayStructuredParseTest {
         private final ChatClient fixedClient;
 
         private FixedClientGateway(PromptLoader promptLoader, ChatClient fixedClient) {
-            super(promptLoader, mock(UserModelConfigurationReader.class), mock(ModelClientFactory.class),
-                    mock(ChatMemory.class));
+            super(promptLoader, mock(UserModelConfigurationReader.class), mock(ModelClientFactory.class));
             this.fixedClient = fixedClient;
         }
 

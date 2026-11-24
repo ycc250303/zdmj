@@ -1,6 +1,7 @@
 package com.zdmj.conversationService.service.impl;
 
 import com.zdmj.common.context.CurrentActor;
+import com.zdmj.aiService.api.ModelRequest;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -21,12 +22,6 @@ import static org.mockito.Mockito.verify;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
@@ -36,7 +31,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.codec.ServerSentEvent;
@@ -55,7 +49,7 @@ import com.zdmj.conversationService.entity.Message;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.support.ConversationContextSupport;
-import com.zdmj.knowledgeService.service.KnowledgeRagService;
+import com.zdmj.knowledgeService.service.KnowledgeAnswerService;
 
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
@@ -72,7 +66,7 @@ class MessageServiceImplTest {
     @Mock
     private ConversationMapper conversationMapper;
     @Mock
-    private KnowledgeRagService knowledgeRagService;
+    private KnowledgeAnswerService knowledgeAnswerService;
     @Mock
     private TransactionTemplate transactionTemplate;
 
@@ -84,11 +78,18 @@ class MessageServiceImplTest {
             TransactionCallback<?> callback = invocation.getArgument(0);
             return callback.doInTransaction(new SimpleTransactionStatus());
         });
+        lenient().when(conversationMapper.selectOwnedForUpdate(anyLong(), anyLong())).thenAnswer(inv -> {
+            Conversation c = new Conversation();
+            c.setId(inv.getArgument(0));
+            c.setUserId(inv.getArgument(1));
+            c.setMessageCount(0);
+            return c;
+        });
         messageService = new MessageServiceImpl(
                 messageMapper,
                 conversationService,
                 conversationMapper,
-                knowledgeRagService,
+                knowledgeAnswerService,
                 transactionTemplate);
         lenient().doReturn(2).when(conversationMapper).incrementMessageCountAndGet(anyLong(), anyLong(), anyInt());
         lenient().doReturn(1).when(conversationMapper).updateTitleByIdAndUserId(anyLong(), anyLong(), anyString());
@@ -129,6 +130,7 @@ class MessageServiceImplTest {
     @Test
     void createStream_saveFailedOnUserMessage_shouldThrow9005() {
         ChatStreamRequest dto = new ChatStreamRequest(301L, "hello");
+
         Conversation conversation = new Conversation();
         conversation.setId(301L);
         conversation.setMessageCount(0);
@@ -146,6 +148,7 @@ class MessageServiceImplTest {
     @MethodSource("titleCases")
     void login_createStream_successCompleted_shouldPersistTitleAndEmitDelta(String message, String title) {
         ChatStreamRequest dto = new ChatStreamRequest(302L, message);
+
         Conversation conversation = new Conversation();
         conversation.setId(302L);
         conversation.setMessageCount(0);
@@ -154,17 +157,15 @@ class MessageServiceImplTest {
         doReturn(Flux.defer(() -> {
             assertFalse(Thread.currentThread() == caller);
             return Flux.just("he", "llo");
-        }).subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic())).when(knowledgeRagService)
-                .streamAnswer(same(actor), eq(302L), eq(message), isNull(), eq(false), isNull());
+        }).subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic())).when(knowledgeAnswerService)
+                .streamAnswer(same(actor), eq(302L), eq(new ModelRequest(message, null, null)), isNull(), eq(false));
         AtomicInteger insertTimes = new AtomicInteger(0);
         org.mockito.Mockito.doAnswer(invocation -> {
             Message m = invocation.getArgument(0);
-            if (insertTimes.incrementAndGet() == 2) {
-                m.setId(900L);
-            }
+            m.setId((long) insertTimes.incrementAndGet());
             return 1;
         }).when(messageMapper).insert(any(Message.class));
-        doReturn(1).when(messageMapper).updateById(any(Message.class));
+        doReturn(1).when(messageMapper).finishAssistant(anyLong(), anyLong(), anyLong(), anyString(), anyInt());
 
         List<ServerSentEvent<String>> events = messageService.createStream(actor, dto).collectList().block();
 
@@ -173,10 +174,7 @@ class MessageServiceImplTest {
         assertTrue(events.get(0).data().contains("\"he\""));
         assertEquals("delta", events.get(1).event());
         assertTrue(events.get(1).data().contains("\"llo\""));
-        ArgumentCaptor<Message> assistantCaptor = ArgumentCaptor.forClass(Message.class);
-        verify(messageMapper).updateById(assistantCaptor.capture());
-        assertEquals("hello", assistantCaptor.getValue().getContent());
-        assertEquals(actor.userId(), assistantCaptor.getValue().getUserId());
+        verify(messageMapper).finishAssistant(anyLong(), eq(actor.userId()), eq(302L), eq("hello"), eq(2));
         verify(conversationMapper).updateTitleByIdAndUserId(302L, 1L, title);
     }
 
@@ -191,12 +189,17 @@ class MessageServiceImplTest {
     @Test
     void login_createStream_secondInsertSaveFailed_shouldThrow9005() {
         ChatStreamRequest dto = new ChatStreamRequest(303L, "q");
+
         Conversation conversation = new Conversation();
         conversation.setId(303L);
         conversation.setMessageCount(2);
         doReturn(conversation).when(conversationService).requireOwned(actor, 303L);
         AtomicInteger insertTimes = new AtomicInteger(0);
-        org.mockito.Mockito.doAnswer(invocation -> insertTimes.incrementAndGet() == 1 ? 1 : 0)
+        org.mockito.Mockito.doAnswer(invocation -> {
+            Message m = invocation.getArgument(0);
+            m.setId(1L);
+            return insertTimes.incrementAndGet() == 1 ? 1 : 0;
+        })
                 .when(messageMapper).insert(any(Message.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> messageService.createStream(actor, dto));
@@ -209,158 +212,153 @@ class MessageServiceImplTest {
     @Test
     void reset_createStream_streamError_shouldPersistPartialAndEmitError() {
         ChatStreamRequest dto = new ChatStreamRequest(304L, "ask");
+
         Conversation conversation = new Conversation();
         conversation.setId(304L);
         conversation.setMessageCount(1);
         doReturn(conversation).when(conversationService).requireOwned(actor, 304L);
         org.mockito.Mockito.doAnswer(invocation -> {
             Message m = invocation.getArgument(0);
-            if (m.getRole() == 2) {
-                m.setId(901L);
-            }
+            m.setId(m.getRole() == 2 ? 901L : 1L);
             return 1;
         }).when(messageMapper).insert(any(Message.class));
-        doReturn(1).when(messageMapper).updateById(any(Message.class));
+        doReturn(1).when(messageMapper).finishAssistant(anyLong(), anyLong(), anyLong(), anyString(), anyInt());
         doReturn(Flux.concat(Flux.just("x"), Flux.error(new RuntimeException("boom"))))
-                .when(knowledgeRagService).streamAnswer(eq(new CurrentActor(1L)), eq(304L), eq("ask"), isNull(), eq(false), isNull());
+                .when(knowledgeAnswerService).streamAnswer(eq(new CurrentActor(1L)), eq(304L), eq(new ModelRequest("ask", null, null)), isNull(), eq(false));
 
         assertThrows(RuntimeException.class, () -> messageService.createStream(actor, dto).collectList().block());
-        ArgumentCaptor<Message> assistantCaptor = ArgumentCaptor.forClass(Message.class);
-        verify(messageMapper).updateById(assistantCaptor.capture());
-        assertEquals("x", assistantCaptor.getValue().getContent());
+        verify(messageMapper).finishAssistant(eq(901L), eq(1L), eq(304L), eq("x"), eq(3));
     }
 
     @Test
     void update_createStream_updateFailedOnAssistantPersist_shouldEmitPersistError() {
         ChatStreamRequest dto = new ChatStreamRequest(305L, "go");
+
         Conversation conversation = new Conversation();
         conversation.setId(305L);
         conversation.setMessageCount(1);
         doReturn(conversation).when(conversationService).requireOwned(actor, 305L);
         org.mockito.Mockito.doAnswer(invocation -> {
             Message m = invocation.getArgument(0);
-            if (m.getRole() == 2) {
-                m.setId(902L);
-            }
+            m.setId(m.getRole() == 2 ? 902L : 1L);
             return 1;
         }).when(messageMapper).insert(any(Message.class));
-        doReturn(Flux.just("ok")).when(knowledgeRagService)
-                .streamAnswer(eq(new CurrentActor(1L)), eq(305L), eq("go"), isNull(), eq(false), isNull());
-        doReturn(0).when(messageMapper).updateById(any(Message.class));
+        doReturn(Flux.just("ok")).when(knowledgeAnswerService)
+                .streamAnswer(eq(new CurrentActor(1L)), eq(305L), eq(new ModelRequest("go", null, null)), isNull(), eq(false));
+        doReturn(0).when(messageMapper).finishAssistant(anyLong(), anyLong(), anyLong(), anyString(), anyInt());
 
         assertThrows(RuntimeException.class, () -> messageService.createStream(actor, dto).collectList().block());
-        verify(messageMapper).updateById(any(Message.class));
+        verify(messageMapper).finishAssistant(anyLong(), anyLong(), anyLong(), anyString(), anyInt());
     }
 
     @Test
-    void createStream_concurrentSameConversation_shouldAllocateUniqueSequentialSequences() throws Exception {
-        Long conversationId = 400L;
+    void createStream_sameConversationProcessing_shouldRejectBeforeInserting() {
         Conversation conversation = new Conversation();
-        conversation.setId(conversationId);
-        conversation.setMessageCount(0);
-        doReturn(conversation).when(conversationService).requireOwned(actor, conversationId);
+        conversation.setId(400L);
+        doReturn(conversation).when(conversationService).requireOwned(actor, 400L);
+        doReturn(true).when(messageMapper).hasProcessing(1L, 400L);
+        ChatStreamRequest dto = new ChatStreamRequest(400L, "hello");
 
-        doReturn(Flux.just("ok")).when(knowledgeRagService)
-                .streamAnswer(eq(new CurrentActor(1L)), eq(conversationId), anyString(), isNull(), eq(false), isNull());
-
-        AtomicInteger counter = new AtomicInteger(0);
-        doReturn(1).when(conversationMapper).updateTitleByIdAndUserId(eq(conversationId), anyLong(), anyString());
-        org.mockito.Mockito.doAnswer(inv -> counter.addAndGet(2))
-                .when(conversationMapper).incrementMessageCountAndGet(eq(conversationId), anyLong(), eq(2));
-
-        ConcurrentLinkedQueue<Integer> insertedSequences = new ConcurrentLinkedQueue<>();
-        AtomicInteger assistantIdSeed = new AtomicInteger(10000);
-        org.mockito.Mockito.doAnswer(invocation -> {
-            Message m = invocation.getArgument(0);
-            insertedSequences.add(m.getSequence());
-            if (m.getRole() != null && m.getRole() == 2) {
-                m.setId((long) assistantIdSeed.incrementAndGet());
-            }
-            return 1;
-        }).when(messageMapper).insert(any(Message.class));
-        doReturn(1).when(messageMapper).updateById(any(Message.class));
-
-        ChatStreamRequest dto1 = new ChatStreamRequest(conversationId, "hello-1");
-        ChatStreamRequest dto2 = new ChatStreamRequest(conversationId, "hello-2");
-
-        ExecutorService pool = Executors.newFixedThreadPool(2);
-        try {
-            Future<List<ServerSentEvent<String>>> f1 = pool.submit(() -> messageService.createStream(actor, dto1).collectList().block());
-            Future<List<ServerSentEvent<String>>> f2 = pool.submit(() -> messageService.createStream(actor, dto2).collectList().block());
-
-            List<ServerSentEvent<String>> e1 = f1.get(5, TimeUnit.SECONDS);
-            List<ServerSentEvent<String>> e2 = f2.get(5, TimeUnit.SECONDS);
-            assertFalse(e1 == null || e1.isEmpty());
-            assertFalse(e2 == null || e2.isEmpty());
-
-            assertEquals(4, insertedSequences.size());
-            Set<Integer> seqSet = Set.copyOf(insertedSequences);
-            assertEquals(4, seqSet.size());
-            assertTrue(seqSet.containsAll(Set.of(1, 2, 3, 4)));
-
-            verify(conversationMapper, times(2))
-                    .incrementMessageCountAndGet(eq(conversationId), anyLong(), eq(2));
-            verify(conversationMapper, times(1))
-                    .updateTitleByIdAndUserId(eq(conversationId), anyLong(),
-                            org.mockito.ArgumentMatchers.argThat(title -> Set.of("hello-1", "hello-2").contains(title)));
-        } finally {
-            pool.shutdown();
-            pool.awaitTermination(5, TimeUnit.SECONDS);
-        }
+        assertEquals(ErrorCode.CONVERSATION_GENERATING, assertThrows(BusinessException.class,
+                () -> messageService.createStream(actor, dto)).getErrorCode());
+        verify(messageMapper, never()).insert(any(Message.class));
     }
 
     @Test
     void createStream_shouldUseConversationConfigForRag() {
         ChatStreamRequest dto = new ChatStreamRequest(306L, "ask");
+
         Conversation conversation = new Conversation();
         conversation.setId(306L);
         conversation.setConfig(Map.of(
                 ConversationContextSupport.CONFIG_USE_SYSTEM_KNOWLEDGE, true,
                 ConversationContextSupport.CONFIG_RAG_DOCUMENT_IDS, List.of(9L)));
         doReturn(conversation).when(conversationService).requireOwned(actor, 306L);
+        doReturn(conversation).when(conversationMapper).selectOwnedForUpdate(306L, 1L);
         doReturn(4).when(conversationMapper).incrementMessageCountAndGet(eq(306L), anyLong(), eq(2));
         org.mockito.Mockito.doAnswer(invocation -> {
             Message m = invocation.getArgument(0);
-            if (m.getRole() == 2) {
-                m.setId(903L);
-            }
+            m.setId(m.getRole() == 2 ? 903L : 1L);
             return 1;
         }).when(messageMapper).insert(any(Message.class));
-        doReturn(1).when(messageMapper).updateById(any(Message.class));
-        doReturn(Flux.just("ok")).when(knowledgeRagService).streamAnswer(eq(new CurrentActor(1L)), eq(306L), eq("ask"), eq(List.of(9L)), eq(true), isNull());
+        doReturn(1).when(messageMapper).finishAssistant(anyLong(), anyLong(), anyLong(), anyString(), anyInt());
+        doReturn(Flux.just("ok")).when(knowledgeAnswerService).streamAnswer(eq(new CurrentActor(1L)), eq(306L), eq(new ModelRequest("ask", null, null)), eq(List.of(9L)), eq(true));
 
         messageService.createStream(actor, dto).collectList().block();
 
-        verify(knowledgeRagService).streamAnswer(eq(new CurrentActor(1L)), eq(306L), eq("ask"), eq(List.of(9L)), eq(true), isNull());
+        verify(knowledgeAnswerService).streamAnswer(eq(new CurrentActor(1L)), eq(306L), eq(new ModelRequest("ask", null, null)), eq(List.of(9L)), eq(true));
     }
 
     @Test
     void createStream_whenClientCancels_shouldPersistPartialAndStopUpstream() {
         ChatStreamRequest dto = new ChatStreamRequest(307L, "wait");
+
         Conversation conversation = new Conversation();
         conversation.setId(307L);
         conversation.setMessageCount(1);
         doReturn(conversation).when(conversationService).requireOwned(actor, 307L);
         org.mockito.Mockito.doAnswer(invocation -> {
             Message message = invocation.getArgument(0);
-            if (message.getRole() == 2) {
-                message.setId(904L);
-            }
+            message.setId(message.getRole() == 2 ? 904L : 1L);
             return 1;
         }).when(messageMapper).insert(any(Message.class));
-        doReturn(1).when(messageMapper).updateById(any(Message.class));
+        doReturn(1).when(messageMapper).finishAssistant(anyLong(), anyLong(), anyLong(), anyString(), anyInt());
         java.util.concurrent.atomic.AtomicBoolean upstreamCancelled = new java.util.concurrent.atomic.AtomicBoolean(false);
         doReturn(Flux.concat(Flux.just("部分"), Flux.never()).doOnCancel(() -> upstreamCancelled.set(true)))
-                .when(knowledgeRagService)
-                .streamAnswer(eq(new CurrentActor(1L)), eq(307L), eq("wait"), isNull(), eq(false), isNull());
+                .when(knowledgeAnswerService)
+                .streamAnswer(eq(new CurrentActor(1L)), eq(307L), eq(new ModelRequest("wait", null, null)), isNull(), eq(false));
 
         Disposable subscription = messageService.createStream(actor, dto).subscribe();
         subscription.dispose();
 
-        ArgumentCaptor<Message> assistantCaptor = ArgumentCaptor.forClass(Message.class);
-        verify(messageMapper).updateById(assistantCaptor.capture());
-        assertEquals("部分", assistantCaptor.getValue().getContent());
+        verify(messageMapper).finishAssistant(eq(904L), eq(1L), eq(307L), eq("部分"), eq(4));
         assertTrue(upstreamCancelled.get());
         verify(transactionTemplate, times(2)).execute(any());
+    }
+
+    @Test
+    void createStream_synchronousRetrievalFailure_shouldSaveFailedStateAndPropagate() {
+        var request = prepareStream(401L);
+        doThrow(new IllegalStateException("检索服务不可用")).when(knowledgeAnswerService)
+                .streamAnswer(eq(actor), eq(401L), any(ModelRequest.class), isNull(), eq(false));
+        assertThrows(IllegalStateException.class, () -> messageService.createStream(actor, request).collectList().block());
+        verify(messageMapper).finishAssistant(anyLong(), eq(1L), eq(401L), eq(""), eq(3));
+    }
+
+    @Test
+    void createStream_modelAndPersistenceFail_shouldPropagateDatabaseCauseWithModelFailure() {
+        var request = prepareStream(402L);
+        doReturn(Flux.error(new IllegalArgumentException("模型异常"))).when(knowledgeAnswerService)
+                .streamAnswer(eq(actor), eq(402L), any(ModelRequest.class), isNull(), eq(false));
+        doThrow(new IllegalStateException("数据库异常")).when(messageMapper)
+                .finishAssistant(anyLong(), anyLong(), anyLong(), anyString(), anyInt());
+        var error = assertThrows(IllegalStateException.class,
+                () -> messageService.createStream(actor, request).collectList().block());
+        assertEquals("数据库异常", error.getMessage());
+        assertTrue(java.util.Arrays.stream(error.getSuppressed()).anyMatch(e -> "模型异常".equals(e.getMessage())));
+    }
+
+    @Test
+    void createStream_insertDoesNotFillId_shouldStopBeforeAnswer() {
+        var request = prepareStream(403L);
+        doReturn(1).when(messageMapper).insert(any(Message.class));
+        assertThrows(IllegalStateException.class, () -> messageService.createStream(actor, request));
+        verify(knowledgeAnswerService, never()).streamAnswer(any(), any(), any(), any(), org.mockito.ArgumentMatchers.anyBoolean());
+    }
+
+    private ChatStreamRequest prepareStream(long id) {
+        var conversation = new Conversation();
+        conversation.setId(id);
+        doReturn(conversation).when(conversationService).requireOwned(actor, id);
+        AtomicInteger ids = new AtomicInteger();
+        lenient().doAnswer(inv -> {
+            Message message = inv.getArgument(0);
+            message.setId((long) ids.incrementAndGet());
+            return 1;
+        }).when(messageMapper).insert(any(Message.class));
+        lenient().doReturn(1).when(messageMapper).finishAssistant(anyLong(), anyLong(), anyLong(), anyString(), anyInt());
+        var request = new ChatStreamRequest(id, "任务");
+
+        return request;
     }
 }

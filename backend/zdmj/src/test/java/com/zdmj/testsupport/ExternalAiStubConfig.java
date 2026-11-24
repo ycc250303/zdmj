@@ -7,7 +7,6 @@ import java.util.List;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.model.ChatModel;
@@ -135,8 +134,8 @@ public class ExternalAiStubConfig {
     @Bean
     @Primary
     ModelGateway testModelGateway(PromptLoader promptLoader, UserModelConfigurationReader configurationReader,
-            ModelClientFactory clients, ChatMemory chatMemory, ChatModel chatModel) {
-        return new StubModelGateway(promptLoader, configurationReader, clients, chatMemory, chatModel);
+            ModelClientFactory clients, ChatModel chatModel) {
+        return new StubModelGateway(promptLoader, configurationReader, clients, chatModel);
     }
 
     @Bean
@@ -257,8 +256,8 @@ public class ExternalAiStubConfig {
         private final ChatClient plain;
 
         StubModelGateway(PromptLoader promptLoader, UserModelConfigurationReader configurationReader,
-                ModelClientFactory clients, ChatMemory chatMemory, ChatModel chatModel) {
-            super(promptLoader, configurationReader, clients, chatMemory);
+                ModelClientFactory clients, ChatModel chatModel) {
+            super(promptLoader, configurationReader, clients);
             this.plain = ChatClient.builder(chatModel).build();
         }
 

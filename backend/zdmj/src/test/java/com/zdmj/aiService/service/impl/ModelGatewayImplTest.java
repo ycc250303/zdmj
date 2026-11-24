@@ -17,8 +17,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.model.ChatModel;
@@ -50,8 +48,6 @@ class ModelGatewayImplTest {
     private UserModelConfigurationReader configurationReader;
     @Mock
     private ModelClientFactory clients;
-    @Mock
-    private ChatMemory chatMemory;
 
     @Test
     void generate_whenUserNotConfigured_shouldThrowAndNotBuildClient() {
@@ -85,14 +81,14 @@ class ModelGatewayImplTest {
 
         assertThrows(IllegalArgumentException.class,
                 () -> gateway.generateStructured(new CurrentActor(1L), input, null));
-        assertThrows(IllegalArgumentException.class,
-                () -> gateway.stream(new CurrentActor(1L), null, input));
+        assertThrows(NullPointerException.class,
+                () -> gateway.stream(new CurrentActor(1L), null));
 
-        verifyNoInteractions(configurationReader, clients, promptLoader, chatMemory);
+        verifyNoInteractions(configurationReader, clients, promptLoader);
     }
 
     @Test
-    void calls_shouldReadCurrentConfigurationAndOnlyRememberConversationMessages() {
+    void calls_shouldReadCurrentConfigurationAndUseExplicitHistoryWithoutLeaking() {
         CurrentActor actor = new CurrentActor(1L);
         var first = new ResolvedConfiguration(
                 ModelCode.DEEPSEEK_FLASH, "first-key");
@@ -108,17 +104,24 @@ class ModelGatewayImplTest {
         when(model.stream(any(Prompt.class)))
                 .thenReturn(Flux.just(reply));
         when(clients.buildUserModel(any(), any())).thenReturn(model);
-        var memory = MessageWindowChatMemory.builder().build();
-        var gateway = new ModelGatewayImpl(promptLoader, configurationReader, clients, memory);
+        var gateway = new ModelGatewayImpl(promptLoader, configurationReader, clients);
 
-        assertEquals("reply", gateway.stream(actor, 11L, new ModelRequest("first", null, null))
+        assertEquals("reply", gateway.stream(actor, new ModelRequest("first", null, null,
+                List.of(new ModelRequest.HistoryMessage(ModelRequest.HistoryMessage.Role.USER, "previous"),
+                        new ModelRequest.HistoryMessage(ModelRequest.HistoryMessage.Role.ASSISTANT, "partial")),
+                "历史回复生成失败"))
                 .collectList().block(Duration.ofSeconds(5)).getFirst());
         assertEquals("reply", gateway.generate(actor, new ModelRequest("plain", null, null)));
-        assertEquals("reply", gateway.stream(actor, 12L, new ModelRequest("second", null, null))
+        assertEquals("reply", gateway.stream(actor, new ModelRequest("second", null, null))
                 .collectList().block(Duration.ofSeconds(5)).getFirst());
-        assertEquals(List.of("first", "reply"), memory.get("11").stream()
+        var streams = ArgumentCaptor.forClass(Prompt.class);
+        verify(model, org.mockito.Mockito.times(2)).stream(streams.capture());
+        assertEquals(List.of("previous", "partial", "first"), streams.getAllValues().getFirst().getInstructions()
+                .stream().filter(m -> m.getMessageType() != org.springframework.ai.chat.messages.MessageType.SYSTEM)
                 .map(Message::getText).toList());
-        assertEquals(List.of("second", "reply"), memory.get("12").stream()
+        org.junit.jupiter.api.Assertions.assertTrue(streams.getAllValues().getFirst().getSystemMessage()
+                .getText().contains("历史回复生成失败"));
+        assertEquals(List.of("second"), streams.getAllValues().getLast().getInstructions().stream()
                 .map(Message::getText).toList());
         var prompt = ArgumentCaptor.forClass(Prompt.class);
         verify(model).call(prompt.capture());
@@ -130,8 +133,28 @@ class ModelGatewayImplTest {
                 () -> gateway.generate(actor, new ModelRequest("deleted", null, null))).getErrorCode());
     }
 
+    @Test
+    void modelRequest_shouldCopyHistoryAndVariablesAndRejectInvalidHistory() {
+        var history = new java.util.ArrayList<ModelRequest.HistoryMessage>();
+        history.add(new ModelRequest.HistoryMessage(ModelRequest.HistoryMessage.Role.USER, "任务"));
+        var variables = new java.util.HashMap<String, Object>();
+        variables.put("context", "资料");
+        var request = new ModelRequest("继续", "system", variables, history, "生成失败");
+        history.clear();
+        variables.clear();
+        assertEquals(1, request.history().size());
+        assertEquals("资料", request.promptVars().get("context"));
+        assertThrows(UnsupportedOperationException.class, () -> request.history().clear());
+        assertThrows(UnsupportedOperationException.class, () -> request.promptVars().clear());
+        assertThrows(NullPointerException.class, () -> new ModelRequest("继续", null, null, null, ""));
+        assertThrows(NullPointerException.class, () -> new ModelRequest("继续", null, null, List.of(), null));
+        assertThrows(NullPointerException.class, () -> new ModelRequest.HistoryMessage(null, "任务"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new ModelRequest.HistoryMessage(ModelRequest.HistoryMessage.Role.USER, " "));
+    }
+
     private ModelGatewayImpl gateway() {
-        return new ModelGatewayImpl(promptLoader, configurationReader, clients, chatMemory);
+        return new ModelGatewayImpl(promptLoader, configurationReader, clients);
     }
 
     private static final class Sample {

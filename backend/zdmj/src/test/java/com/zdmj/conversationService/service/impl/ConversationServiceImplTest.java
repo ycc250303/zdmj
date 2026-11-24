@@ -16,7 +16,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.ai.chat.memory.ChatMemory;
 
 import java.util.HashMap;
 import java.util.List;
@@ -42,19 +41,18 @@ class ConversationServiceImplTest {
     private ConversationMapper conversationMapper;
     @Mock
     private MessageMapper messageMapper;
-    @Mock
-    private ChatMemory chatMemory;
 
     private ConversationServiceImpl conversationService;
 
     @BeforeEach
     void setUp() {
-        conversationService = new ConversationServiceImpl(conversationMapper, messageMapper, chatMemory);
+        conversationService = new ConversationServiceImpl(conversationMapper, messageMapper);
     }
 
     @Test
     void createConversation_withDto_shouldReturnConversationAndMessageCountZero() {
         ConversationRequest dto = new ConversationRequest(Map.of("model", "gpt"));
+
         doAnswer(invocation -> {
             Conversation saved = invocation.getArgument(0);
             saved.setId(1L);
@@ -208,6 +206,7 @@ class ConversationServiceImplTest {
         owned.setId(21L);
         owned.setUserId(1L);
         when(conversationMapper.selectById(21L)).thenReturn(owned);
+        when(conversationMapper.selectOwnedForUpdate(21L, 1L)).thenReturn(owned);
         when(messageMapper.delete(any(Wrapper.class))).thenReturn(0);
         when(conversationMapper.delete(any(Wrapper.class))).thenReturn(0);
 
@@ -216,12 +215,11 @@ class ConversationServiceImplTest {
         assertEquals(ErrorCode.CONVERSATION_DELETE_FAILED.getCode(), ex.getCode());
         assertEquals(ErrorCode.CONVERSATION_DELETE_FAILED.getMessage(), ex.getMessage());
         verify(messageMapper).delete(any(Wrapper.class));
-        verify(chatMemory).clear("21");
         verify(conversationMapper).delete(any(Wrapper.class));
     }
 
     @Test
-    void delete_shouldClearMessagesAndChatMemory() {
+    void delete_shouldLockConversationAndClearMessages() {
         Conversation owned = new Conversation();
         owned.setId(24L);
         owned.setUserId(1L);
@@ -229,10 +227,11 @@ class ConversationServiceImplTest {
         when(messageMapper.delete(any(Wrapper.class))).thenReturn(3);
         when(conversationMapper.delete(any(Wrapper.class))).thenReturn(1);
 
+        when(conversationMapper.selectOwnedForUpdate(24L, 1L)).thenReturn(owned);
         conversationService.delete(actor, 24L);
 
+        verify(conversationMapper).selectOwnedForUpdate(24L, 1L);
         verify(messageMapper).delete(any(Wrapper.class));
-        verify(chatMemory).clear("24");
         verify(conversationMapper).delete(any(Wrapper.class));
     }
 
@@ -249,7 +248,6 @@ class ConversationServiceImplTest {
         assertEquals(ErrorCode.NO_PERMISSION.getMessage(), ex.getMessage());
         verify(conversationMapper, never()).delete(any(Wrapper.class));
         verify(messageMapper, never()).delete(any(Wrapper.class));
-        verify(chatMemory, never()).clear(any());
     }
 
     @Test

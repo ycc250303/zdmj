@@ -17,6 +17,13 @@ import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.service.MessageService;
 import com.zdmj.conversationService.support.ConversationContextSupport;
 import com.zdmj.knowledgeService.service.KnowledgeRagService;
+import com.zdmj.aiService.api.ModelRequest;
+import com.zdmj.aiService.api.ModelRequest.HistoryMessage;
+import com.zdmj.aiService.api.ModelRequest.HistoryMessage.Role;
+import com.zdmj.conversationService.enums.MessageGenerationStatusEnum;
+import org.springframework.boot.context.event.ApplicationStartedEvent;
+import org.springframework.context.event.EventListener;
+import reactor.core.publisher.Mono;
 
 import lombok.RequiredArgsConstructor;
 import reactor.core.Disposable;
@@ -28,6 +35,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -45,34 +53,29 @@ public class MessageServiceImpl implements MessageService {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     /**
-     * 先在短事务中写入消息、首条消息标题并提交，再订阅模型流。
-     * 流正常结束、失败或客户端中断时，另以短事务回写助手消息内容。
-     * 失败仍通过流错误向下游传递，消息表没有单独的状态列。
+     * 校验归属，在会话行锁保护的短事务内读取最近20轮历史并建立本轮问答。
+     * 模型调用在事务外执行；完成、失败和取消分别保存终态及已接收内容。
      *
-     * @param actor 已认证操作者，包含用户编号
-     * @param request 会话编号与用户消息
-     * @return SSE 增量事件
-     * @throws BusinessException 会话不存在、无权访问或消息写入失败
+     * @param actor 已认证操作者
+     * @param request 会话编号和当前问题，当前问题仅由模型网关追加一次
+     * @return 保持现有格式的 SSE 增量事件
+     * @throws BusinessException 会话不存在、无权访问、正在生成或写入失败
      */
     @Override
     public Flux<ServerSentEvent<String>> createStream(CurrentActor actor, ChatStreamRequest request) {
-        Conversation conversation = conversationService.requireOwned(actor, request.conversationId());
-        Long userId = actor.userId();
-        PreparedMessages prepared = transactionTemplate.execute(status -> insertMessages(request, userId));
+        conversationService.requireOwned(actor, request.conversationId());
+        PreparedMessages prepared = transactionTemplate.execute(status -> insertMessages(request, actor.userId()));
         if (prepared == null) {
             throw new IllegalStateException("消息写入未返回结果");
         }
-        subscribeAnswer(conversation, actor, request, prepared);
+        subscribeAnswer(actor, prepared);
         return prepared.sink().asFlux()
                 .doOnCancel(() -> {
-                    try {
-                        persistAssistantContent(prepared.assistantMsg(), prepared.full().toString());
-                    } finally {
-                        Disposable upstream = prepared.upstream().get();
-                        if (upstream != null) {
-                            upstream.dispose();
-                        }
+                    Disposable upstream = prepared.upstream().get();
+                    if (upstream != null) {
+                        upstream.dispose();
                     }
+                    finishAssistant(prepared, MessageGenerationStatusEnum.CANCELLED);
                 })
                 .index()
                 .map(tp -> ServerSentEvent.<String>builder()
@@ -82,33 +85,70 @@ public class MessageServiceImpl implements MessageService {
                         .build());
     }
 
+    /** 锁定会话后读取历史并建立关联问答，所有写入共同提交或回滚。 */
     private PreparedMessages insertMessages(ChatStreamRequest request, Long userId) {
-        Integer newCount = conversationMapper.incrementMessageCountAndGet(request.conversationId(), userId, 2);
-        if (newCount == null || newCount < 2) {
+        // 1.获取会话
+        Conversation conversation = conversationMapper.selectOwnedForUpdate(request.conversationId(), userId);
+        if (conversation == null) {
             throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
         }
-        int userSeq = newCount - 1;
-        int assistantSeq = newCount;
-
-        Message userMsg = new Message();
-        userMsg.setConversationId(request.conversationId());
-        userMsg.setUserId(userId);
-        userMsg.setRole(MessageRoleEnum.USER.getCode());
-        userMsg.setContent(request.message());
-        userMsg.setSequence(userSeq);
-        if (messageMapper.insert(userMsg) != 1) {
-            throw new BusinessException(ErrorCode.MESSAGE_CREATE_FAILED);
+        if (messageMapper.hasProcessing(userId, request.conversationId())) {
+            throw new BusinessException(ErrorCode.CONVERSATION_GENERATING);
         }
-
-        Message assistantMsg = new Message();
-        assistantMsg.setConversationId(request.conversationId());
-        assistantMsg.setUserId(userId);
-        assistantMsg.setRole(MessageRoleEnum.ASSISTANT.getCode());
-        assistantMsg.setContent("");
-        assistantMsg.setSequence(assistantSeq);
-        if (messageMapper.insert(assistantMsg) != 1) {
-            throw new BusinessException(ErrorCode.MESSAGE_CREATE_FAILED);
+        // 2.获取最近20条对话消息记录
+        List<Message> history = messageMapper.selectContextHistory(userId, request.conversationId(), 20);
+        List<HistoryMessage> input = new ArrayList<>();
+        StringBuilder notice = new StringBuilder();
+        // 3.遍历历史消息记录，构建输入和提示
+        for (Message message : history) {
+            if (message.getRole() == MessageRoleEnum.USER.getCode()) {
+                input.add(new HistoryMessage(Role.USER, message.getContent()));
+            } else {
+                var state = MessageGenerationStatusEnum.fromCode(message.getGenerationStatus());
+                if (state == MessageGenerationStatusEnum.PROCESSING) {
+                    throw new IllegalStateException("历史回复仍在生成");
+                }
+                if (!message.getContent().isBlank()) {
+                    input.add(new HistoryMessage(Role.ASSISTANT, message.getContent()));
+                }
+                if (state != MessageGenerationStatusEnum.COMPLETED) {
+                    String description = switch (state) {
+                        case FAILED -> "生成失败";
+                        case CANCELLED -> "生成已取消";
+                        case LEGACY_UNKNOWN -> "完整性未知";
+                        default -> throw new IllegalStateException("不支持的历史状态");
+                    };
+                    notice.append("序号").append(message.getSequence()).append("的助手回复")
+                            .append(description).append("，问题和已有内容已保留，请结合上下文继续。\n");
+                }
+            }
         }
+        // 4.更新会话消息计数
+        Integer newCount = conversationMapper.incrementMessageCountAndGet(request.conversationId(), userId, 2);
+        if (newCount == null || newCount < 2) {
+            throw new IllegalStateException("锁定会话后消息计数必须更新成功");
+        }
+        // 5.插入当前问题消息
+        Message question = new Message();
+        question.setConversationId(request.conversationId());
+        question.setUserId(userId);
+        question.setRole(MessageRoleEnum.USER.getCode());
+        question.setContent(request.message());
+        question.setSequence(newCount - 1);
+        insertMessage(question);
+
+        // 6.插入助手回复消息
+        Message answer = new Message();
+        answer.setConversationId(request.conversationId());
+        answer.setUserId(userId);
+        answer.setRole(MessageRoleEnum.ASSISTANT.getCode());
+        answer.setContent("");
+        answer.setSequence(newCount);
+        answer.setReplyToMessageId(question.getId());
+        answer.setGenerationStatus(MessageGenerationStatusEnum.PROCESSING.getCode());
+        insertMessage(answer);
+
+        // 7.更新会话标题
         if (newCount == 2) {
             String title = request.message().strip().replaceAll("(?U)\\s+", " ");
             if (title.codePointCount(0, title.length()) > 30) {
@@ -118,57 +158,132 @@ public class MessageServiceImpl implements MessageService {
                 throw new IllegalStateException("首次会话标题必须更新一条记录");
             }
         }
-        return new PreparedMessages(assistantMsg, Sinks.many().unicast().onBackpressureBuffer(),
-                new StringBuilder(256), new AtomicReference<>());
+        // 8.返回准备好的消息
+        return new PreparedMessages(answer, conversation,
+                new ModelRequest(request.message(), null, null, input, notice.toString()),
+                Sinks.many().unicast().onBackpressureBuffer(), new StringBuilder(256), new AtomicReference<>());
     }
 
-    private void subscribeAnswer(Conversation conversation, CurrentActor actor, ChatStreamRequest request,
-            PreparedMessages prepared) {
-        List<Long> ragDocumentIds = ConversationContextSupport.resolveRagDocumentIds(conversation);
-        boolean useSystemKnowledge = ConversationContextSupport.resolveUseSystemKnowledge(conversation);
-        Flux<String> chatFlux = knowledgeRagService.streamAnswer(
-                actor,
-                request.conversationId(),
-                request.message(),
-                ragDocumentIds,
-                useSystemKnowledge,
-                null);
-        Disposable upstream = chatFlux.doOnNext(chunk -> {
-            if (chunk == null || chunk.isEmpty()) {
-                return;
-            }
-            prepared.full().append(chunk);
-            prepared.sink().tryEmitNext(chunk);
-        })
-                .doOnError(e -> {
-                    persistAssistantContent(prepared.assistantMsg(), prepared.full().toString());
-                    prepared.sink().tryEmitError(e);
-                })
-                .doOnComplete(() -> {
-                    if (persistAssistantContent(prepared.assistantMsg(), prepared.full().toString()) != 1) {
-                        prepared.sink().tryEmitError(new RuntimeException("assistant message persist failed"));
-                        return;
+    private void insertMessage(Message message) {
+        if (messageMapper.insert(message) != 1) {
+            throw new BusinessException(ErrorCode.MESSAGE_CREATE_FAILED);
+        }
+        if (message.getId() == null) {
+            throw new IllegalStateException("消息写入后必须回填编号");
+        }
+    }
+
+    /** 
+     * 订阅助手回复
+     * @param actor 已认证操作者
+     * @param prepared 准备好的消息
+     */
+    private void subscribeAnswer(CurrentActor actor, PreparedMessages prepared) {
+        // 1. 获取会话
+        Conversation conversation = prepared.conversation();
+        // 2. 订阅助手回复
+        Disposable upstream = Flux.defer(() -> knowledgeRagService.streamAnswer(
+                        actor, 
+                        conversation.getId(),
+                        prepared.request(), 
+                        ConversationContextSupport.resolveRagDocumentIds(conversation),
+                        ConversationContextSupport.resolveUseSystemKnowledge(conversation)))
+                // 3. 处理助手回复
+                .doOnNext(chunk -> {
+                    // 4.锁定会话，防止并发修改
+                    synchronized (prepared) {
+                        if (prepared.assistantMsg().getGenerationStatus() == MessageGenerationStatusEnum.PROCESSING.getCode()
+                                && !chunk.isEmpty()) {
+                            prepared.full().append(chunk);
+                            prepared.sink().tryEmitNext(chunk);
+                        }
                     }
-                    prepared.sink().tryEmitComplete();
                 })
-                .subscribe();
+                // 5. 处理异常
+                .onErrorResume(failure -> {
+                    try {
+                        finishAssistant(prepared, MessageGenerationStatusEnum.FAILED);
+                    } catch (RuntimeException persistenceFailure) {
+                        persistenceFailure.addSuppressed(failure);
+                        return Flux.error(persistenceFailure);
+                    }
+                    return Flux.error(failure);
+                })
+                .concatWith(Mono.fromRunnable(() -> finishAssistant(prepared, MessageGenerationStatusEnum.COMPLETED)))
+                .subscribe(chunk -> { }, prepared.sink()::tryEmitError, prepared.sink()::tryEmitComplete);
         prepared.upstream().set(upstream);
     }
 
-    private record PreparedMessages(Message assistantMsg, Sinks.Many<String> sink, StringBuilder full,
-            AtomicReference<Disposable> upstream) {
+    /** 
+     * 完成助手回复
+     * 
+     * @param prepared 准备好的消息
+     * @param state 状态
+     */
+    private void finishAssistant(PreparedMessages prepared, MessageGenerationStatusEnum state) {
+        // 1. 锁定会话，防止并发修改
+        synchronized (prepared) {
+            // 2. 获取助手回复消息
+            Message answer = prepared.assistantMsg();
+            if (answer.getGenerationStatus() != MessageGenerationStatusEnum.PROCESSING.getCode()) {
+                return;
+            }
+            // 3. 设置助手回复消息状态
+            answer.setGenerationStatus(state.getCode());
+            // 4. 更新助手回复消息状态
+            Integer updated = transactionTemplate.execute(status -> {
+                if (conversationMapper.selectOwnedForUpdate(answer.getConversationId(), answer.getUserId()) == null) {
+                    return 0;
+                }
+                int rows = messageMapper.finishAssistant(answer.getId(), answer.getUserId(), answer.getConversationId(),
+                        prepared.full().toString(), state.getCode());
+                if (rows != 1) {
+                    throw new IllegalStateException("生成中的助手回复必须更新一条记录");
+                }
+                return rows;
+            });
+            if (updated == null) {
+                throw new IllegalStateException("助手回复保存事务未返回结果");
+            }
+        }
     }
+
+    /** 单实例服务就绪前恢复中断的生成；数据库异常阻止启动。 */
+    @EventListener(ApplicationStartedEvent.class)
+    public void recoverInterruptedGenerations() {
+        transactionTemplate.executeWithoutResult(status -> messageMapper.recoverInterrupted());
+    }
+
+    /** 准备好的消息 
+     * 
+     * @param assistantMsg 助手回复消息
+     * @param conversation 会话
+     * @param request 模型请求
+     * @param sink 消息Sink
+     * @param full 完整消息
+     * @param upstream 上游
+     */
+    private record PreparedMessages(
+        Message assistantMsg,
+        Conversation conversation,
+        ModelRequest request,
+        Sinks.Many<String> sink,
+        StringBuilder full,
+        AtomicReference<Disposable> upstream
+    ) {}
 
     /**
      * 获取会话消息列表
-     * @param actor 已认证操作者，包含用户编号
+     *
+     * @param actor          已认证操作者，包含用户编号
      * @param conversationId 会话 ID
-     * @param page 页码
-     * @param limit 每页条数
+     * @param page           页码
+     * @param limit          每页条数
      * @return 消息列表
      */
     @Override
-    public PageDTO<MessageResponse> getMessagesByConversationId(CurrentActor actor, Long conversationId, Integer page, Integer limit) {
+    public PageDTO<MessageResponse> getMessagesByConversationId(CurrentActor actor, Long conversationId, Integer page,
+            Integer limit) {
         conversationService.requireOwned(actor, conversationId);
         PageRequests.Normalized paging = PageRequests.normalize(page, limit);
         var mpPage = messageMapper.selectPageByConversationId(PageRequests.toPage(paging), conversationId);
@@ -192,25 +307,6 @@ public class MessageServiceImpl implements MessageService {
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("流式增量无法序列化", e);
         }
-    }
-
-    /**
-     * 在短事务中回写助手消息内容。
-     *
-     * @param assistantMsg 占位助手消息
-     * @param content 已生成的文本，失败或中断时可能不完整
-     * @return 更新行数
-     * @throws IllegalStateException 事务未返回结果
-     */
-    private int persistAssistantContent(Message assistantMsg, String content) {
-        Integer updated = transactionTemplate.execute(status -> {
-            assistantMsg.setContent(content);
-            return messageMapper.updateById(assistantMsg);
-        });
-        if (updated == null) {
-            throw new IllegalStateException("助手消息回写未返回结果");
-        }
-        return updated;
     }
 
     private MessageResponse convertToResponse(Message message) {

@@ -15,7 +15,6 @@ import com.zdmj.conversationService.support.ConversationContextSupport;
 
 import lombok.RequiredArgsConstructor;
 
-import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 会话维护。检索范围写入 config；删除同时清理消息和同一数据库中的模型记忆。
+ * 会话维护。检索范围写入 config；删除事务同时清理会话与消息。
  */
 @RequiredArgsConstructor
 @Service
@@ -32,7 +31,6 @@ public class ConversationServiceImpl implements ConversationService {
 
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
-    private final ChatMemory chatMemory;
 
     /**
      * 创建会话。
@@ -57,6 +55,14 @@ public class ConversationServiceImpl implements ConversationService {
         return convertToResponse(conversation);
     }
 
+    /**
+     * 获取会话。
+     *
+     * @param actor 已认证操作者，包含用户编号
+     * @param id 会话编号
+     * @return 会话
+     * @throws BusinessException 编号为空、会话不存在或无权访问
+     */
     @Override
     public ConversationResponse getById(CurrentActor actor, Long id) {
         return convertToResponse(requireOwned(actor, id));
@@ -84,11 +90,26 @@ public class ConversationServiceImpl implements ConversationService {
         return conversation;
     }
 
+    /**
+     * 获取用户会话。
+     *
+     * @param actor 已认证操作者，包含用户编号
+     * @return 用户会话
+     */
     @Override
     public List<ConversationResponse> getByUserId(CurrentActor actor) {
         return conversationMapper.selectByUserId(actor.userId()).stream().map(this::convertToResponse).toList();
     }
 
+    /**
+     * 更新会话标题。
+     *
+     * @param actor 已认证操作者，包含用户编号
+     * @param id 会话编号
+     * @param title 新标题
+     * @return 更新后的会话
+     * @throws BusinessException 标题为空、会话不存在或无权访问
+     */
     @Override
     public ConversationResponse updateTitle(CurrentActor actor, Long id, String title) {
         if (title == null || title.trim().isEmpty()) {
@@ -103,6 +124,15 @@ public class ConversationServiceImpl implements ConversationService {
         return convertToResponse(requireById(id));
     }
 
+    /**
+     * 更新会话配置。
+     *
+     * @param actor 已认证操作者，包含用户编号
+     * @param id 会话编号
+     * @param config 新配置
+     * @return 更新后的会话
+     * @throws BusinessException 配置为空、会话不存在或无权访问
+     */
     @Override
     public ConversationResponse updateConfig(CurrentActor actor, Long id, Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
@@ -117,6 +147,7 @@ public class ConversationServiceImpl implements ConversationService {
                 ? new HashMap<>()
                 : new HashMap<>(conversation.getConfig());
         merged.putAll(config);
+
         Map<String, Object> sanitized = ConversationContextSupport.freezeConfig(merged);
 
         int rows = conversationMapper.updateConfigByIdAndUserId(id, actor.userId(), sanitized);
@@ -140,8 +171,8 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     /**
-     * 删除会话、该用户在此会话下的消息，以及模型记忆。
-     * 三步处于同一事务；记忆表与业务表使用同一数据源，失败时一并回滚。
+     * 删除会话及该用户在此会话下的消息。
+     * 先锁定会话，与消息准备及结束保存串行执行，两张表在同一事务中删除。
      *
      * @param actor 已认证操作者，包含用户编号
      * @param id 会话编号
@@ -152,10 +183,14 @@ public class ConversationServiceImpl implements ConversationService {
     public void delete(CurrentActor actor, Long id) {
         requireOwned(actor, id);
         Long userId = actor.userId();
+        if (conversationMapper.selectOwnedForUpdate(id, userId) == null) {
+            throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
+        }
+        // 删除消息
         messageMapper.delete(new LambdaQueryWrapper<Message>()
                 .eq(Message::getConversationId, id)
                 .eq(Message::getUserId, userId));
-        chatMemory.clear(String.valueOf(id));
+        // 删除会话
         int deleted = conversationMapper.delete(new LambdaQueryWrapper<Conversation>()
                 .eq(Conversation::getId, id)
                 .eq(Conversation::getUserId, userId));

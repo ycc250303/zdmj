@@ -6,7 +6,7 @@
 ### 脚本约定（与 `pgsql.sql` 一致）
 
 - **扩展**：`vector`（pgvector，同时提供 HNSW 索引）；`pg_trgm`（岗位/公司名称模糊搜索 GIN 索引）。
-- **删表顺序**（与脚本 `DROP TABLE` 自上而下一致）：`users` → `user_profiles` → `user_behavior_logs` → `educations` → `skills` → `careers` → `project_experiences` → `job_student_matches` / 相关岗位侧表 → `jobs` → `companies` → `knowledge_documents` → `knowledge_bases` → `knowledge_vectors` → `conversations` → `messages` → `SPRING_AI_CHAT_MEMORY`。
+- **删表顺序**（与脚本 `DROP TABLE` 自上而下一致）：`users` → `user_profiles` → `user_behavior_logs` → `educations` → `skills` → `careers` → `project_experiences` → `job_student_matches` / 相关岗位侧表 → `jobs` → `companies` → `knowledge_documents` → `knowledge_bases` → `knowledge_vectors` → `conversations` → `messages`。
 - **知识库模型（当前）**：每用户**一个** `scope=1` 的用户私有库；全系统**一个** `scope=2` 的系统默认库。`knowledge_bases` **仅存标识**（`user_id`、`scope`）；向量化状态、分块数等均在 **`knowledge_documents`**。
 - **系统库占位**：`knowledge_bases` / `knowledge_documents` / `knowledge_vectors` 在系统场景下 `user_id` 约定为 `0`（与真实用户 ID 区分）。
 
@@ -314,17 +314,17 @@
 | `role`            | `SMALLINT`  | 消息角色     | `NOT NULL`                                | `1=user用户, 2=assistant助手, 3=system系统` |
 | `content`         | `TEXT`      | 消息内容     | `NOT NULL`                                | -                                             |
 | `sequence`        | `INTEGER`   | 会话内顺序号 | `NOT NULL`                                | 从 1 递增                                     |
+| `reply_to_message_id` | `BIGINT` | 回复的用户消息编号 | 助手必填且大于0，逻辑外键 `messages.id`，唯一 | 其余角色为空 |
+| `generation_status` | `SMALLINT` | 回复生成状态 | 助手必填，范围1～5 | `1生成中/2完成/3失败/4取消/5历史未知`；其余角色为空 |
+| `metadata` | `JSONB` | 消息元数据 | `DEFAULT '{}'::jsonb` | 模型、输入输出用量等 |
 | `created_at`      | `TIMESTAMP` | 创建时间     | `DEFAULT CURRENT_TIMESTAMP`               | -                                             |
 
-**索引**：`idx_messages_conversation_id`、`idx_messages_conversation_id_sequence`、`idx_messages_user_id`、`idx_messages_user_id_conversation_id`。
+**索引**：主键、`idx_messages_conversation_id`、`uk_messages_conversation_id_sequence`、`idx_messages_user_id_conversation_id`、`uk_messages_reply_to`，共5个。生成约束为 `ck_messages_generation`，问答关联唯一；用户和系统消息的关联及状态字段必须为空。
 
-### 6.3 表 `SPRING_AI_CHAT_MEMORY`
+### 会话历史升级
 
-| 字段名称            | 字段类型        | 字段含义       | 约束                                    | 枚举/JSON字段含义                                       |
-| ------------------- | --------------- | -------------- | --------------------------------------- | ------------------------------------------------------- |
-| `conversation_id` | `VARCHAR(36)` | 会话ID（UUID） | `NOT NULL`                            | -                                                       |
-| `content`         | `TEXT`        | 消息内容       | `NOT NULL`                            | -                                                       |
-| `type`            | `VARCHAR(10)` | 消息类型       | `NOT NULL`                            | 常见值为 `USER/ASSISTANT/SYSTEM`（由 Spring AI 控制） |
-| `"timestamp"`     | `TIMESTAMP`   | 时间戳         | `NOT NULL, DEFAULT CURRENT_TIMESTAMP` | 列名为保留字，脚本中使用双引号                          |
+`messages` 同时保存对话记录与模型上下文原文。模型输入由服务读取最近20轮用户问题及关联助手回复组成，失败、取消和历史未知记录均参与；空助手内容省略，用户问题保留。当前问题单独追加。
 
-**索引**：`idx_spring_ai_chat_memory_conv_ts` — `(conversation_id, "timestamp")`。
+已有数据库执行 `sql/migrations/20261122_unify_conversation_memory.sql`：停止应用写入、完成数据库备份后执行 `psql -v ON_ERROR_STOP=1 -f sql/migrations/20261122_unify_conversation_memory.sql`，连接参数从环境注入。脚本在同一事务中添加字段、按同用户同会话相邻序号建立历史关联、校验旧记忆内容、添加约束与索引，并删除独立记忆表；重复执行保留已有状态。
+
+旧助手回复标记为 `5`，保留原文；无法关联问题或旧记忆存在消息表未保存的用户问题、助手回复时立即终止，整笔回滚。已删除会话的孤立记忆随旧表清理。执行成功后启动新版本后端，验证发送、继续任务和删除会话。新环境直接使用 `sql/pgsql.sql`。
