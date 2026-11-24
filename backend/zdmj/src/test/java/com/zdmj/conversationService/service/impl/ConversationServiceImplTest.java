@@ -9,7 +9,6 @@ import com.zdmj.conversationService.dto.ConversationResponse;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
-import com.zdmj.conversationService.support.ConversationContextSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,11 +16,20 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigInteger;
+import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.stream.Stream;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -51,7 +59,7 @@ class ConversationServiceImplTest {
 
     @Test
     void createConversation_withDto_shouldReturnConversationAndMessageCountZero() {
-        ConversationRequest dto = new ConversationRequest(Map.of("model", "gpt"));
+        ConversationRequest dto = new ConversationRequest(Map.of("model", "gpt", "useSystemKnowledge", true, "ragDocumentIds", List.of(1, 2)));
 
         doAnswer(invocation -> {
             Conversation saved = invocation.getArgument(0);
@@ -65,7 +73,8 @@ class ConversationServiceImplTest {
         assertEquals(1L, actual.userId());
         assertEquals(0, actual.messageCount());
         assertFalse(actual.config().containsKey("model"));
-        assertFalse(Boolean.TRUE.equals(actual.config().get(ConversationContextSupport.CONFIG_USE_SYSTEM_KNOWLEDGE)));
+        assertEquals(true, actual.config().get("useSystemKnowledge"));
+        assertEquals(List.of(1L, 2L), actual.config().get("ragDocumentIds"));
         verify(conversationMapper).insert(any(Conversation.class));
     }
 
@@ -93,6 +102,7 @@ class ConversationServiceImplTest {
 
         assertEquals(1L, actual.userId());
         assertEquals(0, actual.messageCount());
+        assertEquals(Map.of("useSystemKnowledge", false), actual.config());
         verify(conversationMapper).insert(any(Conversation.class));
     }
 
@@ -291,6 +301,126 @@ class ConversationServiceImplTest {
 
         assertEquals(ErrorCode.CONVERSATION_CONFIG_LOCKED.getCode(), ex.getCode());
         verify(conversationMapper, never()).updateConfigByIdAndUserId(any(), any(), any());
+    }
+
+    @Test
+    void invalidRequestConfig_shouldFailBeforeWriting() {
+        BusinessException createError = assertThrows(BusinessException.class,
+                () -> conversationService.create(actor, new ConversationRequest(Map.of("ragDocumentIds", List.of(1.5)))));
+        assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), createError.getCode());
+        verify(conversationMapper, never()).insert(any(Conversation.class));
+
+        Conversation owned = new Conversation();
+        owned.setId(23L);
+        owned.setUserId(1L);
+        owned.setConfig(Map.of("useSystemKnowledge", true, "ragDocumentIds", List.of(2L)));
+        when(conversationMapper.selectById(23L)).thenReturn(owned);
+        BusinessException updateError = assertThrows(BusinessException.class,
+                () -> conversationService.updateConfig(actor, 23L, Map.of("useSystemKnowledge", "true")));
+        assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), updateError.getCode());
+        verify(conversationMapper, never()).updateConfigByIdAndUserId(any(), any(), any());
+        assertEquals(Map.of("useSystemKnowledge", true, "ragDocumentIds", List.of(2L)), owned.getConfig());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"useSystemKnowledge", "ragDocumentIds"})
+    void updateConfig_invalidStoredConfig_shouldFailEvenWhenRequestReplacesValue(String key) {
+        Conversation owned = new Conversation();
+        owned.setId(23L);
+        owned.setUserId(1L);
+        owned.setConfig(Map.of(key, "invalid"));
+        when(conversationMapper.selectById(23L)).thenReturn(owned);
+        IllegalStateException error = assertThrows(IllegalStateException.class,
+                () -> conversationService.updateConfig(actor, 23L,
+                        Map.of("useSystemKnowledge", false, "ragDocumentIds", List.of())));
+        assertTrue(error.getMessage().contains("conversationId=23"));
+        assertTrue(error.getCause() instanceof IllegalArgumentException);
+        verify(conversationMapper, never()).updateConfigByIdAndUserId(any(), any(), any());
+        assertEquals(Map.of(key, "invalid"), owned.getConfig());
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidConfig")
+    void invalidConfig_shouldRejectRequestAndReportStoredConfigAsSystemFailure(String key, Object value, String detail) {
+        Map<String, Object> config = Map.of(key, value);
+        ConversationRequest request = new ConversationRequest(config);
+        IllegalArgumentException fieldError = assertThrows(IllegalArgumentException.class, () -> {
+            if (key.equals("ragDocumentIds")) {
+                request.ragDocumentIds();
+            } else {
+                request.useSystemKnowledge();
+            }
+        });
+        assertEquals(detail, fieldError.getMessage());
+        BusinessException requestError = assertThrows(BusinessException.class,
+                () -> conversationService.create(actor, request));
+        assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), requestError.getCode());
+        assertEquals(detail, requestError.getMessage());
+        assertInstanceOf(IllegalArgumentException.class, requestError.getCause());
+        verify(conversationMapper, never()).insert(any(Conversation.class));
+
+        Conversation conversation = new Conversation();
+        conversation.setId(23L);
+        conversation.setUserId(actor.userId());
+        conversation.setConfig(config);
+        when(conversationMapper.selectById(23L)).thenReturn(conversation);
+        IllegalStateException storedError = assertThrows(IllegalStateException.class,
+                () -> conversationService.updateConfig(actor, 23L, Map.of("model", "ignored")));
+        assertTrue(storedError.getMessage().contains("conversationId=23"));
+        assertInstanceOf(IllegalArgumentException.class, storedError.getCause());
+        assertEquals(detail, storedError.getCause().getMessage());
+        verify(conversationMapper, never()).updateConfigByIdAndUserId(any(), any(), any());
+        if (value instanceof List<?> list && !list.isEmpty() && list.get(0) instanceof BigInteger) {
+            assertInstanceOf(ArithmeticException.class, fieldError.getCause());
+            assertInstanceOf(ArithmeticException.class, requestError.getCause().getCause());
+            assertInstanceOf(ArithmeticException.class, storedError.getCause().getCause());
+        }
+    }
+
+    static Stream<Arguments> invalidConfig() {
+        Stream<Arguments> invalidArrays = Stream.of("10", 10, true, Map.of("id", 10))
+                .map(value -> Arguments.of("ragDocumentIds", value, "ragDocumentIds 必须为数组或 null"));
+        Stream<Arguments> invalidElements = Stream.of("10", 10.0d, 10.0f, new BigDecimal("10.0"), true, List.of(10), Map.of())
+                .map(value -> Arguments.of("ragDocumentIds", List.of(1, value), "ragDocumentIds[1] 必须为整数"));
+        Stream<Arguments> invalidValues = Stream.of(
+                Arguments.of("ragDocumentIds", Arrays.asList(1, null), "ragDocumentIds[1] 必须为整数"),
+                Arguments.of("ragDocumentIds", List.of(0), "ragDocumentIds[0] 必须为正整数"),
+                Arguments.of("ragDocumentIds", List.of(-1L), "ragDocumentIds[0] 必须为正整数"),
+                Arguments.of("ragDocumentIds", List.of(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE)), "ragDocumentIds[0] 超出编号取值范围"),
+                Arguments.of("ragDocumentIds", List.of(BigInteger.valueOf(Long.MIN_VALUE).subtract(BigInteger.ONE)), "ragDocumentIds[0] 超出编号取值范围"));
+        Stream<Arguments> invalidFlags = Stream.of("true", "false", "1", "", 0, 1, 1.0, List.of(), Map.of())
+                .map(value -> Arguments.of("useSystemKnowledge", value, "useSystemKnowledge 必须为布尔值"));
+        return Stream.of(invalidArrays, invalidElements, invalidValues, invalidFlags).flatMap(stream -> stream);
+    }
+
+    @Test
+    void integerIds_shouldKeepOrderDuplicatesAndLongBoundary() {
+        List<Object> raw = List.of((byte) 1, (short) 2, 3, 4L, BigInteger.valueOf(Long.MAX_VALUE), 3);
+        List<Long> expected = List.of(1L, 2L, 3L, 4L, Long.MAX_VALUE, 3L);
+        ConversationRequest request = new ConversationRequest(Map.of("ragDocumentIds", raw));
+        assertEquals(expected, request.ragDocumentIds());
+        doAnswer(invocation -> {
+            Conversation saved = invocation.getArgument(0);
+            saved.setId(1L);
+            return 1;
+        }).when(conversationMapper).insert(any(Conversation.class));
+        assertEquals(expected, conversationService.create(actor, request).config().get("ragDocumentIds"));
+    }
+
+    @Test
+    void explicitNullAndEmptyIds_shouldPreserveRetrievalSemantics() {
+        Map<String, Object> config = new HashMap<>();
+        config.put("ragDocumentIds", null);
+        config.put("useSystemKnowledge", null);
+        ConversationRequest request = new ConversationRequest(config);
+        assertNull(request.ragDocumentIds());
+        assertFalse(request.useSystemKnowledge());
+        assertNull(new ConversationRequest(null).ragDocumentIds());
+        assertFalse(new ConversationRequest(null).useSystemKnowledge());
+        assertNull(new ConversationRequest(Map.of()).ragDocumentIds());
+        assertFalse(new ConversationRequest(Map.of()).useSystemKnowledge());
+        config.put("ragDocumentIds", List.of());
+        assertEquals(List.of(), new ConversationRequest(config).ragDocumentIds());
     }
 
     private static Conversation refreshedTitle() {

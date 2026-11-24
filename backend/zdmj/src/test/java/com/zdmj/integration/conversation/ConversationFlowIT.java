@@ -337,6 +337,84 @@ class ConversationFlowIT extends IntegrationTestBase {
         }
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "{\"ragDocumentIds\":\"10\"}", "{\"ragDocumentIds\":10}", "{\"ragDocumentIds\":true}",
+            "{\"ragDocumentIds\":{}}", "{\"ragDocumentIds\":[\"10\"]}", "{\"ragDocumentIds\":[10.0]}",
+            "{\"ragDocumentIds\":[true]}", "{\"ragDocumentIds\":[1,null]}", "{\"ragDocumentIds\":[0]}",
+            "{\"ragDocumentIds\":[-1]}", "{\"ragDocumentIds\":[9223372036854775808]}",
+            "{\"ragDocumentIds\":[-9223372036854775809]}", "{\"useSystemKnowledge\":\"true\"}",
+            "{\"useSystemKnowledge\":0}", "{\"useSystemKnowledge\":1}", "{\"useSystemKnowledge\":[]}"
+    })
+    void 非法检索配置_创建和更新返回参数错误且数据库保持原值(String config) throws Exception {
+        String token = testJwt.authorize(testUsers.createPair().userA());
+        long id = createConversation(token);
+        String original = jdbc.queryForObject("SELECT config::text FROM conversations WHERE id=?", String.class, id);
+        var created = api.post(token, "/conversations", "{\"config\":" + config + "}");
+        ApiClient.assertProblem(created, 400, 1001);
+        String key = config.contains("ragDocumentIds") ? "ragDocumentIds" : "useSystemKnowledge";
+        assertThat(JsonPath.<String>read(created.getResponse().getContentAsString(), "$.detail")).contains(key);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM conversations", Integer.class)).isEqualTo(1);
+
+        var updated = api.put(token, "/conversations/" + id + "/config", config);
+        ApiClient.assertProblem(updated, 400, 1001);
+        assertThat(JsonPath.<String>read(updated.getResponse().getContentAsString(), "$.detail")).contains(key);
+        assertThat(jdbc.queryForObject("SELECT config::text FROM conversations WHERE id=?", String.class, id)).isEqualTo(original);
+        org.mockito.Mockito.verifyNoInteractions(model);
+    }
+
+    @Test
+    void 合法检索配置_局部更新保留省略字段_明确空值恢复缺省_空数组保留() throws Exception {
+        String token = testJwt.authorize(testUsers.createPair().userA());
+        long id = ApiClient.dataId(api.post(token, "/conversations", """
+                {"config":{"useSystemKnowledge":true,"ragDocumentIds":[1,9223372036854775807,1],"model":"ignored"}}
+                """));
+        String path = "/conversations/" + id + "/config";
+        String initial = ApiClient.requireOk(api.get(token, "/conversations/" + id));
+        assertThat(JsonPath.<java.util.Map<String, Object>>read(initial, "$.data.config")).doesNotContainKey("model");
+        ApiClient.requireOk(api.put(token, path, "{\"useSystemKnowledge\":false}"));
+        String stored = jdbc.queryForObject("SELECT config::text FROM conversations WHERE id=?", String.class, id);
+        assertThat(JsonPath.<java.util.List<Number>>read(stored, "$.ragDocumentIds"))
+                .extracting(Number::longValue).containsExactly(1L, Long.MAX_VALUE, 1L);
+        assertThat(JsonPath.<Boolean>read(stored, "$.useSystemKnowledge")).isFalse();
+
+        ApiClient.requireOk(api.put(token, path, "{\"ragDocumentIds\":[]}"));
+        stored = jdbc.queryForObject("SELECT config::text FROM conversations WHERE id=?", String.class, id);
+        assertThat(JsonPath.<java.util.List<?>>read(stored, "$.ragDocumentIds")).isEmpty();
+        assertThat(JsonPath.<Boolean>read(stored, "$.useSystemKnowledge")).isFalse();
+        ApiClient.requireOk(api.put(token, path, "{\"useSystemKnowledge\":true}"));
+        ApiClient.requireOk(api.put(token, path, "{\"ragDocumentIds\":null,\"useSystemKnowledge\":null}"));
+        assertThat(jdbc.queryForMap("SELECT config->'ragDocumentIds' AS ids, config->>'useSystemKnowledge' AS flag FROM conversations WHERE id=?", id))
+                .containsEntry("ids", null).containsEntry("flag", "false");
+
+        long defaultId = ApiClient.dataId(api.post(token, "/conversations", "{\"config\":{}}"));
+        long nullId = ApiClient.dataId(api.post(token, "/conversations", "{\"config\":{\"ragDocumentIds\":null,\"useSystemKnowledge\":null}}"));
+        assertThat(jdbc.queryForObject("SELECT config = (SELECT config FROM conversations WHERE id=?) FROM conversations WHERE id=?",
+                Boolean.class, defaultId, nullId)).isTrue();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"{\"ragDocumentIds\":\"invalid\"}", "{\"useSystemKnowledge\":1}"})
+    void 已存非法配置_更新返回系统错误_生成立即失败且不调用模型(String config) throws Exception {
+        var user = testUsers.createPair().userA();
+        String token = testJwt.authorize(user);
+        long id = createConversation(token);
+        jdbc.update("UPDATE conversations SET config=CAST(? AS jsonb) WHERE id=?", config, id);
+        String original = jdbc.queryForObject("SELECT config::text FROM conversations WHERE id=?", String.class, id);
+        ApiClient.assertProblem(api.put(token, "/conversations/" + id + "/config",
+                "{\"useSystemKnowledge\":false,\"ragDocumentIds\":[]}"), 500, 1008);
+        assertThat(jdbc.queryForObject("SELECT config::text FROM conversations WHERE id=?", String.class, id)).isEqualTo(original);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM messages WHERE conversation_id=?", Integer.class, id)).isZero();
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> messageService.createStream(
+                new com.zdmj.common.context.CurrentActor(user.getId()), chatRequest(id, "测试问题")).collectList().block())
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("conversationId=" + id)
+                .hasCauseInstanceOf(IllegalArgumentException.class);
+        org.mockito.Mockito.verifyNoInteractions(model);
+        assertThat(jdbc.queryForObject("SELECT generation_status FROM messages WHERE conversation_id=? AND role=2",
+                Integer.class, id)).isEqualTo(3);
+    }
+
     private long createConversation(String token) throws Exception {
         return ApiClient.dataId(api.post(token, "/conversations", "{\"config\":{\"useSystemKnowledge\":false,\"ragDocumentIds\":[]}}"));
     }

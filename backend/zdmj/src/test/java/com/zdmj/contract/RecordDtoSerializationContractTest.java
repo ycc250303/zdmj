@@ -39,6 +39,7 @@ class RecordDtoSerializationContractTest {
         var conversation = new ConversationRequest(config);
         config.put("later", true);
         assertThat(conversation.config()).containsEntry("optional", null).doesNotContainKey("later");
+        assertThat(mapper.valueToTree(conversation).toString()).isEqualTo("{\"config\":{\"optional\":null}}");
         assertThatThrownBy(() -> conversation.config().put("later", true))
                 .isInstanceOf(UnsupportedOperationException.class);
     }

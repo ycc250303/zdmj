@@ -50,7 +50,6 @@ import com.zdmj.conversationService.entity.Message;
 import com.zdmj.conversationService.enums.MessageGenerationStatusEnum;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
-import com.zdmj.conversationService.support.ConversationContextSupport;
 import com.zdmj.knowledgeService.service.KnowledgeRagService;
 
 import reactor.core.Disposable;
@@ -273,8 +272,8 @@ class MessageServiceImplTest {
         Conversation conversation = new Conversation();
         conversation.setId(306L);
         conversation.setConfig(Map.of(
-                ConversationContextSupport.CONFIG_USE_SYSTEM_KNOWLEDGE, true,
-                ConversationContextSupport.CONFIG_RAG_DOCUMENT_IDS, List.of(9L)));
+                "useSystemKnowledge", true,
+                "ragDocumentIds", List.of(9L)));
         doReturn(conversation).when(conversationService).requireOwned(actor, 306L);
         doReturn(conversation).when(conversationMapper).selectOwnedForUpdate(306L, 1L);
         doReturn(4).when(conversationMapper).incrementMessageCountAndGet(eq(306L), anyLong(), eq(2));

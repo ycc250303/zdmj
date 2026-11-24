@@ -15,7 +15,7 @@ import com.zdmj.conversationService.enums.MessageRoleEnum;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.service.MessageService;
-import com.zdmj.conversationService.support.ConversationContextSupport;
+import com.zdmj.conversationService.dto.ConversationRequest;
 import com.zdmj.knowledgeService.service.KnowledgeRagService;
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.aiService.api.ModelRequest.HistoryMessage;
@@ -182,12 +182,19 @@ public class MessageServiceImpl implements MessageService {
         // 1. 获取会话
         Conversation conversation = prepared.conversation();
         // 2. 订阅助手回复
-        Disposable upstream = Flux.defer(() -> knowledgeRagService.streamAnswer(
-                        actor, 
-                        conversation.getId(),
-                        prepared.request(), 
-                        ConversationContextSupport.resolveRagDocumentIds(conversation),
-                        ConversationContextSupport.resolveUseSystemKnowledge(conversation)))
+        Disposable upstream = Flux.defer(() -> {
+                    ConversationRequest config = new ConversationRequest(conversation.getConfig());
+                    List<Long> documentIds;
+                    boolean useSystemKnowledge;
+                    try {
+                        documentIds = config.ragDocumentIds();
+                        useSystemKnowledge = config.useSystemKnowledge();
+                    } catch (IllegalArgumentException exception) {
+                        throw new IllegalStateException("会话检索配置非法，conversationId=" + conversation.getId(), exception);
+                    }
+                    return knowledgeRagService.streamAnswer(actor, conversation.getId(), prepared.request(),
+                            documentIds, useSystemKnowledge);
+                })
                 // 3. 处理助手回复
                 .doOnNext(chunk -> {
                     // 4.锁定会话，防止并发修改

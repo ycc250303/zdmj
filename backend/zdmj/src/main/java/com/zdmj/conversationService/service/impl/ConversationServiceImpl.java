@@ -11,7 +11,6 @@ import com.zdmj.conversationService.entity.Message;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.service.ConversationService;
-import com.zdmj.conversationService.support.ConversationContextSupport;
 
 import lombok.RequiredArgsConstructor;
 
@@ -20,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -38,12 +38,12 @@ public class ConversationServiceImpl implements ConversationService {
      * @param actor 已认证操作者，包含用户编号
      * @param request 可为空；为空时系统知识库开关为关闭，不限定文档
      * @return 新会话
-     * @throws BusinessException 插入没有写入记录
+     * @throws BusinessException 检索配置非法或插入没有写入记录
      */
     @Override
     public ConversationResponse create(CurrentActor actor, ConversationRequest request) {
         Conversation conversation = new Conversation();
-        conversation.setConfig(ConversationContextSupport.freezeConfig(request == null ? null : request.config()));
+        conversation.setConfig(prepareConfig(request == null ? new ConversationRequest(null) : request));
         conversation.setUserId(actor.userId());
         conversation.setMessageCount(0);
         if (conversationMapper.insert(conversation) != 1) {
@@ -129,9 +129,10 @@ public class ConversationServiceImpl implements ConversationService {
      *
      * @param actor 已认证操作者，包含用户编号
      * @param id 会话编号
-     * @param config 新配置
+     * @param config 局部配置；省略字段保留原值，明确 null 恢复该字段缺省含义
      * @return 更新后的会话
-     * @throws BusinessException 配置为空、会话不存在或无权访问
+     * @throws BusinessException 配置为空或非法、会话不存在、无权访问或已有消息
+     * @throws IllegalStateException 数据库中已存检索配置非法
      */
     @Override
     public ConversationResponse updateConfig(CurrentActor actor, Long id, Map<String, Object> config) {
@@ -143,12 +144,20 @@ public class ConversationServiceImpl implements ConversationService {
             throw new BusinessException(ErrorCode.CONVERSATION_CONFIG_LOCKED);
         }
 
+        try {
+            ConversationRequest stored = new ConversationRequest(conversation.getConfig());
+            stored.useSystemKnowledge();
+            stored.ragDocumentIds();
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalStateException("会话检索配置非法，conversationId=" + id, exception);
+        }
+
         Map<String, Object> merged = conversation.getConfig() == null
                 ? new HashMap<>()
                 : new HashMap<>(conversation.getConfig());
         merged.putAll(config);
 
-        Map<String, Object> sanitized = ConversationContextSupport.freezeConfig(merged);
+        Map<String, Object> sanitized = prepareConfig(new ConversationRequest(merged));
 
         int rows = conversationMapper.updateConfigByIdAndUserId(id, actor.userId(), sanitized);
         if (rows != 1) {
@@ -159,6 +168,27 @@ public class ConversationServiceImpl implements ConversationService {
             throw new BusinessException(ErrorCode.CONVERSATION_UPDATE_FAILED);
         }
         return convertToResponse(requireById(id));
+    }
+
+    /**
+     * 组装待保存的配置，校验字段并丢弃未知键。
+     *
+     * @param request 原始或合并后的配置；字段缺省或为 null 时使用各字段缺省含义
+     * @return 新配置，包含布尔开关，省略 null 文档范围并保留空列表
+     * @throws BusinessException 请求字段类型或编号取值非法
+     */
+    private Map<String, Object> prepareConfig(ConversationRequest request) {
+        try {
+            Map<String, Object> config = new LinkedHashMap<>();
+            config.put("useSystemKnowledge", request.useSystemKnowledge());
+            List<Long> ids = request.ragDocumentIds();
+            if (ids != null) {
+                config.put("ragDocumentIds", ids);
+            }
+            return config;
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, exception.getMessage(), exception);
+        }
     }
 
     /** 局部更新后从数据库重新加载，保证返回最新字段。 */
