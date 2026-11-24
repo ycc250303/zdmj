@@ -82,6 +82,8 @@ class ConversationFlowIT extends IntegrationTestBase {
 
     @Autowired
     private org.springframework.jdbc.core.JdbcTemplate jdbc;
+    @Autowired
+    private org.mybatis.spring.SqlSessionTemplate sqlSession;
 
     @Test
     void 已保存的失败问答_下一轮继续任务时进入真实模型输入() throws Exception {
@@ -234,6 +236,44 @@ class ConversationFlowIT extends IntegrationTestBase {
         assertThat(jdbc.queryForMap("SELECT message_count,title FROM conversations WHERE id=?", id)).isEqualTo(before);
         org.mockito.Mockito.verify(model, org.mockito.Mockito.never())
                 .stream(org.mockito.ArgumentMatchers.any(org.springframework.ai.chat.prompt.Prompt.class));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void 终态写入或提交失败_数据库回滚且内存保持生成中(boolean commitFailure) throws Exception {
+        var user = testUsers.createPair().userA();
+        long id = createConversation(testJwt.authorize(user));
+        var realMapper = sqlSession.getMapper(com.zdmj.conversationService.mapper.MessageMapper.class);
+        var failure = new IllegalStateException("模拟终态保存失败");
+        org.mockito.Mockito.doAnswer(invocation -> {
+            int rows = realMapper.finishAssistant(invocation.getArgument(0), invocation.getArgument(1),
+                    invocation.getArgument(2), invocation.getArgument(3), invocation.getArgument(4));
+            if (commitFailure) {
+                org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                        new org.springframework.transaction.support.TransactionSynchronization() {
+                            @Override
+                            public void beforeCommit(boolean readOnly) {
+                                throw failure;
+                            }
+                        });
+                return rows;
+            }
+            throw failure;
+        }).when(messages).finishAssistant(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyInt());
+
+        var flow = messageService.createStream(new com.zdmj.common.context.CurrentActor(user.getId()), chatRequest(id, "问题"));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> flow.collectList().block(java.time.Duration.ofSeconds(5)))
+                .isSameAs(failure);
+        assertThat(jdbc.queryForMap("SELECT content,generation_status FROM messages WHERE conversation_id=? AND role=2", id))
+                .containsEntry("content", "").containsEntry("generation_status", 1);
+        var inserted = org.mockito.ArgumentCaptor.forClass(com.zdmj.conversationService.entity.Message.class);
+        org.mockito.Mockito.verify(messages, org.mockito.Mockito.times(2)).insert(inserted.capture());
+        var answer = inserted.getAllValues().stream().filter(message -> message.getRole() == 2).findFirst().orElseThrow();
+        assertThat(answer.getGenerationStatus()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT message_count FROM conversations WHERE id=?", Integer.class, id)).isEqualTo(2);
+        org.mockito.Mockito.verify(messages).finishAssistant(answer.getId(), user.getId(), id,
+                ExternalAiStubConfig.FIXED_REPLY, 2);
     }
 
     @Test

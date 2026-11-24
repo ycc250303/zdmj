@@ -37,6 +37,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zdmj.common.exception.BusinessException;
@@ -46,10 +47,11 @@ import com.zdmj.conversationService.dto.ChatStreamRequest;
 import com.zdmj.conversationService.dto.MessageResponse;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.entity.Message;
+import com.zdmj.conversationService.enums.MessageGenerationStatusEnum;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.support.ConversationContextSupport;
-import com.zdmj.knowledgeService.service.KnowledgeAnswerService;
+import com.zdmj.knowledgeService.service.KnowledgeRagService;
 
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
@@ -66,7 +68,7 @@ class MessageServiceImplTest {
     @Mock
     private ConversationMapper conversationMapper;
     @Mock
-    private KnowledgeAnswerService knowledgeAnswerService;
+    private KnowledgeRagService knowledgeRagService;
     @Mock
     private TransactionTemplate transactionTemplate;
 
@@ -89,7 +91,7 @@ class MessageServiceImplTest {
                 messageMapper,
                 conversationService,
                 conversationMapper,
-                knowledgeAnswerService,
+                knowledgeRagService,
                 transactionTemplate);
         lenient().doReturn(2).when(conversationMapper).incrementMessageCountAndGet(anyLong(), anyLong(), anyInt());
         lenient().doReturn(1).when(conversationMapper).updateTitleByIdAndUserId(anyLong(), anyLong(), anyString());
@@ -157,7 +159,7 @@ class MessageServiceImplTest {
         doReturn(Flux.defer(() -> {
             assertFalse(Thread.currentThread() == caller);
             return Flux.just("he", "llo");
-        }).subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic())).when(knowledgeAnswerService)
+        }).subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic())).when(knowledgeRagService)
                 .streamAnswer(same(actor), eq(302L), eq(new ModelRequest(message, null, null)), isNull(), eq(false));
         AtomicInteger insertTimes = new AtomicInteger(0);
         org.mockito.Mockito.doAnswer(invocation -> {
@@ -224,7 +226,7 @@ class MessageServiceImplTest {
         }).when(messageMapper).insert(any(Message.class));
         doReturn(1).when(messageMapper).finishAssistant(anyLong(), anyLong(), anyLong(), anyString(), anyInt());
         doReturn(Flux.concat(Flux.just("x"), Flux.error(new RuntimeException("boom"))))
-                .when(knowledgeAnswerService).streamAnswer(eq(new CurrentActor(1L)), eq(304L), eq(new ModelRequest("ask", null, null)), isNull(), eq(false));
+                .when(knowledgeRagService).streamAnswer(eq(new CurrentActor(1L)), eq(304L), eq(new ModelRequest("ask", null, null)), isNull(), eq(false));
 
         assertThrows(RuntimeException.class, () -> messageService.createStream(actor, dto).collectList().block());
         verify(messageMapper).finishAssistant(eq(901L), eq(1L), eq(304L), eq("x"), eq(3));
@@ -243,7 +245,7 @@ class MessageServiceImplTest {
             m.setId(m.getRole() == 2 ? 902L : 1L);
             return 1;
         }).when(messageMapper).insert(any(Message.class));
-        doReturn(Flux.just("ok")).when(knowledgeAnswerService)
+        doReturn(Flux.just("ok")).when(knowledgeRagService)
                 .streamAnswer(eq(new CurrentActor(1L)), eq(305L), eq(new ModelRequest("go", null, null)), isNull(), eq(false));
         doReturn(0).when(messageMapper).finishAssistant(anyLong(), anyLong(), anyLong(), anyString(), anyInt());
 
@@ -282,11 +284,11 @@ class MessageServiceImplTest {
             return 1;
         }).when(messageMapper).insert(any(Message.class));
         doReturn(1).when(messageMapper).finishAssistant(anyLong(), anyLong(), anyLong(), anyString(), anyInt());
-        doReturn(Flux.just("ok")).when(knowledgeAnswerService).streamAnswer(eq(new CurrentActor(1L)), eq(306L), eq(new ModelRequest("ask", null, null)), eq(List.of(9L)), eq(true));
+        doReturn(Flux.just("ok")).when(knowledgeRagService).streamAnswer(eq(new CurrentActor(1L)), eq(306L), eq(new ModelRequest("ask", null, null)), eq(List.of(9L)), eq(true));
 
         messageService.createStream(actor, dto).collectList().block();
 
-        verify(knowledgeAnswerService).streamAnswer(eq(new CurrentActor(1L)), eq(306L), eq(new ModelRequest("ask", null, null)), eq(List.of(9L)), eq(true));
+        verify(knowledgeRagService).streamAnswer(eq(new CurrentActor(1L)), eq(306L), eq(new ModelRequest("ask", null, null)), eq(List.of(9L)), eq(true));
     }
 
     @Test
@@ -305,7 +307,7 @@ class MessageServiceImplTest {
         doReturn(1).when(messageMapper).finishAssistant(anyLong(), anyLong(), anyLong(), anyString(), anyInt());
         java.util.concurrent.atomic.AtomicBoolean upstreamCancelled = new java.util.concurrent.atomic.AtomicBoolean(false);
         doReturn(Flux.concat(Flux.just("部分"), Flux.never()).doOnCancel(() -> upstreamCancelled.set(true)))
-                .when(knowledgeAnswerService)
+                .when(knowledgeRagService)
                 .streamAnswer(eq(new CurrentActor(1L)), eq(307L), eq(new ModelRequest("wait", null, null)), isNull(), eq(false));
 
         Disposable subscription = messageService.createStream(actor, dto).subscribe();
@@ -319,7 +321,7 @@ class MessageServiceImplTest {
     @Test
     void createStream_synchronousRetrievalFailure_shouldSaveFailedStateAndPropagate() {
         var request = prepareStream(401L);
-        doThrow(new IllegalStateException("检索服务不可用")).when(knowledgeAnswerService)
+        doThrow(new IllegalStateException("检索服务不可用")).when(knowledgeRagService)
                 .streamAnswer(eq(actor), eq(401L), any(ModelRequest.class), isNull(), eq(false));
         assertThrows(IllegalStateException.class, () -> messageService.createStream(actor, request).collectList().block());
         verify(messageMapper).finishAssistant(anyLong(), eq(1L), eq(401L), eq(""), eq(3));
@@ -328,7 +330,7 @@ class MessageServiceImplTest {
     @Test
     void createStream_modelAndPersistenceFail_shouldPropagateDatabaseCauseWithModelFailure() {
         var request = prepareStream(402L);
-        doReturn(Flux.error(new IllegalArgumentException("模型异常"))).when(knowledgeAnswerService)
+        doReturn(Flux.error(new IllegalArgumentException("模型异常"))).when(knowledgeRagService)
                 .streamAnswer(eq(actor), eq(402L), any(ModelRequest.class), isNull(), eq(false));
         doThrow(new IllegalStateException("数据库异常")).when(messageMapper)
                 .finishAssistant(anyLong(), anyLong(), anyLong(), anyString(), anyInt());
@@ -343,7 +345,73 @@ class MessageServiceImplTest {
         var request = prepareStream(403L);
         doReturn(1).when(messageMapper).insert(any(Message.class));
         assertThrows(IllegalStateException.class, () -> messageService.createStream(actor, request));
-        verify(knowledgeAnswerService, never()).streamAnswer(any(), any(), any(), any(), org.mockito.ArgumentMatchers.anyBoolean());
+        verify(knowledgeRagService, never()).streamAnswer(any(), any(), any(), any(), org.mockito.ArgumentMatchers.anyBoolean());
+    }
+
+    @ParameterizedTest
+    @MethodSource("terminalSaveFailureCases")
+    void finishAssistant_saveFailure_shouldKeepProcessingUntilLaterCommit(
+            MessageGenerationStatusEnum state, String failureStage) {
+        org.mockito.Mockito.doAnswer(invocation -> {
+            Message message = invocation.getArgument(0);
+            message.setId(message.getRole() == 2 ? 905L : 1L);
+            return 1;
+        }).when(messageMapper).insert(any(Message.class));
+        Object prepared = ReflectionTestUtils.invokeMethod(messageService, "insertMessages",
+                new ChatStreamRequest(404L, "任务"), actor.userId());
+        Message answer = ReflectionTestUtils.invokeMethod(prepared, "assistantMsg");
+        StringBuilder full = ReflectionTestUtils.invokeMethod(prepared, "full");
+        full.append("部分内容");
+        IllegalStateException failure = new IllegalStateException("保存失败");
+        String expectedMessage = failure.getMessage();
+        switch (failureStage) {
+            case "write" -> doThrow(failure).when(messageMapper)
+                    .finishAssistant(905L, 1L, 404L, "部分内容", state.getCode());
+            case "zeroRows" -> {
+                doReturn(0).when(messageMapper).finishAssistant(905L, 1L, 404L, "部分内容", state.getCode());
+                expectedMessage = "生成中的助手回复必须更新一条记录";
+            }
+            case "commit" -> {
+                doReturn(1).when(messageMapper).finishAssistant(905L, 1L, 404L, "部分内容", state.getCode());
+                org.mockito.Mockito.doAnswer(invocation -> {
+                    TransactionCallback<?> callback = invocation.getArgument(0);
+                    callback.doInTransaction(new SimpleTransactionStatus());
+                    throw failure;
+                }).when(transactionTemplate).execute(any());
+            }
+            case "missingResult" -> {
+                doReturn(null).when(transactionTemplate).execute(any());
+                expectedMessage = "助手回复保存事务未返回结果";
+            }
+            default -> throw new IllegalArgumentException("未知失败阶段");
+        }
+
+        IllegalStateException error = assertThrows(IllegalStateException.class,
+                () -> ReflectionTestUtils.invokeMethod(messageService, "finishAssistant", prepared, state));
+        assertEquals(expectedMessage, error.getMessage());
+        assertEquals(MessageGenerationStatusEnum.PROCESSING.getCode(), answer.getGenerationStatus());
+        assertEquals("部分内容", full.toString());
+
+        org.mockito.Mockito.doAnswer(invocation -> {
+            TransactionCallback<?> callback = invocation.getArgument(0);
+            Object result = callback.doInTransaction(new SimpleTransactionStatus());
+            assertEquals(MessageGenerationStatusEnum.PROCESSING.getCode(), answer.getGenerationStatus());
+            return result;
+        }).when(transactionTemplate).execute(any());
+        doReturn(1).when(messageMapper).finishAssistant(905L, 1L, 404L, "部分内容", state.getCode());
+        org.mockito.Mockito.clearInvocations(messageMapper);
+
+        ReflectionTestUtils.invokeMethod(messageService, "finishAssistant", prepared, state);
+        assertEquals(state.getCode(), answer.getGenerationStatus());
+        ReflectionTestUtils.invokeMethod(messageService, "finishAssistant", prepared, state);
+        verify(messageMapper).finishAssistant(905L, 1L, 404L, "部分内容", state.getCode());
+    }
+
+    private static Stream<Arguments> terminalSaveFailureCases() {
+        return Stream.of(MessageGenerationStatusEnum.COMPLETED, MessageGenerationStatusEnum.FAILED,
+                        MessageGenerationStatusEnum.CANCELLED)
+                .flatMap(state -> Stream.of("write", "zeroRows", "commit", "missingResult")
+                        .map(stage -> Arguments.of(state, stage)));
     }
 
     private ChatStreamRequest prepareStream(long id) {

@@ -214,23 +214,20 @@ public class MessageServiceImpl implements MessageService {
         prepared.upstream().set(upstream);
     }
 
-    /** 
-     * 完成助手回复
-     * 
-     * @param prepared 准备好的消息
-     * @param state 状态
+    /**
+     * 在会话行锁保护的短事务中保存内容及终态，提交成功后更新内存状态。
+     * 已删除会话结束本地处理；写入或提交失败时保留生成中状态并传播异常。
+     *
+     * @param prepared 本轮消息、已接收内容及流控制信息
+     * @param state 本次结束对应的完成、失败或取消状态
+     * @throws IllegalStateException 必须存在的回复未更新一条记录，或事务未返回结果
      */
     private void finishAssistant(PreparedMessages prepared, MessageGenerationStatusEnum state) {
-        // 1. 锁定会话，防止并发修改
         synchronized (prepared) {
-            // 2. 获取助手回复消息
             Message answer = prepared.assistantMsg();
             if (answer.getGenerationStatus() != MessageGenerationStatusEnum.PROCESSING.getCode()) {
                 return;
             }
-            // 3. 设置助手回复消息状态
-            answer.setGenerationStatus(state.getCode());
-            // 4. 更新助手回复消息状态
             Integer updated = transactionTemplate.execute(status -> {
                 if (conversationMapper.selectOwnedForUpdate(answer.getConversationId(), answer.getUserId()) == null) {
                     return 0;
@@ -245,6 +242,7 @@ public class MessageServiceImpl implements MessageService {
             if (updated == null) {
                 throw new IllegalStateException("助手回复保存事务未返回结果");
             }
+            answer.setGenerationStatus(state.getCode());
         }
     }
 
