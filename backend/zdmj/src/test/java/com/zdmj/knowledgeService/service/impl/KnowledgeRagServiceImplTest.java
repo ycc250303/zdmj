@@ -95,7 +95,6 @@ class KnowledgeRagServiceImplTest {
     void streamAnswer_whenEmbeddingFails_shouldStopBeforeAnswer() {
         actor = new CurrentActor(401L);
         ragConfig.getRewrite().setEnabled(false);
-        when(knowledgeBasesService.getOrCreateKnowledgeBaseId(actor)).thenReturn(501L);
         when(embeddingGateway.embed(any(), any())).thenThrow(new RuntimeException("embed fail"));
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
@@ -121,13 +120,13 @@ class KnowledgeRagServiceImplTest {
         when(knowledgeVectorMapper.searchBySimilarity(401L, 501L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of());
         when(modelGateway.stream(same(actor), eq(answerRequest("hello", "system"))))
-                .thenReturn(Flux.just("fallback-system"));
+                .thenReturn(Flux.just("普通问答回复"));
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
         List<String> chunks = service.streamAnswer(actor, 13L, answerRequest("hello", null), null, false).collectList().block();
 
-        assertEquals(List.of("fallback-system"), chunks);
+        assertEquals(List.of("普通问答回复"), chunks);
         verify(knowledgeVectorMapper).searchBySimilarity(401L, 501L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium());
     }
 
@@ -191,7 +190,7 @@ class KnowledgeRagServiceImplTest {
     }
 
     @Test
-    void streamAnswerEmptyDocumentSelection_shouldFallbackSystemPrompt() {
+    void streamAnswerEmptyDocumentSelection_shouldUseSystemPrompt() {
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
         when(modelGateway.stream(same(actor), eq(answerRequest("hello", "system"))))
@@ -295,7 +294,7 @@ class KnowledgeRagServiceImplTest {
 
     @Test
     @SuppressWarnings("null")
-    void retrieveRankedSystemKnowledgeOnly_shouldSearchSystemKbWithoutExpand() {
+    void retrieveRankedSystemKnowledgeOnly_shouldSearchSystemKb() {
         actor = new CurrentActor(406L);
         ragConfig.getRewrite().setEnabled(false);
         when(knowledgeBasesService.findKnowledgeBaseIdByScope(KnowledgeScopeEnum.SYSTEM.getCode())).thenReturn(11L);
@@ -416,6 +415,140 @@ class KnowledgeRagServiceImplTest {
         assertEquals((long) (topK - 1), out.hits().get(topK - 1).id());
         verify(embeddingGateway).embed(same(actor), eq(List.of("hello question")));
     }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {1, 2, 8, 256, 12000})
+    void 上下文预算覆盖分隔符标记并保留完整字符(int budget) {
+        String longText = "材料😀".repeat(4000);
+        String context = captureContext(budget, List.of(
+                hit(2L, 2, longText), hit(1L, 0, "第一段"), hit(2L, 1, longText), hit(3L, 0, "  ")));
+        assertTrue(context.length() <= budget);
+        assertFalse(context.endsWith("\n\n---\n\n"));
+        assertFalse(context.equals("…"));
+        for (int i = 0; i < context.length(); i++) {
+            char c = context.charAt(i);
+            if (Character.isHighSurrogate(c)) {
+                assertTrue(i + 1 < context.length() && Character.isLowSurrogate(context.charAt(++i)));
+            } else {
+                assertFalse(Character.isLowSurrogate(c));
+            }
+        }
+        if (budget >= 256) {
+            assertTrue(context.startsWith("第一段\n\n---\n\n"));
+            assertTrue(context.endsWith("…"));
+        }
+    }
+
+    @Test
+    void 上下文恰好容纳时保留全文且空内容不选用资料提示词() {
+        assertEquals("甲", captureContext(1, List.of(hit(1L, 0, "甲"))));
+        assertEquals("甲\n\n---\n\n乙", captureContext(9, List.of(hit(2L, 0, "乙"), hit(1L, 0, "甲"))));
+        assertEquals("甲乙…", captureContext(3, List.of(hit(1L, 0, "甲乙丙丁"))));
+        assertEquals("", captureContext(1, List.of(hit(1L, 0, "😀甲"))));
+        assertEquals("", captureContext(256, List.of(hit(1L, 0, "  "), hit(2L, 0, null))));
+    }
+
+    @Test
+    void 检索成功和外部失败日志仅包含安全字段并保留异常原因() {
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+        var ragLogger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(KnowledgeRagServiceImpl.class);
+        var oldLevel = ragLogger.getLevel();
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.list = new java.util.concurrent.CopyOnWriteArrayList<>();
+        appender.start();
+        logger.addAppender(appender);
+        ragLogger.setLevel(ch.qos.logback.classic.Level.DEBUG);
+        String secret = "敏感问题与供应商响应标识";
+        try {
+            ragConfig.getRewrite().setEnabled(true);
+            when(modelGateway.generate(any(), any())).thenReturn("敏感改写标识");
+            when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f}));
+            when(knowledgeEmbeddingService.toPgVector(any())).thenReturn("[0.1]");
+            when(knowledgeBasesService.getOrCreateKnowledgeBaseId(actor)).thenReturn(1L);
+            when(knowledgeVectorMapper.searchBySimilarity(any(), any(), any(), anyInt()))
+                    .thenReturn(List.of(new KnowledgeRetrivalDTO(1L, 1L, 0, "敏感文档标识", 0.9,
+                            Map.of("pendingKey", "敏感文件标识"), null)));
+            when(modelGateway.stream(any(), any())).thenReturn(Flux.just("回复"));
+            var service = new KnowledgeRagServiceImpl(embeddingGateway, ragConfig, knowledgeBasesService,
+                    knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+            service.streamAnswer(actor, 1L, answerRequest(secret, null), null, false).collectList().block();
+            for (boolean rewriteFailure : List.of(true, false)) {
+                ragConfig.getRewrite().setEnabled(rewriteFailure);
+                RuntimeException cause = new RuntimeException(secret);
+                if (rewriteFailure) {
+                    when(modelGateway.generate(any(), any())).thenThrow(cause);
+                } else {
+                    when(embeddingGateway.embed(any(), any())).thenThrow(cause);
+                }
+                BusinessException error = assertThrows(BusinessException.class,
+                        () -> service.retrieveRanked(actor, secret, null, false));
+                org.junit.jupiter.api.Assertions.assertSame(cause, error.getCause());
+            }
+            var providerFailure = new BusinessException(ErrorCode.USER_LLM_NOT_CONFIGURED, secret);
+            Mockito.doThrow(providerFailure).when(embeddingGateway).embed(any(), any());
+            BusinessException wrapped = assertThrows(BusinessException.class,
+                    () -> service.retrieveRanked(actor, secret, null, false));
+            assertEquals(providerFailure.getErrorCode(), wrapped.getErrorCode());
+            org.junit.jupiter.api.Assertions.assertSame(providerFailure, wrapped.getCause());
+            assertEquals(ErrorCode.USER_LLM_NOT_CONFIGURED.getMessage(), wrapped.getMessage());
+            assertTrue(appender.list.stream().anyMatch(event -> event.getFormattedMessage()
+                    .startsWith("RAG 检索完成 operationId=")));
+            assertTrue(appender.list.stream().anyMatch(event -> event.getLevel() == ch.qos.logback.classic.Level.DEBUG
+                    && event.getFormattedMessage().startsWith("RAG 命中 operationId=")));
+            for (var event : appender.list) {
+                String rendered = event.getFormattedMessage();
+                if (event.getThrowableProxy() != null) {
+                    rendered += ch.qos.logback.classic.spi.ThrowableProxyUtil.asString(event.getThrowableProxy());
+                }
+                org.assertj.core.api.Assertions.assertThat(rendered)
+                        .doesNotContain(secret, "敏感改写标识", "敏感文档标识", "敏感文件标识", "pendingKey");
+            }
+        } finally {
+            ragLogger.setLevel(oldLevel);
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+    }
+
+    @Test
+    void 检索内部不变量错误直接传播() {
+        var service = new KnowledgeRagServiceImpl(embeddingGateway, ragConfig, knowledgeBasesService,
+                knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+        var defect = new IllegalStateException("内部结果不满足约束");
+        when(modelGateway.generate(any(), any())).thenThrow(defect);
+        org.junit.jupiter.api.Assertions.assertSame(defect, assertThrows(IllegalStateException.class,
+                () -> service.retrieveRanked(actor, "问题", null, false)));
+        ragConfig.getRewrite().setEnabled(false);
+        when(embeddingGateway.embed(any(), any())).thenThrow(defect);
+        org.junit.jupiter.api.Assertions.assertSame(defect, assertThrows(IllegalStateException.class,
+                () -> service.retrieveRanked(actor, "问题", null, false)));
+    }
+
+    private String captureContext(int budget, List<KnowledgeRetrivalDTO> hits) {
+        ragConfig.getRewrite().setEnabled(false);
+        ragConfig.getSearch().setContextBudget(budget);
+        when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f}));
+        when(knowledgeEmbeddingService.toPgVector(any())).thenReturn("[0.1]");
+        when(knowledgeBasesService.getOrCreateKnowledgeBaseId(actor)).thenReturn(1L);
+        when(knowledgeVectorMapper.searchBySimilarity(any(), any(), any(), anyInt())).thenReturn(hits);
+        var captured = new java.util.concurrent.atomic.AtomicReference<ModelRequest>();
+        when(modelGateway.stream(any(), any())).thenAnswer(invocation -> {
+            captured.set(invocation.getArgument(1));
+            return Flux.just("回复");
+        });
+        new KnowledgeRagServiceImpl(embeddingGateway, ragConfig, knowledgeBasesService,
+                knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway)
+                .streamAnswer(actor, 1L, answerRequest("问题", null), null, false).collectList().block();
+        ModelRequest request = captured.get();
+        String context = request.promptVars() == null ? "" : (String) request.promptVars().get("context");
+        assertEquals(context.isEmpty() ? "system" : "knowledgebase-rag-system", request.promptName());
+        return context;
+    }
+
+    private static KnowledgeRetrivalDTO hit(long documentId, int chunk, String text) {
+        return new KnowledgeRetrivalDTO(documentId * 10 + chunk, documentId, chunk, text, 0.9, null, null);
+    }
+
     private static ModelRequest answerRequest(String message, String prompt) {
         return new ModelRequest(message, prompt, null,
                 List.of(new ModelRequest.HistoryMessage(ModelRequest.HistoryMessage.Role.USER, "之前的任务"),

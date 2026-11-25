@@ -52,6 +52,50 @@ class KnowledgeFlowIT extends IntegrationTestBase {
     }
 
     @Test
+    void 检索请求拒绝隐式类型转换且日志不回显输入() throws Exception {
+        String token = testJwt.authorize(testUsers.createPair().userA());
+        var root = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.list = new java.util.concurrent.CopyOnWriteArrayList<>();
+        appender.start();
+        root.addAppender(appender);
+        try {
+            for (String ids : List.of("[1.9]", "[1.0]", "[1e0]", "[\"2\"]", "[-1]", "[0]", "[null]",
+                    "[9223372036854775808]", "[true]", "{}", "1")) {
+                ApiClient.assertProblem(api.post(token, "/knowledge/retrievals",
+                        "{\"query\":\"敏感检索问题标识\",\"ragDocumentIds\":" + ids + "}"), 400, 1001);
+            }
+            for (String flag : List.of("\"true\"", "\"false\"", "0", "1", "[]", "{}")) {
+                ApiClient.assertProblem(api.post(token, "/knowledge/retrievals",
+                        "{\"query\":\"敏感检索问题标识\",\"useSystemKnowledge\":" + flag + "}"), 400, 1001);
+            }
+            for (String query : List.of("1", "true", "[]", "{}", "null", "\" \"", "\"" + "问".repeat(4001) + "\"")) {
+                ApiClient.assertProblem(api.post(token, "/knowledge/retrievals", "{\"query\":" + query + "}"), 400, 1001);
+            }
+            for (String json : List.of("{}", "[]", "null", "{\"query\":\"敏感检索问题标识")) {
+                ApiClient.assertProblem(api.post(token, "/knowledge/retrievals", json), 400, 1001);
+            }
+            assertThat(com.zdmj.testsupport.ExternalAiStubConfig.modelTransactionObservations()).isEmpty();
+            org.mockito.Mockito.verifyNoInteractions(embedding);
+            org.mockito.Mockito.doThrow(new RuntimeException("敏感检索问题标识"))
+                    .when(embedding).embed(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyList());
+            ApiClient.assertProblem(api.post(token, "/knowledge/retrievals",
+                    "{\"query\":\"敏感检索问题标识\",\"ragDocumentIds\":null}"), 400, 8015);
+            for (var event : appender.list) {
+                String rendered = event.getFormattedMessage();
+                if (event.getThrowableProxy() != null) {
+                    rendered += ch.qos.logback.classic.spi.ThrowableProxyUtil.asString(event.getThrowableProxy());
+                }
+                assertThat(rendered).doesNotContain("敏感检索问题标识");
+            }
+        } finally {
+            root.detachAppender(appender);
+            appender.stop();
+            org.mockito.Mockito.reset(embedding);
+        }
+    }
+
+    @Test
     void 知识库检索_创建文档并写入固定向量_归属正确且范围过滤只命中指定文档() throws Exception {
         User user = testUsers.createPair().userA();
         String token = testJwt.authorize(user);
@@ -100,11 +144,20 @@ class KnowledgeFlowIT extends IntegrationTestBase {
                 "$.data.hits[?(@.documentId == " + alphaId + ")].docCategory");
         assertThat(categories).containsExactly("learning");
 
-
         String closed = ApiClient.requireOk(api.post(token, "/knowledge/retrievals", """
                 {"query":"检索甲","ragDocumentIds":[],"useSystemKnowledge":false}
                 """));
         assertThat(JsonPath.<Integer>read(closed, "$.data.hits.length()")).isZero();
+        String repeated = ApiClient.requireOk(api.post(token, "/knowledge/retrievals", """
+                {"query":"检索甲","ragDocumentIds":[%d,%d],"useSystemKnowledge":null}
+                """.formatted(alphaId, alphaId)));
+        assertThat(JsonPath.<List<Number>>read(repeated, "$.data.hits[*].documentId"))
+                .isNotEmpty().allMatch(id -> id.longValue() == alphaId);
+        String explicitNull = ApiClient.requireOk(api.post(token, "/knowledge/retrievals", """
+                {"query":"检索甲","ragDocumentIds":null,"useSystemKnowledge":null}
+                """));
+        assertThat(JsonPath.<List<Number>>read(explicitNull, "$.data.hits[*].documentId"))
+                .extracting(Number::longValue).contains(alphaId, betaId);
         assertThat(betaId).isNotEqualTo(alphaId);
     }
 

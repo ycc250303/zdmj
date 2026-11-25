@@ -25,10 +25,10 @@ class RecordDtoSerializationContractTest {
     void 请求集合_构造后修改来源_结构独立且保留空值和空列表语义() {
         var ids = new ArrayList<Long>();
         ids.add(7L);
-        ids.add(null);
+        ids.add(7L);
         var request = new KnowledgeRetrievalRequest("查询", ids, false);
         ids.clear();
-        assertThat(request.ragDocumentIds()).containsExactly(7L, null);
+        assertThat(request.ragDocumentIds()).containsExactly(7L, 7L);
         assertThatThrownBy(() -> request.ragDocumentIds().add(8L))
                 .isInstanceOf(UnsupportedOperationException.class);
         assertThat(new KnowledgeRetrievalRequest("查询", null, false).ragDocumentIds()).isNull();

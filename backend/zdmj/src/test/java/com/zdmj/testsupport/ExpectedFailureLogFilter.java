@@ -25,8 +25,6 @@ public class ExpectedFailureLogFilter extends TurboFilter {
             "能力画像结构化输出失败",
             "大模型生成能力画像失败",
             "岗位要求画像生成失败",
-            "查询改写失败",
-            "查询向量生成失败",
             "写入登录态失败",
             "邮件失败后的验证码清理失败",
             "邮件发送失败",

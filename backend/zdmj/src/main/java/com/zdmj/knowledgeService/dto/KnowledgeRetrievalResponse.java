@@ -3,7 +3,7 @@ package com.zdmj.knowledgeService.dto;
 import java.util.List;
 
 /**
- * 知识库排序检索结果：改写后的 query 与 ANN 合并排序列表（尚未整篇展开）。
+ * 知识库排序检索结果：归一化问题、改写信息和合并排序后的片段。
  *
  * @param query 归一化后的原始问句
  * @param rewrittenQuery 检索改写问句；未改写时与 {@link #query} 相同
