@@ -14,7 +14,7 @@ import java.util.Map;
 @Mapper
 public interface ConversationMapper extends BaseMapper<Conversation> {
 
-    /** 在短事务中锁定归属用户的会话，供消息准备、结束保存和删除共用。 */
+    /** 在短事务中锁定归属用户的会话，供配置更新、消息准备、结束保存和删除共用。 */
     Conversation selectOwnedForUpdate(@Param("conversationId") Long conversationId,
             @Param("userId") Long userId);
 

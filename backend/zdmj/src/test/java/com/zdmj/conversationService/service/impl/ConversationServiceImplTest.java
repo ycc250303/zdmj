@@ -271,6 +271,11 @@ class ConversationServiceImplTest {
         owned.setUserId(1L);
         owned.setMessageCount(0);
         owned.setConfig(new HashMap<>(Map.of("useSystemKnowledge", false)));
+        Conversation locked = new Conversation();
+        locked.setId(23L);
+        locked.setUserId(1L);
+        locked.setMessageCount(0);
+        locked.setConfig(Map.of("useSystemKnowledge", true));
         Conversation refreshed = new Conversation();
         refreshed.setId(23L);
         refreshed.setUserId(1L);
@@ -279,17 +284,23 @@ class ConversationServiceImplTest {
                 "useSystemKnowledge", true,
                 "ragDocumentIds", List.of(1L, 2L)));
         when(conversationMapper.selectById(23L)).thenReturn(owned, refreshed);
+        when(conversationMapper.selectOwnedForUpdate(23L, 1L)).thenReturn(locked);
         when(conversationMapper.updateConfigByIdAndUserId(eq(23L), eq(1L), any())).thenReturn(1);
 
         ConversationResponse out = conversationService.updateConfig(actor, 23L, Map.of(
                 "ragDocumentIds", List.of(1L, 2L),
-                "useSystemKnowledge", true,
                 "model", "gpt"));
 
         assertTrue(Boolean.TRUE.equals(out.config().get("useSystemKnowledge")));
         ArgumentCaptor<Map<String, Object>> configCaptor = ArgumentCaptor.forClass(Map.class);
         verify(conversationMapper).updateConfigByIdAndUserId(eq(23L), eq(1L), configCaptor.capture());
-        assertFalse(configCaptor.getValue().containsKey("model"));
+        assertEquals(Map.of("useSystemKnowledge", true, "ragDocumentIds", List.of(1L, 2L)), configCaptor.getValue());
+        assertEquals(Map.of("useSystemKnowledge", false), owned.getConfig());
+        var order = org.mockito.Mockito.inOrder(conversationMapper);
+        order.verify(conversationMapper).selectById(23L);
+        order.verify(conversationMapper).selectOwnedForUpdate(23L, 1L);
+        order.verify(conversationMapper).updateConfigByIdAndUserId(eq(23L), eq(1L), any());
+        order.verify(conversationMapper).selectById(23L);
     }
 
     @Test
@@ -297,14 +308,48 @@ class ConversationServiceImplTest {
         Conversation owned = new Conversation();
         owned.setId(25L);
         owned.setUserId(1L);
-        owned.setMessageCount(2);
+        owned.setMessageCount(0);
+        Conversation locked = new Conversation();
+        locked.setMessageCount(2);
         when(conversationMapper.selectById(25L)).thenReturn(owned);
+        when(conversationMapper.selectOwnedForUpdate(25L, 1L)).thenReturn(locked);
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> conversationService.updateConfig(actor, 25L, Map.of("useSystemKnowledge", true)));
 
         assertEquals(ErrorCode.CONVERSATION_CONFIG_LOCKED.getCode(), ex.getCode());
         verify(conversationMapper, never()).updateConfigByIdAndUserId(any(), any(), any());
+    }
+
+    @Test
+    void updateConfig_deletedBeforeLock_shouldReturnNotFound() {
+        Conversation owned = new Conversation();
+        owned.setUserId(actor.userId());
+        when(conversationMapper.selectById(23L)).thenReturn(owned);
+
+        BusinessException failure = assertThrows(BusinessException.class,
+                () -> conversationService.updateConfig(actor, 23L, Map.of("useSystemKnowledge", true)));
+
+        assertEquals(ErrorCode.CONVERSATION_NOT_FOUND.getCode(), failure.getCode());
+        verify(conversationMapper).selectOwnedForUpdate(23L, 1L);
+        verify(conversationMapper, never()).updateConfigByIdAndUserId(any(), any(), any());
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {0, 2})
+    void updateConfig_unexpectedRowsAfterLock_shouldFailImmediately(int rows) {
+        Conversation owned = new Conversation();
+        owned.setUserId(actor.userId());
+        when(conversationMapper.selectById(23L)).thenReturn(owned);
+        when(conversationMapper.selectOwnedForUpdate(23L, 1L)).thenReturn(owned);
+        when(conversationMapper.updateConfigByIdAndUserId(eq(23L), eq(1L), any())).thenReturn(rows);
+
+        IllegalStateException failure = assertThrows(IllegalStateException.class,
+                () -> conversationService.updateConfig(actor, 23L, Map.of("useSystemKnowledge", true)));
+
+        assertTrue(failure.getMessage().contains("conversationId=23"));
+        assertTrue(failure.getMessage().contains("rows=" + rows));
+        verify(conversationMapper).selectById(23L);
     }
 
     @Test
@@ -319,6 +364,7 @@ class ConversationServiceImplTest {
         owned.setUserId(1L);
         owned.setConfig(Map.of("useSystemKnowledge", true, "ragDocumentIds", List.of(2L)));
         when(conversationMapper.selectById(23L)).thenReturn(owned);
+        when(conversationMapper.selectOwnedForUpdate(23L, 1L)).thenReturn(owned);
         BusinessException updateError = assertThrows(BusinessException.class,
                 () -> conversationService.updateConfig(actor, 23L, Map.of("useSystemKnowledge", "true")));
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), updateError.getCode());
@@ -334,6 +380,7 @@ class ConversationServiceImplTest {
         owned.setUserId(1L);
         owned.setConfig(Map.of(key, "invalid"));
         when(conversationMapper.selectById(23L)).thenReturn(owned);
+        when(conversationMapper.selectOwnedForUpdate(23L, 1L)).thenReturn(owned);
         IllegalStateException error = assertThrows(IllegalStateException.class,
                 () -> conversationService.updateConfig(actor, 23L,
                         Map.of("useSystemKnowledge", false, "ragDocumentIds", List.of())));
@@ -368,6 +415,7 @@ class ConversationServiceImplTest {
         conversation.setUserId(actor.userId());
         conversation.setConfig(config);
         when(conversationMapper.selectById(23L)).thenReturn(conversation);
+        when(conversationMapper.selectOwnedForUpdate(23L, 1L)).thenReturn(conversation);
         IllegalStateException storedError = assertThrows(IllegalStateException.class,
                 () -> conversationService.updateConfig(actor, 23L, Map.of("model", "ignored")));
         assertTrue(storedError.getMessage().contains("conversationId=23"));

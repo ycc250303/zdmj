@@ -127,21 +127,27 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     /**
-     * 更新会话配置。
+     * 在短事务内锁定会话，校验并合并局部配置，保存后读取响应。
+     * 与消息准备及删除共用会话行锁，避免并发请求覆盖其他字段。
      *
      * @param actor 已认证操作者，包含用户编号
      * @param id 会话编号
      * @param config 局部配置；省略字段保留原值，明确 null 恢复该字段缺省含义
      * @return 更新后的会话
      * @throws BusinessException 配置为空或非法、会话不存在、无权访问或已有消息
-     * @throws IllegalStateException 数据库中已存检索配置非法
+     * @throws IllegalStateException 数据库中已存检索配置非法，或锁定后更新行数异常
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public ConversationResponse updateConfig(CurrentActor actor, Long id, Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "会话配置不能为空");
         }
-        Conversation conversation = requireOwned(actor, id);
+        requireOwned(actor, id);
+        Conversation conversation = conversationMapper.selectOwnedForUpdate(id, actor.userId());
+        if (conversation == null) {
+            throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
+        }
         if (conversation.getMessageCount() != null && conversation.getMessageCount() > 0) {
             throw new BusinessException(ErrorCode.CONVERSATION_CONFIG_LOCKED);
         }
@@ -163,11 +169,7 @@ public class ConversationServiceImpl implements ConversationService {
 
         int rows = conversationMapper.updateConfigByIdAndUserId(id, actor.userId(), sanitized);
         if (rows != 1) {
-            Conversation latest = conversationMapper.selectById(id);
-            if (latest != null && latest.getMessageCount() != null && latest.getMessageCount() > 0) {
-                throw new BusinessException(ErrorCode.CONVERSATION_CONFIG_LOCKED);
-            }
-            throw new BusinessException(ErrorCode.CONVERSATION_UPDATE_FAILED);
+            throw new IllegalStateException("锁定会话后配置必须更新一条记录，conversationId=" + id + "，rows=" + rows);
         }
         return convertToResponse(requireById(id));
     }
