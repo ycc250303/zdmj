@@ -30,6 +30,8 @@ import com.zdmj.knowledgeService.service.KnowledgeRagService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 @Slf4j
 @Service
@@ -63,11 +65,20 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
     @Override
     public Flux<String> streamAnswer(CurrentActor actor, Long conversationId, ModelRequest request,
             List<Long> ragDocumentIds, boolean useSystemKnowledge) {
+        return Mono.fromCallable(() -> prepareAnswerRequest(actor, conversationId, request,
+                        ragDocumentIds, useSystemKnowledge))
+                .subscribeOn(Schedulers.boundedElastic())
+                .flatMapMany(prepared -> modelGateway.stream(actor, prepared));
+    }
+
+    /** 在可取消的订阅内准备检索上下文，取消后不再启动回答模型。 */
+    private ModelRequest prepareAnswerRequest(CurrentActor actor, Long conversationId, ModelRequest request,
+            List<Long> ragDocumentIds, boolean useSystemKnowledge) {
         // 1. 准备提示词
         String prompt = SYSTEM_PROMPT;
         Map<String, Object> variables = request.promptVars() == null
                 ? null : new HashMap<>(request.promptVars());
-        // 注意，此处 ragDocumentIds == null 表示检索用户知识库 + 系统知识库全部文档
+        // null 表示不限用户文档，系统知识库由独立开关控制
         if (ragDocumentIds == null || !ragDocumentIds.isEmpty() || useSystemKnowledge) {
             // 2. 检索
             KnowledgeRetrievalResponse ranked = retrieveRanked(actor, request.message(), ragDocumentIds, useSystemKnowledge);
@@ -85,9 +96,9 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
             // 7. 记录检索完成
             log.info("RAG 检索完成 conversationId={} hitCount={}", conversationId, hits.size());
         }
-        // 8. 返回模型流
-        return modelGateway.stream(actor, new ModelRequest(request.message(), prompt, variables,
-                request.history(), request.historyNotice()));
+        // 8. 返回包含检索材料的模型输入
+        return new ModelRequest(request.message(), prompt, variables,
+                request.history(), request.historyNotice());
     }
 
     /**

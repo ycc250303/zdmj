@@ -1,6 +1,8 @@
 package com.zdmj.integration.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,8 +60,9 @@ class LogicalReferenceIntegrityIT extends IntegrationTestBase {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenA)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"conversationId\":999999999,\"message\":\"你好\"}"))
-                .andReturn();
-        ApiClient.assertProblem(missingConversation, 404, 9003);
+                .andExpect(request().asyncStarted()).andReturn();
+        missingConversation.getAsyncResult(5000);
+        ApiClient.assertProblem(mockMvc.perform(asyncDispatch(missingConversation)).andReturn(), 404, 9003);
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM messages", Integer.class)).isZero();
 
         MvcResult foreignEducation = api.put(tokenA, "/resumes/me/content", contentJson(foreignEducationId));

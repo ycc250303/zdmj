@@ -49,6 +49,48 @@ class KnowledgeRagServiceImplTest {
     private final ModelGateway modelGateway = Mockito.mock(ModelGateway.class);
 
     @Test
+    void streamAnswer_withoutSubscription_shouldNotStartRetrievalOrModel() {
+        var service = new KnowledgeRagServiceImpl(embeddingGateway, ragConfig, knowledgeBasesService,
+                knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+        service.streamAnswer(actor, 1L, answerRequest("问题", null), null, true);
+        Mockito.verifyNoInteractions(embeddingGateway, knowledgeBasesService,
+                knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+    }
+
+    @Test
+    void streamAnswer_cancelDuringRetrieval_shouldNotStartAnswer() throws Exception {
+        ragConfig.getRewrite().setEnabled(false);
+        var started = new java.util.concurrent.CountDownLatch(1);
+        var interrupted = new java.util.concurrent.CountDownLatch(1);
+        when(embeddingGateway.embed(any(), any())).thenAnswer(invocation -> {
+            started.countDown();
+            try {
+                if (!new java.util.concurrent.CountDownLatch(1).await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("检索等待取消超时");
+                }
+            } catch (InterruptedException expected) {
+                interrupted.countDown();
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("检索已中断", expected);
+            }
+            throw new IllegalStateException("检索未中断");
+        });
+        var service = new KnowledgeRagServiceImpl(embeddingGateway, ragConfig, knowledgeBasesService,
+                knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+        var subscription = service.streamAnswer(actor, 1L, answerRequest("问题", null), null, false)
+                .subscribe(ignored -> { }, ignored -> { });
+        try {
+            assertTrue(started.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            subscription.dispose();
+            assertTrue(interrupted.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            verify(modelGateway, never()).stream(any(), any());
+            Mockito.verifyNoInteractions(knowledgeBasesService, knowledgeVectorMapper);
+        } finally {
+            subscription.dispose();
+        }
+    }
+
+    @Test
     @SuppressWarnings("null")
     void streamAnswer_whenEmbeddingFails_shouldStopBeforeAnswer() {
         actor = new CurrentActor(401L);
@@ -59,7 +101,7 @@ class KnowledgeRagServiceImplTest {
                 embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.streamAnswer(actor, 13L, answerRequest("hello", null), null, false));
+                () -> service.streamAnswer(actor, 13L, answerRequest("hello", null), null, false).collectList().block(java.time.Duration.ofSeconds(5)));
 
         assertEquals(ErrorCode.KNOWLEDGE_RETRIEVAL_FAILED.getCode(), ex.getCode());
         assertInstanceOf(RuntimeException.class, ex.getCause());

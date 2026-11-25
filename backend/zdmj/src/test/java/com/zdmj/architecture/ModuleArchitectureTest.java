@@ -37,6 +37,13 @@ class ModuleArchitectureTest {
     };
 
     @ArchTest
+    static final ArchRule conversation_stream_has_no_manual_subscription = noClasses()
+            .that().resideInAPackage("com.zdmj.conversationService..")
+            .should().callMethodWhere(com.tngtech.archunit.base.DescribedPredicate.describe("手工订阅 Reactor 流",
+                    call -> call.getTargetOwner().getPackageName().startsWith("reactor.")
+                            && (call.getName().equals("subscribe") || call.getName().equals("subscribeWith"))));
+
+    @ArchTest
     static final ArchRule ai_consumers_only_use_api = classes()
             .that().resideInAPackage("com.zdmj.aiService..")
             .and().resideOutsideOfPackage("com.zdmj.aiService.api..")

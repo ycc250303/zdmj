@@ -50,11 +50,14 @@ class ConversationServiceImplTest {
     @Mock
     private MessageMapper messageMapper;
 
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher events;
+
     private ConversationServiceImpl conversationService;
 
     @BeforeEach
     void setUp() {
-        conversationService = new ConversationServiceImpl(conversationMapper, messageMapper);
+        conversationService = new ConversationServiceImpl(conversationMapper, messageMapper, events);
     }
 
     @Test
@@ -239,6 +242,7 @@ class ConversationServiceImplTest {
 
         when(conversationMapper.selectOwnedForUpdate(24L, 1L)).thenReturn(owned);
         conversationService.delete(actor, 24L);
+        verify(events).publishEvent(new ConversationServiceImpl.Deleted(actor, 24L));
 
         verify(conversationMapper).selectOwnedForUpdate(24L, 1L);
         verify(messageMapper).delete(any(Wrapper.class));

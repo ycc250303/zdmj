@@ -11,6 +11,7 @@ import com.zdmj.conversationService.entity.Message;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.service.ConversationService;
+import org.springframework.context.ApplicationEventPublisher;
 
 import lombok.RequiredArgsConstructor;
 
@@ -31,6 +32,7 @@ public class ConversationServiceImpl implements ConversationService {
 
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
+    private final ApplicationEventPublisher events;
 
     /**
      * 创建会话。
@@ -203,6 +205,7 @@ public class ConversationServiceImpl implements ConversationService {
     /**
      * 删除会话及该用户在此会话下的消息。
      * 先锁定会话，与消息准备及结束保存串行执行，两张表在同一事务中删除。
+     * 提交成功后取消活动生成；删除回滚时生成继续。
      *
      * @param actor 已认证操作者，包含用户编号
      * @param id 会话编号
@@ -227,7 +230,16 @@ public class ConversationServiceImpl implements ConversationService {
         if (deleted != 1) {
             throw new BusinessException(ErrorCode.CONVERSATION_DELETE_FAILED);
         }
+        events.publishEvent(new Deleted(actor, id));
     }
+
+    /**
+     * 会话删除结果，由事务提交后监听器处理活动生成。
+     *
+     * @param actor 已认证操作者，继续传递删除时校验的身份
+     * @param conversationId 已删除会话编号
+     */
+    record Deleted(CurrentActor actor, Long conversationId) { }
 
     private ConversationResponse convertToResponse(Conversation conversation) {
         return new ConversationResponse(conversation.getId(), conversation.getUserId(),

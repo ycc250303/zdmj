@@ -22,7 +22,7 @@ public interface KnowledgeRagService {
             boolean useSystemKnowledge);
 
     /**
-     * 检索知识并生成回复，三个检索分支使用同一份历史。
+     * 订阅后检索知识并生成回复，三个检索分支使用同一份历史；取消检索后不再启动回答模型。
      *
      * @param actor              已认证操作者
      * @param conversationId     用于记录调用的会话编号，不用于自动记忆

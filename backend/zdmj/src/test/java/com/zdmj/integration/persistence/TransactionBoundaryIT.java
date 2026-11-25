@@ -72,9 +72,12 @@ class TransactionBoundaryIT extends IntegrationTestBase {
                 "SELECT title FROM conversations WHERE id = ?", String.class, conversationId);
         jdbcTemplate.execute("ALTER TABLE conversations ADD CONSTRAINT test_reject_title CHECK (title <> '失败标题')");
         try {
-            ApiClient.assertProblem(api.post(token, "/messages/chat", """
+            MvcResult pending = api.post(token, "/messages/chat", """
                     {"conversationId":%d,"message":"失败标题"}
-                    """.formatted(conversationId)), 500, 1008);
+                    """.formatted(conversationId));
+            assertThat(pending.getRequest().isAsyncStarted()).isTrue();
+            pending.getAsyncResult(5000);
+            ApiClient.assertProblem(mockMvc.perform(asyncDispatch(pending)).andReturn(), 500, 1008);
             assertThat(jdbcTemplate.queryForObject(
                     "SELECT count(*) FROM messages WHERE conversation_id = ?", Integer.class, conversationId))
                     .isZero();

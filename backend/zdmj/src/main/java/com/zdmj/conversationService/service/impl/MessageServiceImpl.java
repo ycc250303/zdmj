@@ -1,46 +1,48 @@
 package com.zdmj.conversationService.service.impl;
 
-import com.zdmj.common.context.CurrentActor;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zdmj.common.model.PageDTO;
-import com.zdmj.common.model.PageRequests;
+import com.zdmj.aiService.api.ModelRequest;
+import com.zdmj.aiService.api.ModelRequest.HistoryMessage;
+import com.zdmj.aiService.api.ModelRequest.HistoryMessage.Role;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.common.model.PageDTO;
+import com.zdmj.common.model.PageRequests;
 import com.zdmj.conversationService.dto.ChatStreamRequest;
+import com.zdmj.conversationService.dto.ConversationRequest;
 import com.zdmj.conversationService.dto.MessageResponse;
 import com.zdmj.conversationService.entity.Conversation;
 import com.zdmj.conversationService.entity.Message;
+import com.zdmj.conversationService.enums.MessageGenerationStatusEnum;
 import com.zdmj.conversationService.enums.MessageRoleEnum;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.service.MessageService;
-import com.zdmj.conversationService.dto.ConversationRequest;
 import com.zdmj.knowledgeService.service.KnowledgeRagService;
-import com.zdmj.aiService.api.ModelRequest;
-import com.zdmj.aiService.api.ModelRequest.HistoryMessage;
-import com.zdmj.aiService.api.ModelRequest.HistoryMessage.Role;
-import com.zdmj.conversationService.enums.MessageGenerationStatusEnum;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationStartedEvent;
 import org.springframework.context.event.EventListener;
-import reactor.core.publisher.Mono;
-
-import lombok.RequiredArgsConstructor;
-import reactor.core.Disposable;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Sinks;
-
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
-
-import java.util.List;
-import java.util.ArrayList;
-import java.util.concurrent.atomic.AtomicReference;
+import org.springframework.transaction.event.TransactionalEventListener;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 /**
- * 消息 Service 实现类
+ * 会话消息及生成生命周期，封装准备、检索、流式回复与一次结束保存。
  */
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class MessageServiceImpl implements MessageService {
@@ -50,32 +52,101 @@ public class MessageServiceImpl implements MessageService {
     private final ConversationMapper conversationMapper;
     private final KnowledgeRagService knowledgeRagService;
     private final TransactionTemplate transactionTemplate;
+    private final ConcurrentMap<Long, Generation> generations = new ConcurrentHashMap<>();
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     /**
-     * 校验归属，在会话行锁保护的短事务内读取最近20轮历史并建立本轮问答。
-     * 模型调用在事务外执行；完成、失败和取消分别保存终态及已接收内容。
+     * 返回流式消息
      *
-     * @param actor 已认证操作者
+     * @param actor   已认证操作者
      * @param request 会话编号和当前问题，当前问题仅由模型网关追加一次
      * @return 保持现有格式的 SSE 增量事件
      * @throws BusinessException 会话不存在、无权访问、正在生成或写入失败
      */
     @Override
     public Flux<ServerSentEvent<String>> createStream(CurrentActor actor, ChatStreamRequest request) {
-        conversationService.requireOwned(actor, request.conversationId());
-        PreparedMessages prepared = transactionTemplate.execute(status -> insertMessages(request, actor.userId()));
-        if (prepared == null) {
-            throw new IllegalStateException("消息写入未返回结果");
+        return Flux.defer(() -> {
+            Generation generation = new Generation(actor, request.conversationId());
+            /*
+             * Flux.usingWhen(
+             * 取得本轮对象,
+             * 使用本轮对象执行主体流程,
+             * 正常完成后的处理,
+             * 发生错误后的处理,
+             * 订阅取消后的处理
+             * )
+             */
+            return Flux.usingWhen(
+                    Mono.just(generation),
+                    current -> prepareAnswer(current, request),
+                    current -> finishAssistant(current, MessageGenerationStatusEnum.COMPLETED, null),
+                    (current, failure) -> finishAssistant(current, MessageGenerationStatusEnum.FAILED, failure),
+                    current -> {
+                        current.cancelled = true;
+                        return finishAssistant(current, MessageGenerationStatusEnum.CANCELLED, null);
+                    })
+                    .onErrorMap(failure -> generation.persistenceFailure != null
+                            && failure.getCause() == generation.persistenceFailure
+                                    ? generation.persistenceFailure
+                                    : failure);
+        }).subscribeOn(Schedulers.boundedElastic());
+    }
+
+    /**
+     * 准备回答
+     * 
+     * @param generation 本轮生成
+     * @param request    会话编号和当前问题，当前问题仅由模型网关追加一次
+     * @return 保持现有格式的 SSE 增量事件
+     */
+    private Flux<ServerSentEvent<String>> prepareAnswer(Generation generation, ChatStreamRequest request) {
+        // 1.锁住本轮会话生成
+        synchronized (generation) {
+            // 2.如果本轮生成已取消，则返回空
+            if (generation.cancelled) {
+                return Flux.empty();
+            }
+            // 3.检查会话归属
+            conversationService.requireOwned(generation.actor, request.conversationId());
+            // 4.如果本轮会话生成已存在，则抛出异常
+            if (generations.putIfAbsent(generation.conversationId, generation) != null) {
+                throw new BusinessException(ErrorCode.CONVERSATION_GENERATING);
+            }
+            // 5.插入消息
+            generation.prepared = transactionTemplate
+                    .execute(status -> insertMessages(request, generation.actor.userId()));
+            // 6.如果本轮会话生成未返回结果，则抛出异常
+            if (generation.prepared == null) {
+                throw new IllegalStateException("消息写入未返回结果");
+            }
         }
-        subscribeAnswer(actor, prepared);
-        return prepared.sink().asFlux()
-                .doOnCancel(() -> {
-                    Disposable upstream = prepared.upstream().get();
-                    if (upstream != null) {
-                        upstream.dispose();
+        // 7.返回本轮会话生成的流式消息
+        return Flux.defer(() -> {
+            PreparedMessages prepared = generation.prepared;
+            ConversationRequest config = new ConversationRequest(prepared.conversation().getConfig());
+            List<Long> documentIds;
+            boolean useSystemKnowledge;
+            try {
+                documentIds = config.ragDocumentIds();
+                useSystemKnowledge = config.useSystemKnowledge();
+            } catch (IllegalArgumentException exception) {
+                throw new IllegalStateException("会话检索配置非法，conversationId=" + generation.conversationId, exception);
+            }
+            return knowledgeRagService.streamAnswer(
+                    generation.actor,
+                    generation.conversationId,
+                    prepared.request(),
+                    documentIds,
+                    useSystemKnowledge);
+        })
+                .takeUntilOther(Mono.fromFuture(generation.deletion, true))
+                .<String>handle((chunk, sink) -> {
+                    synchronized (generation) {
+                        if (!generation.cancelled && !generation.deletion.isDone() && !chunk.isEmpty()) {
+                            generation.full.append(chunk);
+                            sink.next(chunk);
+                        }
                     }
-                    finishAssistant(prepared, MessageGenerationStatusEnum.CANCELLED);
                 })
                 .index()
                 .map(tp -> ServerSentEvent.<String>builder()
@@ -159,9 +230,15 @@ public class MessageServiceImpl implements MessageService {
             }
         }
         // 8.返回准备好的消息
-        return new PreparedMessages(answer, conversation,
-                new ModelRequest(request.message(), null, null, input, notice.toString()),
-                Sinks.many().unicast().onBackpressureBuffer(), new StringBuilder(256), new AtomicReference<>());
+        return new PreparedMessages(
+                answer,
+                conversation,
+                new ModelRequest(
+                        request.message(),
+                        null,
+                        null,
+                        input,
+                        notice.toString()));
     }
 
     private void insertMessage(Message message) {
@@ -173,83 +250,60 @@ public class MessageServiceImpl implements MessageService {
         }
     }
 
-    /** 
-     * 订阅助手回复
-     * @param actor 已认证操作者
-     * @param prepared 准备好的消息
+    /**
+     * 完成、失败与取消共用一次结束保存；提交后才更新内存终态。
+     * 结束保存作为资源清理执行，开始后继续提交；保存失败保留登记和内容，原始错误继续传播。
+     * 客户端取消后的保存错误由服务端记录。
+     *
+     * @param generation    本轮生成及已接收内容
+     * @param state         目标终态
+     * @param sourceFailure 检索或模型异常，保存也失败时保留为 suppressed 原因
+     * @return 在独立线程执行的短事务保存
      */
-    private void subscribeAnswer(CurrentActor actor, PreparedMessages prepared) {
-        // 1. 获取会话
-        Conversation conversation = prepared.conversation();
-        // 2. 订阅助手回复
-        Disposable upstream = Flux.defer(() -> {
-                    ConversationRequest config = new ConversationRequest(conversation.getConfig());
-                    List<Long> documentIds;
-                    boolean useSystemKnowledge;
-                    try {
-                        documentIds = config.ragDocumentIds();
-                        useSystemKnowledge = config.useSystemKnowledge();
-                    } catch (IllegalArgumentException exception) {
-                        throw new IllegalStateException("会话检索配置非法，conversationId=" + conversation.getId(), exception);
-                    }
-                    return knowledgeRagService.streamAnswer(actor, conversation.getId(), prepared.request(),
-                            documentIds, useSystemKnowledge);
-                })
-                // 3. 处理助手回复
-                .doOnNext(chunk -> {
-                    // 4.锁定会话，防止并发修改
-                    synchronized (prepared) {
-                        if (prepared.assistantMsg().getGenerationStatus() == MessageGenerationStatusEnum.PROCESSING.getCode()
-                                && !chunk.isEmpty()) {
-                            prepared.full().append(chunk);
-                            prepared.sink().tryEmitNext(chunk);
+    private Mono<Void> finishAssistant(Generation generation, MessageGenerationStatusEnum state,
+            Throwable sourceFailure) {
+        return Mono.<Void>fromRunnable(() -> {
+            synchronized (generation) {
+                if (generation.prepared == null || generation.deletion.isDone()) {
+                    generations.remove(generation.conversationId, generation);
+                    return;
+                }
+                Message answer = generation.prepared.assistantMsg();
+                try {
+                    transactionTemplate.executeWithoutResult(status -> {
+                        if (conversationMapper.selectOwnedForUpdate(answer.getConversationId(),
+                                answer.getUserId()) == null) {
+                            return;
                         }
+                        int rows = messageMapper.finishAssistant(answer.getId(), answer.getUserId(),
+                                answer.getConversationId(),
+                                generation.full.toString(), state.getCode());
+                        if (rows != 1) {
+                            throw new IllegalStateException("生成中的助手回复必须更新一条记录");
+                        }
+                    });
+                    answer.setGenerationStatus(state.getCode());
+                    generations.remove(generation.conversationId, generation);
+                } catch (RuntimeException failure) {
+                    generation.persistenceFailure = failure;
+                    if (sourceFailure != null && sourceFailure != failure) {
+                        failure.addSuppressed(sourceFailure);
                     }
-                })
-                // 5. 处理异常
-                .onErrorResume(failure -> {
-                    try {
-                        finishAssistant(prepared, MessageGenerationStatusEnum.FAILED);
-                    } catch (RuntimeException persistenceFailure) {
-                        persistenceFailure.addSuppressed(failure);
-                        return Flux.error(persistenceFailure);
-                    }
-                    return Flux.error(failure);
-                })
-                .concatWith(Mono.fromRunnable(() -> finishAssistant(prepared, MessageGenerationStatusEnum.COMPLETED)))
-                .subscribe(chunk -> { }, prepared.sink()::tryEmitError, prepared.sink()::tryEmitComplete);
-        prepared.upstream().set(upstream);
+                    log.error("会话结束保存失败 operationId={} conversationId={} messageId={} targetStatus={}",
+                            generation.operationId, generation.conversationId, answer.getId(), state.getCode(),
+                            failure);
+                    throw failure;
+                }
+            }
+        }).subscribeOn(Schedulers.boundedElastic());
     }
 
-    /**
-     * 在会话行锁保护的短事务中保存内容及终态，提交成功后更新内存状态。
-     * 已删除会话结束本地处理；写入或提交失败时保留生成中状态并传播异常。
-     *
-     * @param prepared 本轮消息、已接收内容及流控制信息
-     * @param state 本次结束对应的完成、失败或取消状态
-     * @throws IllegalStateException 必须存在的回复未更新一条记录，或事务未返回结果
-     */
-    private void finishAssistant(PreparedMessages prepared, MessageGenerationStatusEnum state) {
-        synchronized (prepared) {
-            Message answer = prepared.assistantMsg();
-            if (answer.getGenerationStatus() != MessageGenerationStatusEnum.PROCESSING.getCode()) {
-                return;
-            }
-            Integer updated = transactionTemplate.execute(status -> {
-                if (conversationMapper.selectOwnedForUpdate(answer.getConversationId(), answer.getUserId()) == null) {
-                    return 0;
-                }
-                int rows = messageMapper.finishAssistant(answer.getId(), answer.getUserId(), answer.getConversationId(),
-                        prepared.full().toString(), state.getCode());
-                if (rows != 1) {
-                    throw new IllegalStateException("生成中的助手回复必须更新一条记录");
-                }
-                return rows;
-            });
-            if (updated == null) {
-                throw new IllegalStateException("助手回复保存事务未返回结果");
-            }
-            answer.setGenerationStatus(state.getCode());
+    /** 删除提交后取消对应生成；回滚时监听器不执行，通知不访问数据库。 */
+    @TransactionalEventListener
+    public void cancelDeletedConversation(ConversationServiceImpl.Deleted event) {
+        Generation generation = generations.remove(event.conversationId());
+        if (generation != null) {
+            generation.deletion.complete(null);
         }
     }
 
@@ -259,23 +313,37 @@ public class MessageServiceImpl implements MessageService {
         transactionTemplate.executeWithoutResult(status -> messageMapper.recoverInterrupted());
     }
 
-    /** 准备好的消息 
+    /** 短事务提交的问答与模型输入快照，只在本轮生成内部使用。 */
+    private record PreparedMessages(Message assistantMsg, Conversation conversation, ModelRequest request) {
+    }
+
+    /**
+     * 一轮生成的内容和结束标记
      * 
-     * @param assistantMsg 助手回复消息
-     * @param conversation 会话
-     * @param request 模型请求
-     * @param sink 消息Sink
-     * @param full 完整消息
-     * @param upstream 上游
+     * @param actor              操作者
+     * @param conversationId     会话ID
+     * @param operationId        操作ID
+     * @param full               生成的内容
+     * @param deletion           删除信号
+     * @param cancelled          是否取消
+     * @param persistenceFailure 持久化失败记录
+     * @param prepared           准备好的消息
      */
-    private record PreparedMessages(
-        Message assistantMsg,
-        Conversation conversation,
-        ModelRequest request,
-        Sinks.Many<String> sink,
-        StringBuilder full,
-        AtomicReference<Disposable> upstream
-    ) {}
+    private static final class Generation {
+        private final CurrentActor actor;
+        private final Long conversationId;
+        private final String operationId = UUID.randomUUID().toString();
+        private final StringBuilder full = new StringBuilder(256);
+        private final CompletableFuture<Void> deletion = new CompletableFuture<>();
+        private volatile boolean cancelled;
+        private volatile RuntimeException persistenceFailure;
+        private PreparedMessages prepared;
+
+        private Generation(CurrentActor actor, Long conversationId) {
+            this.actor = actor;
+            this.conversationId = conversationId;
+        }
+    }
 
     /**
      * 获取会话消息列表

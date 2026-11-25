@@ -22,7 +22,7 @@ public interface MessageService {
     PageDTO<MessageResponse> getMessagesByConversationId(CurrentActor actor, Long conversationId, Integer page, Integer limit);
 
     /**
-     * 创建流式消息
+     * 订阅后准备问答并生成流式回复
      *
      * @param actor 已认证操作者，包含用户编号
      */
