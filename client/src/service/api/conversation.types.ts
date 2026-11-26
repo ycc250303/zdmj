@@ -1,17 +1,22 @@
+/** 检索范围；null 表示全部，空数组表示关闭，非空数组保留顺序与重复编号。 */
+export interface ConversationConfig {
+  ragDocumentIds?: number[] | null;
+  useSystemKnowledge?: boolean | null;
+}
+
 /** 会话 DTO */
 export interface ConversationDTO {
-  config?: Record<string, any>;
+  config?: ConversationConfig;
 }
 
 /** 会话实体 */
 export interface Conversation {
   id: number;
   userId: number;
-  title: string;
-  config: Record<string, any>;
+  title: string | null;
+  config: ConversationConfig;
   messageCount?: number;
-  createdAt: string;
-  updatedAt: string;
+  lastMessageAt: string | null;
 }
 
 /** 消息 DTO */

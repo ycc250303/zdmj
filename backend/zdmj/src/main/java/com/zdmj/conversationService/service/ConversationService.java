@@ -4,7 +4,7 @@ import com.zdmj.common.context.CurrentActor;
 import com.zdmj.conversationService.dto.ConversationRequest;
 import com.zdmj.conversationService.dto.ConversationResponse;
 
-import java.util.List;
+import com.zdmj.common.model.PageDTO;
 import java.util.Map;
 
 /**
@@ -27,11 +27,11 @@ public interface ConversationService {
     ConversationResponse getById(CurrentActor actor, Long id);
 
     /**
-     * 查询当前用户会话列表
+     * 分页查询当前用户会话，默认每页20条，上限100条，按更新时间与编号倒序
      *
      * @param actor 已认证操作者，包含用户编号
      */
-    List<ConversationResponse> getByUserId(CurrentActor actor);
+    PageDTO<ConversationResponse> getByPage(CurrentActor actor, Integer page, Integer limit);
 
     /**
      * 修改会话标题

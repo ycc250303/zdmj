@@ -1,17 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { useDialog, useMessage } from 'naive-ui';
-import {
-  fetchChatStream,
-  fetchCreateConversation,
-  fetchDeleteConversation,
-  fetchGetConversations,
-  fetchGetMessages,
-  fetchUpdateConversationConfig
-} from '@/service/api/conversation';
+import { fetchChatStream, fetchDeleteConversation, fetchGetMessages } from '@/service/api/conversation';
 import type { ConversationApi } from '@/service/api/conversation';
-import { fetchGetKnowledgeDocumentList } from '@/service/api/knowledge';
 import type { KnowledgeApi } from '@/service/api/knowledge';
+import { useChatCatalog } from './use-chat-catalog';
 import { renderMessageMarkdown } from './markdown';
 import 'highlight.js/styles/github-dark.css';
 
@@ -23,12 +16,37 @@ const message = useMessage();
 const dialog = useDialog();
 
 // 状态定义
-const conversations = ref<ConversationApi.Conversation[]>([]);
-const currentConversationId = ref<number | null>(null);
+const {
+  conversations,
+  currentConversation,
+  currentConversationId,
+  conversationPage,
+  conversationTotal,
+  conversationLoading,
+  knowledgeDocuments,
+  knowledgePage,
+  knowledgeTotal,
+  knowledgeLoading,
+  pageSize,
+  documentRangeMode,
+  useSystemKnowledge,
+  configSaving,
+  loadConversations,
+  loadKnowledgeDocuments,
+  selectConversation,
+  refreshCurrentConversation,
+  createConversation,
+  clearCurrentConversation,
+  changeDocumentRange,
+  toggleDocument,
+  toggleSystemKnowledge,
+  isDocumentEnabled
+} = useChatCatalog(text => message.error(text));
 const messageList = ref<(ConversationApi.Message & { thinking?: boolean })[]>([]);
 const inputText = ref('');
 const loading = ref(false);
 const sending = ref(false);
+const messagesReady = ref(true);
 const scrollRef = ref<any>(null);
 const sidebarCollapsed = ref(false);
 
@@ -89,20 +107,8 @@ const DEFAULT_KNOWLEDGE_PANEL_WIDTH = 280;
 const MIN_KNOWLEDGE_PANEL_WIDTH = 220;
 const MAX_KNOWLEDGE_PANEL_WIDTH = 420;
 
-const knowledgeDocuments = ref<KnowledgeApi.KnowledgeDocumentDTO[]>([]);
-const knowledgeLoading = ref(false);
 const knowledgePanelCollapsed = ref(false);
-const enabledRagDocumentIds = ref<number[]>([]);
-const useSystemKnowledge = ref(false);
-const ragSelectionSyncedForConversationId = ref<number | null>(null);
-const draftSelectionTouched = ref(false);
-const currentConversation = computed(
-  () => conversations.value.find(item => item.id === currentConversationId.value) ?? null
-);
-const configFrozen = computed(() => {
-  if (currentConversationId.value === null || currentConversationId.value === undefined) return false;
-  return (currentConversation.value?.messageCount ?? 0) > 0 || messageList.value.length > 0;
-});
+const configFrozen = computed(() => (currentConversation.value?.messageCount ?? 0) > 0 || messageList.value.length > 0);
 const knowledgePanelWidth = ref(DEFAULT_KNOWLEDGE_PANEL_WIDTH);
 const isResizingKnowledgePanel = ref(false);
 
@@ -150,161 +156,40 @@ const startKnowledgePanelResize = (event: MouseEvent) => {
   document.addEventListener('mouseup', handleMouseUp);
 };
 
-const getAllKnowledgeDocumentIds = () =>
-  knowledgeDocuments.value.map(item => item.id).filter((id): id is number => id !== null && id !== undefined);
-
-const getConversationRagDocumentIds = (conversationId: number | null): number[] | null => {
-  if (!conversationId) return null;
-  const conversation = conversations.value.find(item => item.id === conversationId);
-  if (!conversation?.config || !('ragDocumentIds' in conversation.config)) {
-    return null;
-  }
-  const raw = conversation.config.ragDocumentIds;
-  if (!Array.isArray(raw)) return null;
-  return raw.map(Number).filter(id => !Number.isNaN(id));
-};
-
-const getConversationUseSystemKnowledge = (conversationId: number | null): boolean => {
-  if (!conversationId) return false;
-  const conversation = conversations.value.find(item => item.id === conversationId);
-  if (!conversation?.config) return false;
-  return Boolean(conversation.config.useSystemKnowledge);
-};
-
-const syncRagSelectionFromConversation = () => {
-  if (!currentConversationId.value) return;
-
-  const allIds = getAllKnowledgeDocumentIds();
-  const saved = getConversationRagDocumentIds(currentConversationId.value);
-  enabledRagDocumentIds.value = saved === null ? [...allIds] : saved.filter(id => allIds.includes(id));
-  useSystemKnowledge.value = getConversationUseSystemKnowledge(currentConversationId.value);
-  ragSelectionSyncedForConversationId.value = currentConversationId.value;
-};
-
-const buildConversationConfig = () => ({
-  ragDocumentIds: enabledRagDocumentIds.value,
-  useSystemKnowledge: useSystemKnowledge.value
-});
-
-const persistRagSelection = async () => {
-  if (!currentConversationId.value || configFrozen.value) return true;
-
-  const { data, error } = await fetchUpdateConversationConfig(currentConversationId.value, buildConversationConfig());
-
-  if (error || !data) {
-    message.error('知识库选择保存失败');
-    syncRagSelectionFromConversation();
-    return false;
-  }
-
-  const index = conversations.value.findIndex(item => item.id === currentConversationId.value);
-  if (index >= 0) {
-    conversations.value[index] = data;
-  }
-  ragSelectionSyncedForConversationId.value = currentConversationId.value;
-  return true;
-};
-
-const isRagDocumentEnabled = (documentId?: number) => {
-  if (documentId === null || documentId === undefined) return false;
-  return enabledRagDocumentIds.value.includes(documentId);
-};
-
-const handleToggleRagDocument = async (documentId: number, enabled: boolean) => {
-  if (configFrozen.value) return;
-  draftSelectionTouched.value = true;
-  if (enabled) {
-    if (!enabledRagDocumentIds.value.includes(documentId)) {
-      enabledRagDocumentIds.value = [...enabledRagDocumentIds.value, documentId];
-    }
-  } else {
-    enabledRagDocumentIds.value = enabledRagDocumentIds.value.filter(id => id !== documentId);
-  }
-  await persistRagSelection();
-};
-
-const handleToggleSystemKnowledge = async (enabled: boolean) => {
-  if (configFrozen.value) return;
-  draftSelectionTouched.value = true;
-  useSystemKnowledge.value = enabled;
-  await persistRagSelection();
-};
-
-const loadKnowledgeDocuments = async () => {
-  knowledgeLoading.value = true;
-  try {
-    const { data, error } = await fetchGetKnowledgeDocumentList({ page: 1, limit: 100 });
-    if (!error && data) {
-      knowledgeDocuments.value = data.list || [];
-      if (currentConversationId.value !== null && currentConversationId.value !== undefined) {
-        if (ragSelectionSyncedForConversationId.value !== currentConversationId.value) {
-          syncRagSelectionFromConversation();
-        }
-      } else if (!draftSelectionTouched.value) {
-        enabledRagDocumentIds.value = getAllKnowledgeDocumentIds();
-      }
-    }
-  } finally {
-    knowledgeLoading.value = false;
-  }
-};
-
 const knowledgeEmbeddingReady = (item: KnowledgeApi.KnowledgeDocumentDTO) => item.embeddingStatus === 'SUCCESS';
 
-// 获取会话列表
-const loadConversations = async () => {
-  const { data, error } = await fetchGetConversations();
-  if (!error && data) {
-    conversations.value = data;
-    // 如果有会话且当前没有选中会话，自动选中第一个
-    if (data.length > 0 && !currentConversationId.value) {
-      handleSelectConversation(data[0].id);
-    }
-  }
-};
+let messageRequest = 0;
 
-// 新��会话
+// 新建会话
 const handleNewChat = async () => {
-  const { data, error } = await fetchCreateConversation({ config: buildConversationConfig() });
-  if (!error && data) {
-    conversations.value = [data, ...conversations.value.filter(item => item.id !== data.id)];
-    await handleSelectConversation(data.id);
-  } else {
-    message.error('创建会话失败');
+  const created = await createConversation();
+  if (created) {
+    messageRequest += 1;
+    messagesReady.value = true;
+    messageList.value = [];
+    inputText.value = '';
   }
 };
 
-// 选择会话
 async function handleSelectConversation(id: number) {
-  // 先验证会话是否存在
-  const exists = conversations.value.some(c => c.id === id);
-  if (!exists) {
-    message.error('该会话不存在');
-    currentConversationId.value = null;
-    return;
-  }
-
-  currentConversationId.value = id;
+  messageRequest += 1;
+  const request = messageRequest;
   loading.value = true;
-  syncRagSelectionFromConversation();
-
   try {
-    const { data, error } = await fetchGetMessages({ conversationId: id, page: 1, limit: 100 });
-    loading.value = false;
-    if (!error && data) {
-      // 后端返回的消息是按sequence升序排列的，直接使用
-      // 添加thinking字段，默认为false
-      messageList.value = (data.list || []).map(msg => ({ ...msg, thinking: false }));
-      scrollToBottom();
-    } else {
-      // 如果加载消息失败，显示空列表，允许用��发送新消息
-      messageList.value = [];
-      console.error('加载消息失败，但允许发送新消息:', error);
-    }
-  } catch (err) {
-    loading.value = false;
+    if (!(await selectConversation(id)) || request !== messageRequest) return;
     messageList.value = [];
-    console.error('加载消息异常:', err);
+    messagesReady.value = false;
+    const { data, error } = await fetchGetMessages({ conversationId: id, page: 1, limit: 100 });
+    if (request !== messageRequest || currentConversationId.value !== id) return;
+    if (error || !data) {
+      message.error('消息加载失败');
+      return;
+    }
+    messagesReady.value = true;
+    messageList.value = data.list.map(msg => ({ ...msg, thinking: false }));
+    scrollToBottom();
+  } finally {
+    if (request === messageRequest) loading.value = false;
   }
 }
 
@@ -321,10 +206,12 @@ const handleDeleteConversation = (id: number, event: Event) => {
       if (!error) {
         message.success('删除成功');
         if (currentConversationId.value === id) {
-          currentConversationId.value = null;
+          messageRequest += 1;
+          clearCurrentConversation();
+          messagesReady.value = true;
           messageList.value = [];
         }
-        loadConversations();
+        await loadConversations();
       } else {
         message.error('删除失败');
       }
@@ -334,22 +221,12 @@ const handleDeleteConversation = (id: number, event: Event) => {
 
 // 发送消息
 const handleSend = async () => {
-  if (!inputText.value.trim() || sending.value) return;
+  if (!inputText.value.trim() || sending.value || configSaving.value || loading.value || !messagesReady.value) return;
 
   // 如果没有当前会话，先创建一个（此时尚无消息，config 仍可改）
   if (!currentConversationId.value) {
-    const { data, error } = await fetchCreateConversation({ config: buildConversationConfig() });
-    if (error || !data?.id) {
-      message.error('创建会话失败');
-      return;
-    }
-    conversations.value = [data, ...conversations.value.filter(item => item.id !== data.id)];
-    currentConversationId.value = data.id;
-    ragSelectionSyncedForConversationId.value = data.id;
-  }
-
-  if (!(await persistRagSelection())) {
-    return;
+    const created = await createConversation();
+    if (!created) return;
   }
 
   const userText = inputText.value.trim();
@@ -378,7 +255,7 @@ const handleSend = async () => {
     role: 2, // 1=user, 2=assistant
     sequence: 0,
     content: '',
-    thinking: true, // 初始状��为思考中
+    thinking: true, // 初始状态为思考中
     createdAt: new Date().toISOString()
   };
   messageList.value.push(tempAiMsg);
@@ -387,13 +264,14 @@ const handleSend = async () => {
     conversationId: currentConversationId.value!,
     message: userText
   };
-  console.log('发送消息请求:', requestData);
 
   let hasReceivedContent = false;
 
   await fetchChatStream(requestData, {
     onMessage(text) {
-      const lastMsg = messageList.value[messageList.value.length - 1] as any;
+      const lastMsg = messageList.value.find(
+        item => item.id === tempAiMsg.id && item.conversationId === requestData.conversationId
+      );
       if (lastMsg && lastMsg.role === 2) {
         if (!hasReceivedContent && lastMsg.thinking) {
           lastMsg.thinking = false;
@@ -408,11 +286,12 @@ const handleSend = async () => {
       console.error('发送消息详细错误:', error);
       message.error(`发送消息失败: ${detail}`);
       sending.value = false;
-      messageList.value.pop();
+      messageList.value = messageList.value.filter(item => item.id !== tempAiMsg.id);
     },
-    onComplete() {
+    async onComplete() {
       sending.value = false;
-      loadConversations();
+      if (currentConversationId.value === requestData.conversationId) await refreshCurrentConversation();
+      await loadConversations();
     }
   });
 };
@@ -433,7 +312,7 @@ function scrollToBottom() {
 }
 
 // 格式化日期
-const formatTime = (timeStr: string) => {
+const formatTime = (timeStr: string | null) => {
   if (!timeStr) return '';
   const date = new Date(timeStr);
   return `${date.getMonth() + 1}-${date.getDate()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
@@ -446,7 +325,11 @@ onMounted(() => {
   loadSidebarWidth();
   loadKnowledgePanelWidth();
   loadKnowledgeDocuments();
-  loadConversations();
+  loadConversations(1).then(loaded => {
+    if (loaded && conversations.value.length > 0 && currentConversationId.value === null && !loading.value) {
+      handleSelectConversation(conversations.value[0].id);
+    }
+  });
 });
 </script>
 
@@ -463,6 +346,7 @@ onMounted(() => {
       <div class="flex gap-2 p-3">
         <NButton
           class="flex-1 transition-all duration-200 !border !border-blue-200 !rounded-lg !bg-white !text-gray-700 hover:shadow-md [&_.n-button__content]:!justify-center dark:!border-blue-800 hover:!border-blue-300 dark:!bg-gray-800 hover:!bg-blue-50 dark:!text-gray-300 hover:!text-blue-600 dark:hover:!border-blue-600 dark:hover:!bg-gray-700 dark:hover:!text-blue-400"
+          :disabled="configSaving || sending || loading"
           @click="handleNewChat"
         >
           <template #icon>
@@ -521,7 +405,9 @@ onMounted(() => {
                 >
                   {{ item.title || $t('page.chat.newChat') }}
                 </span>
-                <span class="truncate text-xs text-gray-400 dark:text-gray-500">{{ formatTime(item.updatedAt) }}</span>
+                <span class="truncate text-xs text-gray-400 dark:text-gray-500">
+                  {{ formatTime(item.lastMessageAt) }}
+                </span>
               </div>
               <div
                 class="h-8 w-8 flex flex-shrink-0 cursor-pointer items-center justify-center rounded text-gray-500 transition-colors hover:bg-gray-100 hover:text-blue-700 dark:hover:bg-gray-800/50 dark:hover:text-blue-300"
@@ -547,6 +433,17 @@ onMounted(() => {
           </div>
         </div>
       </NScrollbar>
+
+      <NPagination
+        :page="conversationPage"
+        :page-size="pageSize"
+        :item-count="conversationTotal"
+        :disabled="conversationLoading"
+        simple
+        class="justify-center p-3"
+        aria-label="会话分页"
+        @update:page="page => loadConversations(page)"
+      />
 
       <div
         class="sidebar-resize-handle"
@@ -648,7 +545,7 @@ onMounted(() => {
                   circle
                   type="primary"
                   size="medium"
-                  :disabled="!inputText.trim() || sending"
+                  :disabled="!inputText.trim() || sending || configSaving || loading || !messagesReady"
                   :loading="sending"
                   class="!bg-blue-500 hover:!bg-blue-600"
                   @click="handleSend"
@@ -685,7 +582,7 @@ onMounted(() => {
               class="m-0 text-base text-gray-800 font-medium transition-all duration-300 dark:text-gray-200"
               :class="[sidebarCollapsed ? 'ml-10' : '']"
             >
-              {{ conversations.find(c => c.id === currentConversationId)?.title || $t('page.chat.aiAssistant') }}
+              {{ currentConversation?.title || $t('page.chat.aiAssistant') }}
             </h2>
           </div>
 
@@ -755,7 +652,7 @@ onMounted(() => {
                     circle
                     type="primary"
                     size="medium"
-                    :disabled="!inputText.trim() || sending"
+                    :disabled="!inputText.trim() || sending || configSaving || loading || !messagesReady"
                     :loading="sending"
                     class="!bg-blue-500 hover:!bg-blue-600"
                     @click="handleSend"
@@ -848,12 +745,27 @@ onMounted(() => {
               </div>
               <NSwitch
                 :value="useSystemKnowledge"
-                :disabled="configFrozen"
+                :disabled="configFrozen || configSaving || loading || sending"
                 size="small"
-                @update:value="handleToggleSystemKnowledge"
+                @update:value="toggleSystemKnowledge"
               />
             </div>
           </div>
+
+          <NRadioGroup
+            :value="documentRangeMode"
+            :disabled="configFrozen || configSaving || loading || sending"
+            class="mb-3 px-3"
+            aria-label="用户文档范围"
+            @update:value="changeDocumentRange"
+          >
+            <NSpace vertical>
+              <NRadio value="all">全部文档</NRadio>
+              <NRadio value="selected">指定文档</NRadio>
+              <NRadio value="none">不使用</NRadio>
+            </NSpace>
+          </NRadioGroup>
+          <p v-if="documentRangeMode === 'selected'" class="px-3 text-xs text-gray-500">请选择文档，跨页选择会保留</p>
 
           <div v-if="knowledgeLoading" class="flex justify-center py-8">
             <NSpin size="small" />
@@ -885,14 +797,18 @@ onMounted(() => {
                   </div>
                 </div>
                 <NSwitch
-                  :value="isRagDocumentEnabled(item.id)"
+                  :value="isDocumentEnabled(item.id)"
                   :disabled="
-                    configFrozen || !knowledgeEmbeddingReady(item) || item.id === null || item.id === undefined
+                    configFrozen ||
+                    configSaving ||
+                    documentRangeMode !== 'selected' ||
+                    !knowledgeEmbeddingReady(item) ||
+                    item.id === null ||
+                    item.id === undefined
                   "
                   size="small"
                   @update:value="
-                    (enabled: boolean) =>
-                      item.id !== null && item.id !== undefined && handleToggleRagDocument(item.id, enabled)
+                    (enabled: boolean) => item.id !== null && item.id !== undefined && toggleDocument(item.id, enabled)
                   "
                 />
               </div>
@@ -900,6 +816,16 @@ onMounted(() => {
           </template>
         </div>
       </NScrollbar>
+      <NPagination
+        :page="knowledgePage"
+        :page-size="pageSize"
+        :item-count="knowledgeTotal"
+        :disabled="knowledgeLoading"
+        simple
+        class="justify-center p-3"
+        aria-label="知识文档分页"
+        @update:page="page => loadKnowledgeDocuments(page)"
+      />
     </div>
   </div>
 </template>

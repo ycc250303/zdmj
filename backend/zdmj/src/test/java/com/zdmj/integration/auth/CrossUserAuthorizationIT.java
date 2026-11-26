@@ -170,7 +170,8 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
                 "{\"config\":{\"useSystemKnowledge\":false,\"ragDocumentIds\":[]}}"));
         ApiClient.requireOk(api.put(tokenA, "/conversations/" + id + "/title?title=原标题", null));
         String hidden = ApiClient.requireOk(api.get(tokenB, "/conversations"));
-        assertThat(JsonPath.<Integer>read(hidden, "$.data.length()")).isZero();
+        assertThat(JsonPath.<Integer>read(hidden, "$.data.list.length()")).isZero();
+        assertThat(JsonPath.<Integer>read(hidden, "$.data.total")).isZero();
         ApiClient.assertProblem(api.get(tokenB, "/conversations/" + id), 403, 1003);
         ApiClient.assertProblem(api.put(tokenB, "/conversations/" + id + "/title?title=篡改标题", null), 403, 1003);
         ApiClient.assertProblem(api.get(tokenB, "/messages?conversationId=" + id), 403, 1003);
