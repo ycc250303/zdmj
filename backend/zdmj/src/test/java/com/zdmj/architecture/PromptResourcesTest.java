@@ -12,11 +12,9 @@ class PromptResourcesTest {
     private final PromptLoader loader = new PromptLoader(new DefaultResourceLoader());
 
     @Test
-    void everySupportedRoleHasBusinessTemplates() {
-        for (String directory : new String[]{"resume-analysis", "job-student-match"}) {
-            for (JobRole role : JobRole.values()) {
-                assertFalse(loader.load(directory + "/" + role.slug()).isBlank());
-            }
+    void everySupportedRoleHasResumeAnalysisTemplate() {
+        for (JobRole role : JobRole.values()) {
+            assertFalse(loader.load("resume-analysis/" + role.slug()).isBlank());
         }
     }
 

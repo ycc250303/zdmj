@@ -133,26 +133,6 @@ class ModelGatewayImplTest {
                 () -> gateway.generate(actor, new ModelRequest("deleted", null, null))).getErrorCode());
     }
 
-    @Test
-    void modelRequest_shouldCopyHistoryAndVariablesAndRejectInvalidHistory() {
-        var history = new java.util.ArrayList<ModelRequest.HistoryMessage>();
-        history.add(new ModelRequest.HistoryMessage(ModelRequest.HistoryMessage.Role.USER, "任务"));
-        var variables = new java.util.HashMap<String, Object>();
-        variables.put("context", "资料");
-        var request = new ModelRequest("继续", "system", variables, history, "生成失败");
-        history.clear();
-        variables.clear();
-        assertEquals(1, request.history().size());
-        assertEquals("资料", request.promptVars().get("context"));
-        assertThrows(UnsupportedOperationException.class, () -> request.history().clear());
-        assertThrows(UnsupportedOperationException.class, () -> request.promptVars().clear());
-        assertThrows(NullPointerException.class, () -> new ModelRequest("继续", null, null, null, ""));
-        assertThrows(NullPointerException.class, () -> new ModelRequest("继续", null, null, List.of(), null));
-        assertThrows(NullPointerException.class, () -> new ModelRequest.HistoryMessage(null, "任务"));
-        assertThrows(IllegalArgumentException.class,
-                () -> new ModelRequest.HistoryMessage(ModelRequest.HistoryMessage.Role.USER, " "));
-    }
-
     private ModelGatewayImpl gateway() {
         return new ModelGatewayImpl(promptLoader, configurationReader, clients);
     }

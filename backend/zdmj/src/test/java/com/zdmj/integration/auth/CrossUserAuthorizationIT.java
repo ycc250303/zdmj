@@ -1,7 +1,6 @@
 package com.zdmj.integration.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 
 import java.nio.charset.StandardCharsets;
@@ -251,11 +250,6 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
         assertThat(download.getResponse().getContentAsByteArray()).isEqualTo("用户A的文件".getBytes(StandardCharsets.UTF_8));
         ApiClient.requireOk(api.delete(tokenA, "/knowledge-document/" + id));
         ApiClient.assertProblem(api.get(tokenA, "/knowledge-document/" + id + "/download"), 404, 8012);
-    }
-
-    private void assertAbsentFromList(String token, String path) throws Exception {
-        String body = ApiClient.requireOk(api.get(token, path));
-        assertThat(JsonPath.<Integer>read(body, "$.data.length()")).isZero();
     }
 
     private long createJob(String token) throws Exception {

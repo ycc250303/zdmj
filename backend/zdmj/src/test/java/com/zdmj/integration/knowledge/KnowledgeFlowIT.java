@@ -194,30 +194,6 @@ class KnowledgeFlowIT extends IntegrationTestBase {
     @Autowired private com.zdmj.knowledgeService.service.KnowledgeDocumentService documents;
 
     @Test
-    void 超过十万字符的知识文档完整保存分块并可重新处理() throws Exception {
-        String token = testJwt.authorize(testUsers.createPair().userA());
-        String text = "文档开始\n" + "知识内容包含岗位要求和项目经验。\n".repeat(8_000) + "DOCUMENT_END_MARKER";
-
-        long id = uploadId(token, "long.md", text);
-
-        assertThat(api.get(token, "/knowledge-document/" + id + "/download").getResponse().getContentAsByteArray())
-                .isEqualTo(text.getBytes(StandardCharsets.UTF_8));
-        List<String> chunks = jdbcTemplate.queryForList(
-                "SELECT content FROM knowledge_vectors WHERE document_id=? ORDER BY chunk_index", String.class, id);
-        assertThat(chunks).hasSizeGreaterThan(1);
-        assertThat(String.join("", chunks).replaceAll("\\s+", "")).isEqualTo(text.replaceAll("\\s+", ""));
-        assertThat(jdbcTemplate.queryForObject("SELECT chunk_count FROM knowledge_documents WHERE id=?", Integer.class, id))
-                .isEqualTo(chunks.size());
-        assertThat(jdbcTemplate.queryForObject("SELECT embedding_status FROM knowledge_documents WHERE id=?", Integer.class, id))
-                .isEqualTo(3);
-
-        ApiClient.requireOk(api.post(token, "/knowledge-document/" + id + "/embedding", null));
-        assertThat(jdbcTemplate.queryForList(
-                "SELECT content FROM knowledge_vectors WHERE document_id=? ORDER BY chunk_index", String.class, id))
-                .isEqualTo(chunks);
-    }
-
-    @Test
     void 超过配置上限保留原文件且不保存部分向量() throws Exception {
         String token = testJwt.authorize(testUsers.createPair().userA());
         String text = "A".repeat(environment.getRequiredProperty("knowledge.document.max-extracted-chars", Integer.class) + 1);

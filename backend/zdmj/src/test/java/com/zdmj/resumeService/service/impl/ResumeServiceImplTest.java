@@ -190,7 +190,7 @@ class ResumeServiceImplTest {
     }
 
     @Test
-    void parseImport_success_shouldNormalizeAndUseDeepSeekFlash() {
+    void parseImport_success_shouldNormalizeAndUseImportPrompt() {
         ResumeImportParseRequest request = new ResumeImportParseRequest("resume body");
 
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
@@ -215,6 +215,8 @@ class ResumeServiceImplTest {
         assertEquals("2020-09-01", out.getEducations().get(0).getStartDate());
         assertEquals(null, out.getEducations().get(0).getEndDate());
         assertEquals(0, out.getCareers().size());
+        assertEquals(0, out.getAwards().size());
+        verify(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest), eq(ResumeImportParseResponse.class));
     }
 
     @Test
@@ -326,18 +328,6 @@ class ResumeServiceImplTest {
 
         assertEquals(1, out.getAwards().size());
         assertTrue(out.getAwards().get(0).getName().contains("数学建模"));
-        verify(modelGateway, times(1)).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest), eq(ResumeImportParseResponse.class));
-    }
-
-    @Test
-    void parseImport_emptyAwardsFromLlm_shouldKeepEmptyList() {
-        ResumeImportParseRequest request = new ResumeImportParseRequest("resume body");
-
-        doReturn(new ResumeImportParseResponse()).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest), eq(ResumeImportParseResponse.class));
-
-        ResumeImportParseResponse out = resumeService.parseImport(actor, request);
-
-        assertEquals(0, out.getAwards().size());
         verify(modelGateway, times(1)).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest), eq(ResumeImportParseResponse.class));
     }
 
