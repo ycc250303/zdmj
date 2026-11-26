@@ -95,13 +95,10 @@ class JsonbPersistenceIT extends IntegrationTestBase {
         config.put("useSystemKnowledge", Boolean.FALSE);
         config.put("label", "固定配置");
         conversation.setConfig(config);
-        conversation.setContext(List.of(Map.of("type", "knowledge_base", "name", "资料")));
         conversationMapper.insert(conversation);
         Conversation loadedConversation = conversationMapper.selectById(conversation.getId());
         assertThat(loadedConversation.getConfig()).containsEntry("label", "固定配置");
         assertThat(loadedConversation.getConfig().get("useSystemKnowledge")).isEqualTo(false);
-        assertThat(loadedConversation.getContext()).hasSize(1);
-        assertThat(loadedConversation.getContext().get(0)).containsEntry("name", "资料");
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT jsonb_typeof(config) FROM conversations WHERE id = ?", String.class, conversation.getId()))
                 .isEqualTo("object");

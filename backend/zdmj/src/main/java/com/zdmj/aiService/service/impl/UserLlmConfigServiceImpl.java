@@ -51,16 +51,12 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
      */
     @Override
     public UserLlmConfigResponse getMyConfig(CurrentActor actor) {
-        UserLlmConfigResponse dto = new UserLlmConfigResponse();
-        dto.setModels(Arrays.stream(ModelCode.values())
-                .map(model -> new UserLlmConfigResponse.ModelOption(model.code(), model.displayName())).toList());
-        configurationReader.find(actor).ifPresent(config -> {
-            dto.setConfigured(true);
-            dto.setModelCode(config.model().code());
-            dto.setModelDisplayName(config.model().displayName());
-            dto.setApiKeyMasked(UserApiKeyCipher.mask(config.apiKey()));
-        });
-        return dto;
+        var models = Arrays.stream(ModelCode.values())
+                .map(model -> new UserLlmConfigResponse.ModelOption(model.code(), model.displayName())).toList();
+        return configurationReader.find(actor)
+                .map(config -> new UserLlmConfigResponse(true, config.model().code(), config.model().displayName(),
+                        UserApiKeyCipher.mask(config.apiKey()), models))
+                .orElseGet(() -> new UserLlmConfigResponse(false, null, null, null, models));
     }
 
     /**
@@ -72,8 +68,8 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
     @Override
     public void saveMyConfig(CurrentActor actor, UserLlmConfigRequest request) {
         Long userId = requireUserId(actor);
-        ModelCode model = ModelCode.fromCode(request.getModelCode());
-        String apiKey = request.getApiKey().trim();
+        ModelCode model = ModelCode.fromCode(request.modelCode());
+        String apiKey = request.apiKey().trim();
         // 挂起调用方事务，供应商探测完成后再进入配置写入事务。
         TransactionTemplate probeTransaction = new TransactionTemplate(transactionTemplate.getTransactionManager());
         probeTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_NOT_SUPPORTED);

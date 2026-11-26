@@ -4,16 +4,15 @@ import com.zdmj.common.context.CurrentActor;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.resumeService.dto.EducationRequest;
 import com.zdmj.resumeService.dto.EducationResponse;
 import com.zdmj.resumeService.entity.Education;
 import com.zdmj.resumeService.mapper.EducationMapper;
 import com.zdmj.resumeService.mapper.EducationStructMapper;
 import com.zdmj.resumeService.service.EducationService;
-import com.zdmj.resumeService.utils.DateRangeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -26,19 +25,19 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
     @Override
     public EducationResponse create(CurrentActor actor, EducationRequest educationRequest) {
         Long userId = actor.userId();
-        DateRangeUtil.rejectIfEndBeforeStart(
-                educationRequest.getStartDate(),
-                educationRequest.getEndDate(),
+        DateTimeUtil.rejectIfEndBeforeStart(
+                educationRequest.startDate(),
+                educationRequest.endDate(),
                 ErrorCode.EDUCATION_GRADUATE_TIME_INVALID);
 
         Education education = new Education();
         education.setUserId(userId);
-        education.setSchool(educationRequest.getSchool());
-        education.setMajor(educationRequest.getMajor());
-        education.setDegree(educationRequest.getDegree());
-        education.setStartDate(educationRequest.getStartDate());
-        education.setEndDate(educationRequest.getEndDate());
-        education.setGpa(educationRequest.getGpa());
+        education.setSchool(educationRequest.school());
+        education.setMajor(educationRequest.major());
+        education.setDegree(educationRequest.degree());
+        education.setStartDate(educationRequest.startDate());
+        education.setEndDate(educationRequest.endDate());
+        education.setGpa(educationRequest.gpa());
         boolean saved = save(education);
         if (!saved) {
             throw new BusinessException(ErrorCode.EDUCATION_ADD_FAILED);
@@ -50,14 +49,14 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
     @Override
     public EducationResponse update(CurrentActor actor, EducationRequest educationRequest) {
         Long userId = actor.userId();
-        Education existingEducation = requireEducationAndCheckOwnership(educationRequest.getId(), userId, "修改");
+        Education existingEducation = requireEducationAndCheckOwnership(educationRequest.id(), userId, "修改");
         return updateOwned(existingEducation, educationRequest);
     }
 
     @Override
     public EducationResponse updateOwned(Education existing, EducationRequest educationRequest) {
         educationPatchMapper.updateEntityFromDto(educationRequest, existing);
-        DateRangeUtil.rejectIfEndBeforeStart(
+        DateTimeUtil.rejectIfEndBeforeStart(
                 existing.getStartDate(),
                 existing.getEndDate(),
                 ErrorCode.EDUCATION_GRADUATE_TIME_INVALID);
@@ -84,9 +83,9 @@ public class EducationServiceImpl extends ServiceImpl<EducationMapper, Education
     }
 
     private EducationResponse convertToResponse(Education education) {
-        EducationResponse response = new EducationResponse();
-        BeanUtils.copyProperties(education, response);
-        return response;
+        return new EducationResponse(education.getId(), education.getUserId(), education.getSchool(),
+                education.getMajor(), education.getDegree(), education.getStartDate(), education.getEndDate(),
+                education.getGpa());
     }
 
     private Education requireEducation(Long id) {

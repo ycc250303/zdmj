@@ -12,7 +12,6 @@ import com.zdmj.resumeService.mapper.AwardStructMapper;
 import com.zdmj.resumeService.service.AwardService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -28,9 +27,9 @@ public class AwardServiceImpl extends ServiceImpl<AwardMapper, Award> implements
 
         Award award = new Award();
         award.setUserId(userId);
-        award.setName(awardRequest.getName());
-        award.setAwardDate(awardRequest.getAwardDate());
-        award.setDescription(awardRequest.getDescription());
+        award.setName(awardRequest.name());
+        award.setAwardDate(awardRequest.awardDate());
+        award.setDescription(awardRequest.description());
 
         boolean saved = save(award);
         if (!saved) {
@@ -43,7 +42,7 @@ public class AwardServiceImpl extends ServiceImpl<AwardMapper, Award> implements
     @Override
     public AwardResponse update(CurrentActor actor, AwardRequest awardRequest) {
         Long userId = actor.userId();
-        Award award = requireAwardAndCheckOwnership(awardRequest.getId(), userId, "修改");
+        Award award = requireAwardAndCheckOwnership(awardRequest.id(), userId, "修改");
         return updateOwned(award, awardRequest);
     }
 
@@ -73,9 +72,8 @@ public class AwardServiceImpl extends ServiceImpl<AwardMapper, Award> implements
     }
 
     private AwardResponse convertToResponse(Award award) {
-        AwardResponse response = new AwardResponse();
-        BeanUtils.copyProperties(award, response);
-        return response;
+        return new AwardResponse(award.getId(), award.getUserId(), award.getName(), award.getAwardDate(),
+                award.getDescription());
     }
 
     private Award requireAward(Long id) {

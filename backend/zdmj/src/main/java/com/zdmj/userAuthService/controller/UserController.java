@@ -47,7 +47,7 @@ public class UserController {
      */
     @PostMapping
     public Result<UserResponse> createUser(@Valid @RequestBody UserRegisterRequest registerDTO) {
-        log.info("用户注册请求: {}", registerDTO.getUsername());
+        log.info("用户注册请求: {}", registerDTO.username());
         UserResponse userDTO = userService.register(registerDTO);
         return Result.success("注册成功", userDTO);
     }
@@ -76,7 +76,7 @@ public class UserController {
     @RateLimit(dimension = RateLimit.Dimension.GLOBAL, count = 100, interval = 1, timeUnit = TimeUnit.MINUTES)
     @RateLimit(dimension = RateLimit.Dimension.IP, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     public Result<UserLoginResponse> login(@Valid @RequestBody UserLoginRequest loginDTO) {
-        log.info("用户登录请求: {}", loginDTO.getUsernameOrEmail());
+        log.info("用户登录请求: {}", loginDTO.usernameOrEmail());
         UserLoginResponse response = userService.login(loginDTO);
         return Result.success("登录成功", response);
     }
@@ -107,7 +107,7 @@ public class UserController {
      */
     @PutMapping("/password")
     public Result<Void> resetPassword(@Valid @RequestBody UserResetPasswordRequest resetPasswordDTO) {
-        log.info("重置密码请求: email={}", resetPasswordDTO.getEmail());
+        log.info("重置密码请求: email={}", resetPasswordDTO.email());
         userService.resetPassword(resetPasswordDTO);
         return Result.success("密码修改成功", null);
     }

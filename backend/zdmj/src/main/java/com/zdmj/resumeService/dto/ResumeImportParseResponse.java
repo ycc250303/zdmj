@@ -8,7 +8,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 简历导入结构化识别结果（字段对齐 educations / careers / project_experiences / skills / users 表，不含 id）。
+ * 简历导入结构化识别结果（字段对应 educations / careers / project_experiences / skills / users 表，不含 id）。
+ *
+ * <p>模型解析完成后会规范化经历、日期与列表内容，因此外层及经历条目保留可变字段。</p>
  */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -29,18 +31,26 @@ public class ResumeImportParseResponse {
 
     private List<String> warnings = new ArrayList<>();
 
-    @Data
+    /**
+     * 简历导入识别的基本信息。
+     *
+     * @param name 姓名
+     * @param phone 联系电话
+     * @param email 电子邮箱
+     * @param major 前端展示用，users 表无独立 major 列
+     * @param homepageUrl 个人主页
+     * @param preferredWorkCity 意向工作城市
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class PersonalInfo {
-        private String name;
-        private String phone;
-        private String email;
-        /** 前端展示用，users 表无独立 major 列 */
-        private String major;
-        @JsonAlias({ "homepageUrl", "website", "homepage" })
-        private String homepageUrl;
-        @JsonAlias({ "preferredWorkCity", "targetCity", "expectedCity" })
-        private String preferredWorkCity;
+    public record PersonalInfo(
+            String name,
+            String phone,
+            String email,
+            String major,
+            @JsonAlias({ "homepageUrl", "website", "homepage" })
+            String homepageUrl,
+            @JsonAlias({ "preferredWorkCity", "targetCity", "expectedCity" })
+            String preferredWorkCity) {
     }
 
     @Data

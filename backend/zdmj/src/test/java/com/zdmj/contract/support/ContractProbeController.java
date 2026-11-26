@@ -6,7 +6,10 @@ import java.util.List;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,10 +18,16 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.common.model.CreateGroup;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.Result;
+import com.zdmj.common.model.UpdateGroup;
+import com.zdmj.knowledgeService.dto.KnowledgeDocumentRequest;
 import com.zdmj.resumeService.dto.EducationResponse;
+import com.zdmj.resumeService.dto.ResumeContentSaveRequest;
+import com.zdmj.resumeService.dto.SkillRequest;
 import com.zdmj.resumeService.enums.EducationDegreeEnum;
+import com.zdmj.userAuthService.dto.UserLoginRequest;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -62,6 +71,39 @@ public class ContractProbeController {
     void validate(@Valid @RequestBody ProbeBody body) {
     }
 
+    @PostMapping("/record/login")
+    Result<String> recordLogin(@Valid @RequestBody UserLoginRequest request) {
+        return Result.success("操作成功", request.usernameOrEmail());
+    }
+
+    @PostMapping("/record/skill/create")
+    Result<SkillRequest> recordCreateSkill(
+            @Validated(CreateGroup.class)
+            @RequestBody SkillRequest request) {
+        return Result.success(request);
+    }
+
+    @PostMapping("/record/skill/update")
+    Result<SkillRequest> recordUpdateSkill(
+            @Validated(UpdateGroup.class)
+            @RequestBody SkillRequest request) {
+        return Result.success(request);
+    }
+
+    @PostMapping(value = "/record/document", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    Result<KnowledgeDocumentRequest> recordDocument(
+            @Validated(CreateGroup.class)
+            @ModelAttribute
+            KnowledgeDocumentRequest request) {
+        return Result.success(request);
+    }
+
+    @PostMapping("/record/resume")
+    Result<ResumeContentSaveRequest> recordResume(
+            @Valid @RequestBody ResumeContentSaveRequest request) {
+        return Result.success(request);
+    }
+
     @GetMapping("/serialization")
     Result<SerializationSample> serialization() {
         PageItem item = new PageItem();
@@ -90,11 +132,12 @@ public class ContractProbeController {
 
     @GetMapping("/enums")
     Result<EnumSample> enums() {
-        EducationResponse legal = new EducationResponse();
-        legal.setDegreeEnum(EducationDegreeEnum.BACHELOR);
-        EducationResponse empty = new EducationResponse();
-        EducationResponse unknown = new EducationResponse();
-        unknown.setDegree(99);
+        EducationResponse legal = new EducationResponse(null, null, null, null,
+                EducationDegreeEnum.BACHELOR.getCode(), null, null, null);
+
+        EducationResponse empty = new EducationResponse(null, null, null, null, null, null, null, null);
+        EducationResponse unknown = new EducationResponse(null, null, null, null, 99, null, null, null);
+
         EnumSample sample = new EnumSample();
         sample.setLegal(legal);
         sample.setEmpty(empty);

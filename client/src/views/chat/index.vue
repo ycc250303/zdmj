@@ -1,17 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { useDialog, useMessage } from 'naive-ui';
-import hljs from 'highlight.js/lib/core';
-import bash from 'highlight.js/lib/languages/bash';
-import css from 'highlight.js/lib/languages/css';
-import java from 'highlight.js/lib/languages/java';
-import javascript from 'highlight.js/lib/languages/javascript';
-import json from 'highlight.js/lib/languages/json';
-import python from 'highlight.js/lib/languages/python';
-import sql from 'highlight.js/lib/languages/sql';
-import typescript from 'highlight.js/lib/languages/typescript';
-import xml from 'highlight.js/lib/languages/xml';
-import { marked } from 'marked';
 import {
   fetchChatStream,
   fetchCreateConversation,
@@ -23,40 +12,12 @@ import {
 import type { ConversationApi } from '@/service/api/conversation';
 import { fetchGetKnowledgeDocumentList } from '@/service/api/knowledge';
 import type { KnowledgeApi } from '@/service/api/knowledge';
+import { renderMessageMarkdown } from './markdown';
 import 'highlight.js/styles/github-dark.css';
 
 defineOptions({
   name: 'Chat'
 });
-
-// 注册语言
-hljs.registerLanguage('javascript', javascript);
-hljs.registerLanguage('typescript', typescript);
-hljs.registerLanguage('python', python);
-hljs.registerLanguage('java', java);
-hljs.registerLanguage('json', json);
-hljs.registerLanguage('xml', xml);
-hljs.registerLanguage('html', xml);
-hljs.registerLanguage('sql', sql);
-hljs.registerLanguage('bash', bash);
-hljs.registerLanguage('css', css);
-hljs.registerLanguage('shell', bash);
-
-// 配置 marked
-marked.use({
-  breaks: true,
-  gfm: true
-});
-
-const customRenderer = {
-  code({ text, lang }: { text: string; lang?: string }) {
-    const language = lang && hljs.getLanguage(lang) ? lang : 'plaintext';
-    const highlighted = hljs.highlight(text, { language }).value;
-    return `<pre><code class="hljs language-${language}">${highlighted}</code></pre>`;
-  }
-};
-
-marked.use({ renderer: customRenderer });
 
 const message = useMessage();
 const dialog = useDialog();
@@ -304,7 +265,7 @@ const loadConversations = async () => {
 
 // 新��会话
 const handleNewChat = async () => {
-  const { data, error } = await fetchCreateConversation({ config: buildConversationConfig(), context: [] });
+  const { data, error } = await fetchCreateConversation({ config: buildConversationConfig() });
   if (!error && data) {
     conversations.value = [data, ...conversations.value.filter(item => item.id !== data.id)];
     await handleSelectConversation(data.id);
@@ -377,7 +338,7 @@ const handleSend = async () => {
 
   // 如果没有当前会话，先创建一个（此时尚无消息，config 仍可改）
   if (!currentConversationId.value) {
-    const { data, error } = await fetchCreateConversation({ config: buildConversationConfig(), context: [] });
+    const { data, error } = await fetchCreateConversation({ config: buildConversationConfig() });
     if (error || !data?.id) {
       message.error('创建会话失败');
       return;
@@ -476,19 +437,6 @@ const formatTime = (timeStr: string) => {
   if (!timeStr) return '';
   const date = new Date(timeStr);
   return `${date.getMonth() + 1}-${date.getDate()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-};
-
-// 格式化消息内容 - 渲染Markdown
-const formatMessageContent = (content: string) => {
-  if (!content) return '';
-
-  try {
-    // 使用marked渲染markdown
-    return marked.parse(content) as string;
-  } catch (error) {
-    console.error('Markdown解析错误:', error);
-    return content;
-  }
 };
 
 // 判断是否显示居中布局（空状态）
@@ -775,7 +723,7 @@ onMounted(() => {
                     <div
                       v-else-if="msg.content"
                       class="ai-message-content text-sm leading-relaxed"
-                      v-html="formatMessageContent(msg.content)"
+                      v-html="renderMessageMarkdown(msg.content)"
                     ></div>
                   </div>
                 </div>

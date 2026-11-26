@@ -48,25 +48,22 @@ class CareerServiceImplTest {
 
     @Test
     void create_success_shouldSaveCareer() {
-        CareerRequest dto = new CareerRequest();
-        dto.setCompany("ZDMJ");
-        dto.setPosition("Java");
-        dto.setStartDate(LocalDate.of(2022, 1, 1));
-        dto.setEndDate(LocalDate.of(2023, 1, 1));
+        CareerRequest dto = new CareerRequest(null, "ZDMJ", "Java", LocalDate.of(2022, 1, 1),
+                LocalDate.of(2023, 1, 1), null);
+
         doReturn(true).when(service).save(any(Career.class));
 
         CareerResponse out = service.create(actor, dto);
 
-        assertEquals(1L, out.getUserId());
-        assertEquals("ZDMJ", out.getCompany());
+        assertEquals(1L, out.userId());
+        assertEquals("ZDMJ", out.company());
         verify(service).save(any(Career.class));
     }
 
     @Test
     void create_invalidDate_shouldThrowAndSkipSave() {
-        CareerRequest dto = new CareerRequest();
-        dto.setStartDate(LocalDate.of(2024, 1, 1));
-        dto.setEndDate(LocalDate.of(2023, 1, 1));
+        CareerRequest dto = new CareerRequest(null, null, null, LocalDate.of(2024, 1, 1), LocalDate.of(2023, 1, 1),
+                null);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.create(actor, dto));
 
@@ -76,8 +73,8 @@ class CareerServiceImplTest {
 
     @Test
     void create_saveFailed_shouldThrowAddFailed() {
-        CareerRequest dto = new CareerRequest();
-        dto.setCompany("ZDMJ");
+        CareerRequest dto = new CareerRequest(null, "ZDMJ", null, null, null, null);
+
         doReturn(false).when(service).save(any(Career.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.create(actor, dto));
@@ -87,8 +84,8 @@ class CareerServiceImplTest {
 
     @Test
     void update_noPermission_shouldThrow() {
-        CareerRequest dto = new CareerRequest();
-        dto.setId(10L);
+        CareerRequest dto = new CareerRequest(10L, null, null, null, null, null);
+
         Career existing = new Career();
         existing.setId(10L);
         existing.setUserId(2L);
@@ -103,8 +100,8 @@ class CareerServiceImplTest {
 
     @Test
     void update_invalidDate_shouldThrowAndSkipUpdateById() {
-        CareerRequest dto = new CareerRequest();
-        dto.setId(10L);
+        CareerRequest dto = new CareerRequest(10L, null, null, null, null, null);
+
         Career existing = new Career();
         existing.setId(10L);
         existing.setUserId(1L);
@@ -126,9 +123,8 @@ class CareerServiceImplTest {
 
     @Test
     void update_success_shouldPatchAndPersist() {
-        CareerRequest dto = new CareerRequest();
-        dto.setId(10L);
-        dto.setCompany("NewCo");
+        CareerRequest dto = new CareerRequest(10L, "NewCo", null, null, null, null);
+
         Career existing = new Career();
         existing.setId(10L);
         existing.setUserId(1L);
@@ -137,23 +133,22 @@ class CareerServiceImplTest {
         doAnswer(invocation -> {
             CareerRequest argDto = invocation.getArgument(0);
             Career argEntity = invocation.getArgument(1);
-            argEntity.setCompany(argDto.getCompany());
+            argEntity.setCompany(argDto.company());
             return null;
         }).when(careerStructMapper).updateEntityFromDto(any(CareerRequest.class), any(Career.class));
         doReturn(true).when(service).updateById(any(Career.class));
 
         CareerResponse out = service.update(actor, dto);
 
-        assertEquals("NewCo", out.getCompany());
+        assertEquals("NewCo", out.company());
         verify(careerStructMapper).updateEntityFromDto(dto, existing);
         verify(service).updateById(existing);
     }
 
     @Test
     void update_updateFailed_shouldThrowUpdateFailed() {
-        CareerRequest dto = new CareerRequest();
-        dto.setId(10L);
-        dto.setCompany("NewCo");
+        CareerRequest dto = new CareerRequest(10L, "NewCo", null, null, null, null);
+
         Career existing = new Career();
         existing.setId(10L);
         existing.setUserId(1L);
@@ -161,7 +156,7 @@ class CareerServiceImplTest {
         doAnswer(invocation -> {
             CareerRequest argDto = invocation.getArgument(0);
             Career argEntity = invocation.getArgument(1);
-            argEntity.setCompany(argDto.getCompany());
+            argEntity.setCompany(argDto.company());
             return null;
         }).when(careerStructMapper).updateEntityFromDto(any(CareerRequest.class), any(Career.class));
         doReturn(false).when(service).updateById(any(Career.class));

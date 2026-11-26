@@ -38,7 +38,7 @@ public class ConversationController {
      * 创建会话
      *
      * @param actor 已认证操作者，包含用户编号
-     * @param request 会话请求
+     * @param request 会话请求；检索配置的字段规则由请求 DTO 校验，保存前由业务服务组装
      * @return 创建的会话
      */
     @PostMapping
@@ -66,7 +66,7 @@ public class ConversationController {
      */
     @GetMapping
     public Result<List<ConversationResponse>> getConversations(@Parameter(hidden = true) CurrentActor actor) {
-        return Result.success("会话查询成功", conversationService.getByUserId(actor));
+        return Result.success("会话列表查询成功", conversationService.getByUserId(actor));
     }
 
     /**
@@ -83,9 +83,12 @@ public class ConversationController {
     }
 
     /**
-     * 更新检索配置（仅尚未发出首条消息时）
+     * 更新检索配置（仅尚未发出首条消息时）。
      *
      * @param actor 已认证操作者，包含用户编号
+     * @param id 会话编号
+     * @param config 局部配置；省略字段保持原值，null 恢复字段缺省含义，未知键丢弃
+     * @return 更新后的会话
      */
     @PutMapping("/{id}/config")
     public Result<ConversationResponse> updateConfig(@Parameter(hidden = true) CurrentActor actor, @PathVariable Long id, @RequestBody Map<String, Object> config) {

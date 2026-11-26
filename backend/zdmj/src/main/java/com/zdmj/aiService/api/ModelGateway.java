@@ -36,14 +36,12 @@ public interface ModelGateway {
     <T> T generateStructured(CurrentActor actor, ModelRequest request, Class<T> outputType);
 
     /**
-     * 在指定会话中按用户配置流式输出。调用方传入会话标识后，网关绑定会话记忆。
+     * 按用户配置流式生成，历史与完成情况由调用方显式提供，网关不持久化历史。
      *
-     * @param actor   当前操作者，用户主键为空时抛出 {@link ErrorCode#USER_NOT_LOGIN}
-     * @param conversationId 非空的会话主键
-     * @param request 模型输入
-     * @return 文本流
-     * @throws BusinessException        用户未登录，或模型配置不可用
-     * @throws IllegalArgumentException 会话标识为空
+     * @param actor 已认证操作者
+     * @param request 包含当前问题、历史快照与系统提示词的输入
+     * @return 增量文本流
+     * @throws BusinessException 用户未登录或模型配置不可用
      */
-    Flux<String> stream(CurrentActor actor, Long conversationId, ModelRequest request);
+    Flux<String> stream(CurrentActor actor, ModelRequest request);
 }

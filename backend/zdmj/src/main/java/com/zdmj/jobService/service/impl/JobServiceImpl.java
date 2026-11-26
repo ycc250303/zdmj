@@ -19,7 +19,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.PageRequests;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.BeanUtils;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -163,14 +162,14 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
     @Override
     @Transactional(rollbackFor = Exception.class)
     public JobResponse update(JobRequest dto) {
-        Job existing = baseMapper.selectById(dto.getId());
+        Job existing = baseMapper.selectById(dto.id());
         if (existing == null) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
         Company company = resolveCompanyByName(dto);
         fillJobFromDto(existing, dto, company);
         updateById(existing);
-        deleteDetailCache(dto.getId());
+        deleteDetailCache(dto.id());
         return convertToResponse(existing);
     }
 
@@ -200,44 +199,44 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
      */
     private Company resolveCompanyByName(JobRequest dto) {
         Company company = companyMapper.selectOne(
-                new LambdaQueryWrapper<Company>().eq(Company::getName, dto.getCompanyName()));
+                new LambdaQueryWrapper<Company>().eq(Company::getName, dto.companyName()));
         if (company != null) {
             return company;
         }
         Company created = new Company();
-        created.setName(dto.getCompanyName());
-        created.setSize(Objects.requireNonNullElse(dto.getCompanySize(), 1));
-        created.setType(dto.getCompanyFundingType());
-        created.setIndustries(dto.getCompanyIndustries() == null ? new ArrayList<>() : dto.getCompanyIndustries());
-        created.setIntroduction(dto.getCompanyIntroduction());
+        created.setName(dto.companyName());
+        created.setSize(Objects.requireNonNullElse(dto.companySize(), 1));
+        created.setType(dto.companyFundingType());
+        created.setIndustries(dto.companyIndustries() == null ? new ArrayList<>() : dto.companyIndustries());
+        created.setIntroduction(dto.companyIntroduction());
         companyMapper.insert(created);
         return created;
     }
 
     private void patchJobFromDto(JobRequest dto, Job job) {
-        if (dto.getJobName() != null) {
-            job.setJobName(dto.getJobName());
+        if (dto.jobName() != null) {
+            job.setJobName(dto.jobName());
         }
-        if (dto.getDescription() != null) {
-            job.setDescription(dto.getDescription());
+        if (dto.description() != null) {
+            job.setDescription(dto.description());
         }
-        if (dto.getLocation() != null) {
-            job.setLocation(dto.getLocation());
+        if (dto.location() != null) {
+            job.setLocation(dto.location());
         }
-        if (dto.getSalaryMin() != null) {
-            job.setSalaryMin(dto.getSalaryMin());
+        if (dto.salaryMin() != null) {
+            job.setSalaryMin(dto.salaryMin());
         }
-        if (dto.getSalaryMax() != null) {
-            job.setSalaryMax(dto.getSalaryMax());
+        if (dto.salaryMax() != null) {
+            job.setSalaryMax(dto.salaryMax());
         }
-        if (dto.getSalaryType() != null) {
-            job.setSalaryType(dto.getSalaryType());
+        if (dto.salaryType() != null) {
+            job.setSalaryType(dto.salaryType());
         }
-        if (dto.getLink() != null) {
-            job.setLink(dto.getLink());
+        if (dto.link() != null) {
+            job.setLink(dto.link());
         }
-        if (dto.getKeywords() != null) {
-            job.setKeywords(dto.getKeywords());
+        if (dto.keywords() != null) {
+            job.setKeywords(dto.keywords());
         }
     }
 
@@ -248,8 +247,8 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
     }
 
     private JobResponse convertToResponse(Job job) {
-        JobResponse response = new JobResponse();
-        BeanUtils.copyProperties(job, response);
-        return response;
+        return new JobResponse(job.getId(), job.getJobName(), job.getCompanyId(), job.getCompanyName(),
+                job.getDescription(), job.getLocation(), job.getSalaryMin(), job.getSalaryMax(),
+                job.getSalaryType(), job.getKeywords(), job.getLink());
     }
 }

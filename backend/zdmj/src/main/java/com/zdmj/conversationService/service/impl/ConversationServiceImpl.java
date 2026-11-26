@@ -1,8 +1,7 @@
 package com.zdmj.conversationService.service.impl;
 
-import com.zdmj.common.context.CurrentActor;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.conversationService.dto.ConversationRequest;
@@ -12,55 +11,73 @@ import com.zdmj.conversationService.entity.Message;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.service.ConversationService;
-import com.zdmj.conversationService.support.ConversationContextSupport;
+import org.springframework.context.ApplicationEventPublisher;
 
 import lombok.RequiredArgsConstructor;
 
-import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 会话 Service 实现
+ * 会话维护。检索范围写入 config；删除事务同时清理会话与消息。
  */
 @RequiredArgsConstructor
 @Service
-public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Conversation>
-        implements ConversationService {
+public class ConversationServiceImpl implements ConversationService {
 
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
-    private final ChatMemory chatMemory;
+    private final ApplicationEventPublisher events;
 
+    /**
+     * 创建会话。
+     *
+     * @param actor 已认证操作者，包含用户编号
+     * @param request 可为空；为空时系统知识库开关为关闭，不限定文档
+     * @return 新会话
+     * @throws BusinessException 检索配置非法或插入没有写入记录
+     */
     @Override
     public ConversationResponse create(CurrentActor actor, ConversationRequest request) {
-        Long userId = actor.userId();
-
         Conversation conversation = new Conversation();
-        conversation.setConfig(ConversationContextSupport.freezeConfig(request == null ? null : request.getConfig()));
-        List<Map<String, Object>> context = request == null ? null : request.getContext();
-        conversation.setContext(context == null || context.isEmpty() ? null : context);
-        conversation.setUserId(userId);
+        conversation.setConfig(prepareConfig(request == null ? new ConversationRequest(null) : request));
+        conversation.setUserId(actor.userId());
         conversation.setMessageCount(0);
-
-        boolean saved = save(conversation);
-        if (!saved) {
+        if (conversationMapper.insert(conversation) != 1) {
             throw new BusinessException(ErrorCode.CONVERSATION_CREATE_FAILED);
+        }
+        if (conversation.getId() == null) {
+            throw new IllegalStateException("会话创建后必须回填编号");
         }
         return convertToResponse(conversation);
     }
 
+    /**
+     * 获取会话。
+     *
+     * @param actor 已认证操作者，包含用户编号
+     * @param id 会话编号
+     * @return 会话
+     * @throws BusinessException 编号为空、会话不存在或无权访问
+     */
     @Override
     public ConversationResponse getById(CurrentActor actor, Long id) {
         return convertToResponse(requireOwned(actor, id));
     }
 
-    @Override
+    /**
+     * 确认会话存在且属于当前用户。
+     *
+     * @param actor 已认证操作者，包含用户编号
+     * @param id 会话编号
+     * @return 归属当前用户的会话
+     * @throws BusinessException 编号为空、会话不存在或无权访问
+     */
     public Conversation requireOwned(CurrentActor actor, Long id) {
         if (id == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "会话ID不能为空");
@@ -68,64 +85,114 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         Conversation conversation = conversationMapper.selectById(id);
         if (conversation == null) {
             throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
-        } else if (!conversation.getUserId().equals(actor.userId())) {
+        }
+        if (!conversation.getUserId().equals(actor.userId())) {
             throw new BusinessException(ErrorCode.NO_PERMISSION);
         }
         return conversation;
     }
 
+    /**
+     * 获取用户会话。
+     *
+     * @param actor 已认证操作者，包含用户编号
+     * @return 用户会话
+     */
     @Override
     public List<ConversationResponse> getByUserId(CurrentActor actor) {
-        Long userId = actor.userId();
-        List<Conversation> conversations = conversationMapper.selectByUserId(userId);
-        return conversations.stream().map(this::convertToResponse).toList();
+        return conversationMapper.selectByUserId(actor.userId()).stream().map(this::convertToResponse).toList();
     }
 
+    /**
+     * 更新会话标题。
+     *
+     * @param actor 已认证操作者，包含用户编号
+     * @param id 会话编号
+     * @param title 新标题
+     * @return 更新后的会话
+     * @throws BusinessException 标题为空、会话不存在或无权访问
+     */
     @Override
     public ConversationResponse updateTitle(CurrentActor actor, Long id, String title) {
         if (title == null || title.trim().isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "会话标题不能为空");
         }
-        Long userId = actor.userId();
-        Conversation conversation = requireOwned(actor, id);
-        if (!conversation.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION);
-        }
-
+        requireOwned(actor, id);
         String trimmedTitle = title.trim();
-        int rows = conversationMapper.updateTitleByIdAndUserId(id, userId, trimmedTitle);
+        int rows = conversationMapper.updateTitleByIdAndUserId(id, actor.userId(), trimmedTitle);
         if (rows != 1) {
             throw new BusinessException(ErrorCode.CONVERSATION_UPDATE_FAILED);
         }
         return convertToResponse(requireById(id));
     }
 
+    /**
+     * 在短事务内锁定会话，校验并合并局部配置，保存后读取响应。
+     * 与消息准备及删除共用会话行锁，避免并发请求覆盖其他字段。
+     *
+     * @param actor 已认证操作者，包含用户编号
+     * @param id 会话编号
+     * @param config 局部配置；省略字段保留原值，明确 null 恢复该字段缺省含义
+     * @return 更新后的会话
+     * @throws BusinessException 配置为空或非法、会话不存在、无权访问或已有消息
+     * @throws IllegalStateException 数据库中已存检索配置非法，或锁定后更新行数异常
+     */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public ConversationResponse updateConfig(CurrentActor actor, Long id, Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "会话配置不能为空");
         }
-        Long userId = actor.userId();
-        Conversation conversation = requireOwned(actor, id);
+        requireOwned(actor, id);
+        Conversation conversation = conversationMapper.selectOwnedForUpdate(id, actor.userId());
+        if (conversation == null) {
+            throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
+        }
         if (conversation.getMessageCount() != null && conversation.getMessageCount() > 0) {
             throw new BusinessException(ErrorCode.CONVERSATION_CONFIG_LOCKED);
+        }
+
+        try {
+            ConversationRequest stored = new ConversationRequest(conversation.getConfig());
+            stored.useSystemKnowledge();
+            stored.ragDocumentIds();
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalStateException("会话检索配置非法，conversationId=" + id, exception);
         }
 
         Map<String, Object> merged = conversation.getConfig() == null
                 ? new HashMap<>()
                 : new HashMap<>(conversation.getConfig());
         merged.putAll(config);
-        Map<String, Object> sanitized = ConversationContextSupport.freezeConfig(merged);
 
-        int rows = conversationMapper.updateConfigByIdAndUserId(id, userId, sanitized);
+        Map<String, Object> sanitized = prepareConfig(new ConversationRequest(merged));
+
+        int rows = conversationMapper.updateConfigByIdAndUserId(id, actor.userId(), sanitized);
         if (rows != 1) {
-            Conversation latest = conversationMapper.selectById(id);
-            if (latest != null && latest.getMessageCount() != null && latest.getMessageCount() > 0) {
-                throw new BusinessException(ErrorCode.CONVERSATION_CONFIG_LOCKED);
-            }
-            throw new BusinessException(ErrorCode.CONVERSATION_UPDATE_FAILED);
+            throw new IllegalStateException("锁定会话后配置必须更新一条记录，conversationId=" + id + "，rows=" + rows);
         }
         return convertToResponse(requireById(id));
+    }
+
+    /**
+     * 组装待保存的配置，校验字段并丢弃未知键。
+     *
+     * @param request 原始或合并后的配置；字段缺省或为 null 时使用各字段缺省含义
+     * @return 新配置，包含布尔开关，省略 null 文档范围并保留空列表
+     * @throws BusinessException 请求字段类型或编号取值非法
+     */
+    private Map<String, Object> prepareConfig(ConversationRequest request) {
+        try {
+            Map<String, Object> config = new LinkedHashMap<>();
+            config.put("useSystemKnowledge", request.useSystemKnowledge());
+            List<Long> ids = request.ragDocumentIds();
+            if (ids != null) {
+                config.put("ragDocumentIds", ids);
+            }
+            return config;
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, exception.getMessage(), exception);
+        }
     }
 
     /** 局部更新后从数据库重新加载，保证返回最新字段。 */
@@ -137,25 +204,48 @@ public class ConversationServiceImpl extends ServiceImpl<ConversationMapper, Con
         return refreshed;
     }
 
+    /**
+     * 删除会话及该用户在此会话下的消息。
+     * 先锁定会话，与消息准备及结束保存串行执行，两张表在同一事务中删除。
+     * 提交成功后取消活动生成；删除回滚时生成继续。
+     *
+     * @param actor 已认证操作者，包含用户编号
+     * @param id 会话编号
+     * @throws BusinessException 会话不存在、无权访问，或会话行没有删除
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void delete(CurrentActor actor, Long id) {
+        requireOwned(actor, id);
         Long userId = actor.userId();
-        Conversation conversation = requireOwned(actor, id);
-        if (!conversation.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NO_PERMISSION);
+        if (conversationMapper.selectOwnedForUpdate(id, userId) == null) {
+            throw new BusinessException(ErrorCode.CONVERSATION_NOT_FOUND);
         }
-        messageMapper.delete(new LambdaQueryWrapper<Message>().eq(Message::getConversationId, id));
-        chatMemory.clear(String.valueOf(id));
-        boolean deleted = removeById(id);
-        if (!deleted) {
+        // 删除消息
+        messageMapper.delete(new LambdaQueryWrapper<Message>()
+                .eq(Message::getConversationId, id)
+                .eq(Message::getUserId, userId));
+        // 删除会话
+        int deleted = conversationMapper.delete(new LambdaQueryWrapper<Conversation>()
+                .eq(Conversation::getId, id)
+                .eq(Conversation::getUserId, userId));
+        if (deleted != 1) {
             throw new BusinessException(ErrorCode.CONVERSATION_DELETE_FAILED);
         }
+        events.publishEvent(new Deleted(actor, id));
     }
 
+    /**
+     * 会话删除结果，由事务提交后监听器处理活动生成。
+     *
+     * @param actor 已认证操作者，继续传递删除时校验的身份
+     * @param conversationId 已删除会话编号
+     */
+    record Deleted(CurrentActor actor, Long conversationId) { }
+
     private ConversationResponse convertToResponse(Conversation conversation) {
-        ConversationResponse response = new ConversationResponse();
-        BeanUtils.copyProperties(conversation, response);
-        return response;
+        return new ConversationResponse(conversation.getId(), conversation.getUserId(),
+                conversation.getTitle(), conversation.getConfig(), conversation.getMessageCount(),
+                conversation.getLastMessageAt());
     }
 }

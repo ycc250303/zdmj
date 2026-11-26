@@ -90,6 +90,8 @@ logging:
 knowledge:
   storage:
     root: ${KNOWLEDGE_STORAGE_ROOT}
+  document:
+    max-extracted-chars: ${KNOWLEDGE_DOCUMENT_MAX_EXTRACTED_CHARS:1000000}
 
 app:
   remote:

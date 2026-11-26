@@ -4,16 +4,15 @@ import com.zdmj.common.context.CurrentActor;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
+import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.resumeService.dto.CareerRequest;
 import com.zdmj.resumeService.dto.CareerResponse;
 import com.zdmj.resumeService.entity.Career;
 import com.zdmj.resumeService.mapper.CareerMapper;
 import com.zdmj.resumeService.mapper.CareerStructMapper;
 import com.zdmj.resumeService.service.CareerService;
-import com.zdmj.resumeService.utils.DateRangeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -26,18 +25,18 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
     @Override
     public CareerResponse create(CurrentActor actor, CareerRequest careerRequest) {
         Long userId = actor.userId();
-        DateRangeUtil.rejectIfEndBeforeStart(
-                careerRequest.getStartDate(),
-                careerRequest.getEndDate(),
+        DateTimeUtil.rejectIfEndBeforeStart(
+                careerRequest.startDate(),
+                careerRequest.endDate(),
                 ErrorCode.CAREER_LEAVE_TIME_INVALID);
 
         Career career = new Career();
         career.setUserId(userId);
-        career.setCompany(careerRequest.getCompany());
-        career.setPosition(careerRequest.getPosition());
-        career.setStartDate(careerRequest.getStartDate());
-        career.setEndDate(careerRequest.getEndDate());
-        career.setDetails(careerRequest.getDetails());
+        career.setCompany(careerRequest.company());
+        career.setPosition(careerRequest.position());
+        career.setStartDate(careerRequest.startDate());
+        career.setEndDate(careerRequest.endDate());
+        career.setDetails(careerRequest.details());
         boolean saved = save(career);
         if (!saved) {
             throw new BusinessException(ErrorCode.CAREER_ADD_FAILED);
@@ -49,14 +48,14 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
     @Override
     public CareerResponse update(CurrentActor actor, CareerRequest careerRequest) {
         Long userId = actor.userId();
-        Career career = requireCareerAndCheckOwnership(careerRequest.getId(), userId, "修改");
+        Career career = requireCareerAndCheckOwnership(careerRequest.id(), userId, "修改");
         return updateOwned(career, careerRequest);
     }
 
     @Override
     public CareerResponse updateOwned(Career existing, CareerRequest careerRequest) {
         careerPatchMapper.updateEntityFromDto(careerRequest, existing);
-        DateRangeUtil.rejectIfEndBeforeStart(
+        DateTimeUtil.rejectIfEndBeforeStart(
                 existing.getStartDate(), existing.getEndDate(), ErrorCode.CAREER_LEAVE_TIME_INVALID);
         if (!updateById(existing)) {
             throw new BusinessException(ErrorCode.CAREER_UPDATE_FAILED);
@@ -81,9 +80,8 @@ public class CareerServiceImpl extends ServiceImpl<CareerMapper, Career> impleme
     }
 
     private CareerResponse convertToResponse(Career career) {
-        CareerResponse response = new CareerResponse();
-        BeanUtils.copyProperties(career, response);
-        return response;
+        return new CareerResponse(career.getId(), career.getUserId(), career.getCompany(), career.getPosition(),
+                career.getStartDate(), career.getEndDate(), career.getDetails());
     }
 
     private Career requireCareer(Long id) {

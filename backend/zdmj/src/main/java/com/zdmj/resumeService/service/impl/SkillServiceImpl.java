@@ -48,7 +48,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
     @Override
     public SkillResponse update(CurrentActor actor, SkillRequest skillRequest) {
         Long userId = actor.userId();
-        Skill skill = requireSkillAndCheckOwnership(skillRequest.getId(), userId, "修改");
+        Skill skill = requireSkillAndCheckOwnership(skillRequest.id(), userId, "修改");
         validate(skillRequest, UpdateGroup.class);
         updateOwned(skill, skillRequest);
         return toResponse(skill);
@@ -83,11 +83,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
         if (skill == null) {
             return null;
         }
-        SkillResponse response = new SkillResponse();
-        response.setId(skill.getId());
-        response.setName(skill.getName());
-        response.setDescription(skill.getDescription());
-        return response;
+        return new SkillResponse(skill.getId(), skill.getName(), skill.getDescription());
     }
 
     /**
@@ -97,8 +93,8 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill> implements
      * @param skillRequest 已通过校验的请求
      */
     private void applyFields(Skill skill, SkillRequest skillRequest) {
-        skill.setName(skillRequest.getName().trim());
-        String description = skillRequest.getDescription();
+        skill.setName(skillRequest.name().trim());
+        String description = skillRequest.description();
         skill.setDescription(StringUtils.hasText(description) ? description.trim() : null);
     }
 

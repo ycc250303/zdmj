@@ -18,11 +18,12 @@ import lombok.Setter;
 
 /**
  * 岗位分页查询条件（对应 GET /jobs 的查询参数）。
+ *
+ * <p>保留可变属性，用于查询参数解析和服务端筛选条件计算。</p>
  */
 @Data
 public class JobPageQueryDTO {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-
 
     /**
      * 页码，默认 1；当 page <= 0 时按 1 处理

@@ -3,7 +3,6 @@ package com.zdmj.conversationService.service;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.conversationService.dto.ConversationRequest;
 import com.zdmj.conversationService.dto.ConversationResponse;
-import com.zdmj.conversationService.entity.Conversation;
 
 import java.util.List;
 import java.util.Map;
@@ -28,13 +27,6 @@ public interface ConversationService {
     ConversationResponse getById(CurrentActor actor, Long id);
 
     /**
-     * 鉴权加载会话实体（供本域与 MessageService 使用）
-     *
-     * @param actor 已认证操作者，包含用户编号
-     */
-    Conversation requireOwned(CurrentActor actor, Long id);
-
-    /**
      * 查询当前用户会话列表
      *
      * @param actor 已认证操作者，包含用户编号
@@ -49,9 +41,13 @@ public interface ConversationService {
     ConversationResponse updateTitle(CurrentActor actor, Long id, String title);
 
     /**
-     * 更新检索配置。仅在尚未发出首条消息时允许（message_count = 0）。
+     * 原子合并检索配置，仅在尚未发出首条消息时允许。
+     * 省略字段保持原值，明确 null 恢复缺省含义；并发修改按会话行锁顺序执行。
      *
      * @param actor 已认证操作者，包含用户编号
+     * @param id 会话编号
+     * @param config 本次局部配置，不能为空
+     * @return 本次事务更新后的会话
      */
     ConversationResponse updateConfig(CurrentActor actor, Long id, Map<String, Object> config);
 

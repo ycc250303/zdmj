@@ -52,6 +52,50 @@ class KnowledgeFlowIT extends IntegrationTestBase {
     }
 
     @Test
+    void 检索请求拒绝隐式类型转换且日志不回显输入() throws Exception {
+        String token = testJwt.authorize(testUsers.createPair().userA());
+        var root = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.list = new java.util.concurrent.CopyOnWriteArrayList<>();
+        appender.start();
+        root.addAppender(appender);
+        try {
+            for (String ids : List.of("[1.9]", "[1.0]", "[1e0]", "[\"2\"]", "[-1]", "[0]", "[null]",
+                    "[9223372036854775808]", "[true]", "{}", "1")) {
+                ApiClient.assertProblem(api.post(token, "/knowledge/retrievals",
+                        "{\"query\":\"敏感检索问题标识\",\"ragDocumentIds\":" + ids + "}"), 400, 1001);
+            }
+            for (String flag : List.of("\"true\"", "\"false\"", "0", "1", "[]", "{}")) {
+                ApiClient.assertProblem(api.post(token, "/knowledge/retrievals",
+                        "{\"query\":\"敏感检索问题标识\",\"useSystemKnowledge\":" + flag + "}"), 400, 1001);
+            }
+            for (String query : List.of("1", "true", "[]", "{}", "null", "\" \"", "\"" + "问".repeat(4001) + "\"")) {
+                ApiClient.assertProblem(api.post(token, "/knowledge/retrievals", "{\"query\":" + query + "}"), 400, 1001);
+            }
+            for (String json : List.of("{}", "[]", "null", "{\"query\":\"敏感检索问题标识")) {
+                ApiClient.assertProblem(api.post(token, "/knowledge/retrievals", json), 400, 1001);
+            }
+            assertThat(com.zdmj.testsupport.ExternalAiStubConfig.modelTransactionObservations()).isEmpty();
+            org.mockito.Mockito.verifyNoInteractions(embedding);
+            org.mockito.Mockito.doThrow(new RuntimeException("敏感检索问题标识"))
+                    .when(embedding).embed(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyList());
+            ApiClient.assertProblem(api.post(token, "/knowledge/retrievals",
+                    "{\"query\":\"敏感检索问题标识\",\"ragDocumentIds\":null}"), 400, 8015);
+            for (var event : appender.list) {
+                String rendered = event.getFormattedMessage();
+                if (event.getThrowableProxy() != null) {
+                    rendered += ch.qos.logback.classic.spi.ThrowableProxyUtil.asString(event.getThrowableProxy());
+                }
+                assertThat(rendered).doesNotContain("敏感检索问题标识");
+            }
+        } finally {
+            root.detachAppender(appender);
+            appender.stop();
+            org.mockito.Mockito.reset(embedding);
+        }
+    }
+
+    @Test
     void 知识库检索_创建文档并写入固定向量_归属正确且范围过滤只命中指定文档() throws Exception {
         User user = testUsers.createPair().userA();
         String token = testJwt.authorize(user);
@@ -72,6 +116,11 @@ class KnowledgeFlowIT extends IntegrationTestBase {
                 "SELECT count(*) FROM knowledge_vectors WHERE document_id = ? AND user_id = ?",
                 Integer.class, alphaId, user.getId())).isPositive();
 
+        jdbcTemplate.update("""
+                UPDATE knowledge_documents SET metadata = metadata || '{"docCategory":"learning"}'::jsonb
+                WHERE id = ?
+                """, alphaId);
+
         String scoped = ApiClient.requireOk(api.post(token, "/knowledge/retrievals", """
                 {"query":"检索甲","ragDocumentIds":[%d],"useSystemKnowledge":false}
                 """.formatted(alphaId)));
@@ -79,11 +128,36 @@ class KnowledgeFlowIT extends IntegrationTestBase {
         assertThat(hitIds).isNotEmpty();
         assertThat(hitIds).allMatch(id -> id.longValue() == alphaId);
         assertThat(JsonPath.<String>read(scoped, "$.data.hits[0].content")).contains("固定知识片段甲");
+        assertThat(JsonPath.<String>read(scoped, "$.data.hits[0].metadata.DocumentId"))
+                .isEqualTo(String.valueOf(alphaId));
+        assertThat(JsonPath.<String>read(scoped, "$.data.hits[0].metadata.source"))
+                .isEqualTo("/knowledge-document/" + alphaId + "/download");
+        assertThat(JsonPath.<Number>read(scoped, "$.data.hits[0].chunkIndex").intValue()).isZero();
+        assertThat(JsonPath.<Number>read(scoped, "$.data.hits[0].score").doubleValue()).isCloseTo(1.0,
+                org.assertj.core.data.Offset.offset(0.0001));
+        assertThat(JsonPath.<Object>read(scoped, "$.data.hits[0].docCategory")).isNull();
+
+        String unscoped = ApiClient.requireOk(api.post(token, "/knowledge/retrievals", """
+                {"query":"检索甲","useSystemKnowledge":false}
+                """));
+        List<String> categories = JsonPath.read(unscoped,
+                "$.data.hits[?(@.documentId == " + alphaId + ")].docCategory");
+        assertThat(categories).containsExactly("learning");
 
         String closed = ApiClient.requireOk(api.post(token, "/knowledge/retrievals", """
                 {"query":"检索甲","ragDocumentIds":[],"useSystemKnowledge":false}
                 """));
         assertThat(JsonPath.<Integer>read(closed, "$.data.hits.length()")).isZero();
+        String repeated = ApiClient.requireOk(api.post(token, "/knowledge/retrievals", """
+                {"query":"检索甲","ragDocumentIds":[%d,%d],"useSystemKnowledge":null}
+                """.formatted(alphaId, alphaId)));
+        assertThat(JsonPath.<List<Number>>read(repeated, "$.data.hits[*].documentId"))
+                .isNotEmpty().allMatch(id -> id.longValue() == alphaId);
+        String explicitNull = ApiClient.requireOk(api.post(token, "/knowledge/retrievals", """
+                {"query":"检索甲","ragDocumentIds":null,"useSystemKnowledge":null}
+                """));
+        assertThat(JsonPath.<List<Number>>read(explicitNull, "$.data.hits[*].documentId"))
+                .extracting(Number::longValue).contains(alphaId, betaId);
         assertThat(betaId).isNotEqualTo(alphaId);
     }
 
@@ -118,6 +192,50 @@ class KnowledgeFlowIT extends IntegrationTestBase {
 
     @Autowired private org.springframework.core.env.Environment environment;
     @Autowired private com.zdmj.knowledgeService.service.KnowledgeDocumentService documents;
+
+    @Test
+    void 超过十万字符的知识文档完整保存分块并可重新处理() throws Exception {
+        String token = testJwt.authorize(testUsers.createPair().userA());
+        String text = "文档开始\n" + "知识内容包含岗位要求和项目经验。\n".repeat(8_000) + "DOCUMENT_END_MARKER";
+
+        long id = uploadId(token, "long.md", text);
+
+        assertThat(api.get(token, "/knowledge-document/" + id + "/download").getResponse().getContentAsByteArray())
+                .isEqualTo(text.getBytes(StandardCharsets.UTF_8));
+        List<String> chunks = jdbcTemplate.queryForList(
+                "SELECT content FROM knowledge_vectors WHERE document_id=? ORDER BY chunk_index", String.class, id);
+        assertThat(chunks).hasSizeGreaterThan(1);
+        assertThat(String.join("", chunks).replaceAll("\\s+", "")).isEqualTo(text.replaceAll("\\s+", ""));
+        assertThat(jdbcTemplate.queryForObject("SELECT chunk_count FROM knowledge_documents WHERE id=?", Integer.class, id))
+                .isEqualTo(chunks.size());
+        assertThat(jdbcTemplate.queryForObject("SELECT embedding_status FROM knowledge_documents WHERE id=?", Integer.class, id))
+                .isEqualTo(3);
+
+        ApiClient.requireOk(api.post(token, "/knowledge-document/" + id + "/embedding", null));
+        assertThat(jdbcTemplate.queryForList(
+                "SELECT content FROM knowledge_vectors WHERE document_id=? ORDER BY chunk_index", String.class, id))
+                .isEqualTo(chunks);
+    }
+
+    @Test
+    void 超过配置上限保留原文件且不保存部分向量() throws Exception {
+        String token = testJwt.authorize(testUsers.createPair().userA());
+        String text = "A".repeat(environment.getRequiredProperty("knowledge.document.max-extracted-chars", Integer.class) + 1);
+
+        MvcResult result = uploadResult(token, "too-long.md", text);
+
+        ApiClient.assertProblem(result, 400, ErrorCode.VALIDATION_ERROR.getCode());
+        long id = JsonPath.<Number>read(result.getResponse().getContentAsString(), "$.documentId").longValue();
+        assertThat(jdbcTemplate.queryForObject("SELECT file_status FROM knowledge_documents WHERE id=?", Integer.class, id))
+                .isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT embedding_status FROM knowledge_documents WHERE id=?", Integer.class, id))
+                .isEqualTo(4);
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM knowledge_vectors WHERE document_id=?", Integer.class, id))
+                .isZero();
+        assertThat(api.get(token, "/knowledge-document/" + id + "/download").getResponse().getContentAsByteArray())
+                .isEqualTo(text.getBytes(StandardCharsets.UTF_8));
+        org.mockito.Mockito.verifyNoInteractions(embedding);
+    }
 
     @Test
     void 原文件保存下载和替换_返回原始字节且清理旧文件() throws Exception {

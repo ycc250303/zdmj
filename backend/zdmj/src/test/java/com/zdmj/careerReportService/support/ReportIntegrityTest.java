@@ -23,8 +23,8 @@ class ReportIntegrityTest {
     void 完整报告_检查结果通过且保留质量标记契约() {
         CareerReportCheckResponse check = ReportIntegrity.check(completeReport());
 
-        assertThat(check.getPassed()).isTrue();
-        assertThat(check.getCompletenessScore()).isEqualTo(100);
+        assertThat(check.passed()).isTrue();
+        assertThat(check.completenessScore()).isEqualTo(100);
         assertThat(ReportIntegrity.qualityFlags(check)).containsExactlyInAnyOrderEntriesOf(Map.of(
                 "missingSections", List.of(), "nonActionableItems", List.of(),
                 "weakEvidenceItems", List.of(), "riskLevel", "low"));
@@ -38,9 +38,9 @@ class ReportIntegrityTest {
 
         CareerReportCheckResponse check = ReportIntegrity.check(report);
 
-        assertThat(check.getPassed()).isFalse();
-        assertThat(check.getMissingSections()).containsExactly("职业目标");
-        assertThat(check.getCompletenessScore()).isEqualTo(88);
+        assertThat(check.passed()).isFalse();
+        assertThat(check.missingSections()).containsExactly("职业目标");
+        assertThat(check.completenessScore()).isEqualTo(88);
     }
 
     static Stream<Object> missingValues() {
@@ -56,8 +56,8 @@ class ReportIntegrityTest {
                         Map.of("timeWindow", "四周", "output", List.of("报告"))),
                 "midTerm", Map.of("items", List.of("复盘"))));
 
-        assertThat(ReportIntegrity.check(report).getNonActionableItems()).isEmpty();
-        assertThat(ReportIntegrity.check(report).getCompletenessScore()).isEqualTo(100);
+        assertThat(ReportIntegrity.check(report).nonActionableItems()).isEmpty();
+        assertThat(ReportIntegrity.check(report).completenessScore()).isEqualTo(100);
     }
 
     @Test
@@ -69,22 +69,22 @@ class ReportIntegrityTest {
 
         CareerReportCheckResponse check = ReportIntegrity.check(report);
 
-        assertThat(check.getNonActionableItems()).containsExactly(
+        assertThat(check.nonActionableItems()).containsExactly(
                 "shortTerm#1", "shortTerm#2:missingCycle", "shortTerm#2:missingDeliverable", "midTerm:missingTasks");
-        assertThat(check.getPassed()).isFalse();
-        assertThat(check.getCompletenessScore()).isEqualTo(68);
-        assertThat(check.getRiskLevel()).isEqualTo("medium");
+        assertThat(check.passed()).isFalse();
+        assertThat(check.completenessScore()).isEqualTo(68);
+        assertThat(check.riskLevel()).isEqualTo("medium");
     }
 
     @Test
     void 空报告_返回完整缺失列表及低完整度() {
         CareerReportCheckResponse check = ReportIntegrity.check(Map.of());
 
-        assertThat(check.getMissingSections()).containsExactly("职业探索", "职业目标", "职业路径", "行动计划", "评估计划");
-        assertThat(check.getNonActionableItems()).containsExactly("actionPlan");
-        assertThat(check.getWeakEvidenceItems()).containsExactly("evidence");
-        assertThat(check.getCompletenessScore()).isEqualTo(26);
-        assertThat(check.getRiskLevel()).isEqualTo("high");
+        assertThat(check.missingSections()).containsExactly("职业探索", "职业目标", "职业路径", "行动计划", "评估计划");
+        assertThat(check.nonActionableItems()).containsExactly("actionPlan");
+        assertThat(check.weakEvidenceItems()).containsExactly("evidence");
+        assertThat(check.completenessScore()).isEqualTo(26);
+        assertThat(check.riskLevel()).isEqualTo("high");
     }
 
     @ParameterizedTest
@@ -97,25 +97,22 @@ class ReportIntegrityTest {
         report.put("actionPlan", plan);
 
         String issue = emptyValue instanceof Map<?, ?> ? "shortTerm:missingTasks" : "shortTerm";
-        assertThat(ReportIntegrity.check(report).getNonActionableItems()).containsExactly(issue);
+        assertThat(ReportIntegrity.check(report).nonActionableItems()).containsExactly(issue);
     }
 
     @Test
     void 合并检查_问题按出现顺序去重并保留任一未通过结论() {
         CareerReportCheckResponse local = ReportIntegrity.check(Map.of());
-        CareerReportCheckResponse model = new CareerReportCheckResponse();
-        model.setPassed(true);
-        model.setCompletenessScore(80);
-        model.setMissingSections(Arrays.asList("职业探索", "引用说明", null));
-        model.setNonActionableItems(List.of("actionPlan", "验收标准"));
+        CareerReportCheckResponse model = new CareerReportCheckResponse(true, 80, null,
+                Arrays.asList("职业探索", "引用说明", null), List.of("actionPlan", "验收标准"), null);
 
         CareerReportCheckResponse check = ReportIntegrity.merge(local, model);
 
-        assertThat(check.getPassed()).isFalse();
-        assertThat(check.getCompletenessScore()).isEqualTo(53);
-        assertThat(check.getMissingSections()).containsExactly("职业探索", "职业目标", "职业路径", "行动计划", "评估计划", "引用说明");
-        assertThat(check.getNonActionableItems()).containsExactly("actionPlan", "验收标准");
-        assertThat(check.getWeakEvidenceItems()).containsExactly("evidence");
+        assertThat(check.passed()).isFalse();
+        assertThat(check.completenessScore()).isEqualTo(53);
+        assertThat(check.missingSections()).containsExactly("职业探索", "职业目标", "职业路径", "行动计划", "评估计划", "引用说明");
+        assertThat(check.nonActionableItems()).containsExactly("actionPlan", "验收标准");
+        assertThat(check.weakEvidenceItems()).containsExactly("evidence");
     }
 
     @ParameterizedTest
@@ -128,13 +125,12 @@ class ReportIntegrityTest {
 
     static Stream<CareerReportCheckResponse> invalidModelChecks() {
         Stream<CareerReportCheckResponse> scores = Stream.of(-1, 101, null).map(score -> {
-            CareerReportCheckResponse check = new CareerReportCheckResponse();
-            check.setPassed(true);
-            check.setCompletenessScore(score);
+            CareerReportCheckResponse check = new CareerReportCheckResponse(true, score, null, null, null, null);
+
             return check;
         });
-        CareerReportCheckResponse missingPassed = new CareerReportCheckResponse();
-        missingPassed.setCompletenessScore(80);
+        CareerReportCheckResponse missingPassed = new CareerReportCheckResponse(null, 80, null, null, null, null);
+
         return Stream.concat(Stream.of(null, missingPassed), scores);
     }
 

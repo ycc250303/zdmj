@@ -48,15 +48,14 @@ class SkillServiceImplTest {
 
     @Test
     void create_success_shouldTrimNameAndClearBlankDescription() {
-        SkillRequest dto = new SkillRequest();
-        dto.setName("  Java  ");
-        dto.setDescription("  ");
+        SkillRequest dto = new SkillRequest(null, "  Java  ", "  ");
+
         doReturn(true).when(service).save(any(Skill.class));
 
         SkillResponse out = service.create(actor, dto);
 
-        assertEquals("Java", out.getName());
-        assertNull(out.getDescription());
+        assertEquals("Java", out.name());
+        assertNull(out.description());
         ArgumentCaptor<Skill> captor = ArgumentCaptor.forClass(Skill.class);
         verify(service).save(captor.capture());
         assertEquals(1L, captor.getValue().getUserId());
@@ -66,8 +65,7 @@ class SkillServiceImplTest {
 
     @Test
     void create_blankName_shouldThrowAndSkipSave() {
-        SkillRequest dto = new SkillRequest();
-        dto.setName(" ");
+        SkillRequest dto = new SkillRequest(null, " ", null);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.create(actor, dto));
 
@@ -78,9 +76,7 @@ class SkillServiceImplTest {
 
     @Test
     void create_descriptionTooLong_shouldThrowAndSkipSave() {
-        SkillRequest dto = new SkillRequest();
-        dto.setName("Java");
-        dto.setDescription("说".repeat(501));
+        SkillRequest dto = new SkillRequest(null, "Java", "说".repeat(501));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.create(actor, dto));
 
@@ -100,8 +96,7 @@ class SkillServiceImplTest {
 
     @Test
     void update_notOwner_shouldThrowAndSkipUpdateById() {
-        SkillRequest dto = validRequest();
-        dto.setId(10L);
+        SkillRequest dto = new SkillRequest(10L, "Java", "熟悉 Spring");
         Skill existing = new Skill();
         existing.setId(10L);
         existing.setUserId(2L);
@@ -115,10 +110,8 @@ class SkillServiceImplTest {
 
     @Test
     void update_success_shouldReplaceNameAndClearDescription() {
-        SkillRequest dto = new SkillRequest();
-        dto.setId(10L);
-        dto.setName("Spring");
-        dto.setDescription("");
+        SkillRequest dto = new SkillRequest(10L, "Spring", "");
+
         Skill existing = new Skill();
         existing.setId(10L);
         existing.setUserId(1L);
@@ -129,15 +122,14 @@ class SkillServiceImplTest {
 
         SkillResponse out = service.update(actor, dto);
 
-        assertEquals("Spring", out.getName());
-        assertNull(out.getDescription());
+        assertEquals("Spring", out.name());
+        assertNull(out.description());
         verify(service).updateById(existing);
     }
 
     @Test
     void update_updateFailed_shouldThrowUpdateFailed() {
-        SkillRequest dto = validRequest();
-        dto.setId(10L);
+        SkillRequest dto = new SkillRequest(10L, "Java", "熟悉 Spring");
         Skill existing = new Skill();
         existing.setId(10L);
         existing.setUserId(1L);
@@ -177,9 +169,8 @@ class SkillServiceImplTest {
     }
 
     private static SkillRequest validRequest() {
-        SkillRequest dto = new SkillRequest();
-        dto.setName("Java");
-        dto.setDescription("熟悉 Spring");
+        SkillRequest dto = new SkillRequest(null, "Java", "熟悉 Spring");
+
         return dto;
     }
 }

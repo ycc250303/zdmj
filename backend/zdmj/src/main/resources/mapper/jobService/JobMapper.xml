@@ -11,43 +11,47 @@
     </sql>
 
     <resultMap id="JobDetailDTOMap" type="com.zdmj.jobService.dto.JobListItemResponse">
-        <id property="id" column="id" />
-        <result property="jobName" column="job_name" />
-        <result property="companyId" column="company_id" />
-        <result property="companyName" column="company_name" />
-        <result property="description" column="description" />
-        <result property="location" column="location" />
-        <result property="salaryMin" column="salary_min" />
-        <result property="salaryMax" column="salary_max" />
-        <result property="salaryType" column="salary_type" />
-        <result property="salary" column="salary" />
-        <result property="link" column="link" />
-        <result property="keywords" column="job_keywords"
-            typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" />
-        <result property="companyIndustries" column="company_industries"
-            typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" />
-        <result property="companySize" column="company_size" />
-        <result property="companyFundingType" column="company_funding_type" />
+        <constructor>
+            <idArg name="id" column="id" javaType="java.lang.Long" />
+            <arg name="jobName" column="job_name" javaType="java.lang.String" />
+            <arg name="companyId" column="company_id" javaType="java.lang.Long" />
+            <arg name="companyName" column="company_name" javaType="java.lang.String" />
+            <arg name="description" column="description" javaType="java.lang.String" />
+            <arg name="location" column="location" javaType="java.lang.String" />
+            <arg name="salaryMin" column="salary_min" javaType="java.lang.Integer" />
+            <arg name="salaryMax" column="salary_max" javaType="java.lang.Integer" />
+            <arg name="salaryType" column="salary_type" javaType="java.lang.Integer" />
+            <arg name="salary" column="salary" javaType="java.lang.String" />
+            <arg name="link" column="link" javaType="java.lang.String" />
+            <arg name="keywords" column="job_keywords"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" javaType="java.util.List" />
+            <arg name="companyIndustries" column="company_industries"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" javaType="java.util.List" />
+            <arg name="companySize" column="company_size" javaType="java.lang.Integer" />
+            <arg name="companyFundingType" column="company_funding_type" javaType="java.lang.Integer" />
+        </constructor>
     </resultMap>
 
     <resultMap id="JobListItemResponseMap" type="com.zdmj.jobService.dto.JobListItemResponse">
-        <id property="id" column="id" />
-        <result property="jobName" column="job_name" />
-        <result property="companyId" column="company_id" />
-        <result property="companyName" column="company_name" />
-        <result property="description" column="description" />
-        <result property="location" column="location" />
-        <result property="salaryMin" column="salary_min" />
-        <result property="salaryMax" column="salary_max" />
-        <result property="salaryType" column="salary_type" />
-        <result property="salary" column="salary" />
-        <result property="link" column="link" />
-        <result property="keywords" column="job_keywords"
-            typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" />
-        <result property="companyIndustries" column="company_industries"
-            typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" />
-        <result property="companySize" column="company_size" />
-        <result property="companyFundingType" column="company_funding_type" />
+        <constructor>
+            <idArg name="id" column="id" javaType="java.lang.Long" />
+            <arg name="jobName" column="job_name" javaType="java.lang.String" />
+            <arg name="companyId" column="company_id" javaType="java.lang.Long" />
+            <arg name="companyName" column="company_name" javaType="java.lang.String" />
+            <arg name="description" column="description" javaType="java.lang.String" />
+            <arg name="location" column="location" javaType="java.lang.String" />
+            <arg name="salaryMin" column="salary_min" javaType="java.lang.Integer" />
+            <arg name="salaryMax" column="salary_max" javaType="java.lang.Integer" />
+            <arg name="salaryType" column="salary_type" javaType="java.lang.Integer" />
+            <arg name="salary" column="salary" javaType="java.lang.String" />
+            <arg name="link" column="link" javaType="java.lang.String" />
+            <arg name="keywords" column="job_keywords"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" javaType="java.util.List" />
+            <arg name="companyIndustries" column="company_industries"
+                typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler" javaType="java.util.List" />
+            <arg name="companySize" column="company_size" javaType="java.lang.Integer" />
+            <arg name="companyFundingType" column="company_funding_type" javaType="java.lang.Integer" />
+        </constructor>
     </resultMap>
 
     <sql id="Job_Company_From_Where"> FROM jobs j INNER JOIN companies c ON j.company_id = c.id

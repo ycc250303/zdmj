@@ -14,6 +14,8 @@ import lombok.NoArgsConstructor;
  * <p>综合分按各维度权重加权。本对象既支持后端按 {@code targetRoleType} 路由出默认权重，
  * 也支持前端通过请求体覆盖。
  * 字段类型用 {@link BigDecimal} 保证序列化精度。</p>
+ *
+ * <p>默认权重与请求覆盖项通过属性赋值合并，因此保留可变字段。</p>
  */
 @Data
 @NoArgsConstructor

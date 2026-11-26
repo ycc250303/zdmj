@@ -96,24 +96,25 @@ class JobServiceImplTest {
     @Test
     void getDetail_cache_hit_shouldReturnCachedAndSkipDb() throws JsonProcessingException {
         Long jobId = 103L;
-        JobListItemResponse cached = new JobListItemResponse();
-        cached.setJobName("cached-java");
+        JobListItemResponse cached = new JobListItemResponse(null, "cached-java", null, null, null, null, null,
+                null, null, null, null, null, null, null, null);
+
         when(redisTemplate.hasKey(nullMarkerKey(jobId))).thenReturn(false);
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
         when(valueOps.get(detailKey(jobId))).thenReturn(objectMapper.writeValueAsString(cached));
 
         JobListItemResponse result = jobService.getDetail(jobId);
 
-        assertEquals("cached-java", result.getJobName());
+        assertEquals("cached-java", result.jobName());
         verify(jobMapper, never()).selectDetailById(any());
     }
 
     @Test
     void getDetail_db_hit_shouldCacheAndReturnDbValue() throws JsonProcessingException {
         Long jobId = 104L;
-        JobListItemResponse dbValue = new JobListItemResponse();
-        dbValue.setJobName("db-java");
-        dbValue.setCompanyName("ACME");
+        JobListItemResponse dbValue = new JobListItemResponse(null, "db-java", null, "ACME", null, null, null, null,
+                null, null, null, null, null, null, null);
+
         when(redisTemplate.hasKey(nullMarkerKey(jobId))).thenReturn(false);
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
         when(valueOps.get(detailKey(jobId))).thenReturn(null);
@@ -121,8 +122,8 @@ class JobServiceImplTest {
 
         JobListItemResponse result = jobService.getDetail(jobId);
 
-        assertEquals("db-java", result.getJobName());
-        assertEquals("ACME", result.getCompanyName());
+        assertEquals("db-java", result.jobName());
+        assertEquals("ACME", result.companyName());
         verify(jobMapper).selectDetailById(jobId);
         verify(valueOps).set(
                 detailKey(jobId),
@@ -156,10 +157,9 @@ class JobServiceImplTest {
 
     @Test
     void create_save_whenCompanyExists_shouldReuseCompanyAndInitLists() {
-        JobRequest dto = new JobRequest();
-        dto.setCompanyName("ZDMJ");
-        dto.setJobName("Java");
-        dto.setDescription("desc");
+        JobRequest dto = new JobRequest(null, "Java", "ZDMJ", null, null, null, null, "desc", null, null, null,
+                null, null, null);
+
         Company company = new Company();
         company.setId(88L);
         company.setName("ZDMJ");
@@ -168,20 +168,18 @@ class JobServiceImplTest {
 
         JobResponse created = jobService.create(dto);
 
-        assertEquals(88L, created.getCompanyId());
-        assertEquals("desc", created.getDescription());
-        assertNotNull(created.getKeywords());
-        assertEquals("", created.getLink());
+        assertEquals(88L, created.companyId());
+        assertEquals("desc", created.description());
+        assertNotNull(created.keywords());
+        assertEquals("", created.link());
         verify(jobService).save(any(Job.class));
     }
 
     @Test
     void create_save_whenLinkProvided_shouldPersistLink() {
-        JobRequest dto = new JobRequest();
-        dto.setCompanyName("ZDMJ");
-        dto.setJobName("Java");
-        dto.setDescription("desc");
-        dto.setLink("https://example.com/jobs/1");
+        JobRequest dto = new JobRequest(null, "Java", "ZDMJ", null, null, null, null, "desc", null, null, null,
+                null, "https://example.com/jobs/1", null);
+
         Company company = new Company();
         company.setId(88L);
         company.setName("ZDMJ");
@@ -190,7 +188,7 @@ class JobServiceImplTest {
 
         JobResponse created = jobService.create(dto);
 
-        assertEquals("https://example.com/jobs/1", created.getLink());
+        assertEquals("https://example.com/jobs/1", created.link());
         verify(jobService).save(any(Job.class));
     }
 
@@ -207,9 +205,9 @@ class JobServiceImplTest {
 
     @Test
     void create_save_whenCompanyNotExists_shouldInsertCompany() {
-        JobRequest dto = new JobRequest();
-        dto.setCompanyName("NEW");
-        dto.setJobName("Backend");
+        JobRequest dto = new JobRequest(null, "Backend", "NEW", null, null, null, null, null, null, null, null,
+                null, null, null);
+
         doReturn(null).when(companyMapper).selectOne(any());
         doAnswer(invocation -> {
             Company c = invocation.getArgument(0);
@@ -220,16 +218,16 @@ class JobServiceImplTest {
 
         JobResponse created = jobService.create(dto);
 
-        assertEquals(900L, created.getCompanyId());
+        assertEquals(900L, created.companyId());
         verify(companyMapper).insert(any(Company.class));
         verify(jobService).save(any(Job.class));
     }
 
     @Test
     void create_fail_whenCompanyInsertThrows_shouldPropagateFail() {
-        JobRequest dto = new JobRequest();
-        dto.setCompanyName("BAD");
-        dto.setJobName("Backend");
+        JobRequest dto = new JobRequest(null, "Backend", "BAD", null, null, null, null, null, null, null, null,
+                null, null, null);
+
         doReturn(null).when(companyMapper).selectOne(any());
         doAnswer(invocation -> {
             throw new RuntimeException("insert fail");
@@ -244,8 +242,9 @@ class JobServiceImplTest {
 
     @Test
     void update_notFound_shouldThrow10001AndSkipUpdate() {
-        JobRequest dto = new JobRequest();
-        dto.setId(405L);
+        JobRequest dto = new JobRequest(405L, null, null, null, null, null, null, null, null, null, null, null,
+                null, null);
+
         doReturn(null).when(jobMapper).selectById(405L);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> jobService.update(dto));
@@ -277,8 +276,9 @@ class JobServiceImplTest {
         query.setCompanySizes(List.of());
         query.setIndustries(List.of());
         query.setFundingTypes(List.of());
-        JobListItemResponse row = new JobListItemResponse();
-        row.setJobName("Java工程师");
+        JobListItemResponse row = new JobListItemResponse(null, "Java工程师", null, null, null, null, null, null, null,
+                null, null, null, null, null, null);
+
         Page<JobListItemResponse> mpPage = new Page<>(1, 100);
         mpPage.setRecords(List.of(row));
         mpPage.setTotal(1);
@@ -289,14 +289,15 @@ class JobServiceImplTest {
         assertEquals(1, page.getPage());
         assertEquals(100, page.getLimit());
         assertEquals(1L, page.getTotal());
-        assertEquals("Java工程师", page.getList().get(0).getJobName());
+        assertEquals("Java工程师", page.getList().get(0).jobName());
         verify(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
     }
 
     @Test
     void getDetail_getPage_whenQueryNull_shouldUseDefaultPageAndLimit() {
-        JobListItemResponse row = new JobListItemResponse();
-        row.setJobName("默认分页岗位");
+        JobListItemResponse row = new JobListItemResponse(null, "默认分页岗位", null, null, null, null, null, null, null,
+                null, null, null, null, null, null);
+
         Page<JobListItemResponse> mpPage = new Page<>(1, 20);
         mpPage.setRecords(List.of(row));
         mpPage.setTotal(0);
@@ -307,7 +308,7 @@ class JobServiceImplTest {
         assertEquals(1, page.getPage());
         assertEquals(20, page.getLimit());
         assertEquals(0L, page.getTotal());
-        assertEquals("默认分页岗位", page.getList().get(0).getJobName());
+        assertEquals("默认分页岗位", page.getList().get(0).jobName());
         verify(jobMapper).selectJobPage(any(Page.class), any(JobPageQueryDTO.class));
     }
 

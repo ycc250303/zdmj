@@ -133,19 +133,13 @@ public class ResumeServiceImpl implements ResumeService {
         if (row == null || !hasStoredContent(row)) {
             return null;
         }
-        ResumeContentResponse response = new ResumeContentResponse();
-        response.setSkills(readSection(row.getSkills(), SkillResponse.class));
-        response.setEducations(readSection(row.getEducations(), EducationRequest.class));
-        response.setCareers(readSection(row.getCareers(), CareerRequest.class));
-        response.setProjects(readSection(row.getProjects(), ProjectExperienceRequest.class));
-        response.setAwards(readSection(row.getAwards(), AwardRequest.class));
-        ResumePersonalInfoDTO info = new ResumePersonalInfoDTO();
-        info.setName(row.getPersonalName());
-        info.setPhone(row.getPersonalPhone());
-        info.setHomepageUrl(row.getPersonalWebsite());
-        info.setPreferredWorkCity(row.getPreferredWorkCity());
-        response.setPersonalInfo(info);
-        return response;
+        ResumePersonalInfoDTO info = new ResumePersonalInfoDTO(row.getPersonalName(), row.getPersonalPhone(),
+                row.getPersonalWebsite(), row.getPreferredWorkCity());
+        return new ResumeContentResponse(readSection(row.getSkills(), SkillResponse.class),
+                readSection(row.getEducations(), EducationRequest.class),
+                readSection(row.getCareers(), CareerRequest.class),
+                readSection(row.getProjects(), ProjectExperienceRequest.class),
+                readSection(row.getAwards(), AwardRequest.class), info);
     }
 
     /**
@@ -172,11 +166,9 @@ public class ResumeServiceImpl implements ResumeService {
         if (info == null) {
             return;
         }
-        UserUpdateRequest update = new UserUpdateRequest();
-        update.setName(info.getName());
-        update.setPhone(info.getPhone());
-        update.setWebsite(info.getHomepageUrl());
-        update.setPreferredWorkCity(info.getPreferredWorkCity());
+        UserUpdateRequest update = new UserUpdateRequest(info.name(), info.phone(), info.homepageUrl(),
+                info.preferredWorkCity());
+
         userService.updateProfile(actor, userId, update);
     }
 
@@ -190,7 +182,7 @@ public class ResumeServiceImpl implements ResumeService {
         Long userId = actor.userId();
         List<Skill> existing = skillMapper.selectByUserId(userId);
         Map<Long, Skill> owned = indexById(existing, Skill::getId);
-        Set<Long> incomingIds = incomingIds(incoming, SkillRequest::getId);
+        Set<Long> incomingIds = incomingIds(incoming, SkillRequest::id);
         for (Skill item : existing) {
             if (!incomingIds.contains(item.getId())) {
                 skillService.deleteOwned(item.getId());
@@ -198,12 +190,12 @@ public class ResumeServiceImpl implements ResumeService {
         }
         for (SkillRequest dto : incoming) {
             validateForSave(dto, CreateGroup.class);
-            if (dto.getId() == null) {
+            if (dto.id() == null) {
                 skillService.create(actor, dto);
             } else {
-                Skill current = owned.get(dto.getId());
+                Skill current = owned.get(dto.id());
                 if (current == null) {
-                    current = requireOwned(dto.getId(), userId, skillMapper::selectById, Skill::getUserId,
+                    current = requireOwned(dto.id(), userId, skillMapper::selectById, Skill::getUserId,
                             ErrorCode.SKILL_NOT_FOUND);
                 }
                 skillService.updateOwned(current, dto);
@@ -221,7 +213,7 @@ public class ResumeServiceImpl implements ResumeService {
         Long userId = actor.userId();
         List<Education> existing = educationMapper.selectByUserId(userId);
         Map<Long, Education> owned = indexById(existing, Education::getId);
-        Set<Long> incomingIds = incomingIds(incoming, EducationRequest::getId);
+        Set<Long> incomingIds = incomingIds(incoming, EducationRequest::id);
         for (Education item : existing) {
             if (!incomingIds.contains(item.getId())) {
                 educationService.deleteOwned(item.getId());
@@ -229,12 +221,12 @@ public class ResumeServiceImpl implements ResumeService {
         }
         for (EducationRequest dto : incoming) {
             validateForSave(dto, CreateGroup.class);
-            if (dto.getId() == null) {
+            if (dto.id() == null) {
                 educationService.create(actor, dto);
             } else {
-                Education current = owned.get(dto.getId());
+                Education current = owned.get(dto.id());
                 if (current == null) {
-                    current = requireOwned(dto.getId(), userId, educationMapper::selectById, Education::getUserId,
+                    current = requireOwned(dto.id(), userId, educationMapper::selectById, Education::getUserId,
                             ErrorCode.EDUCATION_NOT_FOUND);
                 }
                 educationService.updateOwned(current, dto);
@@ -246,7 +238,7 @@ public class ResumeServiceImpl implements ResumeService {
         Long userId = actor.userId();
         List<Career> existing = careerMapper.selectByUserId(userId);
         Map<Long, Career> owned = indexById(existing, Career::getId);
-        Set<Long> incomingIds = incomingIds(incoming, CareerRequest::getId);
+        Set<Long> incomingIds = incomingIds(incoming, CareerRequest::id);
         for (Career item : existing) {
             if (!incomingIds.contains(item.getId())) {
                 careerService.deleteOwned(item.getId());
@@ -254,12 +246,12 @@ public class ResumeServiceImpl implements ResumeService {
         }
         for (CareerRequest dto : incoming) {
             validateForSave(dto, CreateGroup.class);
-            if (dto.getId() == null) {
+            if (dto.id() == null) {
                 careerService.create(actor, dto);
             } else {
-                Career current = owned.get(dto.getId());
+                Career current = owned.get(dto.id());
                 if (current == null) {
-                    current = requireOwned(dto.getId(), userId, careerMapper::selectById, Career::getUserId,
+                    current = requireOwned(dto.id(), userId, careerMapper::selectById, Career::getUserId,
                             ErrorCode.CAREER_NOT_FOUND);
                 }
                 careerService.updateOwned(current, dto);
@@ -271,7 +263,7 @@ public class ResumeServiceImpl implements ResumeService {
         Long userId = actor.userId();
         List<ProjectExperience> existing = projectExperienceMapper.selectByUserId(userId);
         Map<Long, ProjectExperience> owned = indexById(existing, ProjectExperience::getId);
-        Set<Long> incomingIds = incomingIds(incoming, ProjectExperienceRequest::getId);
+        Set<Long> incomingIds = incomingIds(incoming, ProjectExperienceRequest::id);
         for (ProjectExperience item : existing) {
             if (!incomingIds.contains(item.getId())) {
                 projectExperienceService.deleteOwned(item.getId());
@@ -279,12 +271,12 @@ public class ResumeServiceImpl implements ResumeService {
         }
         for (ProjectExperienceRequest dto : incoming) {
             validateForSave(dto, CreateGroup.class);
-            if (dto.getId() == null) {
+            if (dto.id() == null) {
                 projectExperienceService.create(actor, dto);
             } else {
-                ProjectExperience current = owned.get(dto.getId());
+                ProjectExperience current = owned.get(dto.id());
                 if (current == null) {
-                    current = requireOwned(dto.getId(), userId, projectExperienceMapper::selectById,
+                    current = requireOwned(dto.id(), userId, projectExperienceMapper::selectById,
                             ProjectExperience::getUserId, ErrorCode.PROJECT_EXPERIENCE_NOT_FOUND);
                 }
                 projectExperienceService.updateOwned(current, dto);
@@ -296,7 +288,7 @@ public class ResumeServiceImpl implements ResumeService {
         Long userId = actor.userId();
         List<Award> existing = awardMapper.selectByUserId(userId);
         Map<Long, Award> owned = indexById(existing, Award::getId);
-        Set<Long> incomingIds = incomingIds(incoming, AwardRequest::getId);
+        Set<Long> incomingIds = incomingIds(incoming, AwardRequest::id);
         for (Award item : existing) {
             if (!incomingIds.contains(item.getId())) {
                 awardService.deleteOwned(item.getId());
@@ -304,12 +296,12 @@ public class ResumeServiceImpl implements ResumeService {
         }
         for (AwardRequest dto : incoming) {
             validateForSave(dto, CreateGroup.class);
-            if (dto.getId() == null) {
+            if (dto.id() == null) {
                 awardService.create(actor, dto);
             } else {
-                Award current = owned.get(dto.getId());
+                Award current = owned.get(dto.id());
                 if (current == null) {
-                    current = requireOwned(dto.getId(), userId, awardMapper::selectById, Award::getUserId,
+                    current = requireOwned(dto.id(), userId, awardMapper::selectById, Award::getUserId,
                             ErrorCode.AWARD_NOT_FOUND);
                 }
                 awardService.updateOwned(current, dto);
@@ -414,8 +406,8 @@ public class ResumeServiceImpl implements ResumeService {
         if (!StringUtils.hasText(extracted)) {
             throw new BusinessException(ErrorCode.RESUME_IMPORT_TEXT_EMPTY);
         }
-        ResumeImportParseRequest request = new ResumeImportParseRequest();
-        request.setRawText(extracted);
+        ResumeImportParseRequest request = new ResumeImportParseRequest(extracted);
+
         return parseImport(actor, request);
     }
 
@@ -427,8 +419,8 @@ public class ResumeServiceImpl implements ResumeService {
      * @throws BusinessException 未提供文本或文本为空白
      */
     private String resolveImportSourceText(ResumeImportParseRequest request) {
-        if (request.getRawText() != null) {
-            String text = request.getRawText().trim();
+        if (request.rawText() != null) {
+            String text = request.rawText().trim();
             if (!StringUtils.hasText(text)) {
                 throw new BusinessException(ErrorCode.RESUME_IMPORT_TEXT_EMPTY);
             }

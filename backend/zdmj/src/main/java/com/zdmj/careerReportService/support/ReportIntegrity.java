@@ -61,15 +61,15 @@ public final class ReportIntegrity {
      * @throws BusinessException 模型结果缺失或完整度非法时终止本次检查
      */
     public static CareerReportCheckResponse merge(CareerReportCheckResponse local, CareerReportCheckResponse model) {
-        if (model == null || model.getPassed() == null || model.getCompletenessScore() == null
-                || model.getCompletenessScore() < 0 || model.getCompletenessScore() > 100) {
+        if (model == null || model.passed() == null || model.completenessScore() == null
+                || model.completenessScore() < 0 || model.completenessScore() > 100) {
             throw new BusinessException(ErrorCode.CAREER_REPORT_INVALID, "报告完整性检查结果不符合要求");
         }
-        return result((local.getCompletenessScore() + model.getCompletenessScore()) / 2,
-                Boolean.TRUE.equals(local.getPassed()) && model.getPassed(),
-                mergeItems(local.getMissingSections(), model.getMissingSections()),
-                mergeItems(local.getNonActionableItems(), model.getNonActionableItems()),
-                mergeItems(local.getWeakEvidenceItems(), model.getWeakEvidenceItems()));
+        return result((local.completenessScore() + model.completenessScore()) / 2,
+                Boolean.TRUE.equals(local.passed()) && model.passed(),
+                mergeItems(local.missingSections(), model.missingSections()),
+                mergeItems(local.nonActionableItems(), model.nonActionableItems()),
+                mergeItems(local.weakEvidenceItems(), model.weakEvidenceItems()));
     }
 
     /**
@@ -80,24 +80,19 @@ public final class ReportIntegrity {
      */
     public static Map<String, Object> qualityFlags(CareerReportCheckResponse check) {
         Map<String, Object> flags = new LinkedHashMap<>();
-        flags.put("missingSections", check.getMissingSections());
-        flags.put("nonActionableItems", check.getNonActionableItems());
-        flags.put("weakEvidenceItems", check.getWeakEvidenceItems());
-        flags.put("riskLevel", check.getRiskLevel());
+        flags.put("missingSections", check.missingSections());
+        flags.put("nonActionableItems", check.nonActionableItems());
+        flags.put("weakEvidenceItems", check.weakEvidenceItems());
+        flags.put("riskLevel", check.riskLevel());
         return flags;
     }
 
     private static CareerReportCheckResponse result(int score, boolean passed, List<String> missing,
             List<String> nonActionable, List<String> weakEvidence) {
         int boundedScore = Math.max(0, Math.min(100, score));
-        CareerReportCheckResponse result = new CareerReportCheckResponse();
-        result.setCompletenessScore(boundedScore);
-        result.setPassed(passed);
-        result.setRiskLevel(boundedScore >= 80 ? "low" : boundedScore >= 60 ? "medium" : "high");
-        result.setMissingSections(missing);
-        result.setNonActionableItems(nonActionable);
-        result.setWeakEvidenceItems(weakEvidence);
-        return result;
+        return new CareerReportCheckResponse(passed, boundedScore,
+                boundedScore >= 80 ? "low" : boundedScore >= 60 ? "medium" : "high", missing, nonActionable,
+                weakEvidence);
     }
 
     private static List<String> mergeItems(List<String> left, List<String> right) {

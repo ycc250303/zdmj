@@ -155,10 +155,10 @@ class CareerDevelopmentReportServiceImplTest {
             return payload;
         }).when(modelGateway).generateStructured(any(), any(), any());
 
-        CareerReportResponse dto = service.generate(actor, jobId, new CareerReportGenerateRequest());
+        CareerReportResponse dto = service.generate(actor, jobId, new CareerReportGenerateRequest(null, null));
 
-        assertEquals(999L, dto.getId());
-        assertThat(dto.getCompletenessScore()).isGreaterThanOrEqualTo(60);
+        assertEquals(999L, dto.id());
+        assertThat(dto.completenessScore()).isGreaterThanOrEqualTo(60);
         verify(reportMapper).insert(argThat(saved -> Long.valueOf(300L).equals(saved.getMatchId())));
     }
 
@@ -171,7 +171,7 @@ class CareerDevelopmentReportServiceImplTest {
         when(embeddingGateway.embed(any(), any())).thenThrow(new RuntimeException("embed fail"));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.generate(actor, jobId, new CareerReportGenerateRequest()));
+                () -> service.generate(actor, jobId, new CareerReportGenerateRequest(null, null)));
 
         assertEquals(ErrorCode.CAREER_REPORT_GENERATION_FAILED.getCode(), ex.getCode());
         assertEquals("embed fail", ex.getCause().getMessage());
@@ -206,7 +206,7 @@ class CareerDevelopmentReportServiceImplTest {
         }).when(modelGateway).generateStructured(any(), any(), any());
 
         IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> service.generate(actor, jobId, new CareerReportGenerateRequest()));
+                () -> service.generate(actor, jobId, new CareerReportGenerateRequest(null, null)));
 
         assertInstanceOf(JsonProcessingException.class, ex.getCause());
         verify(reportMapper, never()).insert(any(CareerDevelopmentReport.class));
@@ -225,12 +225,9 @@ class CareerDevelopmentReportServiceImplTest {
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
         when(knowledgeEmbeddingService.toPgVector(org.mockito.ArgumentMatchers.any())).thenReturn("[0.1,0.2]");
 
-        KnowledgeRetrivalDTO learningHit = new KnowledgeRetrivalDTO();
-        learningHit.setDocumentId(27L);
-        learningHit.setChunkIndex(0);
-        learningHit.setScore(0.82);
-        learningHit.setDocCategory("learning_path");
-        learningHit.setContent("Java 学习路线片段");
+        KnowledgeRetrivalDTO learningHit = new KnowledgeRetrivalDTO(null, 27L, 0, "Java 学习路线片段", 0.82, null,
+                "learning_path");
+
         doReturn(List.of()).when(knowledgeVectorMapper).searchBySimilarity(eq(1L), eq(100L), any(), anyInt());
         doReturn(List.of(learningHit)).when(knowledgeVectorMapper)
                 .searchBySimilarity(eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(9L), any(), anyInt());
@@ -255,7 +252,7 @@ class CareerDevelopmentReportServiceImplTest {
             return payload;
         }).when(modelGateway).generateStructured(any(), any(), any());
 
-        service.generate(actor, jobId, new CareerReportGenerateRequest());
+        service.generate(actor, jobId, new CareerReportGenerateRequest(null, null));
 
         verify(knowledgeVectorMapper).searchBySimilarity(eq(1L), eq(100L), eq("[0.1,0.2]"), eq(8));
         verify(knowledgeVectorMapper).searchBySimilarity(
@@ -281,8 +278,8 @@ class CareerDevelopmentReportServiceImplTest {
 
         CareerReportResponse dto = service.getLatestOrNull(actor, 10L);
 
-        assertThat(dto.getKnowledgeSources()).isNotEmpty();
-        assertEquals("测试开发学习路线", dto.getKnowledgeSources().get(0).get("title"));
+        assertThat(dto.knowledgeSources()).isNotEmpty();
+        assertEquals("测试开发学习路线", dto.knowledgeSources().get(0).get("title"));
     }
 
     @Test
@@ -296,9 +293,9 @@ class CareerDevelopmentReportServiceImplTest {
 
         CareerReportResponse dto = service.getLatestOrNull(actor, 10L);
 
-        assertThat(dto.getReportContent()).isEmpty();
-        assertThat(dto.getQualityFlags()).isEmpty();
-        assertThat(dto.getKnowledgeSources()).isEmpty();
+        assertThat(dto.reportContent()).isEmpty();
+        assertThat(dto.qualityFlags()).isEmpty();
+        assertThat(dto.knowledgeSources()).isEmpty();
     }
 
     @Test
@@ -329,18 +326,15 @@ class CareerDevelopmentReportServiceImplTest {
                 .getOne(org.mockito.ArgumentMatchers.<Wrapper<CareerDevelopmentReport>>any());
         when(reportMapper.selectOne(any())).thenReturn(existing);
         when(reportMapper.update(isNull(), any())).thenReturn(1);
-        CareerReportCheckResponse modelCheck = new CareerReportCheckResponse();
-        modelCheck.setPassed(true);
-        modelCheck.setCompletenessScore(80);
-        modelCheck.setMissingSections(List.of());
-        modelCheck.setNonActionableItems(List.of());
-        modelCheck.setWeakEvidenceItems(List.of());
+        CareerReportCheckResponse modelCheck = new CareerReportCheckResponse(true, 80, null, List.of(), List.of(),
+                List.of());
+
         doReturn(modelCheck).when(modelGateway).generateStructured(any(), any(), any());
 
         CareerReportCheckResponse check = service.checkIntegrity(actor, 20L);
 
-        assertFalse(check.getPassed());
-        assertThat(check.getMissingSections()).contains("职业探索");
+        assertFalse(check.passed());
+        assertThat(check.missingSections()).contains("职业探索");
         verify(reportMapper).update(isNull(), any());
         verify(reportMapper, never()).updateById(any(CareerDevelopmentReport.class));
         verify(jdbcTemplate).execute(any(ConnectionCallback.class));
@@ -423,8 +417,8 @@ class CareerDevelopmentReportServiceImplTest {
         CareerReportResponse first = service.saveManualEdit(actor, 31L, validUpdateRequest());
         CareerReportResponse second = service.saveManualEdit(actor, 31L, validUpdateRequest());
 
-        assertEquals(31L, first.getId());
-        assertEquals(31L, second.getId());
+        assertEquals(31L, first.id());
+        assertEquals(31L, second.id());
         verify(reportMapper, times(2)).updateById(any(CareerDevelopmentReport.class));
         verify(reportMapper, never()).insert(any(CareerDevelopmentReport.class));
     }
@@ -436,8 +430,7 @@ class CareerDevelopmentReportServiceImplTest {
         existing.setUserId(1L);
         doReturn(existing).when(service)
                 .getOne(org.mockito.ArgumentMatchers.<Wrapper<CareerDevelopmentReport>>any());
-        CareerReportUpdateRequest req = new CareerReportUpdateRequest();
-        req.setReportContent(Map.of());
+        CareerReportUpdateRequest req = new CareerReportUpdateRequest(Map.of());
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.saveManualEdit(actor, 31L, req));
 
@@ -473,16 +466,9 @@ class CareerDevelopmentReportServiceImplTest {
     }
 
     private static CareerReportUpdateRequest validUpdateRequest() {
-        CareerReportUpdateRequest req = new CareerReportUpdateRequest();
-        req.setReportContent(Map.of(
-                "careerExploration", "new",
-                "careerGoals", List.of("g1"),
-                "careerPath", List.of("p1"),
-                "actionPlan", Map.of(
-                        "shortTerm", List.of(Map.of("task", "t1", "cycle", "2周", "deliverable", "d1")),
-                        "midTerm", List.of(Map.of("task", "t2", "cycle", "4周", "deliverable", "d2"))),
-                "evaluationPlan", Map.of("cycle", "monthly"),
-                "evidence", List.of("e1")));
+        CareerReportUpdateRequest req = new CareerReportUpdateRequest(
+                Map.of("careerExploration", "new", "careerGoals", List.of("g1"), "careerPath", List.of("p1"), "actionPlan", Map.of("shortTerm", List.of(Map.of("task", "t1", "cycle", "2周", "deliverable", "d1")), "midTerm", List.of(Map.of("task", "t2", "cycle", "4周", "deliverable", "d2"))), "evaluationPlan", Map.of("cycle", "monthly"), "evidence", List.of("e1")));
+
         return req;
     }
 
@@ -499,12 +485,9 @@ class CareerDevelopmentReportServiceImplTest {
     }
 
     private static JobListItemResponse buildJob() {
-        JobListItemResponse dto = new JobListItemResponse();
-        dto.setId(10L);
-        dto.setJobName("Java后端");
-        dto.setDescription("负责后端开发");
-        dto.setCompanyName("示例公司");
-        dto.setKeywords(List.of("Java", "Spring"));
+        JobListItemResponse dto = new JobListItemResponse(10L, "Java后端", null, "示例公司", "负责后端开发", null, null, null,
+                null, null, null, List.of("Java", "Spring"), null, null, null);
+
         return dto;
     }
 
@@ -516,9 +499,9 @@ class CareerDevelopmentReportServiceImplTest {
     }
 
     private static JobStudentMatchResponse buildMatch() {
-        JobStudentMatchResponse dto = new JobStudentMatchResponse();
-        dto.setId(300L);
-        dto.setOverallScore(78);
+        JobStudentMatchResponse dto = new JobStudentMatchResponse(300L, null, null, 78, null, null, null, null,
+                null, null, null, null);
+
         return dto;
     }
 }

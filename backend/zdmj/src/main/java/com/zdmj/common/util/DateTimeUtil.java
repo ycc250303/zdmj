@@ -1,8 +1,12 @@
 package com.zdmj.common.util;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+
+import com.zdmj.common.exception.BusinessException;
+import com.zdmj.common.exception.ErrorCode;
 
 /**
  * 应用时间。业务时间以 Asia/Shanghai 的 {@link LocalDateTime} 表示，来源为可替换的 {@link Clock}。
@@ -54,5 +58,19 @@ public final class DateTimeUtil {
      */
     public static ZoneId getDefaultZoneId() {
         return DEFAULT_ZONE_ID;
+    }
+    
+    /**
+     * 结束日期早于开始日期时拒绝写入。
+     *
+     * @param startDate 开始日期
+     * @param endDate 结束日期
+     * @param errorCode 结束日期早于开始日期时抛出的业务错误码
+     * @throws BusinessException 结束日期早于开始日期
+     */
+    public static void rejectIfEndBeforeStart(LocalDate startDate, LocalDate endDate, ErrorCode errorCode) {
+        if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
+            throw new BusinessException(errorCode);
+        }
     }
 }

@@ -1,45 +1,22 @@
 package com.zdmj.userAuthService.dto;
 
-import lombok.Data;
-
 /**
  * 用户信息响应（不包含敏感信息）
+ *
+ * @param id 用户ID
+ * @param username 用户名
+ * @param email 邮箱
+ * @param name 用户姓名
+ * @param phone 电话
+ * @param website 主页链接
+ * @param preferredWorkCity 意向工作城市
  */
-@Data
-public class UserResponse {
-
-    /**
-     * 用户ID
-     */
-    private Long id;
-
-    /**
-     * 用户名
-     */
-    private String username;
-
-    /**
-     * 邮箱
-     */
-    private String email;
-
-    /**
-     * 用户姓名
-     */
-    private String name;
-
-    /**
-     * 电话
-     */
-    private String phone;
-
-    /**
-     * 主页链接
-     */
-    private String website;
-
-    /**
-     * 意向工作城市
-     */
-    private String preferredWorkCity;
+public record UserResponse(
+        Long id,
+        String username,
+        String email,
+        String name,
+        String phone,
+        String website,
+        String preferredWorkCity) {
 }

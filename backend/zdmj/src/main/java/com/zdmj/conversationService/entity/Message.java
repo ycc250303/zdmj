@@ -49,6 +49,12 @@ public class Message {
      */
     private Integer sequence;
 
+    /** 回复的用户消息编号，逻辑关联 messages.id；用户和系统消息为空。 */
+    private Long replyToMessageId;
+
+    /** 生成状态：1生成中、2完成、3失败、4取消、5历史未知；仅助手消息设置。 */
+    private Integer generationStatus;
+
     /**
      * 消息创建时间
      */

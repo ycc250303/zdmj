@@ -14,10 +14,9 @@ public interface CompanyStructMapper {
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "name", source = "companyName")
-    @Mapping(target = "size", expression = "java(dto.getCompanySize() == null ? CompanySizeEnum.BELOW_20.getCode() : dto.getCompanySize())")
+    @Mapping(target = "size", expression = "java(dto.companySize() == null ? CompanySizeEnum.BELOW_20.getCode() : dto.companySize())")
     @Mapping(target = "type", source = "companyFundingType")
-    @Mapping(target = "industries", expression = "java(dto.getCompanyIndustries() == null ? new java.util.ArrayList<>() : dto.getCompanyIndustries())")
+    @Mapping(target = "industries", expression = "java(dto.companyIndustries() == null ? new java.util.ArrayList<>() : dto.companyIndustries())")
     @Mapping(target = "introduction", source = "companyIntroduction")
     Company fromJobDto(JobRequest dto);
 }
-

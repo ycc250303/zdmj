@@ -166,12 +166,11 @@ class VerificationCodeFlowIT extends IntegrationTestBase {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE email = ?", Integer.class, EMAIL)).isZero();
         assertThat(redis.hasKey(KEY)).isFalse();
 
-        request.setUsername("verification-user");
-        assertThatThrownBy(() -> users.register(request)).isInstanceOf(BusinessException.class)
+        var retry = registration("verification-user", request.verificationCode());
+        assertThatThrownBy(() -> users.register(retry)).isInstanceOf(BusinessException.class)
                 .hasMessage("验证码已过期或不存在");
         verification.sendVerificationCode(EMAIL, "register");
-        request.setVerificationCode(code(KEY));
-        users.register(request);
+        users.register(registration("verification-user", code(KEY)));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE email = ?", Integer.class, EMAIL)).isEqualTo(1);
         assertThat(redis.hasKey(KEY)).isFalse();
     }
@@ -273,11 +272,8 @@ class VerificationCodeFlowIT extends IntegrationTestBase {
     }
 
     private UserRegisterRequest registration(String username, String code) {
-        var request = new UserRegisterRequest();
-        request.setUsername(username);
-        request.setEmail(EMAIL);
-        request.setPassword("password-123");
-        request.setVerificationCode(code);
+        var request = new UserRegisterRequest(username, "password-123", EMAIL, code);
+
         return request;
     }
 

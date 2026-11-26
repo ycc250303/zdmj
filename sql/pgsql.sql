@@ -528,16 +528,6 @@ CREATE TABLE IF NOT EXISTS conversations (
     --   "useSystemKnowledge": true,
     --   "ragDocumentIds": [1, 2]
     -- }
-    context JSONB DEFAULT '[]'::jsonb,
-    -- 上下文信息（可关联知识库等，用于RAG检索）
-    -- context 示例
-    -- [
-    --   {
-    --     "type": "knowledge_base",
-    --     "id": 456,
-    --     "name": "知识库名称"
-    --   }
-    -- ]
     message_count INTEGER DEFAULT 0,
     -- 消息总数（用于快速统计）
     last_message_at TIMESTAMP,
@@ -563,21 +553,26 @@ CREATE TABLE IF NOT EXISTS messages (
     -- 消息内容
     sequence INTEGER NOT NULL,
     -- 消息序号（在会话中的顺序，从1开始）
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 消息创建时间
+    reply_to_message_id BIGINT,
+    -- 助手回复对应的用户消息编号（逻辑外键：messages.id），其余角色为空
+    generation_status SMALLINT,
+    -- 助手状态：1生成中/2完成/3失败/4取消/5历史未知，其余角色为空
+    metadata JSONB DEFAULT '{}'::jsonb,
+    -- 消息元数据
+    -- metadata 示例
+    -- {
+    --   "model": "模型名称",
+    --   "inputTokens": 输入Token数量,
+    --   "outputTokens": 输出Token数量
+    -- }
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- 消息创建时间
+    CONSTRAINT ck_messages_generation CHECK (
+        (role = 2 AND generation_status IS NOT NULL AND generation_status BETWEEN 1 AND 5
+            AND reply_to_message_id IS NOT NULL AND reply_to_message_id > 0)
+        OR (role IN (1, 3) AND generation_status IS NULL AND reply_to_message_id IS NULL)
+    )
 );
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);
 CREATE UNIQUE INDEX IF NOT EXISTS uk_messages_conversation_id_sequence ON messages(conversation_id, sequence);
-CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id);
 CREATE INDEX IF NOT EXISTS idx_messages_user_id_conversation_id ON messages(user_id, conversation_id);
---
--- 6.3 Spring AI Chat Memory（用于 /messages/chat 的对话上下文）
---
--- Spring AI JDBC ChatMemory 在 PostgreSQL 中使用表：SPRING_AI_CHAT_MEMORY
--- 其中 "timestamp" 需要使用双引号以匹配 Spring AI 生成的 SQL。
-CREATE TABLE IF NOT EXISTS SPRING_AI_CHAT_MEMORY (
-    conversation_id VARCHAR(36) NOT NULL,
-    content TEXT NOT NULL,
-    type VARCHAR(10) NOT NULL,
-    "timestamp" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_spring_ai_chat_memory_conv_ts ON SPRING_AI_CHAT_MEMORY(conversation_id, "timestamp");
+CREATE UNIQUE INDEX IF NOT EXISTS uk_messages_reply_to ON messages(reply_to_message_id);

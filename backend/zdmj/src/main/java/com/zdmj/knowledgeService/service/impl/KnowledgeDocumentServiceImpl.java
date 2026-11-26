@@ -27,7 +27,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
@@ -59,7 +58,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         document.setKnowledgeId(knowledgeId);
         document.setType(1);
         document.setContent(target.key());
-        document.setTitle(request.getTitle().trim());
+        document.setTitle(request.title().trim());
         document.setFileStatus(FileStatus.WRITING.code());
         document.setEmbeddingStatus(KnowledgeEmbeddingStatusEnum.PENDING.getCode());
         document.setMetadata(fileMetadata(request, target));
@@ -82,7 +81,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         validateRequest(request);
         StoredFile target = fileUploadService.prepare(actor, file);
         transactionTemplate.executeWithoutResult(status -> {
-            KnowledgeDocument current = locked(actor, request.getId());
+            KnowledgeDocument current = locked(actor, request.id());
             requireReady(current);
             if (current.getMetadata().containsKey("retiredFile")
                     || Objects.equals(current.getEmbeddingStatus(), KnowledgeEmbeddingStatusEnum.RUNNING.getCode())) {
@@ -91,14 +90,14 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
             Map<String, Object> metadata = new LinkedHashMap<>(current.getMetadata());
             metadata.put("pendingFile", fileMetadata(request, target));
             metadata.put("pendingKey", target.key());
-            metadata.put("pendingTitle", request.getTitle().trim());
+            metadata.put("pendingTitle", request.title().trim());
             change(actor, current.getId(), FileStatus.READY, FileStatus.WRITING, metadata);
         });
         try {
-            persist(actor, request.getId(), target, file, true);
-            return retryEmbedding(actor, request.getId());
+            persist(actor, request.id(), target, file, true);
+            return retryEmbedding(actor, request.id());
         } catch (RuntimeException failure) {
-            throw new OperationFailure(request.getId(), failure);
+            throw new OperationFailure(request.id(), failure);
         }
     }
 
@@ -177,20 +176,20 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     @Override
     public KnowledgeDocumentResponse update(CurrentActor actor, KnowledgeDocumentRequest request) {
         return transactionTemplate.execute(status -> {
-            KnowledgeDocument current = locked(actor, request.getId());
+            KnowledgeDocument current = locked(actor, request.id());
             requireReady(current);
-            if (request.getContent() != null && !request.getContent().equals(downloadPath(current))
-                    && !request.getContent().equals(current.getContent())) {
+            if (request.content() != null && !request.content().equals(downloadPath(current))
+                    && !request.content().equals(current.getContent())) {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR, "替换原文件请提交文件表单");
             }
-            if (request.getTitle() == null || request.getTitle().isBlank() || request.getTitle().length() > 500) {
+            if (request.title() == null || request.title().isBlank() || request.title().length() > 500) {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR, "文档标题长度必须为 1 至 500 个字符");
             }
             Map<String, Object> metadata = new LinkedHashMap<>(current.getMetadata());
             metadata.putAll(buildMetadata(request));
             if (knowledgeDocumentMapper.update(null, owned(actor, current.getId())
                     .eq(KnowledgeDocument::getFileStatus, FileStatus.READY.code())
-                    .set(KnowledgeDocument::getTitle, request.getTitle().trim())
+                    .set(KnowledgeDocument::getTitle, request.title().trim())
                     .set(KnowledgeDocument::getMetadata, metadata,
                             "typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler")) != 1) {
                 throw conflict();
@@ -296,7 +295,6 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         return response(getById(actor, id));
     }
 
-
     /** 单实例启动时释放上次进程中断的状态，恢复由用户显式重试或删除触发。 */
     @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationStartedEvent.class)
     public void recoverInterruptedOperations() {
@@ -349,8 +347,8 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     }
 
     private static void validateRequest(KnowledgeDocumentRequest request) {
-        if (request.getTitle() == null || request.getTitle().isBlank() || request.getTitle().length() > 500
-                || request.getType() != null && request.getType() != 1) {
+        if (request.title() == null || request.title().isBlank() || request.title().length() > 500
+                || request.type() != null && request.type() != 1) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "请提供标题和 PDF 或 Markdown 文件");
         }
     }
@@ -365,8 +363,8 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
 
     private Map<String, Object> buildMetadata(KnowledgeDocumentRequest request) {
         Map<String, Object> metadata = new LinkedHashMap<>();
-        String title = request == null ? "" : request.getTitle();
-        String content = request == null ? "" : request.getContent();
+        String title = request == null ? "" : request.title();
+        String content = request == null ? "" : request.content();
         String merged = (title == null ? "" : title) + " " + (content == null ? "" : content);
         String lower = merged.toLowerCase(Locale.ROOT);
 
@@ -399,19 +397,16 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     }
 
     private KnowledgeDocumentResponse response(KnowledgeDocument document) {
-        KnowledgeDocumentResponse response = new KnowledgeDocumentResponse();
-        BeanUtils.copyProperties(document, response);
-        response.setContent(downloadPath(document));
-        response.setMetadata(publicMetadata(document));
-        return response;
+        return new KnowledgeDocumentResponse(document.getId(), document.getKnowledgeId(), document.getUserId(),
+                document.getType(), downloadPath(document), document.getFileStatus(), document.getTitle(),
+                document.getContentHash(), document.getEmbeddingStatus(), document.getChunkCount(),
+                document.getLastEmbeddedAt(), document.getLastError(), publicMetadata(document));
     }
 
     private KnowledgeDocumentPublicResponse publicResponse(KnowledgeDocument document) {
-        KnowledgeDocumentPublicResponse response = new KnowledgeDocumentPublicResponse();
-        BeanUtils.copyProperties(document, response);
-        response.setContent(downloadPath(document));
-        response.setMetadata(publicMetadata(document));
-        response.setEmbeddingStatus(KnowledgeEmbeddingStatusEnum.fromCode(document.getEmbeddingStatus()).getName());
-        return response;
+        return new KnowledgeDocumentPublicResponse(document.getId(), document.getType(), downloadPath(document),
+                document.getFileStatus(), document.getTitle(),
+                KnowledgeEmbeddingStatusEnum.fromCode(document.getEmbeddingStatus()).getName(),
+                document.getLastEmbeddedAt(), document.getLastError(), publicMetadata(document));
     }
 }

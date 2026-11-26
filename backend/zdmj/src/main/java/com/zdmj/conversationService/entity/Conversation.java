@@ -11,7 +11,6 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Map;
 
 @Data
@@ -36,12 +35,6 @@ public class Conversation extends BaseEntity {
      */
     @TableField(typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> config;
-
-    /**
-     * 上下文信息（JSONB数组）
-     */
-    @TableField(typeHandler = JacksonTypeHandler.class)
-    private List<Map<String, Object>> context;
 
     /**
      * 消息总数
