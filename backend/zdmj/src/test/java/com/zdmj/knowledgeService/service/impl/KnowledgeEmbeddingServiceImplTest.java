@@ -251,6 +251,27 @@ class KnowledgeEmbeddingServiceImplTest {
         assertTrue(vector.contains("3.25"));
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {0, 2})
+    void 向量写入数量异常_立即终止且不保存成功状态(int count) throws Exception {
+        KnowledgeDocument document = projectDocument(110L, "user-1/test.md");
+        when(knowledgeDocumentMapper.selectById(110L)).thenReturn(document);
+        when(knowledgeDocumentMapper.selectOwnedForUpdate(110L, 1L)).thenReturn(document);
+        when(knowledgeDocumentMapper.update(isNull(), any())).thenReturn(1);
+        when(fileUploadService.openInputStream(actor, document.getContent())).thenReturn(input);
+        when(pdfParserUtil.extractText(input, documentConfig.maxExtractedChars())).thenReturn("文档");
+        when(textSplitter.apply(any())).thenReturn(List.of(new Document("文档")));
+        when(embeddingGateway.embed(any(), anyList())).thenReturn(List.of(new float[]{0.25f}));
+        when(knowledgeVectorMapper.batchInsert(any())).thenReturn(count);
+
+        var failure = assertThrows(IllegalStateException.class,
+                () -> newService().vectorizeAndStore(actor, 110L));
+
+        assertTrue(failure.getMessage().contains("向量写入数量"));
+        assertNull(document.getLastEmbeddedAt());
+        verify(knowledgeDocumentMapper, times(2)).update(isNull(), any());
+    }
+
     private KnowledgeEmbeddingServiceImpl newService() {
         return newService(executingTemplate());
     }
@@ -258,7 +279,7 @@ class KnowledgeEmbeddingServiceImplTest {
     private KnowledgeEmbeddingServiceImpl newService(TransactionTemplate transactionTemplate) {
         return new KnowledgeEmbeddingServiceImpl(
                 textSplitter, embeddingGateway, knowledgeDocumentMapper, knowledgeVectorMapper,
-                pdfParserUtil, fileUploadService, transactionTemplate, documentConfig);
+                pdfParserUtil, fileUploadService, transactionTemplate, documentConfig, java.time.Clock.system(java.time.ZoneId.of("Asia/Shanghai")));
     }
 
     private static TransactionTemplate executingTemplate() {

@@ -8,36 +8,26 @@ import com.zdmj.knowledgeService.entity.KnowledgeBases;
 import com.zdmj.knowledgeService.mapper.KnowledgeBasesMapper;
 import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 @RequiredArgsConstructor
 @Service
 public class KnowledgeBasesServiceImpl implements KnowledgeBasesService {
 
     private final KnowledgeBasesMapper knowledgeBasesMapper;
+    private final Clock clock;
 
+    /** 短事务内确保当前用户存在唯一私有库，首次和重复创建均返回该知识库。 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public KnowledgeBasesResponse create(CurrentActor actor) {
-        // 1.创建知识库
-        Long userId = actor.userId();
-        log.info("用户 {} 创建知识库: {}", userId);
-
-        KnowledgeBases knowledgeBases = new KnowledgeBases();
-        knowledgeBases.setUserId(userId);
-        knowledgeBases.setScope(1);
-
-        // 2.保存知识库
-        if (knowledgeBasesMapper.insert(knowledgeBases) != 1 || knowledgeBases.getId() == null) {
-            throw new IllegalStateException("知识库插入结果无效");
-        }
-
-        return convertToResponse(knowledgeBases);
+        getOrCreateKnowledgeBaseId(actor);
+        return convertToResponse(requireUserKnowledgeBase(actor));
     }
 
     @Override
@@ -58,7 +48,10 @@ public class KnowledgeBasesServiceImpl implements KnowledgeBasesService {
         if (id != null) {
             return id;
         }
-        knowledgeBasesMapper.insertUserBaseIfAbsent(userId);
+        int inserted = knowledgeBasesMapper.insertUserBaseIfAbsent(userId, LocalDateTime.now(clock));
+        if (inserted < 0 || inserted > 1) {
+            throw new IllegalStateException("知识库插入数量必须为0或1，rows=" + inserted);
+        }
         Long existing = knowledgeBasesMapper.selectKnowledgeIdByUserId(userId);
         if (existing == null) {
             throw new IllegalStateException("用户知识库未成功建立");

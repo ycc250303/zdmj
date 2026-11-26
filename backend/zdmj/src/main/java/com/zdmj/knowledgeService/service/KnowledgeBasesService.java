@@ -6,10 +6,10 @@ import com.zdmj.knowledgeService.dto.KnowledgeBasesResponse;
 public interface KnowledgeBasesService {
 
     /**
-     * 创建知识库的方法
+     * 确保当前用户存在唯一私有知识库，首次和重复请求均返回该知识库
      *
      * @param actor 已认证操作者，包含用户编号
-     * @return 创建后的知识库
+     * @return 当前用户唯一私有知识库
      */
     KnowledgeBasesResponse create(CurrentActor actor);
 

@@ -21,6 +21,8 @@ import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.service.MessageService;
 import com.zdmj.knowledgeService.service.KnowledgeRagService;
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -52,6 +54,7 @@ public class MessageServiceImpl implements MessageService {
     private final ConversationMapper conversationMapper;
     private final KnowledgeRagService knowledgeRagService;
     private final TransactionTemplate transactionTemplate;
+    private final Clock clock;
     private final ConcurrentMap<Long, Generation> generations = new ConcurrentHashMap<>();
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
@@ -195,7 +198,8 @@ public class MessageServiceImpl implements MessageService {
             }
         }
         // 4.更新会话消息计数
-        Integer newCount = conversationMapper.incrementMessageCountAndGet(request.conversationId(), userId, 2);
+        LocalDateTime now = LocalDateTime.now(clock);
+        Integer newCount = conversationMapper.incrementMessageCountAndGet(request.conversationId(), userId, 2, now);
         if (newCount == null || newCount < 2) {
             throw new IllegalStateException("锁定会话后消息计数必须更新成功");
         }
@@ -225,7 +229,7 @@ public class MessageServiceImpl implements MessageService {
             if (title.codePointCount(0, title.length()) > 30) {
                 title = title.substring(0, title.offsetByCodePoints(0, 30)) + "…";
             }
-            if (conversationMapper.updateTitleByIdAndUserId(request.conversationId(), userId, title) != 1) {
+            if (conversationMapper.updateTitleByIdAndUserId(request.conversationId(), userId, title, now) != 1) {
                 throw new IllegalStateException("首次会话标题必须更新一条记录");
             }
         }

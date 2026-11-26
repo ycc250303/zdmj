@@ -1,5 +1,6 @@
 package com.zdmj.conversationService.service.impl;
 
+import java.time.LocalDateTime;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.aiService.api.ModelRequest;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -96,9 +97,9 @@ class MessageServiceImplTest {
                 conversationService,
                 conversationMapper,
                 knowledgeRagService,
-                transactionTemplate);
-        lenient().doReturn(2).when(conversationMapper).incrementMessageCountAndGet(anyLong(), anyLong(), anyInt());
-        lenient().doReturn(1).when(conversationMapper).updateTitleByIdAndUserId(anyLong(), anyLong(), anyString());
+                transactionTemplate, java.time.Clock.system(java.time.ZoneId.of("Asia/Shanghai")));
+        lenient().doReturn(2).when(conversationMapper).incrementMessageCountAndGet(anyLong(), anyLong(), anyInt(), any(LocalDateTime.class));
+        lenient().doReturn(1).when(conversationMapper).updateTitleByIdAndUserId(anyLong(), anyLong(), anyString(), any(LocalDateTime.class));
     }
 
     @Test
@@ -220,7 +221,7 @@ class MessageServiceImplTest {
         assertEquals("delta", events.get(1).event());
         assertTrue(events.get(1).data().contains("\"llo\""));
         verify(messageMapper).finishAssistant(anyLong(), eq(actor.userId()), eq(302L), eq("hello"), eq(2));
-        verify(conversationMapper).updateTitleByIdAndUserId(302L, 1L, title);
+        verify(conversationMapper).updateTitleByIdAndUserId(eq(302L), eq(1L), eq(title), any(LocalDateTime.class));
     }
 
     private static Stream<Arguments> titleCases() {
@@ -320,7 +321,7 @@ class MessageServiceImplTest {
                 "ragDocumentIds", List.of(9L)));
         doReturn(conversation).when(conversationService).requireOwned(actor, 306L);
         doReturn(conversation).when(conversationMapper).selectOwnedForUpdate(306L, 1L);
-        doReturn(4).when(conversationMapper).incrementMessageCountAndGet(eq(306L), anyLong(), eq(2));
+        doReturn(4).when(conversationMapper).incrementMessageCountAndGet(eq(306L), anyLong(), eq(2), any(LocalDateTime.class));
         org.mockito.Mockito.doAnswer(invocation -> {
             Message m = invocation.getArgument(0);
             m.setId(m.getRole() == 2 ? 903L : 1L);

@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -51,6 +52,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
     private final FileUploadService fileUploadService;
     private final TransactionTemplate transactionTemplate;
     private final KnowledgeDocumentConfig documentConfig;
+    private final Clock clock;
 
     /**
      * 向量化一篇知识文档。
@@ -90,6 +92,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
                 saveVectors(documentId, userId, contentSnapshot, rows);
                 return null;
             });
+            log.info("向量化完成: documentId={}, chunks={}", documentId, rows.size());
         } catch (RuntimeException exception) {
             try {
                 markStatus(documentId, userId, contentSnapshot,
@@ -118,7 +121,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
                         .eq(KnowledgeDocument::getContent, contentSnapshot)
                         .set(KnowledgeDocument::getEmbeddingStatus, embeddingStatus)
                         .eq(KnowledgeDocument::getFileStatus, 1)
-                        .set(KnowledgeDocument::getUpdatedAt, com.zdmj.common.util.DateTimeUtil.now())
+                        .set(KnowledgeDocument::getUpdatedAt, LocalDateTime.now(clock))
                         .set(KnowledgeDocument::getLastError, lastError);
         if (embeddingStatus.equals(KnowledgeEmbeddingStatusEnum.RUNNING.getCode())) {
             update.ne(KnowledgeDocument::getEmbeddingStatus, KnowledgeEmbeddingStatusEnum.RUNNING.getCode());
@@ -186,10 +189,14 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "文档内容已变化");
         }
         knowledgeVectorMapper.deleteByDocumentIdAndUserId(documentId, userId);
-        knowledgeVectorMapper.batchInsert(rows);
+        int inserted = knowledgeVectorMapper.batchInsert(rows);
+        if (inserted != rows.size()) {
+            throw new IllegalStateException("向量写入数量与分块数量不一致，expected=" + rows.size() + "，actual=" + inserted);
+        }
+        LocalDateTime completedAt = LocalDateTime.now(clock);
         current.setEmbeddingStatus(KnowledgeEmbeddingStatusEnum.SUCCESS.getCode());
         current.setChunkCount(rows.size());
-        current.setLastEmbeddedAt(LocalDateTime.now());
+        current.setLastEmbeddedAt(completedAt);
         current.setLastError(null);
         if (knowledgeDocumentMapper.update(null, new LambdaUpdateWrapper<KnowledgeDocument>()
                 .eq(KnowledgeDocument::getId, documentId).eq(KnowledgeDocument::getUserId, userId)
@@ -199,10 +206,9 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
                 .set(KnowledgeDocument::getChunkCount, rows.size())
                 .set(KnowledgeDocument::getLastEmbeddedAt, current.getLastEmbeddedAt())
                 .set(KnowledgeDocument::getLastError, null)
-                .set(KnowledgeDocument::getUpdatedAt, com.zdmj.common.util.DateTimeUtil.now())) != 1) {
+                .set(KnowledgeDocument::getUpdatedAt, completedAt)) != 1) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED);
         }
-        log.info("向量化完成: documentId={}, chunks={}", documentId, rows.size());
     }
 
     @Override

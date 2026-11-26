@@ -1,5 +1,6 @@
 package com.zdmj.integration.conversation;
 
+import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
@@ -115,7 +116,7 @@ class ConversationConfigIT extends IntegrationTestBase {
         var failure = new IllegalStateException("模拟配置保存失败");
         var real = sqlSession.getMapper(ConversationMapper.class);
         doAnswer(invocation -> {
-            int rows = real.updateConfigByIdAndUserId(invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2));
+            int rows = real.updateConfigByIdAndUserId(invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2), invocation.getArgument(3));
             if (beforeCommit) {
                 TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                     @Override
@@ -126,7 +127,7 @@ class ConversationConfigIT extends IntegrationTestBase {
                 return rows;
             }
             throw failure;
-        }).when(conversations).updateConfigByIdAndUserId(anyLong(), anyLong(), any());
+        }).when(conversations).updateConfigByIdAndUserId(anyLong(), anyLong(), any(), any(LocalDateTime.class));
 
         if (beforeCommit) {
             var api = new ApiClient(mvc);

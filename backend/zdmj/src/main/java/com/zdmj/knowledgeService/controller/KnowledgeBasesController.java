@@ -30,7 +30,7 @@ public class KnowledgeBasesController {
     private final com.zdmj.knowledgeService.service.KnowledgeDocumentService knowledgeDocumentService;
 
     /**
-     * 创建知识库
+     * 确保用户唯一私有知识库存在；首次与重复请求均返回同一知识库。
      *
      * @param actor 已认证操作者，包含用户编号
      * @return 知识库

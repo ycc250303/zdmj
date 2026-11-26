@@ -130,7 +130,7 @@ function formatEmbeddedAt(value: string | null) {
 }
 
 function canDownload(item: KnowledgeApi.KnowledgeDocumentDTO) {
-  return item.fileStatus === 1 && item.id != null;
+  return item.fileStatus === 1 && item.id !== null && item.id !== undefined;
 }
 
 function canRetry(item: KnowledgeApi.KnowledgeDocumentDTO) {
@@ -141,7 +141,7 @@ function canRetry(item: KnowledgeApi.KnowledgeDocumentDTO) {
 }
 
 async function handleDownload(item: KnowledgeApi.KnowledgeDocumentDTO) {
-  if (!canDownload(item) || item.id == null) return;
+  if (!canDownload(item) || item.id === null || item.id === undefined) return;
   downloadingId.value = item.id;
   try {
     const { data, error } = await fetchDownloadKnowledgeDocument(item.id);
@@ -160,7 +160,7 @@ async function handleDownload(item: KnowledgeApi.KnowledgeDocumentDTO) {
 }
 
 async function handleRetry(item: KnowledgeApi.KnowledgeDocumentDTO) {
-  if (!canRetry(item) || item.id == null) return;
+  if (!canRetry(item) || item.id === null || item.id === undefined) return;
   retryingId.value = item.id;
   try {
     const { error } = await fetchRetryKnowledgeEmbedding(item.id);
@@ -348,6 +348,5 @@ onMounted(() => {
         @cancel="isEditing = false"
       />
     </div>
-
   </div>
 </template>

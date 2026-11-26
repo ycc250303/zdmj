@@ -5,7 +5,7 @@ import com.zdmj.knowledgeService.entity.KnowledgeBases;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
-import java.util.List;
+import java.time.LocalDateTime;
 
 /**
  * 知识库Mapper接口
@@ -14,7 +14,7 @@ import java.util.List;
 @Mapper
 public interface KnowledgeBasesMapper extends BaseMapper<KnowledgeBases> {
         /** 按用户唯一约束原子创建知识库，冲突时保留已有记录。 */
-        int insertUserBaseIfAbsent(@Param("userId") Long userId);
+        int insertUserBaseIfAbsent(@Param("userId") Long userId, @Param("now") LocalDateTime now);
 
 
         /**
