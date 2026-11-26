@@ -61,12 +61,18 @@
           kv.document_id AS documentId,
           kv.chunk_index AS chunkIndex,
           kv.content,
-          kv.metadata,
+          jsonb_build_object('documentTitle', kd.title,
+              'source', CASE WHEN kv.user_id > 0 AND kd.type = 1 AND kd.file_status = 1
+                  THEN '/knowledge-document/' || kd.id || '/download' ELSE NULL END) AS metadata,
           kd.metadata->>'docCategory' AS docCategory,
           (1 - (kv.embedding <![CDATA[ <=> ]]> CAST(#{queryEmbedding} AS vector))) AS score
       FROM knowledge_vectors kv
-      LEFT JOIN knowledge_documents kd ON kd.id = kv.document_id
-      WHERE (kv.user_id = 0 OR (kd.file_status = 1 AND kd.embedding_status = 3 AND kd.user_id = kv.user_id))
+      JOIN knowledge_documents kd ON kd.id = kv.document_id
+      JOIN knowledge_bases kb ON kb.id = kv.knowledge_id
+      WHERE kd.user_id = kv.user_id AND kd.knowledge_id = kv.knowledge_id
+        AND kb.user_id = kv.user_id
+        AND ((kv.user_id > 0 AND kb.scope = 1) OR (kv.user_id = 0 AND kb.scope IN (2, 3)))
+        AND kd.file_status = 1 AND kd.embedding_status = 3
         AND kv.user_id = #{userId}
         AND kv.knowledge_id = #{knowledgeId}
       ORDER BY kv.embedding <![CDATA[ <=> ]]> CAST(#{queryEmbedding} AS vector)
@@ -79,12 +85,18 @@
           kv.document_id AS documentId,
           kv.chunk_index AS chunkIndex,
           kv.content,
-          kv.metadata,
-          NULL::text AS docCategory,
+          jsonb_build_object('documentTitle', kd.title,
+              'source', CASE WHEN kv.user_id > 0 AND kd.type = 1 AND kd.file_status = 1
+                  THEN '/knowledge-document/' || kd.id || '/download' ELSE NULL END) AS metadata,
+          kd.metadata->>'docCategory' AS docCategory,
           (1 - (kv.embedding <![CDATA[ <=> ]]> CAST(#{queryEmbedding} AS vector))) AS score
       FROM knowledge_vectors kv
       JOIN knowledge_documents kd ON kd.id = kv.document_id
-      WHERE (kv.user_id = 0 OR (kd.file_status = 1 AND kd.embedding_status = 3 AND kd.user_id = kv.user_id))
+      JOIN knowledge_bases kb ON kb.id = kv.knowledge_id
+      WHERE kd.user_id = kv.user_id AND kd.knowledge_id = kv.knowledge_id
+        AND kb.user_id = kv.user_id
+        AND ((kv.user_id > 0 AND kb.scope = 1) OR (kv.user_id = 0 AND kb.scope IN (2, 3)))
+        AND kd.file_status = 1 AND kd.embedding_status = 3
         AND kv.user_id = #{userId}
         AND kv.knowledge_id = #{knowledgeId}
         AND kv.document_id IN

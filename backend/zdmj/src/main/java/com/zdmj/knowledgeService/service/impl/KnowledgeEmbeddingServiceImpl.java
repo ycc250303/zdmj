@@ -172,6 +172,24 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
     }
 
     /**
+     * 将有限且非空的向量转换为 PostgreSQL 字面量，供入库与检索共用。
+     *
+     * @param vector 非空且各元素均为有限数值的向量
+     * @return pgvector 格式的向量字面量
+     * @throws IllegalArgumentException 向量为空或包含非有限数值
+     */
+    static String toPgVector(float[] vector) {
+        if (vector == null || vector.length == 0) { throw new IllegalArgumentException("查询向量不能为空"); }
+        StringBuilder result = new StringBuilder("[");
+        for (int index = 0; index < vector.length; index++) {
+            if (!Float.isFinite(vector[index])) { throw new IllegalArgumentException("向量必须为有限数值"); }
+            if (index > 0) { result.append(','); }
+            result.append(vector[index]);
+        }
+        return result.append(']').toString();
+    }
+
+    /**
      * 在当前事务中确认文档仍属于原用户且来源地址未变，然后覆盖向量并标记成功。
      *
      * @param documentId 知识文档编号
@@ -209,21 +227,6 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
                 .set(KnowledgeDocument::getUpdatedAt, completedAt)) != 1) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED);
         }
-    }
-
-    @Override
-    public String toPgVector(float[] vector) {
-        if (vector == null || vector.length == 0) {
-            return null;
-        }
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < vector.length; i++) {
-            if (i > 0)
-                sb.append(",");
-            sb.append(vector[i]);
-        }
-        sb.append("]");
-        return sb.toString();
     }
 
     /**

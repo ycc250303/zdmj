@@ -12,11 +12,4 @@ public interface KnowledgeEmbeddingService {
      */
     void vectorizeAndStore(CurrentActor actor, Long knowledgeDocumentId);
 
-    /**
-     * 将浮点数组转换为 PostgreSQL 向量字面量。
-     *
-     * @param vector 浮点数组
-     * @return PostgreSQL 向量字符串；空数组返回 {@code null}
-     */
-    String toPgVector(float[] vector);
 }

@@ -19,8 +19,8 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.ProblemDetailSupport;
 import com.zdmj.common.model.Result;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrievalRequest;
-import com.zdmj.knowledgeService.dto.KnowledgeRetrievalResponse;
-import com.zdmj.knowledgeService.service.KnowledgeRagService;
+import com.zdmj.knowledgeService.api.KnowledgeRetrievalResponse;
+import com.zdmj.knowledgeService.api.KnowledgeRagService;
 
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;

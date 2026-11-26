@@ -15,22 +15,17 @@ import com.zdmj.careerReportService.entity.CareerDevelopmentReport;
 import com.zdmj.careerReportService.mapper.CareerDevelopmentReportMapper;
 import com.zdmj.careerReportService.service.CareerDevelopmentReportService;
 import com.zdmj.careerReportService.support.ReportIntegrity;
+import com.zdmj.knowledgeService.api.KnowledgeRagService;
+import com.zdmj.knowledgeService.api.KnowledgeHit;
+import com.zdmj.knowledgeService.api.KnowledgeReference;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.aiService.api.EmbeddingGateway;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.util.DateTimeUtil;
 import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.service.JobService;
-import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
-import com.zdmj.knowledgeService.entity.KnowledgeDocument;
-import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
-import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
-import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
-import com.zdmj.knowledgeService.service.KnowledgeBasesService;
-import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
 import com.zdmj.matchService.dto.JobStudentMatchResponse;
 import com.zdmj.matchService.service.JobStudentMatchService;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
@@ -39,17 +34,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.Comparator;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -81,33 +68,18 @@ public class CareerDevelopmentReportServiceImpl
     /** 状态：完整性校验未通过 */
     private static final int STATUS_CHECK_FAILED = 4;
 
-    /** 报告生成时 RAG 检索 Top-K（合并多库后） */
-    private static final int REPORT_RAG_TOP_K = 8;
-    /** 报告生成时 RAG 最低相似度阈值 */
-    private static final double REPORT_RAG_MIN_SCORE = 0.35;
-
-    /** 优先命中的知识文档分类（metadata.docCategory） */
-    private static final Set<String> CAREER_DOC_CATEGORY_WHITELIST =
-            Set.of("learning_path", "career_planning", "industry_trend");
-
     private static final DateTimeFormatter REPORT_DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
-    private static final TypeReference<List<Map<String, Object>>> SOURCES_TYPE = new TypeReference<>() {};
+    private static final TypeReference<List<KnowledgeReference>> SOURCES_TYPE = new TypeReference<>() {};
 
-    private static final Pattern MARKDOWN_H1 = Pattern.compile("(?m)^#\\s+(.+?)\\s*$");
-    private static final Pattern PLACEHOLDER_DOC_TITLE = Pattern.compile("^文档 #\\d+$");
 
     private final ObjectMapper objectMapper;
     private final ModelGateway modelGateway;
     private final JobService jobService;
     private final JobStudentMatchService jobStudentMatchService;
     private final StudentCapabilityProfileService studentCapabilityProfileService;
-    private final KnowledgeBasesService knowledgeBasesService;
-    private final KnowledgeVectorMapper knowledgeVectorMapper;
-    private final KnowledgeDocumentMapper knowledgeDocumentMapper;
-    private final KnowledgeEmbeddingService knowledgeEmbeddingService;
-    private final EmbeddingGateway embeddingGateway;
+    private final KnowledgeRagService knowledgeRagService;
     private final TransactionTemplate transactionTemplate;
     private final JdbcTemplate jdbcTemplate;
 
@@ -121,7 +93,7 @@ public class CareerDevelopmentReportServiceImpl
                 .eq(CareerDevelopmentReport::getUserId, userId)
                 .eq(CareerDevelopmentReport::getJobId, jobId)
                 .last("LIMIT 1"));
-        return entity == null ? null : toResponse(entity);
+        return entity == null ? null : toResponse(actor, entity);
     }
 
     @Override
@@ -142,7 +114,13 @@ public class CareerDevelopmentReportServiceImpl
         // 2. 加载或生成人岗匹配
         JobStudentMatchResponse match = loadOrGenerateMatch(actor, jobId);
         // 3. 知识库 RAG 检索学习路径片段
-        List<KnowledgeRetrivalDTO> ragHits = retrieveLearningPathHits(actor, jobDetail, req);
+        List<KnowledgeHit> ragHits;
+        try {
+            ragHits = knowledgeRagService.retrieveLearningPaths(actor, buildKnowledgeQuery(jobDetail, req));
+        } catch (BusinessException exception) {
+            if (exception.getErrorCode() != ErrorCode.KNOWLEDGE_RETRIEVAL_FAILED) { throw exception; }
+            throw new BusinessException(ErrorCode.CAREER_REPORT_GENERATION_FAILED, exception);
+        }
         // 4. 调用大模型生成结构化报告
         Map<String, Object> reportContent = generateStructuredReport(
                 actor, jobDetail, studentProfile, match, ragHits, req);
@@ -153,8 +131,8 @@ public class CareerDevelopmentReportServiceImpl
         draft.setMatchId(match.id());
         draft.setStudentProfileSnapshot(toJson(studentProfile));
         draft.setMatchSnapshot(toJson(match));
-        draft.setKnowledgeSources(toJson(toKnowledgeSources(ragHits)));
-        return toResponse(saveReport(draft, reportContent, GENERATE_PROMPT));
+        draft.setKnowledgeSources(toJson(ragHits.stream().map(KnowledgeHit::reference).toList()));
+        return toResponse(actor, saveReport(draft, reportContent, GENERATE_PROMPT));
     }
 
     @Override
@@ -173,7 +151,7 @@ public class CareerDevelopmentReportServiceImpl
                 + toJson(currentContent);
         Map<String, Object> polished = requestReportContent(actor, userMessage,
                 POLISH_PROMPT, vars, ErrorCode.CAREER_REPORT_POLISH_FAILED);
-        return toResponse(saveReport(draftFromCurrent(current), polished, POLISH_PROMPT));
+        return toResponse(actor, saveReport(draftFromCurrent(current), polished, POLISH_PROMPT));
     }
 
     @Override
@@ -201,7 +179,7 @@ public class CareerDevelopmentReportServiceImpl
         if (req == null || req.reportContent() == null || req.reportContent().isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "报告内容不能为空");
         }
-        return toResponse(saveReport(draftFromCurrent(current), req.reportContent(), current.getPromptName()));
+        return toResponse(actor, saveReport(draftFromCurrent(current), req.reportContent(), current.getPromptName()));
     }
 
     private JobStudentMatchResponse loadOrGenerateMatch(CurrentActor actor, Long jobId) {
@@ -209,67 +187,11 @@ public class CareerDevelopmentReportServiceImpl
         return match != null ? match : jobStudentMatchService.generate(actor, jobId, null);
     }
 
-    /**
-     * 从用户私有库（scope=1）与学习路线库（scope=3）检索相关片段（向量相似度 + 文档分类过滤）。
-     *
-     * @param actor 已认证操作者，包含用户编号
-     */
-    private List<KnowledgeRetrivalDTO> retrieveLearningPathHits(CurrentActor actor, JobListItemResponse jobDetail, CareerReportGenerateRequest req) {
-        Long userId = actor.userId();
-        String query = buildKnowledgeQuery(jobDetail, req);
-        float[] vector = embedQueryText(actor, query);
-        String vec = knowledgeEmbeddingService.toPgVector(vector);
-
-        List<KnowledgeRetrivalDTO> merged = new ArrayList<>();
-        merged.addAll(searchKnowledgeVectors(userId, knowledgeBasesService.getOrCreateKnowledgeBaseId(actor), vec));
-
-        Long learningPathKbId = knowledgeBasesService.findKnowledgeBaseIdByScope(
-                KnowledgeScopeEnum.LEARNING_PATH.getCode());
-        if (learningPathKbId != null) {
-            merged.addAll(searchKnowledgeVectors(
-                    KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, learningPathKbId, vec));
-        } else {
-            log.debug("未找到 scope=3 学习路线知识库，报告 RAG 仅检索用户私有库");
-        }
-
-        if (merged.isEmpty()) {
-            return List.of();
-        }
-
-        List<KnowledgeRetrivalDTO> hits = rankAndLimitHits(merged, REPORT_RAG_TOP_K);
-        List<KnowledgeRetrivalDTO> qualified = hits.stream()
-                .filter(hit -> hit.score() >= REPORT_RAG_MIN_SCORE).toList();
-        List<KnowledgeRetrivalDTO> preferred = qualified.stream().filter(this::isCareerLearningDoc).toList();
-        return preferred.isEmpty() ? qualified : preferred;
-    }
-
-    private List<KnowledgeRetrivalDTO> searchKnowledgeVectors(Long ownerUserId, Long knowledgeId, String queryEmbedding) {
-        if (knowledgeId == null) {
-            return List.of();
-        }
-        List<KnowledgeRetrivalDTO> hits = knowledgeVectorMapper.searchBySimilarity(
-                ownerUserId, knowledgeId, queryEmbedding, REPORT_RAG_TOP_K);
-        return hits == null ? List.of() : hits;
-    }
-
-    private List<KnowledgeRetrivalDTO> rankAndLimitHits(List<KnowledgeRetrivalDTO> hits, int topK) {
-        Map<String, KnowledgeRetrivalDTO> deduped = new LinkedHashMap<>();
-        hits.stream()
-                .filter(h -> h.score() != null)
-                .sorted(Comparator.comparing(KnowledgeRetrivalDTO::score).reversed())
-                .forEach(h -> {
-                    String key = Objects.toString(h.documentId(), "") + ":"
-                            + Objects.toString(h.chunkIndex(), "");
-                    deduped.putIfAbsent(key, h);
-                });
-        return deduped.values().stream().limit(topK).collect(Collectors.toList());
-    }
-
     private Map<String, Object> generateStructuredReport(CurrentActor actor,
                                                          JobListItemResponse jobDetail,
                                                          StudentCapabilityProfileResponse studentProfile,
                                                          JobStudentMatchResponse match,
-                                                         List<KnowledgeRetrivalDTO> ragHits,
+                                                         List<KnowledgeHit> ragHits,
                                                          CareerReportGenerateRequest req) {
         Map<String, Object> vars = new LinkedHashMap<>();
         vars.put("userPreference", req == null ? "" : safe(req.userPreference()));
@@ -465,35 +387,12 @@ public class CareerDevelopmentReportServiceImpl
         });
     }
 
-    private CareerReportResponse toResponse(CareerDevelopmentReport entity) {
+    private CareerReportResponse toResponse(CurrentActor actor, CareerDevelopmentReport entity) {
         return new CareerReportResponse(entity.getId(), entity.getJobId(),
                 entity.getStatus(), entity.getCompletenessScore(), entity.getPromptName(),
                 readJson(entity.getReportContent(), MAP_TYPE, Map.of()),
                 readJson(entity.getQualityFlags(), MAP_TYPE, Map.of()),
-                enrichKnowledgeSources(readJson(entity.getKnowledgeSources(), SOURCES_TYPE, List.of())));
-    }
-
-    /**
-     * 为报告检索生成查询向量。嵌入失败时保留原因并终止报告生成。
-     *
-     * @param actor 已认证操作者，包含用户编号
-     * @param queryText 检索文本
-     * @return 有效的查询向量
-     */
-    private float[] embedQueryText(CurrentActor actor, String queryText) {
-        List<float[]> vectors;
-        try {
-            vectors = embeddingGateway.embed(actor, List.of(queryText));
-        } catch (BusinessException exception) {
-            throw exception;
-        } catch (RuntimeException exception) {
-            log.error("报告查询向量生成失败", exception);
-            throw new BusinessException(ErrorCode.CAREER_REPORT_GENERATION_FAILED, exception);
-        }
-        if (vectors == null || vectors.isEmpty() || vectors.get(0) == null || vectors.get(0).length == 0) {
-            throw new BusinessException(ErrorCode.CAREER_REPORT_GENERATION_FAILED, "查询向量生成失败");
-        }
-        return vectors.get(0);
+                knowledgeRagService.resolveReportReferences(actor, readJson(entity.getKnowledgeSources(), SOURCES_TYPE, List.of())));
     }
 
     private String buildKnowledgeQuery(JobListItemResponse jobDetail, CareerReportGenerateRequest req) {
@@ -508,249 +407,21 @@ public class CareerDevelopmentReportServiceImpl
         return sb.toString();
     }
 
-    private boolean isCareerLearningDoc(KnowledgeRetrivalDTO dto) {
-        if (dto == null) {
-            return false;
-        }
-        String category = resolveDocCategory(dto);
-        if (!StringUtils.hasText(category)) {
-            return false;
-        }
-        return CAREER_DOC_CATEGORY_WHITELIST.contains(category.trim().toLowerCase(Locale.ROOT));
-    }
-
-    private String resolveDocCategory(KnowledgeRetrivalDTO dto) {
-        if (StringUtils.hasText(dto.docCategory())) {
-            return dto.docCategory();
-        }
-        if (dto.metadata() == null || dto.metadata().isEmpty()) {
-            return null;
-        }
-        Object category = dto.metadata().get("docCategory");
-        if (category == null) {
-            category = dto.metadata().get("category");
-        }
-        return category == null ? null : String.valueOf(category);
-    }
-
-    private String buildRagContext(List<KnowledgeRetrivalDTO> hits) {
+    private String buildRagContext(List<KnowledgeHit> hits) {
         if (hits == null || hits.isEmpty()) {
             return "未命中学习路径文档，请仅基于画像和匹配结果生成。";
         }
         StringBuilder sb = new StringBuilder();
         int idx = 1;
-        for (KnowledgeRetrivalDTO hit : hits) {
+        for (KnowledgeHit hit : hits) {
             sb.append("### 片段 ").append(idx++).append('\n');
             sb.append("- documentId: ").append(hit.documentId()).append('\n');
             sb.append("- score: ").append(hit.score()).append('\n');
-            sb.append("- metadata: ").append(hit.metadata()).append('\n');
+            sb.append("- title: ").append(hit.title()).append('\n');
+            sb.append("- docCategory: ").append(hit.docCategory()).append('\n');
             sb.append("- content: ").append(safe(hit.content())).append('\n');
         }
         return sb.toString();
-    }
-
-    private List<Map<String, Object>> toKnowledgeSources(List<KnowledgeRetrivalDTO> hits) {
-        if (hits == null || hits.isEmpty()) {
-            return List.of();
-        }
-        Map<Long, KnowledgeDocument> docById = loadDocumentsByIds(hits.stream()
-                .map(KnowledgeRetrivalDTO::documentId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList()));
-        List<Map<String, Object>> out = new ArrayList<>();
-        for (KnowledgeRetrivalDTO hit : hits) {
-            KnowledgeDocument doc = hit.documentId() == null ? null : docById.get(hit.documentId());
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("documentId", hit.documentId());
-            row.put("chunkIndex", hit.chunkIndex());
-            row.put("score", hit.score());
-            row.put("title", knowledgeSourceTitle(doc, hit.metadata(), hit.content(), hit.documentId()));
-            row.put("snippet", buildKnowledgeSourceSnippet(hit));
-            row.put("metadata", mergeSourceMetadata(hit, doc));
-            out.add(row);
-        }
-        return out;
-    }
-
-    private List<Map<String, Object>> enrichKnowledgeSources(List<Map<String, Object>> sources) {
-        if (sources == null || sources.isEmpty()) {
-            return List.of();
-        }
-        List<Long> docIds = sources.stream()
-                .filter(this::needsKnowledgeSourceTitleEnrich)
-                .map(row -> toLong(row.get("documentId")))
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-        Map<Long, KnowledgeDocument> docById = loadDocumentsByIds(docIds);
-        for (Map<String, Object> row : sources) {
-            if (!needsKnowledgeSourceTitleEnrich(row)) {
-                continue;
-            }
-            Long docId = toLong(row.get("documentId"));
-            KnowledgeDocument doc = docId == null ? null : docById.get(docId);
-            Object metadata = row.get("metadata");
-            Object snippet = row.get("snippet");
-            row.put("title", knowledgeSourceTitle(
-                    doc,
-                    metadata instanceof Map<?, ?> meta ? meta : null,
-                    snippet == null ? null : String.valueOf(snippet),
-                    docId));
-        }
-        return sources;
-    }
-
-    private boolean needsKnowledgeSourceTitleEnrich(Map<String, Object> row) {
-        Object title = row.get("title");
-        if (title == null || !StringUtils.hasText(String.valueOf(title))) {
-            return true;
-        }
-        return PLACEHOLDER_DOC_TITLE.matcher(String.valueOf(title).trim()).matches();
-    }
-
-    /**
-     * 解析知识来源标题。依次使用文档标题、元数据中的文件名、正文里的一级标题；都没有时用「学习路线」加文档编号。
-     *
-     * @param doc 知识文档，可以为空
-     * @param metadata 来源元数据，可以为空
-     * @param headingText 可能包含一级标题的正文或片段，可以为空
-     * @param documentId 文档编号，可以为空
-     * @return 展示标题
-     */
-    private String knowledgeSourceTitle(KnowledgeDocument doc, Map<?, ?> metadata, String headingText,
-                                        Long documentId) {
-        String fromDoc = documentDisplayTitle(doc);
-        if (StringUtils.hasText(fromDoc)) {
-            return fromDoc;
-        }
-        String fromMeta = titleFromMetadataMap(metadata);
-        if (StringUtils.hasText(fromMeta)) {
-            return fromMeta;
-        }
-        String fromHeading = parseMarkdownHeadingTitle(headingText);
-        if (StringUtils.hasText(fromHeading)) {
-            return fromHeading;
-        }
-        return documentId != null ? "学习路线 #" + documentId : "知识片段";
-    }
-
-    private Map<Long, KnowledgeDocument> loadDocumentsByIds(List<Long> documentIds) {
-        if (documentIds == null || documentIds.isEmpty()) {
-            return Map.of();
-        }
-        List<KnowledgeDocument> docs = knowledgeDocumentMapper.selectBatchIds(documentIds);
-        if (docs == null || docs.isEmpty()) {
-            return Map.of();
-        }
-        return docs.stream()
-                .filter(doc -> doc.getId() != null)
-                .collect(Collectors.toMap(KnowledgeDocument::getId, doc -> doc, (a, b) -> a));
-    }
-
-    private static String documentDisplayTitle(KnowledgeDocument doc) {
-        if (doc == null) {
-            return null;
-        }
-        if (StringUtils.hasText(doc.getTitle())) {
-            return doc.getTitle().trim();
-        }
-        if (StringUtils.hasText(doc.getContent())) {
-            return filenameToLearningRouteTitle(doc.getContent());
-        }
-        return titleFromMetadataMap(doc.getMetadata());
-    }
-
-    private static String titleFromMetadataMap(Map<?, ?> metadata) {
-        if (metadata == null || metadata.isEmpty()) {
-            return null;
-        }
-        Object sourceFile = metadata.get("sourceFile");
-        if (sourceFile != null && StringUtils.hasText(String.valueOf(sourceFile))) {
-            return filenameToLearningRouteTitle(String.valueOf(sourceFile));
-        }
-        Object content = metadata.get("content");
-        if (content != null && StringUtils.hasText(String.valueOf(content))) {
-            return filenameToLearningRouteTitle(String.valueOf(content));
-        }
-        return null;
-    }
-
-    private static Map<String, Object> mergeSourceMetadata(KnowledgeRetrivalDTO hit, KnowledgeDocument doc) {
-        Map<String, Object> merged = new LinkedHashMap<>();
-        if (doc != null && doc.getMetadata() != null) {
-            merged.putAll(doc.getMetadata());
-        }
-        if (hit.metadata() != null) {
-            merged.putAll(hit.metadata());
-        }
-        if (doc != null && StringUtils.hasText(doc.getTitle())) {
-            merged.putIfAbsent("documentTitle", doc.getTitle());
-        }
-        if (doc != null && StringUtils.hasText(doc.getContent())) {
-            merged.putIfAbsent("sourceFile", doc.getContent());
-        }
-        return merged;
-    }
-
-    private static String filenameToLearningRouteTitle(String file) {
-        String name = file == null ? "" : file.trim();
-        if (name.endsWith(".md")) {
-            name = name.substring(0, name.length() - 3);
-        }
-        return name;
-    }
-
-    private static String parseMarkdownHeadingTitle(String text) {
-        if (!StringUtils.hasText(text)) {
-            return null;
-        }
-        Matcher matcher = MARKDOWN_H1.matcher(text.trim());
-        if (matcher.find()) {
-            return matcher.group(1).trim();
-        }
-        int hashIdx = text.indexOf("# ");
-        if (hashIdx >= 0) {
-            String tail = text.substring(hashIdx + 2);
-            int end = tail.indexOf(" ## ");
-            if (end < 0) {
-                end = tail.indexOf('·');
-            }
-            if (end < 0) {
-                end = Math.min(tail.length(), 40);
-            }
-            return tail.substring(0, end).trim();
-        }
-        return null;
-    }
-
-    private static Long toLong(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof Number number) {
-            return number.longValue();
-        }
-        try {
-            return Long.parseLong(String.valueOf(value));
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private String buildKnowledgeSourceSnippet(KnowledgeRetrivalDTO hit) {
-        List<String> parts = new ArrayList<>();
-        if (hit.score() != null) {
-            parts.add(String.format(Locale.ROOT, "相似度 %.1f%%", hit.score() * 100));
-        }
-        if (hit.chunkIndex() != null) {
-            parts.add("块 #" + hit.chunkIndex());
-        }
-        if (StringUtils.hasText(hit.content())) {
-            String compact = hit.content().trim().replaceAll("\\s+", " ");
-            parts.add(compact.length() > 80 ? compact.substring(0, 80) + "…" : compact);
-        }
-        return String.join(" · ", parts);
     }
 
     /**

@@ -230,27 +230,6 @@ class KnowledgeEmbeddingServiceImplTest {
         verify(knowledgeDocumentMapper, times(2)).update(isNull(), any());
     }
 
-    @Test
-    void toPgVectorNullOrEmpty_shouldReturnNull() {
-        KnowledgeEmbeddingServiceImpl service = newService();
-
-        assertNull(service.toPgVector(null));
-        assertNull(service.toPgVector(new float[0]));
-    }
-
-    @Test
-    void toPgVectorNonEmpty_shouldReturnBracketFormat() {
-        KnowledgeEmbeddingServiceImpl service = newService();
-
-        String vector = service.toPgVector(new float[] {1.0f, -2.5f, 3.25f});
-
-        assertTrue(vector.startsWith("["));
-        assertTrue(vector.endsWith("]"));
-        assertTrue(vector.contains("1.0"));
-        assertTrue(vector.contains("-2.5"));
-        assertTrue(vector.contains("3.25"));
-    }
-
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(ints = {0, 2})
     void 向量写入数量异常_立即终止且不保存成功状态(int count) throws Exception {
@@ -270,6 +249,17 @@ class KnowledgeEmbeddingServiceImplTest {
         assertTrue(failure.getMessage().contains("向量写入数量"));
         assertNull(document.getLastEmbeddedAt());
         verify(knowledgeDocumentMapper, times(2)).update(isNull(), any());
+    }
+
+    @Test
+    void 向量转换验证空值有限数值及完整格式() {
+        assertEquals("[1.0,-2.5,3.25]", KnowledgeEmbeddingServiceImpl.toPgVector(new float[] {1, -2.5f, 3.25f}));
+        assertThrows(IllegalArgumentException.class, () -> KnowledgeEmbeddingServiceImpl.toPgVector(null));
+        assertThrows(IllegalArgumentException.class, () -> KnowledgeEmbeddingServiceImpl.toPgVector(new float[0]));
+        for (float invalid : new float[] {Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY}) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> KnowledgeEmbeddingServiceImpl.toPgVector(new float[] {invalid}));
+        }
     }
 
     private KnowledgeEmbeddingServiceImpl newService() {

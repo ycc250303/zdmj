@@ -37,6 +37,19 @@ class ModuleArchitectureTest {
     };
 
     @ArchTest
+    static final ArchRule knowledge_consumers_only_use_api = classes()
+            .that().resideInAPackage("com.zdmj.knowledgeService..")
+            .and().resideOutsideOfPackage("com.zdmj.knowledgeService.api..")
+            .should().onlyHaveDependentClassesThat().resideInAPackage("com.zdmj.knowledgeService..");
+
+    @ArchTest
+    static final ArchRule knowledge_api_does_not_depend_on_internals = noClasses()
+            .that().resideInAPackage("com.zdmj.knowledgeService.api..")
+            .should().dependOnClassesThat().resideInAnyPackage("com.zdmj.knowledgeService.dto..",
+                    "com.zdmj.knowledgeService.mapper..", "com.zdmj.knowledgeService.entity..",
+                    "com.zdmj.knowledgeService.service..", "com.zdmj.knowledgeService.support..");
+
+    @ArchTest
     static final ArchRule conversation_stream_has_no_manual_subscription = noClasses()
             .that().resideInAPackage("com.zdmj.conversationService..")
             .should().callMethodWhere(com.tngtech.archunit.base.DescribedPredicate.describe("手工订阅 Reactor 流",
@@ -148,7 +161,10 @@ class ModuleArchitectureTest {
     static final ArchRule match_mappers_stay_inside_module = freezeMapperAccess("matchService");
 
     @ArchTest
-    static final ArchRule knowledge_mappers_stay_inside_module = freezeMapperAccess("knowledgeService");
+    static final ArchRule knowledge_mappers_stay_inside_module = classes()
+            .that().resideInAPackage("com.zdmj.knowledgeService.mapper..")
+            .should().onlyBeAccessed().byAnyPackage("com.zdmj.knowledgeService.mapper..",
+                    "com.zdmj.knowledgeService.service..", "com.zdmj.knowledgeService.support..");
 
     @ArchTest
     static final ArchRule conversation_mappers_stay_inside_module = freezeMapperAccess("conversationService");

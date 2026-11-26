@@ -22,6 +22,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import com.zdmj.aiService.api.ModelGateway;
+import com.zdmj.common.context.CurrentActor;
+import com.zdmj.knowledgeService.api.KnowledgeRagService;
+import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
 import com.zdmj.testsupport.ApiClient;
 import com.zdmj.testsupport.ExternalAiStubConfig;
@@ -38,6 +42,15 @@ class CareerReportFlowIT extends IntegrationTestBase {
 
     @MockitoSpyBean(name = "testModelGateway")
     private ModelGateway modelGateway;
+
+    @Autowired
+    private KnowledgeRagService knowledge;
+
+    @MockitoSpyBean
+    private KnowledgeVectorMapper vectors;
+
+    @Autowired
+    private org.mybatis.spring.SqlSessionTemplate sqlSession;
 
     private static final String MANUAL_BODY = """
             {
@@ -215,6 +228,125 @@ class CareerReportFlowIT extends IntegrationTestBase {
         } finally {
             pool.shutdownNow();
         }
+    }
+
+    @Test
+    void 新报告与历史来源均按授权范围返回白名单且提示词不含文件标识() throws Exception {
+        TestUsers.Pair users = testUsers.createPair();
+        User owner = users.userA();
+        String token = testJwt.authorize(owner);
+        long jobId = createJob(token);
+        seedInputs(owner.getId(), jobId);
+        long privateBase = jdbcTemplate.queryForObject("SELECT id FROM knowledge_bases WHERE user_id=? AND scope=1", Long.class, owner.getId());
+        long otherBase = createBase(users.userB().getId(), 1);
+        long learningBase = createBase(0L, 3);
+        long systemBase = createBase(0L, 2);
+        long own = seedKnowledge(privateBase, owner.getId(), "本人标题", "本人片段", "learning_path");
+        long learning = seedKnowledge(learningBase, 0L, "学习路线标题", "路线片段", "learning_path");
+        long other = seedKnowledge(otherBase, users.userB().getId(), "他人秘密标题", "他人秘密片段", "learning_path");
+        long system = seedKnowledge(systemBase, 0L, "系统通用标题", "系统通用片段", "learning_path");
+        var captured = new java.util.concurrent.atomic.AtomicReference<String>();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            var request = invocation.getArgument(1, com.zdmj.aiService.api.ModelRequest.class);
+            captured.set(request.message());
+            return invocation.callRealMethod();
+        }).when(modelGateway).generateStructured(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+
+        String generated = ApiClient.requireOk(api.post(token, "/career-reports/jobs/" + jobId, "{}"));
+        long reportId = JsonPath.<Number>read(generated, "$.data.id").longValue();
+        assertThat(JsonPath.<List<Number>>read(generated, "$.data.knowledgeSources[*].documentId"))
+                .extracting(Number::longValue).containsExactlyInAnyOrder(own, learning);
+        assertThat(generated).doesNotContain("sourceFile", "pendingKey", "retiredFile", "user-", "他人秘密", "系统通用片段");
+        assertThat(captured.get()).contains("本人片段", "路线片段")
+                .doesNotContain("sourceFile", "pendingKey", "retiredFile", "user-", "他人秘密", "系统通用片段");
+        String stored = jdbcTemplate.queryForObject("SELECT knowledge_sources::text FROM career_development_reports WHERE id=?", String.class, reportId);
+        assertThat(stored).doesNotContain("sourceFile", "pendingKey", "retiredFile", "downloadPath", "user-");
+
+        var snapshots = new java.util.ArrayList<Map<String, Object>>();
+        for (long id : List.of(own, learning, other, system, 999999L)) {
+            snapshots.add(Map.of("documentId", id, "chunkIndex", 0, "score", 0.8,
+                    "title", "user-" + owner.getId() + "/secret.md", "snippet", "历史片段",
+                    "metadata", Map.of("sourceFile", "user-1/secret.md", "pendingKey", "秘密", "retiredFile", "秘密")));
+        }
+        String legacy = new ObjectMapper().writeValueAsString(snapshots);
+        jdbcTemplate.update("UPDATE career_development_reports SET knowledge_sources=?::jsonb WHERE id=?", legacy, reportId);
+        for (String response : List.of(
+                ApiClient.requireOk(api.get(token, "/career-reports/jobs/" + jobId)),
+                ApiClient.requireOk(api.post(token, "/career-reports/" + reportId + "/polish", "{}")),
+                ApiClient.requireOk(api.put(token, "/career-reports/" + reportId, MANUAL_BODY)))) {
+            assertThat(JsonPath.<List<Number>>read(response, "$.data.knowledgeSources[*].documentId"))
+                    .extracting(Number::longValue).containsExactly(own, learning);
+            assertThat(JsonPath.<List<String>>read(response, "$.data.knowledgeSources[*].title"))
+                    .containsExactly("本人标题", "学习路线标题");
+            assertThat(response).doesNotContain("sourceFile", "pendingKey", "retiredFile", "user-", "他人秘密");
+            assertThat(JsonPath.<List<String>>read(response, "$.data.knowledgeSources[*].snippet"))
+                    .containsExactly("历史片段", "历史片段");
+        }
+        ApiClient.assertProblem(api.put(testJwt.authorize(users.userB()), "/career-reports/" + reportId, MANUAL_BODY), 404, 12001);
+        jdbcTemplate.update("DELETE FROM knowledge_documents WHERE id=?", own);
+        String deleted = ApiClient.requireOk(api.get(token, "/career-reports/jobs/" + jobId));
+        assertThat(JsonPath.<List<Number>>read(deleted, "$.data.knowledgeSources[*].documentId"))
+                .extracting(Number::longValue).containsExactly(learning);
+    }
+
+    @Test
+    void 检索快照与并发替换互不混用且错误关联向量无法被检索() throws Exception {
+        User owner = testUsers.createPair().userA();
+        String token = testJwt.authorize(owner);
+        long base = createBase(owner.getId(), 1);
+        long document = seedKnowledge(base, owner.getId(), "原标题", "原片段", "learning_path");
+        org.mockito.Mockito.doAnswer(invocation -> {
+            Object result = sqlSession.getMapper(KnowledgeVectorMapper.class).searchBySimilarity(
+                    invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2), invocation.getArgument(3));
+            // 查询返回后由另一数据库连接提交替换登记，返回值必须仍为原查询快照。
+            jdbcTemplate.update("UPDATE knowledge_documents SET file_status=0,title='新标题',metadata=metadata || '{\"pendingKey\":\"user-1/new.md\"}'::jsonb WHERE id=?", document);
+            return result;
+        }).when(vectors).searchBySimilarity(org.mockito.ArgumentMatchers.eq(owner.getId()), org.mockito.ArgumentMatchers.eq(base), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyInt());
+        var hits = knowledge.retrieveLearningPaths(new CurrentActor(owner.getId()), "学习需求");
+        assertThat(hits).hasSize(1);
+        assertThat(hits.getFirst().title()).isEqualTo("原标题");
+        assertThat(hits.getFirst().content()).isEqualTo("原片段");
+        var references = knowledge.resolveReportReferences(new CurrentActor(owner.getId()), List.of(hits.getFirst().reference()));
+        assertThat(references.getFirst().title()).isEqualTo("原标题");
+        assertThat(references.getFirst().downloadPath()).isNull();
+        String closed = ApiClient.requireOk(api.post(token, "/knowledge/retrievals", "{\"query\":\"学习\",\"useSystemKnowledge\":false}"));
+        assertThat(JsonPath.<List<?>>read(closed, "$.data.hits")).isEmpty();
+        org.mockito.Mockito.reset(vectors);
+        jdbcTemplate.update("UPDATE knowledge_documents SET file_status=1 WHERE id=?", document);
+        long wrongBase = createBase(0L, 3);
+        jdbcTemplate.update("UPDATE knowledge_vectors SET knowledge_id=? WHERE document_id=?", wrongBase, document);
+        assertThat(knowledge.retrieveLearningPaths(new CurrentActor(owner.getId()), "学习需求")).isEmpty();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "{\"documentId\":1.9}", "{\"documentId\":\"1\"}", "{\"documentId\":-1}",
+            "{\"documentId\":9223372036854775808}", "{\"documentId\":1,\"score\":\"0.8\"}",
+            "{\"documentId\":1,\"chunkIndex\":0.1}", "{\"documentId\":1,\"title\":{}}", "null"})
+    void 已存来源结构非法时返回系统异常(String source) throws Exception {
+        User owner = testUsers.createPair().userA();
+        String token = testJwt.authorize(owner);
+        long job = createJob(token);
+        long report = seedReport(owner.getId(), job, "目标");
+        jdbcTemplate.update("UPDATE career_development_reports SET knowledge_sources=?::jsonb WHERE id=?", "[" + source + "]", report);
+        ApiClient.assertProblem(api.get(token, "/career-reports/jobs/" + job), 500, 1008);
+    }
+
+    private long createBase(Long userId, int scope) {
+        return jdbcTemplate.queryForObject("INSERT INTO knowledge_bases(user_id,scope) VALUES (?,?) RETURNING id", Long.class, userId, scope);
+    }
+
+    private long seedKnowledge(long base, Long owner, String title, String content, String category) {
+        long id = jdbcTemplate.queryForObject("""
+                INSERT INTO knowledge_documents(knowledge_id,user_id,type,content,title,file_status,embedding_status,metadata)
+                VALUES (?,?,1,?, ?,1,3,jsonb_build_object('docCategory',?::text,'sourceFile',?::text,'pendingKey','secret','retiredFile','secret')) RETURNING id
+                """, Long.class, base, owner, "user-" + owner + "/private.md", title, category, "user-" + owner + "/private.md");
+        String vector = "[1," + String.join(",", java.util.Collections.nCopies(1023, "0")) + "]";
+        jdbcTemplate.update("""
+                INSERT INTO knowledge_vectors(knowledge_id,document_id,user_id,embedding,content,chunk_index,metadata)
+                VALUES (?,?,?,?::vector,?,0,'{"sourceFile":"internal.md","pendingKey":"secret"}'::jsonb)
+                """, base, id, owner, vector, content);
+        return id;
     }
 
     private long createJob(String token) throws Exception {

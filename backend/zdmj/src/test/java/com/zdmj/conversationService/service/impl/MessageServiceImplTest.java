@@ -55,7 +55,7 @@ import com.zdmj.conversationService.entity.Message;
 import com.zdmj.conversationService.enums.MessageGenerationStatusEnum;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
-import com.zdmj.knowledgeService.service.KnowledgeRagService;
+import com.zdmj.knowledgeService.api.KnowledgeRagService;
 
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;

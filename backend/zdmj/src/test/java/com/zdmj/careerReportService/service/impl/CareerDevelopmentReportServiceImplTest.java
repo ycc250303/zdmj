@@ -1,6 +1,7 @@
 package com.zdmj.careerReportService.service.impl;
 
 import com.zdmj.common.context.CurrentActor;
+import com.zdmj.knowledgeService.api.KnowledgeRagService;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -18,13 +19,6 @@ import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.jobService.dto.JobListItemResponse;
 import com.zdmj.jobService.service.JobService;
-import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
-import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
-import com.zdmj.knowledgeService.entity.KnowledgeDocument;
-import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
-import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
-import com.zdmj.knowledgeService.service.KnowledgeBasesService;
-import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
 import com.zdmj.matchService.dto.JobStudentMatchResponse;
 import com.zdmj.matchService.service.JobStudentMatchService;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
@@ -46,7 +40,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
-import com.zdmj.aiService.api.EmbeddingGateway;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -54,7 +47,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -83,15 +75,7 @@ class CareerDevelopmentReportServiceImplTest {
     @Mock
     private StudentCapabilityProfileService studentCapabilityProfileService;
     @Mock
-    private KnowledgeBasesService knowledgeBasesService;
-    @Mock
-    private KnowledgeVectorMapper knowledgeVectorMapper;
-    @Mock
-    private KnowledgeDocumentMapper knowledgeDocumentMapper;
-    @Mock
-    private KnowledgeEmbeddingService knowledgeEmbeddingService;
-    @Mock
-    private EmbeddingGateway embeddingGateway;
+    private KnowledgeRagService knowledgeRagService;
     @Mock
     private JdbcTemplate jdbcTemplate;
     @Mock
@@ -113,24 +97,20 @@ class CareerDevelopmentReportServiceImplTest {
                 jobService,
                 jobStudentMatchService,
                 studentCapabilityProfileService,
-                knowledgeBasesService,
-                knowledgeVectorMapper,
-                knowledgeDocumentMapper,
-                knowledgeEmbeddingService,
-                embeddingGateway,
+                knowledgeRagService,
                 executingTemplate(),
                 jdbcTemplate));
         ReflectionTestUtils.setField(service, "baseMapper", reportMapper);
+        lenient().when(knowledgeRagService.resolveReportReferences(eq(actor), any())).thenAnswer(i -> i.getArgument(1));
     }
 
     @Test
-    void generate_shouldCreateV1Report_whenDependenciesReady() throws Exception {
+    void generate_shouldSaveReport_whenDependenciesReady() throws Exception {
         Long jobId = 10L;
         doReturn(buildJob()).when(jobService).getDetail(jobId);
         doReturn(buildStudentProfile()).when(studentCapabilityProfileService).getCurrentUserProfileOrNull(actor);
         doReturn(buildMatch()).when(jobStudentMatchService).getOrNull(actor, jobId);
-        when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
-        stubInsertNewVersion(999L);
+        stubInsertReport(999L);
 
         doAnswer(invocation -> {
             ModelRequest request = invocation.getArgument(1, ModelRequest.class);
@@ -163,18 +143,19 @@ class CareerDevelopmentReportServiceImplTest {
     }
 
     @Test
-    void generate_whenEmbeddingFails_shouldThrowAndSkipSave() {
+    void generate_whenRetrievalFails_shouldThrowAndSkipSave() {
         Long jobId = 10L;
         doReturn(buildJob()).when(jobService).getDetail(jobId);
         doReturn(buildStudentProfile()).when(studentCapabilityProfileService).getCurrentUserProfileOrNull(actor);
         doReturn(buildMatch()).when(jobStudentMatchService).getOrNull(actor, jobId);
-        when(embeddingGateway.embed(any(), any())).thenThrow(new RuntimeException("embed fail"));
+        when(knowledgeRagService.retrieveLearningPaths(eq(actor), any())).thenThrow(
+                new BusinessException(ErrorCode.KNOWLEDGE_RETRIEVAL_FAILED, new RuntimeException("embed fail")));
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.generate(actor, jobId, new CareerReportGenerateRequest(null, null)));
 
         assertEquals(ErrorCode.CAREER_REPORT_GENERATION_FAILED.getCode(), ex.getCode());
-        assertEquals("embed fail", ex.getCause().getMessage());
+        assertThat(ex).hasRootCauseMessage("embed fail");
         verify(modelGateway, never()).generateStructured(any(), any(), any());
         verify(reportMapper, never()).insert(any(CareerDevelopmentReport.class));
         verify(jdbcTemplate, never()).execute(any(ConnectionCallback.class));
@@ -186,7 +167,6 @@ class CareerDevelopmentReportServiceImplTest {
         doReturn(buildJob()).when(jobService).getDetail(jobId);
         doReturn(buildStudentProfile()).when(studentCapabilityProfileService).getCurrentUserProfileOrNull(actor);
         doReturn(buildMatch()).when(jobStudentMatchService).getOrNull(actor, jobId);
-        when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
         ReflectionTestUtils.setField(service, "objectMapper", new ObjectMapper() {
             @Override
             public String writeValueAsString(Object value) throws JsonProcessingException {
@@ -211,75 +191,6 @@ class CareerDevelopmentReportServiceImplTest {
         assertInstanceOf(JsonProcessingException.class, ex.getCause());
         verify(reportMapper, never()).insert(any(CareerDevelopmentReport.class));
         verify(jdbcTemplate, never()).execute(any(ConnectionCallback.class));
-    }
-
-    @Test
-    void generate_shouldSearchUserAndLearningPathKnowledgeBases_whenEmbeddingReady() throws Exception {
-        Long jobId = 10L;
-        doReturn(buildJob()).when(jobService).getDetail(jobId);
-        doReturn(buildStudentProfile()).when(studentCapabilityProfileService).getCurrentUserProfileOrNull(actor);
-        doReturn(buildMatch()).when(jobStudentMatchService).getOrNull(actor, jobId);
-        doReturn(100L).when(knowledgeBasesService).getOrCreateKnowledgeBaseId(actor);
-        doReturn(9L).when(knowledgeBasesService).findKnowledgeBaseIdByScope(KnowledgeScopeEnum.LEARNING_PATH.getCode());
-
-        when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
-        when(knowledgeEmbeddingService.toPgVector(org.mockito.ArgumentMatchers.any())).thenReturn("[0.1,0.2]");
-
-        KnowledgeRetrivalDTO learningHit = new KnowledgeRetrivalDTO(null, 27L, 0, "Java 学习路线片段", 0.82, null,
-                "learning_path");
-
-        doReturn(List.of()).when(knowledgeVectorMapper).searchBySimilarity(eq(1L), eq(100L), any(), anyInt());
-        doReturn(List.of(learningHit)).when(knowledgeVectorMapper)
-                .searchBySimilarity(eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(9L), any(), anyInt());
-        stubInsertNewVersion(1000L);
-
-        doAnswer(invocation -> {
-            Class<?> outputClass = invocation.getArgument(2);
-            Object payload = outputClass.getDeclaredConstructor().newInstance();
-            Field f = outputClass.getDeclaredField("reportContent");
-            f.setAccessible(true);
-            Map<String, Object> content = new LinkedHashMap<>();
-            content.put("careerExploration", "探索");
-            content.put("careerGoals", List.of("目标1"));
-            content.put("careerPath", List.of("路径A"));
-            Map<String, Object> actionPlan = new LinkedHashMap<>();
-            actionPlan.put("shortTerm", List.of(Map.of("task", "补齐技能", "cycle", "4周", "deliverable", "Demo")));
-            actionPlan.put("midTerm", List.of(Map.of("task", "实习", "cycle", "8周", "deliverable", "清单")));
-            content.put("actionPlan", actionPlan);
-            content.put("evaluationPlan", Map.of("cycle", "双周", "metrics", List.of("完成率")));
-            content.put("evidence", List.of("证据A"));
-            f.set(payload, content);
-            return payload;
-        }).when(modelGateway).generateStructured(any(), any(), any());
-
-        service.generate(actor, jobId, new CareerReportGenerateRequest(null, null));
-
-        verify(knowledgeVectorMapper).searchBySimilarity(eq(1L), eq(100L), eq("[0.1,0.2]"), eq(8));
-        verify(knowledgeVectorMapper).searchBySimilarity(
-                eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(9L), eq("[0.1,0.2]"), eq(8));
-    }
-
-    @Test
-    void getLatestOrNull_shouldReplacePlaceholderKnowledgeSourceTitle() throws Exception {
-        KnowledgeDocument doc = new KnowledgeDocument();
-        doc.setId(77L);
-        doc.setTitle("测试开发学习路线");
-        when(knowledgeDocumentMapper.selectBatchIds(List.of(77L))).thenReturn(List.of(doc));
-
-        CareerDevelopmentReport entity = new CareerDevelopmentReport();
-        entity.setId(50L);
-        entity.setUserId(1L);
-        entity.setJobId(10L);
-        entity.setKnowledgeSources(new ObjectMapper().writeValueAsString(List.of(
-                Map.of("documentId", 77, "title", "文档 #77", "score", 0.71, "metadata", Map.of()))));
-
-        doReturn(entity).when(service)
-                .getOne(org.mockito.ArgumentMatchers.<Wrapper<CareerDevelopmentReport>>any());
-
-        CareerReportResponse dto = service.getLatestOrNull(actor, 10L);
-
-        assertThat(dto.knowledgeSources()).isNotEmpty();
-        assertEquals("测试开发学习路线", dto.knowledgeSources().get(0).get("title"));
     }
 
     @Test
@@ -457,7 +368,7 @@ class CareerDevelopmentReportServiceImplTest {
         verify(reportMapper, never()).insert(any(CareerDevelopmentReport.class));
     }
 
-    private void stubInsertNewVersion(long id) {
+    private void stubInsertReport(long id) {
         when(reportMapper.insert(any(CareerDevelopmentReport.class))).thenAnswer(invocation -> {
             CareerDevelopmentReport entity = invocation.getArgument(0);
             entity.setId(id);

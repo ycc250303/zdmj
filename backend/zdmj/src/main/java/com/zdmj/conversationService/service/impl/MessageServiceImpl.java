@@ -20,7 +20,7 @@ import com.zdmj.conversationService.enums.MessageRoleEnum;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.service.MessageService;
-import com.zdmj.knowledgeService.service.KnowledgeRagService;
+import com.zdmj.knowledgeService.api.KnowledgeRagService;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;

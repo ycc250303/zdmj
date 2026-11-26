@@ -135,7 +135,7 @@ class KnowledgeFlowIT extends IntegrationTestBase {
         assertThat(JsonPath.<Number>read(scoped, "$.data.hits[0].chunkIndex").intValue()).isZero();
         assertThat(JsonPath.<Number>read(scoped, "$.data.hits[0].score").doubleValue()).isCloseTo(1.0,
                 org.assertj.core.data.Offset.offset(0.0001));
-        assertThat(JsonPath.<Object>read(scoped, "$.data.hits[0].docCategory")).isNull();
+        assertThat(JsonPath.<String>read(scoped, "$.data.hits[0].docCategory")).isEqualTo("learning");
 
         String unscoped = ApiClient.requireOk(api.post(token, "/knowledge/retrievals", """
                 {"query":"检索甲","useSystemKnowledge":false}

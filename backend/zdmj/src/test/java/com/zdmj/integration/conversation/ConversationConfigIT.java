@@ -20,7 +20,7 @@ import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.service.ConversationService;
 import com.zdmj.conversationService.service.MessageService;
 import com.zdmj.common.exception.BusinessException;
-import com.zdmj.knowledgeService.service.KnowledgeRagService;
+import com.zdmj.knowledgeService.api.KnowledgeRagService;
 import com.zdmj.testsupport.ApiClient;
 import com.zdmj.testsupport.DatabaseCleaner;
 import com.zdmj.testsupport.IntegrationTestBase;

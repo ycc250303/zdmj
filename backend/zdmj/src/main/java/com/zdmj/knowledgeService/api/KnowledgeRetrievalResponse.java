@@ -1,4 +1,4 @@
-package com.zdmj.knowledgeService.dto;
+package com.zdmj.knowledgeService.api;
 
 import java.util.List;
 
@@ -18,7 +18,7 @@ public record KnowledgeRetrievalResponse(
         Integer topK,
         Double minScore,
         boolean rewriteUsed,
-        List<KnowledgeRetrivalDTO> hits) {
+        List<KnowledgeHit> hits) {
 
     /** 复制集合结构，保留既有空值和元素语义。 */
     public KnowledgeRetrievalResponse {
