@@ -139,6 +139,11 @@ print("原文件检查通过，文档数量=", len(rows))
 PYTHON
 }
 
+# release调用时继承已持有的任务锁，独立执行时自行取得。
+if [[ "${SKIP_SYNC:-}" != "1" ]]; then
+  lock_javaguide_maintenance
+fi
+
 if [[ -n "${STORAGE_ACTION:-}" ]]; then
   case "$STORAGE_ACTION" in
     init|check|backup) storage_maintenance "$STORAGE_ACTION" ;;

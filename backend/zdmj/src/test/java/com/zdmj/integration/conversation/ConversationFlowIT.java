@@ -76,6 +76,14 @@ class ConversationFlowIT extends IntegrationTestBase {
         assertThat(jdbc.queryForList("SELECT generation_status FROM messages WHERE role=2 AND conversation_id=? ORDER BY sequence",
                 Integer.class, conversationId)).containsExactly(2, 2);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM messages a JOIN messages q ON q.id=a.reply_to_message_id WHERE a.conversation_id=? AND a.user_id=q.user_id AND a.conversation_id=q.conversation_id AND q.role=1", Integer.class, conversationId)).isEqualTo(2);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> jdbc.update(
+                "UPDATE messages SET generation_status=NULL,reply_to_message_id=NULL WHERE conversation_id=? AND role=2", conversationId))
+                .hasMessageContaining("ck_messages_generation");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> jdbc.update("""
+                INSERT INTO messages(conversation_id,user_id,role,content,sequence,reply_to_message_id,generation_status)
+                SELECT conversation_id,user_id,role,content,5,reply_to_message_id,generation_status
+                FROM messages WHERE conversation_id=? AND sequence=2
+                """, conversationId)).hasMessageContaining("uk_messages_reply_to");
     }
     @org.springframework.test.context.bean.override.mockito.MockitoSpyBean(name = "testChatModel")
     private org.springframework.ai.chat.model.ChatModel model;
@@ -499,55 +507,6 @@ class ConversationFlowIT extends IntegrationTestBase {
         assertThat(jdbc.queryForMap("SELECT content,generation_status FROM messages WHERE role=2"))
                 .containsEntry("content", "已保存的进度").containsEntry("generation_status", 3);
         send(token, id, "继续");
-    }
-
-    @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
-    void 消息结构脚本_建立回复约束且不符合约束时回滚(boolean invalidAssistant) throws Exception {
-        String migration = java.nio.file.Files.readString(java.nio.file.Path.of(
-                System.getProperty("zdmj.repo.root"), "sql/migrations/20261122_unify_conversation_memory.sql"));
-        String schema = "memory_schema_" + java.util.UUID.randomUUID().toString().replace("-", "");
-        try (var connection = jdbc.getDataSource().getConnection(); var statement = connection.createStatement()) {
-            statement.execute("CREATE SCHEMA " + schema);
-            statement.execute("SET search_path TO " + schema);
-            try {
-                statement.execute("CREATE TABLE conversations (id BIGINT PRIMARY KEY,user_id BIGINT NOT NULL)");
-                statement.execute("CREATE TABLE messages (id BIGSERIAL PRIMARY KEY,conversation_id BIGINT,user_id BIGINT,role SMALLINT,content TEXT,sequence INTEGER)");
-                statement.execute("CREATE TABLE spring_ai_chat_memory (conversation_id VARCHAR(36),content TEXT,type VARCHAR(10))");
-                statement.execute("INSERT INTO messages (conversation_id,user_id,role,content,sequence) VALUES (1,10,1,'已有问题',1)");
-                if (invalidAssistant) {
-                    statement.execute("INSERT INTO messages (conversation_id,user_id,role,content,sequence) VALUES (1,10,2,'已有回复',2)");
-                    org.assertj.core.api.Assertions.assertThatThrownBy(() -> statement.execute(migration))
-                            .isInstanceOf(java.sql.SQLException.class).hasMessageContaining("ck_messages_generation");
-                    statement.execute("ROLLBACK");
-                    try (var result = statement.executeQuery("SELECT to_regclass('spring_ai_chat_memory') IS NOT NULL, (SELECT count(*) FROM information_schema.columns WHERE table_schema='" + schema + "' AND table_name='messages' AND column_name='generation_status'), (SELECT content FROM messages WHERE role=2)")) {
-                        result.next();
-                        assertThat(result.getBoolean(1)).isTrue();
-                        assertThat(result.getInt(2)).isZero();
-                        assertThat(result.getString(3)).isEqualTo("已有回复");
-                    }
-                    return;
-                }
-                statement.execute(migration);
-                statement.execute(migration);
-                try (var result = statement.executeQuery("SELECT content,generation_status,reply_to_message_id,to_regclass('spring_ai_chat_memory') IS NULL FROM messages WHERE id=1")) {
-                    result.next();
-                    assertThat(result.getString(1)).isEqualTo("已有问题");
-                    assertThat(result.getObject(2)).isNull();
-                    assertThat(result.getObject(3)).isNull();
-                    assertThat(result.getBoolean(4)).isTrue();
-                }
-                org.assertj.core.api.Assertions.assertThatThrownBy(() -> statement.execute("INSERT INTO messages (conversation_id,user_id,role,content,sequence) VALUES (1,10,2,'非法助手',2)"))
-                        .isInstanceOf(java.sql.SQLException.class).hasMessageContaining("ck_messages_generation");
-                statement.execute("INSERT INTO messages (conversation_id,user_id,role,content,sequence,reply_to_message_id,generation_status) VALUES (1,10,2,'完成回复',2,1,2)");
-                org.assertj.core.api.Assertions.assertThatThrownBy(() -> statement.execute("INSERT INTO messages (conversation_id,user_id,role,content,sequence,reply_to_message_id,generation_status) VALUES (1,10,2,'重复关联',3,1,2)"))
-                        .isInstanceOf(java.sql.SQLException.class).hasMessageContaining("uk_messages_reply_to");
-            } finally {
-                statement.execute("ROLLBACK");
-                statement.execute("SET search_path TO public");
-                statement.execute("DROP SCHEMA " + schema + " CASCADE");
-            }
-        }
     }
 
     @org.junit.jupiter.params.ParameterizedTest

@@ -13,6 +13,9 @@ public interface KnowledgeVectorMapper extends BaseMapper<KnowledgeVector> {
     /** 只删除指定用户私有文档的向量，返回实际删除数量。 */
     int deleteByDocumentIdAndUserId(@Param("documentId") Long documentId, @Param("userId") Long userId);
 
+    /** 只删除SYSTEM、空用户且来源键为系统知识库的指定文档向量。 */
+    int deleteSystemByDocumentId(@Param("documentId") Long documentId);
+
     /** 批量保存已经完成嵌入的分块，返回实际插入数量。 */
     int batchInsert(@Param("rows") List<KnowledgeVector> rows);
 

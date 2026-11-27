@@ -22,6 +22,13 @@
       AND kd.scope = #{userScope} AND kd.user_id = #{userId}
   </delete>
 
+  <delete id="deleteSystemByDocumentId">
+    <bind name="systemScope" value="@com.zdmj.knowledgeService.enums.KnowledgeScopeEnum@SYSTEM.getCode()" />
+    DELETE FROM knowledge_vectors kv USING knowledge_documents kd
+    WHERE kv.document_id = kd.id AND kd.id = #{documentId}
+      AND kd.scope = #{systemScope} AND kd.user_id IS NULL AND kd.content LIKE 'javaguide:docs/%'
+  </delete>
+
   <insert id="batchInsert">
     INSERT INTO knowledge_vectors (
       document_id,

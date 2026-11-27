@@ -49,6 +49,8 @@ spring:
       max-request-size: 25MB
 
   ai:
+    retry:
+      max-attempts: 1
     model:
       chat: none
     openai:

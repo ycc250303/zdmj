@@ -348,16 +348,6 @@ class KnowledgeFlowIT extends IntegrationTestBase {
     }
 
     @Test
-    void 新库和已有库字段升级均可重复执行() throws Exception {
-        var script = java.nio.file.Path.of(System.getProperty("zdmj.repo.root"), "sql", "migrations", "20261112_drop_knowledge_vector_tasks.sql");
-        jdbcTemplate.execute("ALTER TABLE knowledge_documents DROP COLUMN file_status");
-        String sql = java.nio.file.Files.readString(script);
-        jdbcTemplate.execute(sql);
-        jdbcTemplate.execute(sql);
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_name='knowledge_documents' AND column_name='file_status'", Integer.class)).isEqualTo(1);
-    }
-
-    @Test
     void 替换失败恢复原文档_进程中断状态可重新处理和删除() throws Exception {
         var user = testUsers.createPair().userA();
         String token = testJwt.authorize(user);

@@ -63,7 +63,7 @@ public class KnowledgeDocument extends BaseEntity {
     private String title;
 
     /**
-     * 原文件 SHA-256，对应 content_hash，为64位十六进制摘要。
+     * 私有原文件或系统清理正文的 SHA-256，对应 content_hash，为64位十六进制摘要。
      */
     private String contentHash;
 

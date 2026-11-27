@@ -12,6 +12,14 @@ import com.zdmj.common.exception.ErrorCode;
 public interface EmbeddingGateway {
 
     /**
+     * 为服务器命令行导入计算平台向量。
+     * @param texts 非空且不含空白项的文本列表
+     * @return 与文本顺序一致的向量；结果数量非法时立即失败
+     */
+    List<float[]> embedSystem(List<String> texts);
+
+
+    /**
      * 按文本顺序计算向量。
      *
      * @param actor 当前操作者，用户主键为空时抛出 {@link ErrorCode#USER_NOT_LOGIN}

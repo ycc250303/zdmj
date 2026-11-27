@@ -25,3 +25,19 @@ require_head_matches_sha() {
     exit 1
   fi
 }
+
+# 发布与资料更新共用排他锁；描述符由调用脚本持有至本次发布结束。
+lock_javaguide_maintenance() {
+  local data_root="${JAVAGUIDE_DATA_ROOT:-/opt/zdmj/data/knowledge-sync/javaguide}"
+  if [[ ! -d "$data_root" ]]; then
+    return
+  fi
+  exec 8>"$data_root/update.lock"
+  flock -n 8 || { echo "错误: JavaGuide资料任务正在执行，暂停发布" >&2; exit 75; }
+  local existing_container
+  existing_container="$(docker ps -aq --filter 'name=^/zdmj-javaguide-import$')"
+  if [[ -n "$existing_container" ]]; then
+    echo "错误: JavaGuide导入容器仍存在，请检查执行结果" >&2
+    exit 75
+  fi
+}

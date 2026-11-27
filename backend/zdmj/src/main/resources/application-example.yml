@@ -52,6 +52,8 @@ spring:
    
   # 对话使用用户配置；平台密钥只用于嵌入
   ai:
+    retry:
+      max-attempts: 1
     model:
       chat: none
     openai:

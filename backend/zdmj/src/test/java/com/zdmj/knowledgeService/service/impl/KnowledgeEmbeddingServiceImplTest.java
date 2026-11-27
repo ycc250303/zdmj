@@ -1,6 +1,13 @@
 package com.zdmj.knowledgeService.service.impl;
 
 import com.zdmj.common.context.CurrentActor;
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.*;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.stream.IntStream;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -43,6 +50,7 @@ import com.zdmj.knowledgeService.config.KnowledgeDocumentConfig;
 import java.io.InputStream;
 import java.io.IOException;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
+import com.zdmj.knowledgeService.entity.KnowledgeVector;
 import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
 import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
 import com.zdmj.knowledgeService.enums.KnowledgeEmbeddingStatusEnum;
@@ -307,4 +315,100 @@ class KnowledgeEmbeddingServiceImplTest {
         return document;
     }
 
+    private static final String SOURCE = "https://github.com/Snailclimb/JavaGuide/blob/" + "a".repeat(40) + "/docs/java/test.md";
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void 两种来源按同一批量规则保存关联来源和片段顺序(boolean system) {
+        var rows = rows(501);
+        List<List<KnowledgeVector>> saved = new ArrayList<>();
+        when(knowledgeVectorMapper.deleteSystemByDocumentId(42L)).thenReturn(1);
+        when(knowledgeVectorMapper.batchInsert(anyList())).thenAnswer(call -> {
+            List<KnowledgeVector> batch = call.getArgument(0);
+            saved.add(List.copyOf(batch));
+            return batch.size();
+        });
+
+        replace(system, rows);
+
+        assertThat(saved).extracting(List::size).containsExactly(500, 1);
+        assertThat(saved.stream().flatMap(List::stream).toList()).containsExactlyElementsOf(rows);
+        assertThat(rows).allSatisfy(row -> {
+            assertThat(row.getDocumentId()).isEqualTo(42L);
+            assertThat(row.getMetadata()).isEqualTo(system ? Map.of("source", SOURCE)
+                    : Map.of("DocumentId", "42", "source", "/knowledge-document/42/download"));
+        });
+        assertThat(rows).extracting(KnowledgeVector::getChunkIndex).containsExactlyElementsOf(IntStream.range(0, 501).boxed().toList());
+        var order = inOrder(knowledgeVectorMapper);
+        if (system) {
+            order.verify(knowledgeVectorMapper).deleteSystemByDocumentId(42L);
+            verify(knowledgeVectorMapper, never()).deleteByDocumentIdAndUserId(any(), any());
+        } else {
+            order.verify(knowledgeVectorMapper).deleteByDocumentIdAndUserId(42L, 7L);
+            verify(knowledgeVectorMapper, never()).deleteSystemByDocumentId(any());
+        }
+        order.verify(knowledgeVectorMapper, times(2)).batchInsert(anyList());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void 第二批写入数量异常立即终止后续批次(boolean system) {
+        when(knowledgeVectorMapper.deleteSystemByDocumentId(42L)).thenReturn(1);
+        when(knowledgeVectorMapper.batchInsert(anyList())).thenReturn(500, 0);
+
+        assertThatThrownBy(() -> replace(system, rows(1001))).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("向量写入数量");
+        verify(knowledgeVectorMapper, times(2)).batchInsert(anyList());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void 数据库异常保留原始原因并立即终止(boolean system) {
+        when(knowledgeVectorMapper.deleteSystemByDocumentId(42L)).thenReturn(1);
+        var failure = new org.springframework.dao.DataAccessResourceFailureException("测试数据库故障");
+        when(knowledgeVectorMapper.batchInsert(anyList())).thenThrow(failure);
+
+        assertThatThrownBy(() -> replace(system, rows(501))).isSameAs(failure);
+        verify(knowledgeVectorMapper).batchInsert(anyList());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {-1, 0, 2})
+    void 系统旧片段删除数量异常时禁止插入(int deleted) {
+        when(knowledgeVectorMapper.deleteSystemByDocumentId(42L)).thenReturn(deleted);
+        assertThatThrownBy(() -> KnowledgeEmbeddingServiceImpl.replaceSystem(knowledgeVectorMapper, 42L, 1, SOURCE, rows(1)))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("删除数量");
+        verify(knowledgeVectorMapper, never()).batchInsert(anyList());
+    }
+
+    @Test
+    void 新增系统文档没有旧片段时直接写入() {
+        when(knowledgeVectorMapper.batchInsert(anyList())).thenReturn(1);
+        KnowledgeEmbeddingServiceImpl.replaceSystem(knowledgeVectorMapper, 42L, 0, SOURCE, rows(1));
+        verify(knowledgeVectorMapper, never()).deleteSystemByDocumentId(any());
+        verify(knowledgeVectorMapper).batchInsert(anyList());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void 待写入片段为空时禁止删除或插入(boolean system) {
+        assertThatThrownBy(() -> replace(system, List.of())).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> replace(system, null)).isInstanceOf(IllegalArgumentException.class);
+        verifyNoInteractions(knowledgeVectorMapper);
+    }
+
+    private void replace(boolean system, List<KnowledgeVector> rows) {
+        if (system) { KnowledgeEmbeddingServiceImpl.replaceSystem(knowledgeVectorMapper, 42L, 1, SOURCE, rows); }
+        else { KnowledgeEmbeddingServiceImpl.replaceUser(knowledgeVectorMapper, 42L, 7L, rows); }
+    }
+
+    private static List<KnowledgeVector> rows(int count) {
+        return IntStream.range(0, count).mapToObj(index -> {
+            var row = new KnowledgeVector();
+            row.setDocumentId(99L);
+            row.setMetadata(Map.of("source", "待替换来源"));
+            row.setChunkIndex(index);
+            return row;
+        }).toList();
+    }
 }

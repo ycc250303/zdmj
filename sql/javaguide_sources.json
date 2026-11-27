@@ -1,0 +1,392 @@
+{
+  "repository": "https://github.com/Snailclimb/JavaGuide",
+  "scope": "SYSTEM",
+  "include_directories": [
+    "java",
+    "cs-basics",
+    "database",
+    "system-design",
+    "distributed-system",
+    "high-performance",
+    "high-availability",
+    "tools",
+    "ai/llm-basis",
+    "ai/agent",
+    "ai/rag",
+    "ai/system-design",
+    "roadmap"
+  ],
+  "include_files": [
+    "ai/ai-core-concepts.md",
+    "ai/interview-questions/agent-project-interview-guide.md",
+    "interview-preparation/resume-guide.md",
+    "interview-preparation/project-experience-guide.md",
+    "interview-preparation/backend-project-interview-guide.md",
+    "interview-preparation/internship-experience.md",
+    "interview-preparation/how-to-handle-interview-nerves.md",
+    "interview-preparation/backend-interview-plan.md",
+    "interview-preparation/key-points-of-interview.md",
+    "interview-preparation/teach-you-how-to-prepare-for-the-interview-hand-in-hand.md"
+  ],
+  "exclude_files": [
+    "java/collection/priorityqueue-source-code.md",
+    "database/elasticsearch/elasticsearch-questions-01.md",
+    "database/redis/redis-cluster.md",
+    "system-design/design-pattern.md",
+    "system-design/framework/netty.md",
+    "system-design/framework/spring/springboot-knowledge-and-questions-summary.md",
+    "system-design/framework/spring/springboot-source-code.md",
+    "system-design/system-design-questions.md"
+  ],
+  "duplicate_files": {
+    "system-design/framework/spring/Async.md": "system-design/framework/spring/async.md"
+  },
+  "drop_snippets": [
+    "@article-header.snippet.md",
+    "@article-footer.snippet.md",
+    "@small-advertisement.snippet.md",
+    "@planet.snippet.md",
+    "@planet2.snippet.md",
+    "@yuanma.snippet.md",
+    "@rag-project.snippet.md"
+  ],
+  "section_rules": [
+    {
+      "id": "drop_promo_section",
+      "paths": [
+        "database/mysql/mysql-questions-01.md"
+      ],
+      "title": "⭐️MySQL 日志",
+      "content_hash": "ddf371c7ce1202f72c412e23ab2f1122d079950b24509e0349f39ca9c3febcfc"
+    },
+    {
+      "id": "drop_promo_section",
+      "paths": [
+        "database/mysql/mysql-questions-01.md"
+      ],
+      "title": "有哪些常见的 SQL 优化手段？",
+      "content_hash": "b0ecaa02d4c7857aa174982a421d23b328490cbfea084f50cc711f494c353e09"
+    },
+    {
+      "id": "drop_promo_section",
+      "paths": [
+        "distributed-system/rpc/rpc-intro.md"
+      ],
+      "title": "如何设计并实现一个 RPC 框架？",
+      "content_hash": "d5ec94db25ea24442b2174ad9e186ba03fd399b3777141a22cded019dcc6b443"
+    },
+    {
+      "id": "drop_promo_section",
+      "paths": [
+        "interview-preparation/resume-guide.md"
+      ],
+      "title": "简历修改",
+      "content_hash": "0f9086abca17c4b1a1ffa13d08931e7eb6d156117f0ec4e2cb0501e95f29807b"
+    },
+    {
+      "id": "drop_promo_section",
+      "paths": [
+        "interview-preparation/project-experience-guide.md"
+      ],
+      "title": "有没有还不错的项目推荐？",
+      "content_hash": "add96fdccc5f8b8244033b7e1666ab522f2ae0432224b947dbce2de6ce508c35"
+    },
+    {
+      "id": "drop_promo_section",
+      "paths": [
+        "roadmap/java-roadmap.md"
+      ],
+      "title": "公众号(推荐)",
+      "content_hash": "dcf91de4d2a98a7b513e00bfa23350ead71033fdf7e4b35ccbd5a743019e0cf3"
+    },
+    {
+      "id": "drop_promo_section",
+      "paths": [
+        "roadmap/java-roadmap.md"
+      ],
+      "title": "知识星球",
+      "content_hash": "7869dd624af8b39d6e1ad0191355a663fcb8816977a95c5d4d1a2d1ac83306ec"
+    }
+  ],
+  "block_rules": [
+    {
+      "id": "drop_paid_column_intro",
+      "paths": [
+        "interview-preparation/*"
+      ],
+      "pattern": "^::: tip 友情提示\\n本文节选自[\\s\\S]*\\n:::$"
+    },
+    {
+      "id": "drop_private_resume_template",
+      "paths": [
+        "interview-preparation/*"
+      ],
+      "pattern": "^另外，知识星球里还有真实的简历模板"
+    },
+    {
+      "id": "drop_interface_promo",
+      "paths": [
+        "system-design/framework/spring/spring-transaction.md"
+      ],
+      "pattern": "^我前段时间在我的\\[知识星球\\]"
+    },
+    {
+      "id": "drop_project_column_intro",
+      "paths": [
+        "interview-preparation/*"
+      ],
+      "pattern": "^我在 \\*\\*\\[《Java 面试指北》"
+    },
+    {
+      "id": "drop_private_optimization_cases",
+      "paths": [
+        "interview-preparation/*"
+      ],
+      "pattern": "^另外，我在星球分享过常见的性能优化方向实践案例"
+    },
+    {
+      "id": "drop_paid_sorted_set_article",
+      "paths": [
+        "database/redis/*"
+      ],
+      "pattern": "^\\[《Java 面试指北》\\].*Sorted Set"
+    },
+    {
+      "id": "drop_paid_nginx_article",
+      "paths": [
+        "high-performance/load-balancing.md"
+      ],
+      "pattern": "^关于 Nginx 的常见知识点总结，"
+    },
+    {
+      "id": "drop_paid_thread_pool_article",
+      "paths": [
+        "java/concurrent/java-concurrent-questions-03.md"
+      ],
+      "pattern": "^还没看够？我在"
+    },
+    {
+      "id": "drop_paid_upload_article",
+      "paths": [
+        "java/io/io-basis.md"
+      ],
+      "pattern": "^我在\\[《Java 面试指北》\\].*大文件的上传"
+    },
+    {
+      "id": "drop_paid_schedule_article",
+      "paths": [
+        "system-design/schedule-task.md"
+      ],
+      "pattern": "^这部分内容的详细介绍我放在了"
+    },
+    {
+      "id": "drop_paid_self_test",
+      "paths": [
+        "interview-preparation/*"
+      ],
+      "pattern": "^(?:\\*\\*技术面试题自测\\*\\*：在|\\[《Java 面试指北》\\].*自测篇.*概览)"
+    },
+    {
+      "id": "drop_column_recommendation",
+      "paths": [
+        "interview-preparation/*"
+      ],
+      "pattern": "^八股文资料首推我的"
+    },
+    {
+      "id": "drop_paid_algorithm_preparation",
+      "paths": [
+        "interview-preparation/*"
+      ],
+      "pattern": "^关于如何准备算法面试\\[《Java 面试指北》"
+    },
+    {
+      "id": "drop_private_career_article",
+      "paths": [
+        "roadmap/backend-to-ai-agent-roadmap.md"
+      ],
+      "pattern": "^我之前也分享过 AI 时代前后端开发者的核心竞争力"
+    },
+    {
+      "id": "drop_pdf_collection",
+      "paths": [
+        "roadmap/java-roadmap.md"
+      ],
+      "pattern": "^上面这张图片的原图\\+PDF 版本"
+    },
+    {
+      "id": "drop_private_mq_resources",
+      "paths": [
+        "roadmap/java-roadmap.md"
+      ],
+      "pattern": "^Kafka、RocketMQ、RabbitMQ 学习资源推荐请看"
+    },
+    {
+      "id": "drop_paid_course",
+      "paths": [
+        "roadmap/java-roadmap.md"
+      ],
+      "pattern": "^付费专栏的话，推荐一个极客时间的"
+    },
+    {
+      "id": "drop_course_download_promo",
+      "paths": [
+        "roadmap/java-roadmap.md"
+      ],
+      "pattern": "^👉我整理了尚硅谷最新的 Java 后端学习系列完整的视频教程"
+    },
+    {
+      "id": "drop_promo_image",
+      "paths": [
+        "*"
+      ],
+      "pattern": "^(?:!\\[[^\\n]*\\]\\([^\\n]*(?:gongzhonghao[^/\\n)]*|xingqiufuwu\\.png|xingqiuyouhuijuan[^/\\n)]*|xingqiu\\.png|interview-guide-banner\\.png|javamianshizhibei-content-overview\\.png|technical-interview-questions-self-test\\.png|preparation-for-interview\\.png|image-20230918073550606\\.png|mukewangzhiazhanke\\.png|javaguide-practical-project\\.png)\\)|<img[^\\n]*gongzhonghao)[^\\n]*$"
+    }
+  ],
+  "text_rules": [
+    {
+      "id": "remove_community_anecdote",
+      "paths": [
+        "ai/agent/mcp.md"
+      ],
+      "pattern": "之前在星球群里看大家讨论 MCP 的时候，有不少同学都是这样认为的。",
+      "replacement": ""
+    },
+    {
+      "id": "retain_sse_example",
+      "paths": [
+        "ai/llm-basis/llm-api-engineering.md"
+      ],
+      "pattern": "小 G 在\\[《SpringAI 智能面试平台\\+RAG 知识库》\\]\\([^)]*\\)的知识库问答里用的就是 SSE：",
+      "replacement": "知识库问答可以使用 SSE："
+    },
+    {
+      "id": "retain_vector_store_example",
+      "paths": [
+        "ai/rag/rag-vector-store.md"
+      ],
+      "pattern": "这里以 \\[《SpringAI 智能面试平台\\+RAG 知识库》\\]\\([^)]*\\)项目为例。",
+      "replacement": "这里以知识库项目为例。"
+    },
+    {
+      "id": "retain_gateway_example",
+      "paths": [
+        "ai/system-design/llm-gateway.md"
+      ],
+      "pattern": "我的 \\[AI 面试平台\\]\\([^)]*\\)",
+      "replacement": "示例中的 AI 面试平台"
+    },
+    {
+      "id": "retain_stream_example",
+      "paths": [
+        "database/redis/redis-stream-mq.md"
+      ],
+      "pattern": "我的 \\[《SpringAI 智能面试平台\\+RAG 知识库》\\]\\([^)]*\\)项目就是用的",
+      "replacement": "示例项目使用"
+    },
+    {
+      "id": "retain_resume_advice",
+      "paths": [
+        "interview-preparation/resume-guide.md"
+      ],
+      "pattern": "项目经历这部分对于简历来说非常重要，\\[《Java 面试指北》\\].*",
+      "replacement": "项目经历这部分对于简历来说非常重要。"
+    },
+    {
+      "id": "retain_public_design_resources",
+      "paths": [
+        "interview-preparation/backend-interview-plan.md"
+      ],
+      "pattern": "短链、秒杀、海量数据处理等完整场景可参考\\[后端面试高频系统设计与场景题\\]\\([^)]*\\)。",
+      "replacement": ""
+    },
+    {
+      "id": "remove_private_jvm_cases",
+      "paths": [
+        "interview-preparation/key-points-of-interview.md"
+      ],
+      "pattern": "（我之前分享过一些\\[常见的线上问题案例\\]\\([^)]*\\)，里面就有 JVM 相关的）。",
+      "replacement": "。"
+    },
+    {
+      "id": "retain_interview_review",
+      "paths": [
+        "interview-preparation/key-points-of-interview.md"
+      ],
+      "pattern": "面试问题可以参考 \\[Java 面试常见问题总结[^\\n]*",
+      "replacement": ""
+    },
+    {
+      "id": "retain_transition_questions",
+      "paths": [
+        "roadmap/backend-to-ai-agent-roadmap.md"
+      ],
+      "pattern": "最近后台和星球里，经常看到类似的问题：",
+      "replacement": "后端开发者经常会遇到以下问题："
+    },
+    {
+      "id": "remove_member_anecdote",
+      "paths": [
+        "roadmap/backend-to-ai-agent-roadmap.md"
+      ],
+      "pattern": "星球里也有不少球友反馈过类似经历：",
+      "replacement": ""
+    },
+    {
+      "id": "remove_private_resource_claim",
+      "paths": [
+        "roadmap/backend-to-ai-agent-roadmap.md"
+      ],
+      "pattern": "JavaGuide 和星球里也会持续整理 AI 应用开发路线、项目和面试材料。",
+      "replacement": ""
+    },
+    {
+      "id": "retain_self_study_table",
+      "paths": [
+        "roadmap/backend-to-ai-agent-roadmap.md"
+      ],
+      "pattern": "自学（网课 \\+ 文档 \\+ 星球资料）",
+      "replacement": "自学（网课 + 文档）"
+    },
+    {
+      "id": "retain_ai_route_intro",
+      "paths": [
+        "roadmap/java-to-ai-roadmap.md"
+      ],
+      "pattern": "JavaGuide 这两年陆续写了不少 AI 应用开发文章，公众号累计阅读超过 100w\\+。",
+      "replacement": ""
+    },
+    {
+      "id": "retain_ai_route_questions",
+      "paths": [
+        "roadmap/java-to-ai-roadmap.md"
+      ],
+      "pattern": "公众号后台经常看到类似的留言：",
+      "replacement": "常见的问题包括："
+    },
+    {
+      "id": "retain_self_test_advice",
+      "paths": [
+        "roadmap/java-roadmap.md"
+      ],
+      "pattern": "纸上学来终觉浅，躬行此事要知难。为了帮助你更好地将知识内化，我特别准备了一份与该学习路线完全匹配的高频面试题集：[^\\n]*",
+      "replacement": "学习过程中，可以通过高频面试题自测，检验自己对知识点的掌握情况。"
+    },
+    {
+      "id": "retain_internship_example",
+      "paths": [
+        "interview-preparation/internship-experience.md"
+      ],
+      "pattern": "下面是\\[星球\\]\\([^)]*\\)一位球友分享的实习经历介绍，整体写的还是非常不错的：",
+      "replacement": "下面是一份实习经历介绍示例："
+    }
+  ],
+  "forbidden_patterns": [
+    "@include:",
+    "知识星球|星球专属|加入星球|星球里|星球群|星球资料",
+    "t\\.zsxq\\.com",
+    "(?:javaguide\\.cn|\\.\\.)/(?:zhuanlan|about-the-author/zhishixingqiu)",
+    "公众号[^\\n]{0,20}(?:后台回复|后台.{0,12}获取|回复.{0,15}(?:获取|领取)|关注一波)",
+    "(?:gongzhonghao[^/\\s)]*\\.(?:png|jpg)|xingqiufuwu\\.png|xingqiuyouhuijuan[^/\\s)]*)"
+  ]
+}
