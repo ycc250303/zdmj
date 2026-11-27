@@ -3,6 +3,7 @@ package com.zdmj.userAuthService.controller;
 import io.swagger.v3.oas.annotations.Parameter;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.annotation.RateLimitDimension;
 import com.zdmj.common.model.Result;
 import com.zdmj.userAuthService.dto.UserResponse;
 import com.zdmj.userAuthService.dto.UserLoginRequest;
@@ -73,8 +74,8 @@ public class UserController {
      * @return 登录结果
      */
     @PostMapping("/login")
-    @RateLimit(dimension = RateLimit.Dimension.GLOBAL, count = 100, interval = 1, timeUnit = TimeUnit.MINUTES)
-    @RateLimit(dimension = RateLimit.Dimension.IP, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimitDimension.GLOBAL, count = 100, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimitDimension.IP, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     public Result<UserLoginResponse> login(@Valid @RequestBody UserLoginRequest loginDTO) {
         log.info("用户登录请求: {}", loginDTO.usernameOrEmail());
         UserLoginResponse response = userService.login(loginDTO);
@@ -89,8 +90,8 @@ public class UserController {
      * @return 发送结果
      */
     @PostMapping("/verification-codes")
-    @RateLimit(dimension = RateLimit.Dimension.GLOBAL, count = 200, interval = 1, timeUnit = TimeUnit.MINUTES)
-    @RateLimit(dimension = RateLimit.Dimension.IP, count = 5, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimitDimension.GLOBAL, count = 200, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimitDimension.IP, count = 5, interval = 1, timeUnit = TimeUnit.MINUTES)
     public Result<Void> sendVerificationCode(
             @RequestParam @NotBlank(message = "邮箱不能为空") @Email(message = "邮箱格式不正确") String email,
             @RequestParam String type) {
@@ -120,7 +121,7 @@ public class UserController {
      * @return 更新后的用户信息
      */
     @PutMapping("/me")
-    @RateLimit(dimension = RateLimit.Dimension.USER, count = 20, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimitDimension.USER, count = 20, interval = 1, timeUnit = TimeUnit.MINUTES)
     public Result<UserResponse> updateCurrentUser(@Parameter(hidden = true) CurrentActor actor, @Valid @RequestBody UserUpdateRequest updateDTO) {
         log.info("更新当前用户信息请求");
         UserResponse userDTO = userService.updateProfile(actor, actor.userId(), updateDTO);
@@ -134,8 +135,8 @@ public class UserController {
      * @return 是否存在
      */
     @GetMapping("/validation/username")
-    @RateLimit(dimension = RateLimit.Dimension.GLOBAL, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
-    @RateLimit(dimension = RateLimit.Dimension.IP, count = 5, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimitDimension.GLOBAL, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimitDimension.IP, count = 5, interval = 1, timeUnit = TimeUnit.MINUTES)
     public Result<Boolean> validateUsername(
             @RequestParam @NotBlank(message = "用户名不能为空") @Size(min = 3, max = 50, message = "用户名长度必须在3-50个字符之间") String username) {
         log.info("检查用户名是否存在: {}", username);

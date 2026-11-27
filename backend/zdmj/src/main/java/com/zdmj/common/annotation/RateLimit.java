@@ -13,7 +13,8 @@ import java.util.concurrent.TimeUnit;
 @Retention(RetentionPolicy.RUNTIME)
 @Repeatable(RateLimit.List.class)
 public @interface RateLimit {
-    Dimension dimension() default Dimension.GLOBAL;
+    /** 限流计数维度，默认全局共享。 */
+    RateLimitDimension dimension() default RateLimitDimension.GLOBAL;
 
     /** 时间窗口内允许的最大请求数 */
     double count();
@@ -23,11 +24,6 @@ public @interface RateLimit {
     
     /** 时间单位 */
     TimeUnit timeUnit() default TimeUnit.SECONDS;
-    
-    /** 限流维度 */ 
-    enum Dimension {
-        GLOBAL, IP, USER
-    }
     
     /** 可重复注解容器 */
     @Target(ElementType.METHOD)

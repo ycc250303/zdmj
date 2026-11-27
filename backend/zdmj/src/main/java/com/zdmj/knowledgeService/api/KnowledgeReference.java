@@ -54,12 +54,5 @@ public record KnowledgeReference(Long documentId, Integer chunkIndex, Double sco
 
     /** 兼容报告来源展示，只返回声明过的字段。 */
     @JsonProperty("metadata")
-    public Metadata metadata() { return new Metadata(title, docCategory); }
-
-    /**
-     * 报告 HTTP 响应的来源字段。
-     * @param documentTitle 展示标题
-     * @param docCategory 业务分类
-     */
-    public record Metadata(String documentTitle, String docCategory) { }
+    public KnowledgeReferenceMetadata metadata() { return new KnowledgeReferenceMetadata(title, docCategory); }
 }

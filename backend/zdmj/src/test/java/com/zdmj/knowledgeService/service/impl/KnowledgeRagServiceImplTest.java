@@ -1,5 +1,7 @@
 package com.zdmj.knowledgeService.service.impl;
 
+import com.zdmj.aiService.api.ModelMessageRole;
+import com.zdmj.aiService.api.ModelHistoryMessage;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -13,15 +15,12 @@ import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import com.zdmj.aiService.api.EmbeddingGateway;
-
 import com.zdmj.knowledgeService.config.RagConfig;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -33,7 +32,6 @@ import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
 import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
 import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
-
 import reactor.core.publisher.Flux;
 
 class KnowledgeRagServiceImplTest {
@@ -624,8 +622,8 @@ class KnowledgeRagServiceImplTest {
 
     private static ModelRequest answerRequest(String message, String prompt) {
         return new ModelRequest(message, prompt, null,
-                List.of(new ModelRequest.HistoryMessage(ModelRequest.HistoryMessage.Role.USER, "之前的任务"),
-                        new ModelRequest.HistoryMessage(ModelRequest.HistoryMessage.Role.ASSISTANT, "部分回复")),
+                List.of(new ModelHistoryMessage(ModelMessageRole.USER, "之前的任务"),
+                        new ModelHistoryMessage(ModelMessageRole.ASSISTANT, "部分回复")),
                 "上一轮生成失败");
     }
 }

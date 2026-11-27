@@ -1,5 +1,6 @@
 package com.zdmj.jobService.service.impl;
 
+import com.zdmj.common.model.PageParameters;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -23,7 +24,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -93,7 +93,7 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
     @Override
     public PageDTO<JobListItemResponse> getPage(JobPageQueryDTO query) {
         JobPageQueryDTO q = query != null ? query : new JobPageQueryDTO();
-        PageRequests.Normalized paging = PageRequests.normalize(q.getPage(), q.getLimit());
+        PageParameters paging = PageRequests.normalize(q.getPage(), q.getLimit());
 
         q.setCompanySizes(emptyToNull(q.getCompanySizes()));
         q.setFundingTypes(emptyToNull(q.getFundingTypes()));

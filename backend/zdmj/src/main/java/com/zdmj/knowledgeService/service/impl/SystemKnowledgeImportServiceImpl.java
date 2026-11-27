@@ -22,6 +22,7 @@ import com.zdmj.knowledgeService.dto.SystemKnowledgeImportResult;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
 import com.zdmj.knowledgeService.entity.KnowledgeVector;
 import com.zdmj.knowledgeService.enums.KnowledgeEmbeddingStatusEnum;
+import com.zdmj.knowledgeService.enums.KnowledgeFileStatusEnum;
 import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
 import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
@@ -70,7 +71,7 @@ public class SystemKnowledgeImportServiceImpl implements SystemKnowledgeImportSe
             if (Thread.currentThread().isInterrupted()) { throw new IllegalStateException("系统导入已中断"); }
             KnowledgeDocument previous = baseline.documents().get("javaguide:" + source.path());
             if (previous != null && source.hash().equals(previous.getContentHash())
-                    && Objects.equals(previous.getFileStatus(), KnowledgeDocument.FileStatus.READY.code())
+                    && Objects.equals(previous.getFileStatus(), KnowledgeFileStatusEnum.READY.code())
                     && Objects.equals(previous.getEmbeddingStatus(), KnowledgeEmbeddingStatusEnum.SUCCESS.getCode())) {
                 prepared.add(new SystemKnowledgePreparedDocument(source, List.of()));
                 continue;
@@ -119,7 +120,7 @@ public class SystemKnowledgeImportServiceImpl implements SystemKnowledgeImportSe
         if (matching.size() != current.size() || current.size() != sources.size() || matching.stream().anyMatch(doc ->
                 !Objects.equals(doc.getMetadata().get("manifestHash"), request.manifestHash())
                 || !Objects.equals(doc.getEmbeddingStatus(), KnowledgeEmbeddingStatusEnum.SUCCESS.getCode())
-                || !Objects.equals(doc.getFileStatus(), KnowledgeDocument.FileStatus.READY.code()))
+                || !Objects.equals(doc.getFileStatus(), KnowledgeFileStatusEnum.READY.code()))
                 || sources.stream().anyMatch(source -> {
                     KnowledgeDocument doc = baseline.documents().get("javaguide:" + source.path());
                     return doc == null || !source.hash().equals(doc.getContentHash());
@@ -153,7 +154,7 @@ public class SystemKnowledgeImportServiceImpl implements SystemKnowledgeImportSe
                 doc.setContent(key);
                 doc.setTitle(source.title());
                 doc.setContentHash(source.hash());
-                doc.setFileStatus(KnowledgeDocument.FileStatus.READY.code());
+                doc.setFileStatus(KnowledgeFileStatusEnum.READY.code());
                 doc.setEmbeddingStatus(KnowledgeEmbeddingStatusEnum.SUCCESS.getCode());
                 doc.setChunkCount(item.rows().size());
                 doc.setLastEmbeddedAt(completed);
@@ -166,7 +167,7 @@ public class SystemKnowledgeImportServiceImpl implements SystemKnowledgeImportSe
                         .set(KnowledgeDocument::getTitle, source.title())
                         .set(KnowledgeDocument::getContentHash, source.hash())
                         .set(KnowledgeDocument::getType, KnowledgeTypeEnum.GITHUB_REPO.getCode())
-                        .set(KnowledgeDocument::getFileStatus, KnowledgeDocument.FileStatus.READY.code())
+                        .set(KnowledgeDocument::getFileStatus, KnowledgeFileStatusEnum.READY.code())
                         .set(KnowledgeDocument::getEmbeddingStatus, KnowledgeEmbeddingStatusEnum.SUCCESS.getCode())
                         .set(KnowledgeDocument::getLastError, null)
                         .set(KnowledgeDocument::getUpdatedAt, completed)

@@ -3,7 +3,6 @@ package com.zdmj.resumeService.dto;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -16,94 +15,25 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ResumeImportParseResponse {
 
-    private PersonalInfo personalInfo;
+    /** 个人基本信息，对应 users 可导入字段，允许缺省。 */
+    private ResumeImportPersonalInfo personalInfo;
 
-    private List<EducationItem> educations = new ArrayList<>();
+    /** 教育经历，缺省为空列表，显式 null 由导入业务规范化。 */
+    private List<ResumeImportEducationItem> educations = new ArrayList<>();
 
-    private List<CareerItem> careers = new ArrayList<>();
+    /** 工作与实习经历，缺省为空列表，显式 null 由导入业务规范化。 */
+    private List<ResumeImportCareerItem> careers = new ArrayList<>();
 
-    private List<ProjectItem> projects = new ArrayList<>();
+    /** 项目经历，缺省为空列表，显式 null 由导入业务规范化。 */
+    private List<ResumeImportProjectItem> projects = new ArrayList<>();
 
+    /** 奖项经历，接受 honors、honorsAndAwards、honors_and_awards 别名。 */
     @JsonAlias({ "honors", "honorsAndAwards", "honors_and_awards" })
-    private List<AwardItem> awards = new ArrayList<>();
+    private List<ResumeImportAwardItem> awards = new ArrayList<>();
 
-    private List<SkillImportItem> skills = new ArrayList<>();
+    /** 技能条目，缺省为空列表，显式 null 由导入业务规范化。 */
+    private List<ResumeImportSkillItem> skills = new ArrayList<>();
 
+    /** 模型识别警告，缺省为空列表。 */
     private List<String> warnings = new ArrayList<>();
-
-    /**
-     * 简历导入识别的基本信息。
-     *
-     * @param name 姓名
-     * @param phone 联系电话
-     * @param email 电子邮箱
-     * @param major 前端展示用，users 表无独立 major 列
-     * @param homepageUrl 个人主页
-     * @param preferredWorkCity 意向工作城市
-     */
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public record PersonalInfo(
-            String name,
-            String phone,
-            String email,
-            String major,
-            @JsonAlias({ "homepageUrl", "website", "homepage" })
-            String homepageUrl,
-            @JsonAlias({ "preferredWorkCity", "targetCity", "expectedCity" })
-            String preferredWorkCity) {
-    }
-
-    @Data
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class EducationItem {
-        private String school;
-        private String major;
-        /** 1 博士 … 6 其他 */
-        private Integer degree;
-        private String startDate;
-        private String endDate;
-        private String gpa;
-    }
-
-    @Data
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class CareerItem {
-        private String company;
-        private String position;
-        private String startDate;
-        private String endDate;
-        private String details;
-    }
-
-    @Data
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class ProjectItem {
-        private String name;
-        private String role;
-        private String startDate;
-        private String endDate;
-        private String description;
-        private String contribution;
-        private List<String> techStack;
-        /** 字符串数组，每项一条亮点；没有则省略或空列表 */
-        private List<String> highlights;
-        private String url;
-    }
-
-    @Data
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class AwardItem {
-        @JsonAlias({ "awardName", "title", "honor" })
-        private String name;
-        @JsonAlias({ "date", "award_date" })
-        private String awardDate;
-        private String description;
-    }
-
-    @Data
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class SkillImportItem {
-        private String name;
-        private String description;
-    }
 }

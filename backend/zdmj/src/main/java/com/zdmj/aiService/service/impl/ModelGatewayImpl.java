@@ -5,7 +5,6 @@ import java.util.Objects;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.messages.AssistantMessage;
-
 import org.springframework.ai.chat.client.ChatClient.ChatClientRequestSpec;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.converter.BeanOutputConverter;
@@ -14,17 +13,15 @@ import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.ResponseFormat;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.aiService.support.ModelClientFactory;
-import com.zdmj.aiService.support.UserModelConfigurationReader.ResolvedConfiguration;
+import com.zdmj.aiService.dto.ResolvedModelConfiguration;
 import com.zdmj.aiService.support.UserModelConfigurationReader;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.prompt.PromptLoader;
-
 import reactor.core.publisher.Flux;
 
 /**
@@ -104,7 +101,7 @@ public class ModelGatewayImpl implements ModelGateway {
 
     /** 每次读取配置并构建无默认记忆的客户端；未配置时立即终止。 */
     protected ChatClient userChatClient(CurrentActor actor) {
-        ResolvedConfiguration resolved = configurationReader.find(actor)
+        ResolvedModelConfiguration resolved = configurationReader.find(actor)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_LLM_NOT_CONFIGURED));
         return ChatClient.builder(clients.buildUserModel(resolved.model(), resolved.apiKey())).build();
     }

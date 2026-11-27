@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.zdmj.common.model.BaseEntity;
+import com.zdmj.knowledgeService.enums.KnowledgeFileStatusEnum;
 import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -45,17 +46,8 @@ public class KnowledgeDocument extends BaseEntity {
      */
     private String content;
 
-    /** 原文件状态，对应 file_status：0 写入中、1 可用、2 写入失败、3 删除中。 */
+    /** 原文件状态，对应 file_status，码值由 {@link KnowledgeFileStatusEnum} 维护。 */
     private Integer fileStatus;
-
-    /** 文件状态独立于向量化状态；删除中禁止新的下载和向量提交。 */
-    public enum FileStatus {
-        WRITING(0), READY(1), FAILED(2), DELETING(3);
-        private final int code;
-        FileStatus(int code) { this.code = code; }
-        public int code() { return code; }
-    }
-
 
     /**
      * 文档标题

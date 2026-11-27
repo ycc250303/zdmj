@@ -9,6 +9,7 @@ import com.zdmj.careerReportService.dto.CareerReportUpdateRequest;
 import com.zdmj.careerReportService.service.CareerDevelopmentReportService;
 import com.zdmj.careerReportService.dto.CareerReportCheckResponse;
 import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.annotation.RateLimitDimension;
 import com.zdmj.common.model.Result;
 
 import java.util.concurrent.TimeUnit;
@@ -56,7 +57,7 @@ public class CareerDevelopmentReportController {
      * @param req   生成请求（可选：用户偏好、生成侧重点）
      * @return 保存后的报告
      */
-    @RateLimit(dimension = RateLimit.Dimension.USER, count = 5, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimitDimension.USER, count = 5, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/jobs/{jobId}")
     public Result<CareerReportResponse> generate(@Parameter(hidden = true) CurrentActor actor, @PathVariable Long jobId,
                                             @RequestBody(required = false) CareerReportGenerateRequest req) {
@@ -72,7 +73,7 @@ public class CareerDevelopmentReportController {
      * @param req 润色请求（可选：润色说明）
      * @return 润色后的报告
      */
-    @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimitDimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/{id}/polish")
     public Result<CareerReportResponse> polish(@Parameter(hidden = true) CurrentActor actor, @PathVariable Long id,
                                           @RequestBody(required = false) CareerReportPolishRequest req) {
@@ -87,7 +88,7 @@ public class CareerDevelopmentReportController {
      * @param id 报告ID
      * @return 检查结果
      */
-    @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimitDimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/{id}/integrity-check")
     public Result<CareerReportCheckResponse> integrityCheck(@Parameter(hidden = true) CurrentActor actor, @PathVariable Long id) {
         log.info("检查职业发展报告完整性: reportId={}", id);

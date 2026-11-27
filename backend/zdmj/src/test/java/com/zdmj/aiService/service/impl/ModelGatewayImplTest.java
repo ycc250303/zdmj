@@ -1,5 +1,7 @@
 package com.zdmj.aiService.service.impl;
 
+import com.zdmj.aiService.api.ModelMessageRole;
+import com.zdmj.aiService.api.ModelHistoryMessage;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -7,11 +9,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
-
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -23,17 +23,15 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
-
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.aiService.enums.ModelCode;
 import com.zdmj.aiService.support.ModelClientFactory;
-import com.zdmj.aiService.support.UserModelConfigurationReader.ResolvedConfiguration;
+import com.zdmj.aiService.dto.ResolvedModelConfiguration;
 import com.zdmj.aiService.support.UserModelConfigurationReader;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.prompt.PromptLoader;
-
 import reactor.core.publisher.Flux;
 
 /**
@@ -90,9 +88,9 @@ class ModelGatewayImplTest {
     @Test
     void calls_shouldReadCurrentConfigurationAndUseExplicitHistoryWithoutLeaking() {
         CurrentActor actor = new CurrentActor(1L);
-        var first = new ResolvedConfiguration(
+        var first = new ResolvedModelConfiguration(
                 ModelCode.DEEPSEEK_FLASH, "first-key");
-        var updated = new ResolvedConfiguration(
+        var updated = new ResolvedModelConfiguration(
                 ModelCode.QWEN_PLUS, "updated-key");
         when(configurationReader.find(actor)).thenReturn(Optional.of(first), Optional.of(updated),
                 Optional.of(updated), Optional.empty());
@@ -107,8 +105,8 @@ class ModelGatewayImplTest {
         var gateway = new ModelGatewayImpl(promptLoader, configurationReader, clients);
 
         assertEquals("reply", gateway.stream(actor, new ModelRequest("first", null, null,
-                List.of(new ModelRequest.HistoryMessage(ModelRequest.HistoryMessage.Role.USER, "previous"),
-                        new ModelRequest.HistoryMessage(ModelRequest.HistoryMessage.Role.ASSISTANT, "partial")),
+                List.of(new ModelHistoryMessage(ModelMessageRole.USER, "previous"),
+                        new ModelHistoryMessage(ModelMessageRole.ASSISTANT, "partial")),
                 "历史回复生成失败"))
                 .collectList().block(Duration.ofSeconds(5)).getFirst());
         assertEquals("reply", gateway.generate(actor, new ModelRequest("plain", null, null)));

@@ -1,5 +1,6 @@
 package com.zdmj.conversationService.service.impl;
 
+import com.zdmj.conversationService.dto.ConversationDeletedEvent;
 import java.time.LocalDateTime;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.zdmj.common.context.CurrentActor;
@@ -16,7 +17,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
 import java.math.BigInteger;
 import java.math.BigDecimal;
 import java.util.Arrays;
@@ -27,7 +27,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -252,7 +251,7 @@ class ConversationServiceImplTest {
 
         when(conversationMapper.selectOwnedForUpdate(24L, 1L)).thenReturn(owned);
         conversationService.delete(actor, 24L);
-        verify(events).publishEvent(new ConversationServiceImpl.Deleted(actor, 24L));
+        verify(events).publishEvent(new ConversationDeletedEvent(actor, 24L));
 
         verify(conversationMapper).selectOwnedForUpdate(24L, 1L);
         verify(messageMapper).delete(any(Wrapper.class));

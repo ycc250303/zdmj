@@ -1,5 +1,6 @@
 package com.zdmj.matchService.service.impl;
 
+import com.zdmj.resumeService.dto.StudentCapabilitySuggestion;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -23,7 +24,6 @@ import com.zdmj.matchService.enums.MatchDimension;
 import com.zdmj.matchService.mapper.JobStudentMatchMapper;
 import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
 import com.zdmj.resumeService.service.StudentCapabilityProfileService;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,13 +35,11 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -413,7 +411,7 @@ class JobStudentMatchServiceImplTest {
         p.setPracticalAbility("实习 3 个月");
         p.setSummary("Java 方向应届生");
         p.setStrengths(List.of("基础扎实"));
-        StudentCapabilityProfileResponse.Suggestion gap = new StudentCapabilityProfileResponse.Suggestion("技能缺失",
+        StudentCapabilitySuggestion gap = new StudentCapabilitySuggestion("技能缺失",
                 null, "缺少 Kafka 相关实践", "在项目中补充消息队列场景");
 
         p.setSuggestions(List.of(gap));

@@ -9,13 +9,14 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.PageRequests;
 import com.zdmj.common.storage.FileUploadService;
-import com.zdmj.common.storage.FileUploadService.StoredFile;
+import com.zdmj.common.storage.StoredFile;
 import com.zdmj.knowledgeService.dto.KnowledgeDocumentPublicResponse;
 import com.zdmj.knowledgeService.dto.KnowledgeDocumentRequest;
 import com.zdmj.knowledgeService.dto.KnowledgeDocumentResponse;
+import com.zdmj.knowledgeService.dto.KnowledgeDocumentDownload;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
 import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
-import com.zdmj.knowledgeService.entity.KnowledgeDocument.FileStatus;
+import com.zdmj.knowledgeService.enums.KnowledgeFileStatusEnum;
 import com.zdmj.knowledgeService.enums.KnowledgeEmbeddingStatusEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
@@ -57,7 +58,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         document.setType(1);
         document.setContent(target.key());
         document.setTitle(request.title().trim());
-        document.setFileStatus(FileStatus.WRITING.code());
+        document.setFileStatus(KnowledgeFileStatusEnum.WRITING.code());
         document.setEmbeddingStatus(KnowledgeEmbeddingStatusEnum.PENDING.getCode());
         document.setMetadata(fileMetadata(request, target));
         transactionTemplate.executeWithoutResult(status -> {
@@ -89,7 +90,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
             metadata.put("pendingFile", fileMetadata(request, target));
             metadata.put("pendingKey", target.key());
             metadata.put("pendingTitle", request.title().trim());
-            change(actor, current.getId(), FileStatus.READY, FileStatus.WRITING, metadata);
+            change(actor, current.getId(), KnowledgeFileStatusEnum.READY, KnowledgeFileStatusEnum.WRITING, metadata);
         });
         try {
             persist(actor, request.id(), target, file, true);
@@ -104,7 +105,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
             String hash = fileUploadService.save(actor, target, file);
             transactionTemplate.executeWithoutResult(status -> {
                 KnowledgeDocument current = locked(actor, id);
-                if (!Objects.equals(current.getFileStatus(), FileStatus.WRITING.code())) {
+                if (!Objects.equals(current.getFileStatus(), KnowledgeFileStatusEnum.WRITING.code())) {
                     throw conflict();
                 }
                 Map<String, Object> metadata;
@@ -121,10 +122,10 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
                 } else {
                     metadata = current.getMetadata();
                 }
-                var update = owned(actor, id).eq(KnowledgeDocument::getFileStatus, FileStatus.WRITING.code())
+                var update = owned(actor, id).eq(KnowledgeDocument::getFileStatus, KnowledgeFileStatusEnum.WRITING.code())
                         .set(KnowledgeDocument::getContent, target.key()).set(KnowledgeDocument::getTitle, title)
                         .set(KnowledgeDocument::getContentHash, hash)
-                        .set(KnowledgeDocument::getFileStatus, FileStatus.READY.code())
+                        .set(KnowledgeDocument::getFileStatus, KnowledgeFileStatusEnum.READY.code())
                         .set(KnowledgeDocument::getEmbeddingStatus, KnowledgeEmbeddingStatusEnum.PENDING.getCode())
                         .set(KnowledgeDocument::getChunkCount, 0).set(KnowledgeDocument::getLastError, null)
                         .set(KnowledgeDocument::getLastEmbeddedAt, null)
@@ -138,8 +139,8 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         } catch (RuntimeException failure) {
             try {
                 knowledgeDocumentMapper.update(null, owned(actor, id)
-                        .eq(KnowledgeDocument::getFileStatus, FileStatus.WRITING.code())
-                        .set(KnowledgeDocument::getFileStatus, FileStatus.FAILED.code()));
+                        .eq(KnowledgeDocument::getFileStatus, KnowledgeFileStatusEnum.WRITING.code())
+                        .set(KnowledgeDocument::getFileStatus, KnowledgeFileStatusEnum.FAILED.code()));
             } catch (RuntimeException markingFailure) {
                 failure.addSuppressed(markingFailure);
             }
@@ -186,7 +187,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
             Map<String, Object> metadata = new LinkedHashMap<>(current.getMetadata());
             metadata.putAll(buildMetadata(request));
             if (knowledgeDocumentMapper.update(null, owned(actor, current.getId())
-                    .eq(KnowledgeDocument::getFileStatus, FileStatus.READY.code())
+                    .eq(KnowledgeDocument::getFileStatus, KnowledgeFileStatusEnum.READY.code())
                     .set(KnowledgeDocument::getTitle, request.title().trim())
                     .set(KnowledgeDocument::getMetadata, metadata,
                             "typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler")) != 1) {
@@ -201,11 +202,11 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     public void delete(CurrentActor actor, Long id) {
         KnowledgeDocument document = transactionTemplate.execute(status -> {
             KnowledgeDocument current = locked(actor, id);
-            if (Objects.equals(current.getFileStatus(), FileStatus.WRITING.code())) {
+            if (Objects.equals(current.getFileStatus(), KnowledgeFileStatusEnum.WRITING.code())) {
                 throw conflict();
             }
             if (knowledgeDocumentMapper.update(null, owned(actor, id)
-                    .set(KnowledgeDocument::getFileStatus, FileStatus.DELETING.code())) != 1) {
+                    .set(KnowledgeDocument::getFileStatus, KnowledgeFileStatusEnum.DELETING.code())) != 1) {
                 throw conflict();
             }
             return current;
@@ -220,7 +221,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         transactionTemplate.executeWithoutResult(status -> {
             knowledgeVectorMapper.deleteByDocumentIdAndUserId(id, actor.userId());
             int count = knowledgeDocumentMapper.delete(ownedQuery(actor, id)
-                    .eq(KnowledgeDocument::getFileStatus, FileStatus.DELETING.code()));
+                    .eq(KnowledgeDocument::getFileStatus, KnowledgeFileStatusEnum.DELETING.code()));
             if (count != 1) {
                 throw conflict();
             }
@@ -229,30 +230,30 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
 
     /** 按文档归属打开本地原文件，文件名、长度和类型取自 metadata。 */
     @Override
-    public Download openDownload(CurrentActor actor, Long id) {
+    public KnowledgeDocumentDownload openDownload(CurrentActor actor, Long id) {
         KnowledgeDocument document = getById(actor, id);
         requireReady(document);
         Map<String, Object> meta = document.getMetadata();
         String name = Objects.requireNonNull(meta.get("fileName"), "缺少原始文件名").toString();
         String type = Objects.requireNonNull(meta.get("contentType"), "缺少文件类型").toString();
         long size = ((Number) Objects.requireNonNull(meta.get("fileSize"), "缺少文件大小")).longValue();
-        return new Download(fileUploadService.openInputStream(actor, document.getContent()), name, size, type);
+        return new KnowledgeDocumentDownload(fileUploadService.openInputStream(actor, document.getContent()), name, size, type);
     }
 
     @Override
     public KnowledgeDocumentResponse retryEmbedding(CurrentActor actor, Long id) {
         KnowledgeDocument document = getById(actor, id);
-        if (Objects.equals(document.getFileStatus(), FileStatus.FAILED.code())
+        if (Objects.equals(document.getFileStatus(), KnowledgeFileStatusEnum.FAILED.code())
                 && document.getMetadata().containsKey("pendingKey")) {
             String pending = document.getMetadata().get("pendingKey").toString();
             fileUploadService.delete(actor, pending);
             transactionTemplate.executeWithoutResult(status -> {
                 KnowledgeDocument current = locked(actor, id);
-                if (!Objects.equals(current.getFileStatus(), FileStatus.FAILED.code())
+                if (!Objects.equals(current.getFileStatus(), KnowledgeFileStatusEnum.FAILED.code())
                         || !pending.equals(current.getMetadata().get("pendingKey"))) { throw conflict(); }
                 Map<String, Object> metadata = new LinkedHashMap<>(current.getMetadata());
                 List.of("pendingKey", "pendingFile", "pendingTitle").forEach(metadata::remove);
-                change(actor, id, FileStatus.FAILED, FileStatus.READY, metadata);
+                change(actor, id, KnowledgeFileStatusEnum.FAILED, KnowledgeFileStatusEnum.READY, metadata);
             });
             document = getById(actor, id);
         }
@@ -267,7 +268,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
                 if (!snapshot.getContent().equals(current.getContent())) { throw conflict(); }
                 Map<String, Object> metadata = new LinkedHashMap<>(current.getMetadata());
                 metadata.remove("retiredFile");
-                change(actor, id, FileStatus.READY, FileStatus.READY, metadata);
+                change(actor, id, KnowledgeFileStatusEnum.READY, KnowledgeFileStatusEnum.READY, metadata);
             });
         }
         knowledgeEmbeddingService.vectorizeAndStore(actor, id);
@@ -279,8 +280,8 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     public void recoverInterruptedOperations() {
         transactionTemplate.executeWithoutResult(status -> {
             knowledgeDocumentMapper.update(null, new LambdaUpdateWrapper<KnowledgeDocument>()
-                    .eq(KnowledgeDocument::getScope, KnowledgeScopeEnum.USER.getCode()).eq(KnowledgeDocument::getFileStatus, FileStatus.WRITING.code())
-                    .set(KnowledgeDocument::getFileStatus, FileStatus.FAILED.code())
+                    .eq(KnowledgeDocument::getScope, KnowledgeScopeEnum.USER.getCode()).eq(KnowledgeDocument::getFileStatus, KnowledgeFileStatusEnum.WRITING.code())
+                    .set(KnowledgeDocument::getFileStatus, KnowledgeFileStatusEnum.FAILED.code())
                     .set(KnowledgeDocument::getUpdatedAt, com.zdmj.common.util.DateTimeUtil.now()));
             knowledgeDocumentMapper.update(null, new LambdaUpdateWrapper<KnowledgeDocument>()
                     .eq(KnowledgeDocument::getScope, KnowledgeScopeEnum.USER.getCode()).eq(KnowledgeDocument::getEmbeddingStatus, KnowledgeEmbeddingStatusEnum.RUNNING.getCode())
@@ -296,7 +297,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         return document;
     }
 
-    private void change(CurrentActor actor, Long id, FileStatus expected, FileStatus next, Map<String, Object> metadata) {
+    private void change(CurrentActor actor, Long id, KnowledgeFileStatusEnum expected, KnowledgeFileStatusEnum next, Map<String, Object> metadata) {
         if (knowledgeDocumentMapper.update(null, owned(actor, id)
                 .eq(KnowledgeDocument::getFileStatus, expected.code())
                 .set(KnowledgeDocument::getFileStatus, next.code())
@@ -318,7 +319,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     }
 
     private static void requireReady(KnowledgeDocument document) {
-        if (!Objects.equals(document.getFileStatus(), FileStatus.READY.code())) { throw conflict(); }
+        if (!Objects.equals(document.getFileStatus(), KnowledgeFileStatusEnum.READY.code())) { throw conflict(); }
     }
 
     private static BusinessException conflict() {
@@ -369,7 +370,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
 
     private static Map<String, Object> publicMetadata(KnowledgeDocument document) {
         Map<String, Object> metadata = new LinkedHashMap<>(document.getMetadata());
-        boolean canRestore = metadata.containsKey("pendingKey") && Objects.equals(document.getFileStatus(), FileStatus.FAILED.code());
+        boolean canRestore = metadata.containsKey("pendingKey") && Objects.equals(document.getFileStatus(), KnowledgeFileStatusEnum.FAILED.code());
         List.of("pendingFile", "pendingKey", "pendingTitle", "retiredFile").forEach(metadata::remove);
         metadata.put("canRestoreOriginal", canRestore);
         return metadata;

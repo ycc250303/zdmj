@@ -1,13 +1,13 @@
 package com.zdmj.resumeService.service.impl;
 
+import com.zdmj.resumeService.dto.StudentCapabilitySuggestion;
+import com.zdmj.resumeService.dto.StudentCapabilityScoreDetail;
 import com.zdmj.common.context.CurrentActor;
 import java.io.IOException;
 import java.io.InputStream;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
-
 import org.springframework.web.multipart.MultipartFile;
-
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -31,9 +31,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
-
 import java.util.List;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -138,13 +136,13 @@ class StudentCapabilityProfileServiceImplTest {
         CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest("java spring boot redis mysql");
 
         StudentCapabilityProfileResponse ai = new StudentCapabilityProfileResponse();
-        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail(
+        StudentCapabilityScoreDetail detail = new StudentCapabilityScoreDetail(
                 null, null, 7, null, null);
 
         ai.setScoreDetail(detail);
         ai.setStrengths(List.of("技术栈匹配"));
         ai.setSummary("可投递初级 Java 岗位");
-        StudentCapabilityProfileResponse.Suggestion suggestion = new StudentCapabilityProfileResponse.Suggestion(
+        StudentCapabilitySuggestion suggestion = new StudentCapabilitySuggestion(
                 "技能缺失", null, "缺少 JVM 调优相关实践", "补充压测数据");
 
         ai.setSuggestions(List.of(suggestion));
@@ -172,7 +170,7 @@ class StudentCapabilityProfileServiceImplTest {
                 .thenReturn("java spring boot redis mysql project experience");
 
         StudentCapabilityProfileResponse ai = new StudentCapabilityProfileResponse();
-        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail(20,
+        StudentCapabilityScoreDetail detail = new StudentCapabilityScoreDetail(20,
                 null, null, null, null);
 
         ai.setScoreDetail(detail);
@@ -202,7 +200,7 @@ class StudentCapabilityProfileServiceImplTest {
         CapabilityProfileGenerateRequest req = new CapabilityProfileGenerateRequest("java spring boot redis mysql");
 
         StudentCapabilityProfileResponse ai = new StudentCapabilityProfileResponse();
-        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail(30,
+        StudentCapabilityScoreDetail detail = new StudentCapabilityScoreDetail(30,
                 15, 10, 8, 3);
 
         ai.setScoreDetail(detail);
@@ -283,7 +281,7 @@ class StudentCapabilityProfileServiceImplTest {
     @Test
     void normalizeProfileScores_scoreDetailOutOfRange_shouldThrow() {
         StudentCapabilityProfileResponse dto = new StudentCapabilityProfileResponse();
-        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail(50,
+        StudentCapabilityScoreDetail detail = new StudentCapabilityScoreDetail(50,
                 null, null, null, null);
 
         dto.setScoreDetail(detail);
@@ -298,7 +296,7 @@ class StudentCapabilityProfileServiceImplTest {
     @Test
     void normalizeProfileScores_scoreDetailInRange_shouldRecomputeTotal() {
         StudentCapabilityProfileResponse dto = new StudentCapabilityProfileResponse();
-        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail(40,
+        StudentCapabilityScoreDetail detail = new StudentCapabilityScoreDetail(40,
                 20, 15, 15, 10);
 
         dto.setScoreDetail(detail);
@@ -357,7 +355,7 @@ class StudentCapabilityProfileServiceImplTest {
         ReflectionTestUtils.setField(service, "objectMapper", new ObjectMapper() {
             @Override
             public String writeValueAsString(Object value) throws JsonProcessingException {
-                if (value instanceof StudentCapabilityProfileResponse.ScoreDetail) {
+                if (value instanceof StudentCapabilityScoreDetail) {
                     throw new JsonWriteFailure("score");
                 }
                 return super.writeValueAsString(value);
@@ -365,7 +363,7 @@ class StudentCapabilityProfileServiceImplTest {
         });
 
         StudentCapabilityProfileResponse ai = new StudentCapabilityProfileResponse();
-        StudentCapabilityProfileResponse.ScoreDetail detail = new StudentCapabilityProfileResponse.ScoreDetail(
+        StudentCapabilityScoreDetail detail = new StudentCapabilityScoreDetail(
                 null, null, 7, null, null);
 
         ai.setScoreDetail(detail);

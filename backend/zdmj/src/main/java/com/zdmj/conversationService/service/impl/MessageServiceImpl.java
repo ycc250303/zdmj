@@ -1,10 +1,13 @@
 package com.zdmj.conversationService.service.impl;
 
+import com.zdmj.conversationService.dto.PreparedConversationMessages;
+import com.zdmj.conversationService.dto.ConversationDeletedEvent;
+import com.zdmj.common.model.PageParameters;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.aiService.api.ModelRequest;
-import com.zdmj.aiService.api.ModelRequest.HistoryMessage;
-import com.zdmj.aiService.api.ModelRequest.HistoryMessage.Role;
+import com.zdmj.aiService.api.ModelHistoryMessage;
+import com.zdmj.aiService.api.ModelMessageRole;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -125,7 +128,7 @@ public class MessageServiceImpl implements MessageService {
         }
         // 7.返回本轮会话生成的流式消息
         return Flux.defer(() -> {
-            PreparedMessages prepared = generation.prepared;
+            PreparedConversationMessages prepared = generation.prepared;
             ConversationRequest config = new ConversationRequest(prepared.conversation().getConfig());
             List<Long> documentIds;
             boolean useSystemKnowledge;
@@ -160,7 +163,7 @@ public class MessageServiceImpl implements MessageService {
     }
 
     /** 锁定会话后读取历史并建立关联问答，所有写入共同提交或回滚。 */
-    private PreparedMessages insertMessages(ChatStreamRequest request, Long userId) {
+    private PreparedConversationMessages insertMessages(ChatStreamRequest request, Long userId) {
         // 1.获取会话
         Conversation conversation = conversationMapper.selectOwnedForUpdate(request.conversationId(), userId);
         if (conversation == null) {
@@ -171,19 +174,19 @@ public class MessageServiceImpl implements MessageService {
         }
         // 2.获取最近20条对话消息记录
         List<Message> history = messageMapper.selectContextHistory(userId, request.conversationId(), 20);
-        List<HistoryMessage> input = new ArrayList<>();
+        List<ModelHistoryMessage> input = new ArrayList<>();
         StringBuilder notice = new StringBuilder();
         // 3.遍历历史消息记录，构建输入和提示
         for (Message message : history) {
             if (message.getRole() == MessageRoleEnum.USER.getCode()) {
-                input.add(new HistoryMessage(Role.USER, message.getContent()));
+                input.add(new ModelHistoryMessage(ModelMessageRole.USER, message.getContent()));
             } else {
                 var state = MessageGenerationStatusEnum.fromCode(message.getGenerationStatus());
                 if (state == MessageGenerationStatusEnum.PROCESSING) {
                     throw new IllegalStateException("历史回复仍在生成");
                 }
                 if (!message.getContent().isBlank()) {
-                    input.add(new HistoryMessage(Role.ASSISTANT, message.getContent()));
+                    input.add(new ModelHistoryMessage(ModelMessageRole.ASSISTANT, message.getContent()));
                 }
                 if (state != MessageGenerationStatusEnum.COMPLETED) {
                     String description = switch (state) {
@@ -234,7 +237,7 @@ public class MessageServiceImpl implements MessageService {
             }
         }
         // 8.返回准备好的消息
-        return new PreparedMessages(
+        return new PreparedConversationMessages(
                 answer,
                 conversation,
                 new ModelRequest(
@@ -304,7 +307,7 @@ public class MessageServiceImpl implements MessageService {
 
     /** 删除提交后取消对应生成；回滚时监听器不执行，通知不访问数据库。 */
     @TransactionalEventListener
-    public void cancelDeletedConversation(ConversationServiceImpl.Deleted event) {
+    public void cancelDeletedConversation(ConversationDeletedEvent event) {
         Generation generation = generations.remove(event.conversationId());
         if (generation != null) {
             generation.deletion.complete(null);
@@ -315,10 +318,6 @@ public class MessageServiceImpl implements MessageService {
     @EventListener(ApplicationStartedEvent.class)
     public void recoverInterruptedGenerations() {
         transactionTemplate.executeWithoutResult(status -> messageMapper.recoverInterrupted());
-    }
-
-    /** 短事务提交的问答与模型输入快照，只在本轮生成内部使用。 */
-    private record PreparedMessages(Message assistantMsg, Conversation conversation, ModelRequest request) {
     }
 
     /**
@@ -341,7 +340,7 @@ public class MessageServiceImpl implements MessageService {
         private final CompletableFuture<Void> deletion = new CompletableFuture<>();
         private volatile boolean cancelled;
         private volatile RuntimeException persistenceFailure;
-        private PreparedMessages prepared;
+        private PreparedConversationMessages prepared;
 
         private Generation(CurrentActor actor, Long conversationId) {
             this.actor = actor;
@@ -362,7 +361,7 @@ public class MessageServiceImpl implements MessageService {
     public PageDTO<MessageResponse> getMessagesByConversationId(CurrentActor actor, Long conversationId, Integer page,
             Integer limit) {
         conversationService.requireOwned(actor, conversationId);
-        PageRequests.Normalized paging = PageRequests.normalize(page, limit);
+        PageParameters paging = PageRequests.normalize(page, limit);
         var mpPage = messageMapper.selectPageByConversationId(PageRequests.toPage(paging), conversationId);
         List<MessageResponse> list = mpPage.getRecords().stream().map(this::convertToResponse).toList();
         return PageDTO.from(mpPage, list);

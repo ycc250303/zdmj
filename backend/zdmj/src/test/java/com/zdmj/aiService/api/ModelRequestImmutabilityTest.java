@@ -13,8 +13,8 @@ class ModelRequestImmutabilityTest {
         Map<String, Object> original = new HashMap<>();
         original.put("question", "原始问题");
         original.put("optional", null);
-        var history = new ArrayList<ModelRequest.HistoryMessage>();
-        var message = new ModelRequest.HistoryMessage(ModelRequest.HistoryMessage.Role.USER, "任务");
+        var history = new ArrayList<ModelHistoryMessage>();
+        var message = new ModelHistoryMessage(ModelMessageRole.USER, "任务");
         history.add(message);
         var text = new ModelRequest("消息", "system", original, history, "生成失败");
         original.clear();
@@ -40,8 +40,8 @@ class ModelRequestImmutabilityTest {
     void requestRejectsInvalidHistory() {
         assertThrows(NullPointerException.class, () -> new ModelRequest("继续", null, null, null, ""));
         assertThrows(NullPointerException.class, () -> new ModelRequest("继续", null, null, List.of(), null));
-        assertThrows(NullPointerException.class, () -> new ModelRequest.HistoryMessage(null, "任务"));
+        assertThrows(NullPointerException.class, () -> new ModelHistoryMessage(null, "任务"));
         assertThrows(IllegalArgumentException.class,
-                () -> new ModelRequest.HistoryMessage(ModelRequest.HistoryMessage.Role.USER, " "));
+                () -> new ModelHistoryMessage(ModelMessageRole.USER, " "));
     }
 }

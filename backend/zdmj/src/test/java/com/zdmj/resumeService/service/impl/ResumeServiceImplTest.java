@@ -1,5 +1,9 @@
 package com.zdmj.resumeService.service.impl;
 
+import com.zdmj.resumeService.dto.ResumeImportProjectItem;
+import com.zdmj.resumeService.dto.ResumeImportEducationItem;
+import com.zdmj.resumeService.dto.ResumeImportCareerItem;
+import com.zdmj.resumeService.dto.ResumeImportAwardItem;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -35,14 +39,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
 import java.time.LocalDate;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
-
 import org.springframework.web.multipart.MultipartFile;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -194,7 +195,7 @@ class ResumeServiceImplTest {
         ResumeImportParseRequest request = new ResumeImportParseRequest("resume body");
 
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
-        ResumeImportParseResponse.EducationItem edu = new ResumeImportParseResponse.EducationItem();
+        ResumeImportEducationItem edu = new ResumeImportEducationItem();
         edu.setSchool("SCU");
         edu.setMajor("SE");
         edu.setDegree(99);
@@ -202,7 +203,7 @@ class ResumeServiceImplTest {
         edu.setEndDate("至今");
         llmResult.setEducations(List.of(edu));
 
-        ResumeImportParseResponse.CareerItem blankCareer = new ResumeImportParseResponse.CareerItem();
+        ResumeImportCareerItem blankCareer = new ResumeImportCareerItem();
         llmResult.setCareers(List.of(blankCareer));
 
         doReturn(llmResult).when(modelGateway).generateStructured(any(), argThat(ResumeServiceImplTest::resumeImportRequest), eq(ResumeImportParseResponse.class));
@@ -224,7 +225,7 @@ class ResumeServiceImplTest {
         ResumeImportParseRequest request = new ResumeImportParseRequest("resume");
 
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
-        ResumeImportParseResponse.EducationItem edu = new ResumeImportParseResponse.EducationItem();
+        ResumeImportEducationItem edu = new ResumeImportEducationItem();
         edu.setSchool("SCU");
         edu.setStartDate("2020");
         edu.setEndDate("2022年");
@@ -243,7 +244,7 @@ class ResumeServiceImplTest {
         ResumeImportParseRequest request = new ResumeImportParseRequest("resume");
 
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
-        ResumeImportParseResponse.CareerItem career = new ResumeImportParseResponse.CareerItem();
+        ResumeImportCareerItem career = new ResumeImportCareerItem();
         career.setCompany("ACME");
         career.setStartDate("2021年3月");
         llmResult.setCareers(List.of(career));
@@ -260,7 +261,7 @@ class ResumeServiceImplTest {
         ResumeImportParseRequest request = new ResumeImportParseRequest("2024年同济大学本科生奖学金");
 
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
-        ResumeImportParseResponse.AwardItem award = new ResumeImportParseResponse.AwardItem();
+        ResumeImportAwardItem award = new ResumeImportAwardItem();
         award.setName("2024年同济大学本科生奖学金");
         llmResult.setAwards(List.of(award));
 
@@ -283,13 +284,13 @@ class ResumeServiceImplTest {
     """);
 
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
-        ResumeImportParseResponse.AwardItem scholarship = new ResumeImportParseResponse.AwardItem();
+        ResumeImportAwardItem scholarship = new ResumeImportAwardItem();
         scholarship.setName("同济大学本科优秀学生奖学金二等奖");
         scholarship.setAwardDate("2025-01-01");
-        ResumeImportParseResponse.AwardItem first = new ResumeImportParseResponse.AwardItem();
+        ResumeImportAwardItem first = new ResumeImportAwardItem();
         first.setName("2025年中国高校计算机大赛智能交互创新赛全国一等奖");
         first.setAwardDate("2025-01-01");
-        ResumeImportParseResponse.AwardItem second = new ResumeImportParseResponse.AwardItem();
+        ResumeImportAwardItem second = new ResumeImportAwardItem();
         second.setName("AIGC创新赛全国三等奖");
         second.setAwardDate("2025-01-01");
         llmResult.setAwards(List.of(scholarship, first, second));
@@ -317,7 +318,7 @@ class ResumeServiceImplTest {
     """);
 
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
-        ResumeImportParseResponse.AwardItem competition = new ResumeImportParseResponse.AwardItem();
+        ResumeImportAwardItem competition = new ResumeImportAwardItem();
         competition.setName("全国大学生数学建模竞赛省一等奖");
         competition.setAwardDate("2023-11-01");
         llmResult.setAwards(List.of(competition));
@@ -336,7 +337,7 @@ class ResumeServiceImplTest {
         ResumeImportParseRequest request = new ResumeImportParseRequest("resume");
 
         ResumeImportParseResponse llmResult = new ResumeImportParseResponse();
-        ResumeImportParseResponse.ProjectItem project = new ResumeImportParseResponse.ProjectItem();
+        ResumeImportProjectItem project = new ResumeImportProjectItem();
         project.setName("CoEdit");
         project.setRole("负责人");
         project.setStartDate("2025-05-01");

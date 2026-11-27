@@ -38,17 +38,7 @@ public record KnowledgeHit(Long id, Long documentId, Integer chunkIndex, String 
 
     /** 兼容检索响应的必要来源字段，禁止携带原始 metadata。 */
     @JsonProperty("metadata")
-    public Metadata metadata() {
-        return new Metadata(String.valueOf(documentId), downloadPath, title, docCategory);
+    public KnowledgeHitMetadata metadata() {
+        return new KnowledgeHitMetadata(String.valueOf(documentId), downloadPath, title, docCategory);
     }
-
-    /**
-     * 检索 HTTP 响应的来源字段。
-     * @param documentId 文档编号
-     * @param source 受鉴权下载路径，系统资料为空
-     * @param documentTitle 展示标题
-     * @param docCategory 业务分类
-     */
-    public record Metadata(@JsonProperty("DocumentId") String documentId, String source,
-            String documentTitle, String docCategory) { }
 }

@@ -1,5 +1,7 @@
 package com.zdmj.resumeService.service.impl;
 
+import com.zdmj.resumeService.dto.StudentCapabilitySuggestion;
+import com.zdmj.resumeService.dto.StudentCapabilityScoreDetail;
 import java.io.InputStream;
 import java.io.IOException;
 import org.springframework.web.multipart.MultipartFile;
@@ -24,10 +26,8 @@ import com.zdmj.resumeService.mapper.StudentCapabilityProfileMapper;
 import com.zdmj.resumeService.service.StudentCapabilityProfileService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
 import java.util.List;
 import java.math.BigDecimal;
-
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -216,11 +216,11 @@ public class StudentCapabilityProfileServiceImpl
             return;
         }
         if (StringUtils.hasText(entity.getScoreDetail())) {
-            dto.setScoreDetail(readJson(entity.getScoreDetail(), StudentCapabilityProfileResponse.ScoreDetail.class));
+            dto.setScoreDetail(readJson(entity.getScoreDetail(), StudentCapabilityScoreDetail.class));
         }
         if (StringUtils.hasText(entity.getSuggestions())) {
             dto.setSuggestions(readJson(entity.getSuggestions(),
-                    new TypeReference<List<StudentCapabilityProfileResponse.Suggestion>>() {}));
+                    new TypeReference<List<StudentCapabilitySuggestion>>() {}));
         }
     }
 
@@ -278,7 +278,7 @@ public class StudentCapabilityProfileServiceImpl
      * 校验 scoreDetail 各分项是否落在 40-20-15-15-10 合法区间；越界则抛出业务异常。
      */
     private void validateScoreDetail(StudentCapabilityProfileResponse dto) {
-        StudentCapabilityProfileResponse.ScoreDetail detail = dto.getScoreDetail();
+        StudentCapabilityScoreDetail detail = dto.getScoreDetail();
         if (detail == null) {
             return;
         }
@@ -308,7 +308,7 @@ public class StudentCapabilityProfileServiceImpl
         if (dto == null) {
             return;
         }
-        StudentCapabilityProfileResponse.ScoreDetail detail = dto.getScoreDetail();
+        StudentCapabilityScoreDetail detail = dto.getScoreDetail();
         if (detail != null && hasAnyScoreDetailValue(detail)) {
             int sum = safeScore(detail.projectExperienceScore())
                     + safeScore(detail.skillMatchScore())
@@ -328,7 +328,7 @@ public class StudentCapabilityProfileServiceImpl
         dto.setCompetitivenessScore(0);
     }
 
-    private static boolean hasAnyScoreDetailValue(StudentCapabilityProfileResponse.ScoreDetail detail) {
+    private static boolean hasAnyScoreDetailValue(StudentCapabilityScoreDetail detail) {
         return detail.projectExperienceScore() != null
                 || detail.skillMatchScore() != null
                 || detail.contentCompletenessScore() != null

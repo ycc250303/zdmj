@@ -1,5 +1,7 @@
 package com.zdmj.matchService.service.impl;
 
+import com.zdmj.matchService.dto.KeywordMatchResult;
+import com.zdmj.common.model.PageParameters;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -71,7 +73,7 @@ public class JobStudentMatchServiceImpl
     @Override
     public PageDTO<JobStudentMatchListItemResponse> getMyPage(CurrentActor actor, Integer page, Integer limit) {
         Long userId = actor.userId();
-        PageRequests.Normalized paging = PageRequests.normalize(page, limit);
+        PageParameters paging = PageRequests.normalize(page, limit);
         IPage<JobStudentMatchListItemResponse> result =
                 baseMapper.selectMyMatchPage(PageRequests.toPage(paging), userId);
         return PageDTO.from(result);
@@ -160,7 +162,7 @@ public class JobStudentMatchServiceImpl
         JobStudentMatch entity = buildMatch(userId, jobId, role, promptName, weights,
                 basicScore, skillScore, qualityScore, potentialScore, overall,
                 dims, aiResult.matchedHighlights(), aiResult.criticalGaps(),
-                kw.matched, kw.missing, kw.rate, aiResult.summary());
+                kw.matched(), kw.missing(), kw.rate(), aiResult.summary());
         if (jobService.getDetail(jobId) == null) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
@@ -392,9 +394,6 @@ public class JobStudentMatchServiceImpl
                 Objects.toString(p.getPracticalAbility(), ""),
                 Objects.toString(p.getSummary(), ""),
                 p.getStrengths() == null ? "" : String.join(" ", p.getStrengths())));
-    }
-
-    private record KeywordMatchResult(List<String> matched, List<String> missing, BigDecimal rate) {
     }
 
     // ============================================================

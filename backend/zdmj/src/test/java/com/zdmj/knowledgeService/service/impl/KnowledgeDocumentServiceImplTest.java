@@ -9,7 +9,7 @@ import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.storage.FileUploadService;
-import com.zdmj.common.storage.FileUploadService.StoredFile;
+import com.zdmj.common.storage.StoredFile;
 import com.zdmj.knowledgeService.dto.KnowledgeDocumentRequest;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
 import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;

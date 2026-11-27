@@ -1,5 +1,6 @@
 package com.zdmj.conversationService.service.impl;
 
+import com.zdmj.conversationService.dto.ConversationDeletedEvent;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.model.PageDTO;
@@ -16,12 +17,9 @@ import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.service.ConversationService;
 import org.springframework.context.ApplicationEventPublisher;
-
 import lombok.RequiredArgsConstructor;
-
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.LinkedHashMap;
@@ -245,16 +243,8 @@ public class ConversationServiceImpl implements ConversationService {
         if (deleted != 1) {
             throw new BusinessException(ErrorCode.CONVERSATION_DELETE_FAILED);
         }
-        events.publishEvent(new Deleted(actor, id));
+        events.publishEvent(new ConversationDeletedEvent(actor, id));
     }
-
-    /**
-     * 会话删除结果，由事务提交后监听器处理活动生成。
-     *
-     * @param actor 已认证操作者，继续传递删除时校验的身份
-     * @param conversationId 已删除会话编号
-     */
-    record Deleted(CurrentActor actor, Long conversationId) { }
 
     private ConversationResponse convertToResponse(Conversation conversation) {
         return new ConversationResponse(conversation.getId(), conversation.getUserId(),

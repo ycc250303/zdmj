@@ -16,6 +16,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.annotation.RateLimitDimension;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -84,7 +85,7 @@ public class RateLimitAspect {
      * 构建限流 Redis Key。
      * hash tag {@code {Class:method}} 便于 Redis Cluster 同 slot 路由。
      */
-    private String generateKey(String className, String methodName, RateLimit.Dimension dimension, Object[] arguments) {
+    private String generateKey(String className, String methodName, RateLimitDimension dimension, Object[] arguments) {
         String suffix = switch (dimension) {
             case GLOBAL -> null;
             case IP -> getClientIp();

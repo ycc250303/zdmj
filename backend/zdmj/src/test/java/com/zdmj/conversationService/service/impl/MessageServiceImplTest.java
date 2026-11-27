@@ -1,5 +1,6 @@
 package com.zdmj.conversationService.service.impl;
 
+import com.zdmj.conversationService.dto.ConversationDeletedEvent;
 import java.time.LocalDateTime;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.aiService.api.ModelRequest;
@@ -20,12 +21,10 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,7 +42,6 @@ import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -56,7 +54,6 @@ import com.zdmj.conversationService.enums.MessageGenerationStatusEnum;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.knowledgeService.api.KnowledgeRagService;
-
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 
@@ -569,12 +566,12 @@ class MessageServiceImplTest {
                     () -> messageService.createStream(otherActor, request).collectList()
                             .block(Duration.ofSeconds(5))).getErrorCode());
             verify(knowledgeRagService, never()).streamAnswer(eq(otherActor), anyLong(), any(), any(), eq(false));
-            messageService.cancelDeletedConversation(new ConversationServiceImpl.Deleted(actor, 999L));
+            messageService.cancelDeletedConversation(new ConversationDeletedEvent(actor, 999L));
             assertFalse(cancelled.get());
             assertFalse(completed.isDone());
             assertEquals(ErrorCode.CONVERSATION_GENERATING, assertThrows(BusinessException.class,
                     () -> messageService.createStream(actor, request).collectList().block(Duration.ofSeconds(5))).getErrorCode());
-            messageService.cancelDeletedConversation(new ConversationServiceImpl.Deleted(actor, 502L));
+            messageService.cancelDeletedConversation(new ConversationDeletedEvent(actor, 502L));
             assertEquals(1, completed.get(5, TimeUnit.SECONDS).size());
             assertTrue(cancelled.get());
             verify(messageMapper, never()).finishAssistant(anyLong(), anyLong(), anyLong(), anyString(), anyInt());
@@ -605,7 +602,7 @@ class MessageServiceImplTest {
         Disposable second = null;
         try {
             assertTrue(saving.await(5, TimeUnit.SECONDS));
-            messageService.cancelDeletedConversation(new ConversationServiceImpl.Deleted(actor, 503L));
+            messageService.cancelDeletedConversation(new ConversationDeletedEvent(actor, 503L));
             second = messageService.createStream(actor, request).subscribe(event -> received.countDown());
             assertTrue(received.await(5, TimeUnit.SECONDS));
             release.countDown();

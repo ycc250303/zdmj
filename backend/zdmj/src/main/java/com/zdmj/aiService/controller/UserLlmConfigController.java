@@ -14,6 +14,7 @@ import com.zdmj.aiService.dto.UserLlmConfigRequest;
 import com.zdmj.aiService.dto.UserLlmConfigResponse;
 import com.zdmj.aiService.service.UserLlmConfigService;
 import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.annotation.RateLimitDimension;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.model.Result;
 
@@ -50,7 +51,7 @@ public class UserLlmConfigController {
      * @return 保存成功响应
      */
     @PutMapping
-    @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimitDimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     public Result<Void> saveMyConfig(@Parameter(hidden = true) CurrentActor actor, @Valid @RequestBody UserLlmConfigRequest request) {
         userLlmConfigService.saveMyConfig(actor, request);
         return Result.success("校验通过并已保存", null);
@@ -63,7 +64,7 @@ public class UserLlmConfigController {
      * @return 删除成功响应
      */
     @DeleteMapping
-    @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimitDimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     public Result<Void> deleteMyConfig(@Parameter(hidden = true) CurrentActor actor) {
         userLlmConfigService.deleteMyConfig(actor);
         return Result.success("删除成功", null);
