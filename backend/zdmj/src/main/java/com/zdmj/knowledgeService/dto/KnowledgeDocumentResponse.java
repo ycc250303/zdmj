@@ -7,7 +7,6 @@ import java.util.Map;
  * 知识文档创建/更新响应（镜像当前 KnowledgeDocument Entity JSON）
  *
  * @param id 文档编号，对应 knowledge_documents.id
- * @param knowledgeId 所属知识库编号
  * @param userId 所属用户编号
  * @param type 来源类型，对应 type：1 上传文件、2 仓库链接、3 外部文档
  * @param content 原文件下载标识
@@ -22,7 +21,6 @@ import java.util.Map;
  */
 public record KnowledgeDocumentResponse(
         Long id,
-        Long knowledgeId,
         Long userId,
         Integer type,
         String content,

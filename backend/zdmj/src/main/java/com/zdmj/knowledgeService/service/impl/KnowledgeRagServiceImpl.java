@@ -26,7 +26,6 @@ import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
 import com.zdmj.knowledgeService.api.KnowledgeRetrievalResponse;
 import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
-import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 import com.zdmj.knowledgeService.api.KnowledgeHit;
 import com.zdmj.knowledgeService.api.KnowledgeReference;
 import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
@@ -55,7 +54,6 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
 
     private final EmbeddingGateway embeddingGateway;
     private final RagConfig ragConfig;
-    private final KnowledgeBasesService knowledgeBasesService;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeVectorMapper knowledgeVectorMapper;
     private final ModelGateway modelGateway;
@@ -169,22 +167,15 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         // --- 5. 个人库 + 系统库：每个向量各做一次 ANN ---
         List<KnowledgeRetrivalDTO> combined = new ArrayList<>();
         if (ragDocumentIds == null || !ragDocumentIds.isEmpty()) {
-            Long userKbId = knowledgeBasesService.getOrCreateKnowledgeBaseId(actor);
-            addAnnHits(combined, userId, userKbId, ragDocumentIds, vecRaw, topK, minScore);
+            addAnnHits(combined, userId, KnowledgeScopeEnum.USER, ragDocumentIds, vecRaw, topK, minScore);
             if (dualPath) {
-                addAnnHits(combined, userId, userKbId, ragDocumentIds, vecRewritten, topK, minScore);
+                addAnnHits(combined, userId, KnowledgeScopeEnum.USER, ragDocumentIds, vecRewritten, topK, minScore);
             }
         }
         if (useSystemKnowledge) {
-            Long systemKbId = knowledgeBasesService.findKnowledgeBaseIdByScope(KnowledgeScopeEnum.SYSTEM.getCode());
-            if (systemKbId == null) {
-                log.warn("系统知识库未配置（scope=2），跳过系统库检索");
-            } else {
-                Long systemOwner = KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID;
-                addAnnHits(combined, systemOwner, systemKbId, null, vecRaw, topK, minScore);
-                if (dualPath) {
-                    addAnnHits(combined, systemOwner, systemKbId, null, vecRewritten, topK, minScore);
-                }
+            addAnnHits(combined, null, KnowledgeScopeEnum.SYSTEM, null, vecRaw, topK, minScore);
+            if (dualPath) {
+                addAnnHits(combined, null, KnowledgeScopeEnum.SYSTEM, null, vecRewritten, topK, minScore);
             }
         }
 
@@ -208,10 +199,10 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         try {
             String vector = toPgVector(actor, query, operationId);
             List<KnowledgeRetrivalDTO> combined = new ArrayList<>();
-            addAnnHits(combined, actor.userId(), knowledgeBasesService.getOrCreateKnowledgeBaseId(actor),
+            addAnnHits(combined, actor.userId(), KnowledgeScopeEnum.USER,
                     null, vector, REPORT_TOP_K, REPORT_MIN_SCORE);
-            Long learningBase = knowledgeBasesService.findKnowledgeBaseIdByScope(KnowledgeScopeEnum.LEARNING_PATH.getCode());
-            addAnnHits(combined, KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, learningBase, null, vector, REPORT_TOP_K, REPORT_MIN_SCORE);
+            addAnnHits(combined, null, KnowledgeScopeEnum.LEARNING_PATH, null,
+                    vector, REPORT_TOP_K, REPORT_MIN_SCORE);
             List<KnowledgeRetrivalDTO> qualified = mergeAndSort(combined, REPORT_TOP_K);
             List<KnowledgeRetrivalDTO> preferred = qualified.stream()
                     .filter(hit -> hit.docCategory() != null
@@ -348,18 +339,18 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
      * 单次 ANN：已算好的向量 → pgvector 余弦检索 → Java 侧 minScore 过滤。
      * 阈值不写进 SQL，避免干扰索引形态。
      */
-    private void addAnnHits(List<KnowledgeRetrivalDTO> out, Long ownerUserId, Long knowledgeId,
+    private void addAnnHits(List<KnowledgeRetrivalDTO> out, Long ownerUserId, KnowledgeScopeEnum scope,
             List<Long> ragDocumentIds, String vecString, int topK, double minScore) {
-        if (vecString == null || knowledgeId == null) {
+        if (vecString == null) {
             return;
         }
         // --- 1. ANN：未圈定文档搜整库，否则 document_id IN (...) ---
         List<KnowledgeRetrivalDTO> raw;
         if (ragDocumentIds == null || ragDocumentIds.isEmpty()) {
-            raw = knowledgeVectorMapper.searchBySimilarity(ownerUserId, knowledgeId, vecString, topK);
+            raw = knowledgeVectorMapper.searchBySimilarity(ownerUserId, scope.getCode(), vecString, topK);
         } else {
             raw = knowledgeVectorMapper.searchBySimilarityInDocuments(
-                    ownerUserId, knowledgeId, ragDocumentIds, vecString, topK);
+                    ownerUserId, scope.getCode(), ragDocumentIds, vecString, topK);
         }
         if (raw == null || raw.isEmpty()) {
             return;

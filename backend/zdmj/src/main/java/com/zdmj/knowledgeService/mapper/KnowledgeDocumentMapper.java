@@ -17,9 +17,4 @@ public interface KnowledgeDocumentMapper extends BaseMapper<KnowledgeDocument> {
             @org.apache.ibatis.annotations.Param("userId") Long userId,
             @org.apache.ibatis.annotations.Param("documentIds") java.util.List<Long> documentIds);
 
-    /**
-     * 根据知识库ID删除知识文档
-     * @param knowledgeId 知识库ID
-     */
-    void deleteByKnowledgeId(Long knowledgeId);
 }

@@ -12,9 +12,9 @@ import com.zdmj.common.storage.FileUploadService;
 import com.zdmj.common.storage.FileUploadService.StoredFile;
 import com.zdmj.knowledgeService.dto.KnowledgeDocumentRequest;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
+import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
-import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
 import java.util.*;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -28,7 +28,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 class KnowledgeDocumentServiceImplTest {
     private final CurrentActor actor = new CurrentActor(1L);
     private final KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
-    private final KnowledgeBasesService bases = mock(KnowledgeBasesService.class);
     private final KnowledgeEmbeddingService embedding = mock(KnowledgeEmbeddingService.class);
     private final FileUploadService files = mock(FileUploadService.class);
     private final KnowledgeVectorMapper vectors = mock(KnowledgeVectorMapper.class);
@@ -40,12 +39,23 @@ class KnowledgeDocumentServiceImplTest {
     private KnowledgeDocumentServiceImpl service() {
         var manager = mock(PlatformTransactionManager.class);
         when(manager.getTransaction(any())).thenReturn(mock(TransactionStatus.class));
-        return new KnowledgeDocumentServiceImpl(mapper, bases, embedding, files, vectors, new TransactionTemplate(manager));
+        return new KnowledgeDocumentServiceImpl(mapper, embedding, files, vectors, new TransactionTemplate(manager));
     }
 
     @Test void 无权查看文档_不读取原文件() {
         KnowledgeDocument document = document(1);
         document.setUserId(2L);
+        when(mapper.selectById(9L)).thenReturn(document);
+        assertThatThrownBy(() -> service().openDownload(actor, 9L)).isInstanceOf(BusinessException.class)
+                .extracting("code").isEqualTo(ErrorCode.KNOWLEDGE_DOCUMENT_NOT_FOUND.getCode());
+        verifyNoInteractions(files);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = KnowledgeScopeEnum.class, names = {"SYSTEM", "LEARNING_PATH"})
+    void 系统范围文档不允许通过私有下载入口访问(KnowledgeScopeEnum scope) {
+        KnowledgeDocument document = document(1);
+        document.setScope(scope.getCode());
         when(mapper.selectById(9L)).thenReturn(document);
         assertThatThrownBy(() -> service().openDownload(actor, 9L)).isInstanceOf(BusinessException.class)
                 .extracting("code").isEqualTo(ErrorCode.KNOWLEDGE_DOCUMENT_NOT_FOUND.getCode());
@@ -97,7 +107,6 @@ class KnowledgeDocumentServiceImplTest {
         var file = new MockMultipartFile("file", "a.md", "text/markdown", "text".getBytes());
         var target = new StoredFile("user-1/" + "a".repeat(32) + ".md", "a.md", 4L, "text/markdown");
         when(files.prepare(actor, file)).thenReturn(target);
-        when(bases.getOrCreateKnowledgeBaseId(actor)).thenReturn(7L);
         when(mapper.insert(any(KnowledgeDocument.class))).thenAnswer(invocation -> {
             invocation.<KnowledgeDocument>getArgument(0).setId(9L); return 1;
         });
@@ -129,7 +138,7 @@ class KnowledgeDocumentServiceImplTest {
 
     private KnowledgeDocument document(int state) {
         var d = new KnowledgeDocument();
-        d.setId(9L); d.setUserId(1L); d.setKnowledgeId(7L); d.setType(1);
+        d.setId(9L); d.setUserId(1L); d.setScope(KnowledgeScopeEnum.USER.getCode()); d.setType(1);
         d.setContent("user-1/" + "a".repeat(32) + ".md");
         d.setTitle("Java项目"); d.setFileStatus(state); d.setEmbeddingStatus(3);
         d.setMetadata(new LinkedHashMap<>(Map.of("fileName", "a.md", "fileSize", 4L, "contentType", "text/markdown")));

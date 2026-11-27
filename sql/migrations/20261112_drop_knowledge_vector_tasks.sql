@@ -11,5 +11,4 @@ END $$;
 COMMENT ON COLUMN knowledge_documents.file_status IS '原文件状态：0写入中、1可用、2写入失败、3删除中';
 COMMENT ON COLUMN knowledge_documents.content IS '文件类型保存用户目录相对标识，链接类型保存来源地址';
 
-UPDATE knowledge_documents SET metadata='{}'::jsonb WHERE metadata IS NULL;
 ALTER TABLE knowledge_documents ALTER COLUMN metadata SET NOT NULL;

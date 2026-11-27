@@ -502,10 +502,11 @@ class ConversationFlowIT extends IntegrationTestBase {
     }
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(ints = {0, 1, 2})
-    void 增量迁移_核查历史_可重复执行_不一致时整笔回滚(int conflict) throws Exception {
-        String migration = java.nio.file.Files.readString(java.nio.file.Path.of("../../sql/migrations/20261122_unify_conversation_memory.sql"));
-        String schema = "memory_migration_" + java.util.UUID.randomUUID().toString().replace("-", "");
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void 消息结构脚本_建立回复约束且不符合约束时回滚(boolean invalidAssistant) throws Exception {
+        String migration = java.nio.file.Files.readString(java.nio.file.Path.of(
+                System.getProperty("zdmj.repo.root"), "sql/migrations/20261122_unify_conversation_memory.sql"));
+        String schema = "memory_schema_" + java.util.UUID.randomUUID().toString().replace("-", "");
         try (var connection = jdbc.getDataSource().getConnection(); var statement = connection.createStatement()) {
             statement.execute("CREATE SCHEMA " + schema);
             statement.execute("SET search_path TO " + schema);
@@ -513,34 +514,34 @@ class ConversationFlowIT extends IntegrationTestBase {
                 statement.execute("CREATE TABLE conversations (id BIGINT PRIMARY KEY,user_id BIGINT NOT NULL)");
                 statement.execute("CREATE TABLE messages (id BIGSERIAL PRIMARY KEY,conversation_id BIGINT,user_id BIGINT,role SMALLINT,content TEXT,sequence INTEGER)");
                 statement.execute("CREATE TABLE spring_ai_chat_memory (conversation_id VARCHAR(36),content TEXT,type VARCHAR(10))");
-                statement.execute("INSERT INTO conversations VALUES (1,10)");
-                statement.execute("INSERT INTO messages (conversation_id,user_id,role,content,sequence) VALUES (1,10,1,E'\\t历史问题\\n',1),(1,10,2,'历史回复',2)");
-                statement.execute("INSERT INTO spring_ai_chat_memory VALUES ('1','历史问题','USER'),('1','历史回复','ASSISTANT')");
-                if (conflict == 1) statement.execute("INSERT INTO spring_ai_chat_memory VALUES ('1','消息表缺失的内容','USER')");
-                if (conflict == 2) statement.execute("UPDATE messages SET sequence=4 WHERE role=2");
-                if (conflict != 0) {
+                statement.execute("INSERT INTO messages (conversation_id,user_id,role,content,sequence) VALUES (1,10,1,'已有问题',1)");
+                if (invalidAssistant) {
+                    statement.execute("INSERT INTO messages (conversation_id,user_id,role,content,sequence) VALUES (1,10,2,'已有回复',2)");
                     org.assertj.core.api.Assertions.assertThatThrownBy(() -> statement.execute(migration))
-                            .isInstanceOf(java.sql.SQLException.class).hasMessageContaining("迁移已终止");
+                            .isInstanceOf(java.sql.SQLException.class).hasMessageContaining("ck_messages_generation");
                     statement.execute("ROLLBACK");
-                    try (var result = statement.executeQuery("SELECT to_regclass('spring_ai_chat_memory') IS NOT NULL, (SELECT count(*) FROM information_schema.columns WHERE table_schema='" + schema + "' AND table_name='messages' AND column_name='generation_status')")) {
+                    try (var result = statement.executeQuery("SELECT to_regclass('spring_ai_chat_memory') IS NOT NULL, (SELECT count(*) FROM information_schema.columns WHERE table_schema='" + schema + "' AND table_name='messages' AND column_name='generation_status'), (SELECT content FROM messages WHERE role=2)")) {
                         result.next();
                         assertThat(result.getBoolean(1)).isTrue();
                         assertThat(result.getInt(2)).isZero();
+                        assertThat(result.getString(3)).isEqualTo("已有回复");
                     }
-                } else {
-                    statement.execute(migration);
-                    statement.execute(migration);
-                    try (var result = statement.executeQuery("SELECT generation_status,reply_to_message_id, to_regclass('spring_ai_chat_memory') IS NULL FROM messages WHERE role=2")) {
-                        result.next();
-                        assertThat(result.getInt(1)).isEqualTo(5);
-                        assertThat(result.getLong(2)).isEqualTo(1);
-                        assertThat(result.getBoolean(3)).isTrue();
-                    }
-                    org.assertj.core.api.Assertions.assertThatThrownBy(() -> statement.execute("INSERT INTO messages (conversation_id,user_id,role,content,sequence) VALUES (1,10,2,'非法助手',3)"))
-                            .isInstanceOf(java.sql.SQLException.class).hasMessageContaining("ck_messages_generation");
-                    org.assertj.core.api.Assertions.assertThatThrownBy(() -> statement.execute("INSERT INTO messages (conversation_id,user_id,role,content,sequence,reply_to_message_id,generation_status) VALUES (1,10,2,'重复关联',4,1,2)"))
-                            .isInstanceOf(java.sql.SQLException.class).hasMessageContaining("uk_messages_reply_to");
+                    return;
                 }
+                statement.execute(migration);
+                statement.execute(migration);
+                try (var result = statement.executeQuery("SELECT content,generation_status,reply_to_message_id,to_regclass('spring_ai_chat_memory') IS NULL FROM messages WHERE id=1")) {
+                    result.next();
+                    assertThat(result.getString(1)).isEqualTo("已有问题");
+                    assertThat(result.getObject(2)).isNull();
+                    assertThat(result.getObject(3)).isNull();
+                    assertThat(result.getBoolean(4)).isTrue();
+                }
+                org.assertj.core.api.Assertions.assertThatThrownBy(() -> statement.execute("INSERT INTO messages (conversation_id,user_id,role,content,sequence) VALUES (1,10,2,'非法助手',2)"))
+                        .isInstanceOf(java.sql.SQLException.class).hasMessageContaining("ck_messages_generation");
+                statement.execute("INSERT INTO messages (conversation_id,user_id,role,content,sequence,reply_to_message_id,generation_status) VALUES (1,10,2,'完成回复',2,1,2)");
+                org.assertj.core.api.Assertions.assertThatThrownBy(() -> statement.execute("INSERT INTO messages (conversation_id,user_id,role,content,sequence,reply_to_message_id,generation_status) VALUES (1,10,2,'重复关联',3,1,2)"))
+                        .isInstanceOf(java.sql.SQLException.class).hasMessageContaining("uk_messages_reply_to");
             } finally {
                 statement.execute("ROLLBACK");
                 statement.execute("SET search_path TO public");

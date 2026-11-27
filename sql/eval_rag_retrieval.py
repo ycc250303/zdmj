@@ -40,7 +40,6 @@ DEFAULT_DETAILS = REPO_ROOT / "sql" / "rag-eval" / "details.jsonl"
 DEFAULT_REPORT_JSON = REPO_ROOT / "sql" / "rag-eval" / "report.json"
 DEFAULT_REPORT_TXT = REPO_ROOT / "sql" / "rag-eval" / "report.txt"
 
-SYSTEM_USER_ID = 0
 EMBED_MODEL = "text-embedding-v4"
 EMBED_DIMENSIONS = 1024
 EMBED_BATCH_SIZE = 10
@@ -57,9 +56,10 @@ SELECT
     kv.chunk_index AS chunk_index,
     (1 - (kv.embedding <=> q.v)) AS score
 FROM knowledge_vectors kv
+JOIN knowledge_documents kd ON kd.id=kv.document_id
 CROSS JOIN q
-WHERE kv.user_id = %s
-  AND kv.knowledge_id = %s
+WHERE kd.user_id IS NULL AND kd.scope = %s
+  AND kd.file_status=1 AND kd.embedding_status=3
 ORDER BY kv.embedding <=> q.v
 LIMIT %s
 """
@@ -79,8 +79,7 @@ QUERY_GEN_SYSTEM = (
 class EvalCase:
     chunk_id: int
     document_id: Optional[int]
-    knowledge_id: int
-    user_id: int
+    scope: int
     chunk_index: Optional[int]
     token_count: Optional[int]
     title: str
@@ -160,21 +159,9 @@ def pg_connect(args: argparse.Namespace):
     return conn
 
 
-def resolve_knowledge_id(conn, scope: int) -> int:
-    with conn.cursor() as cur:
-        cur.execute(
-            "SELECT id FROM knowledge_bases WHERE scope = %s LIMIT 1",
-            (scope,),
-        )
-        row = cur.fetchone()
-    if not row:
-        raise RuntimeError(f"未找到 scope={scope} 的 knowledge_bases")
-    return int(row[0])
-
-
 def sample_chunks(
     conn,
-    knowledge_id: int,
+    scope: int,
     sample_size: int,
     seed: str,
     min_chars: int,
@@ -182,14 +169,14 @@ def sample_chunks(
     with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT id
-            FROM knowledge_vectors
-            WHERE knowledge_id = %s
-              AND user_id = %s
-            ORDER BY md5(id::text || %s)
+            SELECT kv.id
+            FROM knowledge_vectors kv JOIN knowledge_documents kd ON kd.id=kv.document_id
+            WHERE kd.scope = %s AND kd.user_id IS NULL
+              AND kd.file_status=1 AND kd.embedding_status=3
+            ORDER BY md5(kv.id::text || %s)
             LIMIT %s
             """,
-            (knowledge_id, SYSTEM_USER_ID, seed, sample_size * 2),
+            (scope, seed, sample_size * 2),
         )
         ids = [int(r[0]) for r in cur.fetchall()]
     if not ids:
@@ -201,15 +188,14 @@ def sample_chunks(
             SELECT
                 kv.id AS chunk_id,
                 kv.document_id,
-                kv.knowledge_id,
-                kv.user_id,
+                kd.scope,
                 kv.chunk_index,
                 kv.token_count,
                 COALESCE(kd.title, '') AS title,
                 COALESCE(kd.content, '') AS source,
                 kv.content
             FROM knowledge_vectors kv
-            LEFT JOIN knowledge_documents kd ON kd.id = kv.document_id
+            JOIN knowledge_documents kd ON kd.id = kv.document_id
             WHERE kv.id = ANY(%s)
             """,
             (ids,),
@@ -340,14 +326,13 @@ def generate_query(api_key: str, model: str, content: str) -> str:
 
 
 def build_dataset(args: argparse.Namespace, conn) -> list[EvalCase]:
-    knowledge_id = resolve_knowledge_id(conn, args.scope)
     print(
-        f"抽样池: scope={args.scope} knowledge_id={knowledge_id} "
+        f"抽样池: scope={args.scope} "
         f"sample={args.sample_size} seed={args.seed}",
         flush=True,
     )
     rows = sample_chunks(
-        conn, knowledge_id, args.sample_size, args.seed, args.min_content_chars
+        conn, args.scope, args.sample_size, args.seed, args.min_content_chars
     )
     if len(rows) < args.sample_size:
         print(f"警告：可用 chunk 仅 {len(rows)} 条，少于 {args.sample_size}", flush=True)
@@ -359,8 +344,7 @@ def build_dataset(args: argparse.Namespace, conn) -> list[EvalCase]:
         case = EvalCase(
             chunk_id=int(row["chunk_id"]),
             document_id=int(row["document_id"]) if row.get("document_id") is not None else None,
-            knowledge_id=int(row["knowledge_id"]),
-            user_id=int(row["user_id"]),
+            scope=int(row["scope"]),
             chunk_index=int(row["chunk_index"]) if row.get("chunk_index") is not None else None,
             token_count=int(row["token_count"]) if row.get("token_count") is not None else None,
             title=str(row.get("title") or ""),
@@ -385,8 +369,7 @@ def refresh_queries(args: argparse.Namespace, cases: list[EvalCase]) -> list[Eva
             EvalCase(
                 chunk_id=case.chunk_id,
                 document_id=case.document_id,
-                knowledge_id=case.knowledge_id,
-                user_id=case.user_id,
+                scope=case.scope,
                 chunk_index=case.chunk_index,
                 token_count=case.token_count,
                 title=case.title,
@@ -416,14 +399,13 @@ def write_dataset(path: Path, cases: list[EvalCase]) -> None:
         return
     preview = {
         "n": len(cases),
-        "scope": 2,
-        "knowledge_id": cases[0].knowledge_id if cases else None,
+        "scope": cases[0].scope if cases else None,
         "note": "完整 chunk 原文在 dataset.jsonl（gitignore）。本文件只含 query 与来源，便于查看。",
         "cases": [
             {
                 "chunk_id": c.chunk_id,
                 "document_id": c.document_id,
-                "knowledge_id": c.knowledge_id,
+                "scope": c.scope,
                 "chunk_index": c.chunk_index,
                 "token_count": c.token_count,
                 "title": c.title,
@@ -458,16 +440,21 @@ def load_json_records(path: Path) -> list[dict[str, Any]]:
 def load_dataset(path: Path) -> list[EvalCase]:
     cases: list[EvalCase] = []
     for raw in load_json_records(path):
-        cases.append(EvalCase(**{k: raw[k] for k in EvalCase.__dataclass_fields__}))
+        case = EvalCase(**{k: raw[k] for k in EvalCase.__dataclass_fields__})
+        if type(case.scope) is not int or case.scope not in (2, 3):
+            raise ValueError("评测样本的系统资料范围必须为2或3")
+        cases.append(case)
+    if len({case.scope for case in cases}) > 1:
+        raise ValueError("同一评测数据集必须使用相同资料范围")
     return cases
 
 
 def search_by_similarity(
-    conn, user_id: int, knowledge_id: int, query_vec: Sequence[float], limit: int
+    conn, scope: int, query_vec: Sequence[float], limit: int
 ) -> list[dict[str, Any]]:
     vec = to_pg_vector(query_vec)
     with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        cur.execute(SEARCH_SQL, (vec, user_id, knowledge_id, limit))
+        cur.execute(SEARCH_SQL, (vec, scope, limit))
         return [dict(r) for r in cur.fetchall()]
 
 
@@ -647,7 +634,7 @@ def evaluate_via_java(args: argparse.Namespace, cases: list[EvalCase]):
 def evaluate_ann_only(args: argparse.Namespace, conn, cases: list[EvalCase]):
     if not cases:
         raise RuntimeError("dataset 为空")
-    knowledge_id = cases[0].knowledge_id
+    scope = cases[0].scope
     queries = [c.query for c in cases]
     print(
         f"ANN-only Embedding {len(queries)} 条 query（{EMBED_MODEL} dim={EMBED_DIMENSIONS}）...",
@@ -660,7 +647,7 @@ def evaluate_ann_only(args: argparse.Namespace, conn, cases: list[EvalCase]):
     document_ranks: list[Optional[int]] = []
     for case, vec in zip(cases, vectors):
         hits = search_by_similarity(
-            conn, SYSTEM_USER_ID, knowledge_id, vec, args.candidate_limit
+            conn, scope, vec, args.candidate_limit
         )
         c_rank = rank_of(hits, case.chunk_id)
         d_rank = doc_rank_of(hits, case.document_id)
@@ -703,7 +690,6 @@ def _build_report(
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "scope": args.scope,
-        "knowledge_id": cases[0].knowledge_id,
         "n": len(cases),
         "k": k,
         "candidate_limit": args.candidate_limit,
@@ -726,7 +712,7 @@ def format_report_txt(report: dict[str, Any]) -> str:
     lines = [
         "RAG 检索离线评测（系统知识库 / retrieveRanked）",
         f"时间: {report['generated_at']}",
-        f"样本: n={report['n']}  scope={report['scope']}  knowledge_id={report['knowledge_id']}",
+        f"样本: n={report['n']}  scope={report['scope']}",
         f"契约: {report['retriever']}",
         f"api_base: {report.get('api_base', '')}  candidate_limit={report['candidate_limit']}",
         "",
@@ -822,6 +808,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(f"已写 dataset: {args.dataset} ({len(cases)} 条)", flush=True)
         else:
             cases = load_dataset(args.dataset)
+            if cases and cases[0].scope != args.scope:
+                raise ValueError("评测参数与数据集的资料范围不一致")
             print(f"复用 dataset: {args.dataset} ({len(cases)} 条)", flush=True)
             if args.refresh_queries:
                 cases = refresh_queries(args, cases)

@@ -43,6 +43,7 @@ import com.zdmj.knowledgeService.config.KnowledgeDocumentConfig;
 import java.io.InputStream;
 import java.io.IOException;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
+import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
 import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
 import com.zdmj.knowledgeService.enums.KnowledgeEmbeddingStatusEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
@@ -68,13 +69,13 @@ class KnowledgeEmbeddingServiceImplTest {
     private final KnowledgeDocumentConfig documentConfig = new KnowledgeDocumentConfig(200_000);
 
     @Test
-    void vectorizeAndStoreNotFound_shouldThrowKnowledgeBaseNotFound() {
+    void vectorizeAndStoreNotFound_shouldThrowDocumentNotFound() {
         when(knowledgeDocumentMapper.selectById(999L)).thenReturn(null);
         KnowledgeEmbeddingServiceImpl service = newService();
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.vectorizeAndStore(actor, 999L));
 
-        assertEquals(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND.getCode(), ex.getCode());
+        assertEquals(ErrorCode.KNOWLEDGE_DOCUMENT_NOT_FOUND.getCode(), ex.getCode());
         verify(knowledgeDocumentMapper).selectById(999L);
         verify(knowledgeVectorMapper, never()).deleteByDocumentIdAndUserId(Mockito.anyLong(), Mockito.anyLong());
     }
@@ -89,7 +90,7 @@ class KnowledgeEmbeddingServiceImplTest {
         BusinessException vectorize = assertThrows(BusinessException.class,
                 () -> service.vectorizeAndStore(actor, 115L));
 
-        assertEquals(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND.getCode(), vectorize.getCode());
+        assertEquals(ErrorCode.KNOWLEDGE_DOCUMENT_NOT_FOUND.getCode(), vectorize.getCode());
         verify(knowledgeDocumentMapper, never()).update(isNull(), any());
         Mockito.verifyNoInteractions(pdfParserUtil, textSplitter, embeddingGateway, knowledgeVectorMapper);
     }
@@ -99,7 +100,7 @@ class KnowledgeEmbeddingServiceImplTest {
         KnowledgeDocument kd = new KnowledgeDocument();
         kd.setId(100L);
         kd.setUserId(1L);
-        kd.setKnowledgeId(500L);
+        kd.setScope(KnowledgeScopeEnum.USER.getCode());
         kd.setType(KnowledgeTypeEnum.GITHUB_REPO.getCode());
         kd.setContent("https://github.com/acme/repo");
         when(knowledgeDocumentMapper.selectById(100L)).thenReturn(kd);
@@ -108,7 +109,7 @@ class KnowledgeEmbeddingServiceImplTest {
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.vectorizeAndStore(actor, 100L));
 
-        assertEquals(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED.getCode(), ex.getCode());
+        assertEquals(ErrorCode.KNOWLEDGE_DOCUMENT_EMBEDDING_FAILED.getCode(), ex.getCode());
         verify(knowledgeDocumentMapper, times(2)).update(isNull(), any());
         verify(knowledgeVectorMapper, never()).deleteByDocumentIdAndUserId(100L, 1L);
         verify(embeddingGateway, never()).embed(any(), anyList());
@@ -188,7 +189,7 @@ class KnowledgeEmbeddingServiceImplTest {
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.vectorizeAndStore(actor, 130L));
 
-        assertEquals(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED.getCode(), ex.getCode());
+        assertEquals(ErrorCode.KNOWLEDGE_DOCUMENT_EMBEDDING_FAILED.getCode(), ex.getCode());
         assertEquals("文档内容已变化", ex.getMessage());
         verify(knowledgeVectorMapper, never()).batchInsert(any());
         verify(embeddingGateway).embed(any(), anyList());
@@ -298,7 +299,7 @@ class KnowledgeEmbeddingServiceImplTest {
         KnowledgeDocument document = new KnowledgeDocument();
         document.setId(id);
         document.setUserId(1L);
-        document.setKnowledgeId(500L);
+        document.setScope(KnowledgeScopeEnum.USER.getCode());
         document.setType(KnowledgeTypeEnum.PROJECT_DOCUMENT.getCode());
         document.setContent(content);
         document.setFileStatus(1);

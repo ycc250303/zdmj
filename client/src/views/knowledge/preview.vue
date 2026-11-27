@@ -9,14 +9,14 @@ const router = useRouter();
 const loading = ref(true);
 const detail = ref<KnowledgeApi.KnowledgeDocumentDTO | null>(null);
 
-const knowledgeId = computed(() => Number(route.query.id));
+const documentId = computed(() => Number(route.query.id));
 
 async function loadDetail() {
-  if (!knowledgeId.value) return;
+  if (!documentId.value) return;
 
   loading.value = true;
   try {
-    const { data, error } = await fetchGetKnowledgeDetail(knowledgeId.value);
+    const { data, error } = await fetchGetKnowledgeDetail(documentId.value);
     if (!error && data) {
       detail.value = data;
     }

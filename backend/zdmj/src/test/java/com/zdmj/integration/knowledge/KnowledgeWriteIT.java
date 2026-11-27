@@ -8,8 +8,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.knowledgeService.entity.KnowledgeVector;
+import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
-import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
 import com.zdmj.testsupport.ApiClient;
 import com.zdmj.testsupport.DatabaseCleaner;
@@ -21,9 +21,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -36,7 +33,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-/** 验证原子建库和覆盖向量事务，故障仅注入隔离数据库调用。 */
+/** 验证文档归属、时间和覆盖向量事务，故障仅注入隔离数据库调用。 */
 @AutoConfigureMockMvc
 class KnowledgeWriteIT extends IntegrationTestBase {
     @Autowired private TestUsers users;
@@ -45,7 +42,6 @@ class KnowledgeWriteIT extends IntegrationTestBase {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private SqlSessionTemplate sessions;
     @Autowired private MutableClock clock;
-    @Autowired private KnowledgeBasesService bases;
     @Autowired private KnowledgeEmbeddingService embedding;
     @MockitoSpyBean private KnowledgeVectorMapper vectors;
 
@@ -53,42 +49,16 @@ class KnowledgeWriteIT extends IntegrationTestBase {
     KnowledgeWriteIT(DatabaseCleaner cleaner) { super(cleaner); }
 
     @Test
-    void 显式重复创建和上传后创建_返回相同用户私有库且时间来自应用时钟() throws Exception {
-        var pair = users.createPair();
-        String token = jwt.authorize(pair.userA());
-        clock.setInstant(Instant.now().plusSeconds(120).truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
-        var expectedTime = java.sql.Timestamp.valueOf(java.time.LocalDateTime.now(clock));
-        var api = new ApiClient(mvc);
-        long first = ApiClient.dataId(api.post(token, "/knowledge", null));
-        assertThat(ApiClient.dataId(api.post(token, "/knowledge", null))).isEqualTo(first);
-        long document = upload(token, "知识内容");
-        assertThat(ApiClient.dataId(api.post(token, "/knowledge", null))).isEqualTo(first);
-        assertThat(jdbc.queryForObject("SELECT knowledge_id FROM knowledge_documents WHERE id=?", Long.class, document)).isEqualTo(first);
-        assertThat(jdbc.queryForMap("SELECT created_at,updated_at FROM knowledge_bases WHERE id=?", first))
-                .containsEntry("created_at", expectedTime).containsEntry("updated_at", expectedTime);
-        String other = jwt.authorize(pair.userB());
-        long otherDocument = upload(other, "另一用户先上传");
-        long otherBase = ApiClient.dataId(api.post(other, "/knowledge", null));
-        assertThat(otherBase).isNotEqualTo(first);
-        assertThat(jdbc.queryForObject("SELECT knowledge_id FROM knowledge_documents WHERE id=?", Long.class, otherDocument)).isEqualTo(otherBase);
-    }
-
-    @Test
-    void 显式创建与首次上传并发_只建立一个用户私有库() throws Exception {
+    void 上传登记本人私有文档并使用应用时间() throws Exception {
         var user = users.createPair().userA();
         String token = jwt.authorize(user);
-        var actor = new CurrentActor(user.getId());
-        var start = new CyclicBarrier(3);
-        try (var executor = Executors.newFixedThreadPool(3)) {
-            var first = executor.submit(() -> { start.await(10, TimeUnit.SECONDS); return bases.create(actor).id(); });
-            var second = executor.submit(() -> { start.await(10, TimeUnit.SECONDS); return bases.create(actor).id(); });
-            var uploaded = executor.submit(() -> { start.await(10, TimeUnit.SECONDS); return upload(token, "并发上传"); });
-            long baseId = first.get(15, TimeUnit.SECONDS);
-            assertThat(second.get(15, TimeUnit.SECONDS)).isEqualTo(baseId);
-            assertThat(jdbc.queryForObject("SELECT knowledge_id FROM knowledge_documents WHERE id=?", Long.class,
-                    uploaded.get(15, TimeUnit.SECONDS))).isEqualTo(baseId);
-        }
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM knowledge_bases WHERE user_id=? AND scope=1", Integer.class, user.getId())).isEqualTo(1);
+        clock.setInstant(Instant.now().plusSeconds(120).truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
+        var expectedTime = java.sql.Timestamp.valueOf(java.time.LocalDateTime.now(clock));
+        long document = upload(token, "知识内容");
+        assertThat(jdbc.queryForMap("SELECT user_id,scope,created_at,updated_at FROM knowledge_documents WHERE id=?", document))
+                .containsEntry("user_id", user.getId()).containsEntry("scope", KnowledgeScopeEnum.USER.getCode())
+                .containsEntry("created_at", expectedTime).containsEntry("updated_at", expectedTime);
+        assertThat(jdbc.queryForObject("SELECT to_regclass('public.knowledge_bases')::text", String.class)).isNull();
     }
 
     @ParameterizedTest

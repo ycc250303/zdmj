@@ -59,7 +59,7 @@ sync_release_commit() {
   APP_DIR="$APP_DIR" DEPLOY_SHA="$DEPLOY_SHA" GIT_ORIGIN_URL="${GIT_ORIGIN_URL:-}" bash "$sync"
 }
 
-# 离线数据维护复用当前发布入口；迁移和备份期间应用必须停止。
+# 原文件维护复用当前发布入口；备份期间应用必须停止。
 storage_maintenance() {
   require_env_file
   python3 - "$APP_DIR" "$ENV_FILE" "$1" <<'PYTHON'
@@ -85,15 +85,13 @@ if not root.is_dir() or (root.stat().st_uid, root.stat().st_gid) != (10001, 1000
 if action == "init":
     print("持久化目录初始化完成:", root)
     sys.exit(0)
-if action in ("migrate", "backup"):
+if action == "backup":
     if run(compose + ["ps", "--status", "running", "-q", "backend"]).strip():
         raise SystemExit("错误: 数据维护前必须停止后端写入")
 psql = compose + ["exec", "-T", "postgres", "sh", "-c",
     'exec psql -X -v ON_ERROR_STOP=1 -At -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
 def sql(statement):
     return run(psql, "SET standard_conforming_strings=on;\n" + statement).removeprefix("SET\n").strip()
-def literal(value):
-    return "'" + str(value).replace("'", "''") + "'"
 def digest(path):
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
@@ -115,10 +113,7 @@ if action == "backup":
         archive.add(root, arcname="knowledge")
     print("备份完成:", backup)
     sys.exit(0)
-if action == "migrate":
-    migration = pathlib.Path(app) / "sql/migrations/20261112_drop_knowledge_vector_tasks.sql"
-    sql(migration.read_text())
-rows = json.loads(sql("SELECT coalesce(json_agg(d), '[]') FROM (SELECT id,user_id,type,content,metadata,content_hash,file_status FROM knowledge_documents ORDER BY id) d;"))
+rows = json.loads(sql("SELECT coalesce(json_agg(d), '[]') FROM (SELECT id,user_id,type,content,metadata,content_hash,file_status FROM knowledge_documents WHERE scope=1 ORDER BY id) d;"))
 references = set()
 for row in rows:
     key = row["content"]
@@ -146,7 +141,7 @@ PYTHON
 
 if [[ -n "${STORAGE_ACTION:-}" ]]; then
   case "$STORAGE_ACTION" in
-    init|check|migrate|backup) storage_maintenance "$STORAGE_ACTION" ;;
+    init|check|backup) storage_maintenance "$STORAGE_ACTION" ;;
     *) echo "错误: 不支持的文件维护操作" >&2; exit 1 ;;
   esac
   exit 0

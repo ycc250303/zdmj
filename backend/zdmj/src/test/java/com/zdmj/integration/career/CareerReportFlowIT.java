@@ -25,6 +25,7 @@ import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.knowledgeService.api.KnowledgeRagService;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
+import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
 import com.zdmj.testsupport.ApiClient;
@@ -237,14 +238,10 @@ class CareerReportFlowIT extends IntegrationTestBase {
         String token = testJwt.authorize(owner);
         long jobId = createJob(token);
         seedInputs(owner.getId(), jobId);
-        long privateBase = jdbcTemplate.queryForObject("SELECT id FROM knowledge_bases WHERE user_id=? AND scope=1", Long.class, owner.getId());
-        long otherBase = createBase(users.userB().getId(), 1);
-        long learningBase = createBase(0L, 3);
-        long systemBase = createBase(0L, 2);
-        long own = seedKnowledge(privateBase, owner.getId(), "本人标题", "本人片段", "learning_path");
-        long learning = seedKnowledge(learningBase, 0L, "学习路线标题", "路线片段", "learning_path");
-        long other = seedKnowledge(otherBase, users.userB().getId(), "他人秘密标题", "他人秘密片段", "learning_path");
-        long system = seedKnowledge(systemBase, 0L, "系统通用标题", "系统通用片段", "learning_path");
+        long own = seedKnowledge(KnowledgeScopeEnum.USER, owner.getId(), "本人标题", "本人片段", "learning_path");
+        long learning = seedKnowledge(KnowledgeScopeEnum.LEARNING_PATH, null, "学习路线标题", "路线片段", "learning_path");
+        long other = seedKnowledge(KnowledgeScopeEnum.USER, users.userB().getId(), "他人秘密标题", "他人秘密片段", "learning_path");
+        long system = seedKnowledge(KnowledgeScopeEnum.SYSTEM, null, "系统通用标题", "系统通用片段", "learning_path");
         var captured = new java.util.concurrent.atomic.AtomicReference<String>();
         org.mockito.Mockito.doAnswer(invocation -> {
             var request = invocation.getArgument(1, com.zdmj.aiService.api.ModelRequest.class);
@@ -290,18 +287,17 @@ class CareerReportFlowIT extends IntegrationTestBase {
     }
 
     @Test
-    void 检索快照与并发替换互不混用且错误关联向量无法被检索() throws Exception {
+    void 检索快照与并发替换互不混用且孤立向量无法被检索() throws Exception {
         User owner = testUsers.createPair().userA();
         String token = testJwt.authorize(owner);
-        long base = createBase(owner.getId(), 1);
-        long document = seedKnowledge(base, owner.getId(), "原标题", "原片段", "learning_path");
+        long document = seedKnowledge(KnowledgeScopeEnum.USER, owner.getId(), "原标题", "原片段", "learning_path");
         org.mockito.Mockito.doAnswer(invocation -> {
             Object result = sqlSession.getMapper(KnowledgeVectorMapper.class).searchBySimilarity(
                     invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2), invocation.getArgument(3));
             // 查询返回后由另一数据库连接提交替换登记，返回值必须仍为原查询快照。
             jdbcTemplate.update("UPDATE knowledge_documents SET file_status=0,title='新标题',metadata=metadata || '{\"pendingKey\":\"user-1/new.md\"}'::jsonb WHERE id=?", document);
             return result;
-        }).when(vectors).searchBySimilarity(org.mockito.ArgumentMatchers.eq(owner.getId()), org.mockito.ArgumentMatchers.eq(base), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyInt());
+        }).when(vectors).searchBySimilarity(org.mockito.ArgumentMatchers.eq(owner.getId()), org.mockito.ArgumentMatchers.eq(KnowledgeScopeEnum.USER.getCode()), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyInt());
         var hits = knowledge.retrieveLearningPaths(new CurrentActor(owner.getId()), "学习需求");
         assertThat(hits).hasSize(1);
         assertThat(hits.getFirst().title()).isEqualTo("原标题");
@@ -313,8 +309,7 @@ class CareerReportFlowIT extends IntegrationTestBase {
         assertThat(JsonPath.<List<?>>read(closed, "$.data.hits")).isEmpty();
         org.mockito.Mockito.reset(vectors);
         jdbcTemplate.update("UPDATE knowledge_documents SET file_status=1 WHERE id=?", document);
-        long wrongBase = createBase(0L, 3);
-        jdbcTemplate.update("UPDATE knowledge_vectors SET knowledge_id=? WHERE document_id=?", wrongBase, document);
+        jdbcTemplate.update("UPDATE knowledge_vectors SET document_id=999999 WHERE document_id=?", document);
         assertThat(knowledge.retrieveLearningPaths(new CurrentActor(owner.getId()), "学习需求")).isEmpty();
     }
 
@@ -332,20 +327,16 @@ class CareerReportFlowIT extends IntegrationTestBase {
         ApiClient.assertProblem(api.get(token, "/career-reports/jobs/" + job), 500, 1008);
     }
 
-    private long createBase(Long userId, int scope) {
-        return jdbcTemplate.queryForObject("INSERT INTO knowledge_bases(user_id,scope) VALUES (?,?) RETURNING id", Long.class, userId, scope);
-    }
-
-    private long seedKnowledge(long base, Long owner, String title, String content, String category) {
+    private long seedKnowledge(KnowledgeScopeEnum scope, Long owner, String title, String content, String category) {
         long id = jdbcTemplate.queryForObject("""
-                INSERT INTO knowledge_documents(knowledge_id,user_id,type,content,title,file_status,embedding_status,metadata)
+                INSERT INTO knowledge_documents(scope,user_id,type,content,title,file_status,embedding_status,metadata)
                 VALUES (?,?,1,?, ?,1,3,jsonb_build_object('docCategory',?::text,'sourceFile',?::text,'pendingKey','secret','retiredFile','secret')) RETURNING id
-                """, Long.class, base, owner, "user-" + owner + "/private.md", title, category, "user-" + owner + "/private.md");
+                """, Long.class, scope.getCode(), owner, "user-" + owner + "/private.md", title, category, "user-" + owner + "/private.md");
         String vector = "[1," + String.join(",", java.util.Collections.nCopies(1023, "0")) + "]";
         jdbcTemplate.update("""
-                INSERT INTO knowledge_vectors(knowledge_id,document_id,user_id,embedding,content,chunk_index,metadata)
-                VALUES (?,?,?,?::vector,?,0,'{"sourceFile":"internal.md","pendingKey":"secret"}'::jsonb)
-                """, base, id, owner, vector, content);
+                INSERT INTO knowledge_vectors(document_id,embedding,content,chunk_index,metadata)
+                VALUES (?,?::vector,?,0,'{"sourceFile":"internal.md","pendingKey":"secret"}'::jsonb)
+                """, id, vector, content);
         return id;
     }
 
@@ -366,7 +357,6 @@ class CareerReportFlowIT extends IntegrationTestBase {
                     user_id, job_id, overall_score, summary, target_role_type, prompt_name)
                 VALUES (?, ?, 80, '固定匹配摘要', 'java-backend', 'job-student-match/java-backend')
                 """, userId, jobId);
-        jdbcTemplate.update("INSERT INTO knowledge_bases (user_id, scope) VALUES (?, 1)", userId);
     }
 
     private long seedReport(Long userId, long jobId, String goal) {

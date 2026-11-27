@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
 import com.jayway.jsonpath.JsonPath;
+import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
 import com.zdmj.testsupport.ApiClient;
 import com.zdmj.testsupport.IntegrationTestBase;
 import com.zdmj.testsupport.TestJwt;
@@ -83,17 +84,22 @@ class LogicalReferenceIntegrityIT extends IntegrationTestBase {
                 VALUES ('孤立岗位', 888888888, '不存在的公司', '描述', '上海', 1, 2, 2, '')
                 """);
         jdbcTemplate.update("""
-                INSERT INTO knowledge_documents (knowledge_id, user_id, type, content)
-                VALUES (888888888, ?, 4, 'orphan-doc')
-                """, pair.userA().getId());
+                INSERT INTO knowledge_documents (scope, user_id, type, content)
+                VALUES (?, 888888888, 1, 'orphan-doc')
+                """, KnowledgeScopeEnum.USER.getCode());
         jdbcTemplate.update("""
                 INSERT INTO messages (conversation_id, user_id, role, content, sequence)
                 VALUES (888888888, ?, 1, 'orphan-message', 1)
                 """, pair.userA().getId());
 
+        jdbcTemplate.update("""
+                INSERT INTO knowledge_vectors(document_id,chunk_index,embedding)
+                VALUES (999999999,0,?::vector)
+                """, "[1," + "0,".repeat(1022) + "0]");
+
         assertThat(LogicalReferenceChecks.find(jdbcTemplate))
                 .extracting(LogicalReferenceChecks.Orphan::sourceTable)
-                .containsExactly("messages", "knowledge_documents", "jobs");
+                .containsExactly("messages", "knowledge_documents", "knowledge_vectors", "jobs");
         assertThat(LogicalReferenceChecks.find(jdbcTemplate))
                 .filteredOn(orphan -> "jobs".equals(orphan.sourceTable()))
                 .hasSize(1);

@@ -14,11 +14,11 @@ import com.zdmj.knowledgeService.dto.KnowledgeDocumentPublicResponse;
 import com.zdmj.knowledgeService.dto.KnowledgeDocumentRequest;
 import com.zdmj.knowledgeService.dto.KnowledgeDocumentResponse;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
+import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument.FileStatus;
 import com.zdmj.knowledgeService.enums.KnowledgeEmbeddingStatusEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
-import com.zdmj.knowledgeService.service.KnowledgeBasesService;
 import com.zdmj.knowledgeService.service.KnowledgeDocumentService;
 import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
 import java.util.LinkedHashMap;
@@ -36,7 +36,6 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
-    private final KnowledgeBasesService knowledgeBasesService;
     private final KnowledgeEmbeddingService knowledgeEmbeddingService;
     private final FileUploadService fileUploadService;
     private final KnowledgeVectorMapper knowledgeVectorMapper;
@@ -52,10 +51,9 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     public KnowledgeDocumentResponse upload(CurrentActor actor, KnowledgeDocumentRequest request, MultipartFile file) {
         validateRequest(request);
         StoredFile target = fileUploadService.prepare(actor, file);
-        Long knowledgeId = knowledgeBasesService.getOrCreateKnowledgeBaseId(actor);
         KnowledgeDocument document = new KnowledgeDocument();
         document.setUserId(actor.userId());
-        document.setKnowledgeId(knowledgeId);
+        document.setScope(KnowledgeScopeEnum.USER.getCode());
         document.setType(1);
         document.setContent(target.key());
         document.setTitle(request.title().trim());
@@ -152,7 +150,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     @Override
     public KnowledgeDocument getById(CurrentActor actor, Long id) {
         KnowledgeDocument document = knowledgeDocumentMapper.selectById(id);
-        if (document == null || !actor.userId().equals(document.getUserId())) {
+        if (document == null || !Objects.equals(document.getScope(), KnowledgeScopeEnum.USER.getCode()) || !actor.userId().equals(document.getUserId())) {
             throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_NOT_FOUND);
         }
         return document;
@@ -166,7 +164,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     @Override
     public PageDTO<KnowledgeDocumentPublicResponse> getByPage(CurrentActor actor, Integer page, Integer limit) {
         Page<KnowledgeDocument> result = knowledgeDocumentMapper.selectPage(PageRequests.toPage(PageRequests.normalize(page, limit)),
-                new LambdaQueryWrapper<KnowledgeDocument>().eq(KnowledgeDocument::getUserId, actor.userId())
+                new LambdaQueryWrapper<KnowledgeDocument>().eq(KnowledgeDocument::getScope, KnowledgeScopeEnum.USER.getCode()).eq(KnowledgeDocument::getUserId, actor.userId())
                         .orderByDesc(KnowledgeDocument::getCreatedAt).orderByDesc(KnowledgeDocument::getId));
         List<KnowledgeDocumentPublicResponse> list = result.getRecords().stream().map(this::publicResponse).toList();
         return PageDTO.from(result, list);
@@ -229,25 +227,6 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         });
     }
 
-    /** 按调用开始时的最大编号分批清空，期间新建的文档不包含在本次范围内。 */
-    @Override
-    public void clear(CurrentActor actor) {
-        Long max = knowledgeDocumentMapper.selectList(new LambdaQueryWrapper<KnowledgeDocument>()
-                .eq(KnowledgeDocument::getUserId, actor.userId()).orderByDesc(KnowledgeDocument::getId)
-                .last("LIMIT 1")).stream().map(KnowledgeDocument::getId).findFirst().orElse(0L);
-        long cursor = 0;
-        while (cursor < max) {
-            List<KnowledgeDocument> batch = knowledgeDocumentMapper.selectList(new LambdaQueryWrapper<KnowledgeDocument>()
-                    .eq(KnowledgeDocument::getUserId, actor.userId()).gt(KnowledgeDocument::getId, cursor)
-                    .le(KnowledgeDocument::getId, max).orderByAsc(KnowledgeDocument::getId).last("LIMIT 100"));
-            if (batch.isEmpty()) { break; }
-            for (KnowledgeDocument document : batch) {
-                delete(actor, document.getId());
-                cursor = document.getId();
-            }
-        }
-    }
-
     /** 按文档归属打开本地原文件，文件名、长度和类型取自 metadata。 */
     @Override
     public Download openDownload(CurrentActor actor, Long id) {
@@ -300,11 +279,11 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     public void recoverInterruptedOperations() {
         transactionTemplate.executeWithoutResult(status -> {
             knowledgeDocumentMapper.update(null, new LambdaUpdateWrapper<KnowledgeDocument>()
-                    .eq(KnowledgeDocument::getFileStatus, FileStatus.WRITING.code())
+                    .eq(KnowledgeDocument::getScope, KnowledgeScopeEnum.USER.getCode()).eq(KnowledgeDocument::getFileStatus, FileStatus.WRITING.code())
                     .set(KnowledgeDocument::getFileStatus, FileStatus.FAILED.code())
                     .set(KnowledgeDocument::getUpdatedAt, com.zdmj.common.util.DateTimeUtil.now()));
             knowledgeDocumentMapper.update(null, new LambdaUpdateWrapper<KnowledgeDocument>()
-                    .eq(KnowledgeDocument::getEmbeddingStatus, KnowledgeEmbeddingStatusEnum.RUNNING.getCode())
+                    .eq(KnowledgeDocument::getScope, KnowledgeScopeEnum.USER.getCode()).eq(KnowledgeDocument::getEmbeddingStatus, KnowledgeEmbeddingStatusEnum.RUNNING.getCode())
                     .set(KnowledgeDocument::getEmbeddingStatus, KnowledgeEmbeddingStatusEnum.FAILED.getCode())
                     .set(KnowledgeDocument::getLastError, "处理被中断，请重新处理文档")
                     .set(KnowledgeDocument::getUpdatedAt, com.zdmj.common.util.DateTimeUtil.now()));
@@ -329,13 +308,13 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
 
     private static LambdaUpdateWrapper<KnowledgeDocument> owned(CurrentActor actor, Long id) {
         return new LambdaUpdateWrapper<KnowledgeDocument>().eq(KnowledgeDocument::getId, id)
-                .eq(KnowledgeDocument::getUserId, actor.userId())
+                .eq(KnowledgeDocument::getScope, KnowledgeScopeEnum.USER.getCode()).eq(KnowledgeDocument::getUserId, actor.userId())
                 .set(KnowledgeDocument::getUpdatedAt, com.zdmj.common.util.DateTimeUtil.now());
     }
 
     private static LambdaQueryWrapper<KnowledgeDocument> ownedQuery(CurrentActor actor, Long id) {
         return new LambdaQueryWrapper<KnowledgeDocument>().eq(KnowledgeDocument::getId, id)
-                .eq(KnowledgeDocument::getUserId, actor.userId());
+                .eq(KnowledgeDocument::getScope, KnowledgeScopeEnum.USER.getCode()).eq(KnowledgeDocument::getUserId, actor.userId());
     }
 
     private static void requireReady(KnowledgeDocument document) {
@@ -397,7 +376,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     }
 
     private KnowledgeDocumentResponse response(KnowledgeDocument document) {
-        return new KnowledgeDocumentResponse(document.getId(), document.getKnowledgeId(), document.getUserId(),
+        return new KnowledgeDocumentResponse(document.getId(), document.getUserId(),
                 document.getType(), downloadPath(document), document.getFileStatus(), document.getTitle(),
                 document.getContentHash(), document.getEmbeddingStatus(), document.getChunkCount(),
                 document.getLastEmbeddedAt(), document.getLastError(), publicMetadata(document));

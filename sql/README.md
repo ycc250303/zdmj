@@ -1,123 +1,21 @@
-# PostgreSQL 数据库初始化说明
+# PostgreSQL 数据库维护
 
-## 概述
+`pgsql.sql` 用于创建空数据库，`pgsql.md` 是字段、约束与索引字典。现有数据库使用 `migrations/` 中的增量脚本，执行前备份并停止应用写入。禁止对已有数据直接执行初始化脚本。
 
-本目录包含PostgreSQL数据库的完整建表脚本，用于替代原MongoDB存储方案。所有数据使用PostgreSQL的JSONB字段存储，同时使用pgvector扩展支持向量检索功能。
+使用 PostgreSQL 15、pgvector 和 pg_trgm，嵌入维度为1024。知识文档直接保存范围和归属：范围1为用户私有，用户编号为正数；范围2为系统通用，范围3为学习路径，两者用户编号为空。向量通过文档取得访问范围。表间采用逻辑外键，由业务写入校验、事务和一致性检查保证关联。
 
-## 文件说明
+## 结构变更脚本
 
-- `2026-02-10.sql`: 完整的数据库建表脚本，包含所有表结构和索引
+`migrations/` 仅保存表、字段、约束、索引的结构变更，按对应旧结构选择执行。执行前停写备份，并保证已有数据满足目标字段与约束要求；新增非空字段、唯一约束及检查约束不包含自动清理或回填。禁止将整个目录作为可从任意旧版本直接运行的升级流程。
 
-## 安装步骤
+文档归属结构文件为 `20261126_remove_knowledge_bases.sql`，添加文档范围、调整用户归属约束、删除重复归属字段与知识库表，保留已有 HNSW 索引。会话结构文件为 `20261122_unify_conversation_memory.sql`，添加回复关联与状态字段、约束及索引，删除独立记忆表。这两个脚本各自使用事务，约束失败需回滚；已完成对应结构变更的服务器无需重复执行。
 
-### 1. 安装PostgreSQL
+结构脚本通过 `psql -X -v ON_ERROR_STOP=1` 执行，未内置事务的脚本增加 `-1`。凭据由环境变量提供。恢复使用同一备份中的数据库和原文件目录；正式发布遵守 `docs/backend/ci-cd.md` 的固定提交与 CI 要求。
 
-确保已安装PostgreSQL 12或更高版本。
+## 系统资料手工导入与评测
 
-### 2. 安装pgvector扩展
+`import_system_knowledge.py --scope 2|3 --source-dir <目录>` 导入 Markdown。分块及全部模型嵌入完成后，以单事务保存文档和全部向量；相同范围、相同来源路径保留文档编号。数据库或模型失败立即终止。凭据通过环境变量提供，`--dry-run` 只预览分块。
 
-在创建数据库后，需要安装pgvector扩展：
+`eval_rag_retrieval.py` 的样本保存 `scope`、`document_id`、`chunk_id`，检索按文档范围及成功状态授权。历史评测样本升级时显式填写对应范围并删除 `knowledge_id`、`user_id`，保留问题和编号；范围须与评测参数一致。
 
-```bash
-# 使用psql连接到数据库
-psql -U postgres -d your_database_name
-
-# 或者直接执行SQL文件
-psql -U postgres -d your_database_name -f 2026-02-10.sql
-```
-
-pgvector扩展会在SQL脚本中自动创建（`CREATE EXTENSION IF NOT EXISTS vector;`）。
-
-### 3. 执行建表脚本
-
-```bash
-psql -U postgres -d your_database_name -f 2026-02-10.sql
-```
-
-## 数据库表结构
-
-### 用户模块
-- `users`: 用户表
-- `user_profiles`: 用户画像表（使用JSONB存储基础信息、技能、求职意向等）
-- `user_behavior_logs`: 用户行为日志表
-
-### 简历模块
-- `educations`: 教育经历表
-- `skills`: 技能表
-- `careers`: 工作/实习经历表
-- `project_experiences`: 项目经历表
-
-### 项目模块
-- `projects`: 项目经验表（使用JSONB替代MongoDB）
-- `projects_mined`: 项目挖掘表
-- `projects_polished`: 项目打磨表
-
-### 岗位模块
-- `jobs`: 岗位表（使用JSONB替代MongoDB）
-
-### 知识库模块
-- `knowledge_bases`: 知识库表（使用JSONB替代MongoDB）
-
-### 向量检索模块
-- `knowledge_vectors`: 知识库向量表（使用pgvector）
-- `job_vectors`: 岗位向量表（使用pgvector）
-- `project_code_vectors`: 项目代码向量表（使用pgvector）
-
-## 向量维度说明
-
-所有向量表使用768维向量，对应SBERT模型（如all-MiniLM-L6-v2）的输出维度。
-
-如需使用OpenAI的embedding模型（1536维），需要修改：
-- `VECTOR(768)` 改为 `VECTOR(1536)`
-- 相应调整向量化服务的配置
-
-## 索引说明
-
-### 向量索引
-
-所有向量表都使用ivfflat索引进行余弦相似度搜索：
-
-```sql
-CREATE INDEX ... USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
-```
-
-`lists = 100` 参数可根据数据量调整：
-- 小数据集（< 10万条）：lists = 10-50
-- 中等数据集（10-100万条）：lists = 100
-- 大数据集（> 100万条）：lists = 100-200
-
-### 业务索引
-
-所有表都创建了必要的业务索引，包括：
-- 用户ID索引
-- 外键关联索引
-- 状态字段索引
-- 复合索引（用于常见查询场景）
-
-## 注意事项
-
-1. **外键约束**: 所有表都设置了外键约束和级联删除，确保数据一致性
-2. **时间戳**: 统一使用 `TIMESTAMP WITH TIME ZONE` 类型
-3. **JSONB字段**: 原MongoDB的文档数据存储在JSONB字段中，支持高效的JSON查询
-4. **向量索引**: 向量索引需要在有数据后创建，但脚本中已包含创建语句
-
-## 数据迁移
-
-从MongoDB迁移到PostgreSQL时，需要：
-1. 将MongoDB文档转换为JSONB格式
-2. 保持原有的数据结构
-3. 确保向量数据正确导入到向量表
-
-## 性能优化建议
-
-1. **向量索引**: 根据实际数据量调整ivfflat的lists参数
-2. **JSONB索引**: 对频繁查询的JSONB字段创建GIN索引
-3. **连接池**: 配置合适的数据库连接池大小
-4. **查询优化**: 使用EXPLAIN ANALYZE分析慢查询
-
-## 维护
-
-定期执行：
-- `VACUUM ANALYZE`: 清理和更新统计信息
-- 检查向量索引的使用情况
-- 监控数据库性能指标
+数据库结构集成测试纳入后端 `clean verify`。脚本测试使用独立测试数据库及环境变量 `KNOWLEDGE_TEST_DSN`，执行 `python -m unittest discover -s sql -p 'test_knowledge_tools.py'`；依赖 `psycopg2-binary openai tiktoken`，测试会重建指定数据库中的表，只允许使用隔离临时数据库。

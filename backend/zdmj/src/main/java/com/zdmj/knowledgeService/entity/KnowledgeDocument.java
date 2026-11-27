@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.zdmj.common.model.BaseEntity;
+import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -26,10 +27,8 @@ public class KnowledgeDocument extends BaseEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    /**
-     * 知识库ID
-     */
-    private Long knowledgeId;
+    /** 文档使用范围，对应 scope；码值由 {@link KnowledgeScopeEnum} 维护，创建时明确赋值。 */
+    private Integer scope;
 
     /**
      * 用户ID

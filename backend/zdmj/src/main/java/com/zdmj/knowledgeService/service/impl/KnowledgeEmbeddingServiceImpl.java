@@ -27,6 +27,7 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.knowledgeService.config.KnowledgeDocumentConfig;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
+import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
 import com.zdmj.knowledgeService.entity.KnowledgeVector;
 import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
 import com.zdmj.knowledgeService.enums.KnowledgeEmbeddingStatusEnum;
@@ -67,8 +68,8 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
     public void vectorizeAndStore(CurrentActor actor, Long documentId) {
         // 1. 获取知识文档
         KnowledgeDocument loaded = knowledgeDocumentMapper.selectById(documentId);
-        if (loaded == null || !actor.userId().equals(loaded.getUserId()) || loaded.getKnowledgeId() == null) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
+        if (loaded == null || !actor.userId().equals(loaded.getUserId()) || !Objects.equals(loaded.getScope(), KnowledgeScopeEnum.USER.getCode())) {
+            throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_NOT_FOUND);
         }
         Long userId = loaded.getUserId();
         String contentSnapshot = loaded.getContent();
@@ -85,7 +86,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
             // 4. 切块
             List<Document> chunks = textSplitter.apply(List.of(new Document(rawText)));
             if (chunks.isEmpty()) {
-                throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "分块结果为空");
+                throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_EMBEDDING_FAILED, "分块结果为空");
             }
             List<KnowledgeVector> rows = embedChunks(actor, loaded, chunks);
             transactionTemplate.execute(status -> {
@@ -117,6 +118,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
     private int markStatus(Long documentId, Long userId, String contentSnapshot, Integer embeddingStatus, String lastError) {
         var update = new LambdaUpdateWrapper<KnowledgeDocument>()
                         .eq(KnowledgeDocument::getId, documentId)
+                        .eq(KnowledgeDocument::getScope, KnowledgeScopeEnum.USER.getCode())
                         .eq(KnowledgeDocument::getUserId, userId)
                         .eq(KnowledgeDocument::getContent, contentSnapshot)
                         .set(KnowledgeDocument::getEmbeddingStatus, embeddingStatus)
@@ -153,8 +155,6 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
                 String chunkText = batchTexts.get(j);
                 KnowledgeVector row = new KnowledgeVector();
                 row.setDocumentId(source.getId());
-                row.setKnowledgeId(source.getKnowledgeId());
-                row.setUserId(source.getUserId());
                 row.setEmbedding(toPgVector(batchVectors.get(j)));
                 row.setContent(chunkText);
                 row.setChunkIndex(start + j);
@@ -162,7 +162,6 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
                 row.setTokenCount(estimateToken(chunkText));
                 Map<String, Object> meta = new HashMap<>();
                 meta.put("DocumentId", String.valueOf(source.getId()));
-                meta.put("KnowledgeId", String.valueOf(source.getKnowledgeId()));
                 meta.put("source", "/knowledge-document/" + source.getId() + "/download");
                 row.setMetadata(meta);
                 rows.add(row);
@@ -199,12 +198,12 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
      */
     private void saveVectors(Long documentId, Long userId, String contentSnapshot, List<KnowledgeVector> rows) {
         KnowledgeDocument current = knowledgeDocumentMapper.selectOwnedForUpdate(documentId, userId);
-        if (current == null || !userId.equals(current.getUserId()) || current.getKnowledgeId() == null) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
+        if (current == null || !userId.equals(current.getUserId()) || !Objects.equals(current.getScope(), KnowledgeScopeEnum.USER.getCode())) {
+            throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_NOT_FOUND);
         }
         if (!Objects.equals(contentSnapshot, current.getContent()) || !Objects.equals(current.getFileStatus(), 1)
                 || !Objects.equals(current.getEmbeddingStatus(), KnowledgeEmbeddingStatusEnum.RUNNING.getCode())) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "文档内容已变化");
+            throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_EMBEDDING_FAILED, "文档内容已变化");
         }
         knowledgeVectorMapper.deleteByDocumentIdAndUserId(documentId, userId);
         int inserted = knowledgeVectorMapper.batchInsert(rows);
@@ -217,15 +216,17 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
         current.setLastEmbeddedAt(completedAt);
         current.setLastError(null);
         if (knowledgeDocumentMapper.update(null, new LambdaUpdateWrapper<KnowledgeDocument>()
-                .eq(KnowledgeDocument::getId, documentId).eq(KnowledgeDocument::getUserId, userId)
-                .eq(KnowledgeDocument::getContent, contentSnapshot).eq(KnowledgeDocument::getFileStatus, 1)
+                .eq(KnowledgeDocument::getId, documentId)
+                .eq(KnowledgeDocument::getScope, KnowledgeScopeEnum.USER.getCode()).eq(KnowledgeDocument::getUserId, userId)
+                .eq(KnowledgeDocument::getContent, contentSnapshot)
+                .eq(KnowledgeDocument::getFileStatus, 1)
                 .eq(KnowledgeDocument::getEmbeddingStatus, KnowledgeEmbeddingStatusEnum.RUNNING.getCode())
                 .set(KnowledgeDocument::getEmbeddingStatus, current.getEmbeddingStatus())
                 .set(KnowledgeDocument::getChunkCount, rows.size())
                 .set(KnowledgeDocument::getLastEmbeddedAt, current.getLastEmbeddedAt())
                 .set(KnowledgeDocument::getLastError, null)
                 .set(KnowledgeDocument::getUpdatedAt, completedAt)) != 1) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED);
+            throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_EMBEDDING_FAILED);
         }
     }
 
@@ -239,7 +240,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
      */
     private String extractText(CurrentActor actor, KnowledgeDocument document) {
         if (!Objects.equals(document.getType(), KnowledgeTypeEnum.PROJECT_DOCUMENT.getCode())) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "当前知识类型暂不支持向量化");
+            throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_EMBEDDING_FAILED, "当前知识类型暂不支持向量化");
         }
         try (InputStream input = fileUploadService.openInputStream(actor, document.getContent())) {
             return pdfParserUtil.extractText(input, documentConfig.maxExtractedChars());

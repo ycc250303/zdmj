@@ -2,10 +2,10 @@
 """
 离线导入系统知识库（scope=2 系统通用 / scope=3 学习路线）并向量化写入 PostgreSQL。
 
-与 Java 后端对齐的参数（见 application.yml、EmbeddingConfig、KnowledgeEmbeddingServiceImpl）：
+与 Java 后端一致的参数（见 application.yml、EmbeddingConfig、KnowledgeEmbeddingServiceImpl）：
   - Embedding 模型：text-embedding-v4，dimensions=1024
   - API：DashScope OpenAI 兼容模式 /v1/embeddings
-  - 分块：TokenTextSplitter 默认（chunk_size=800 token，CL100K_BASE）
+  - 分块：与后端知识文档配置一致（800 token，CL100K_BASE，保留非空短尾）
   - 批量 embed：每批最多 10 条（MAX_BATCH_SIZE）
   - 向量格式：pgvector 字符串 "[0.1,0.2,...]"
   - chunk_hash：SHA-256(hex)；token_count ≈ len(text)//4
@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import sys
@@ -41,18 +42,17 @@ import psycopg2.extras
 import tiktoken
 from openai import OpenAI
 
-# ---- 与 Java TokenTextSplitter 默认构造器一致 ----
+# ---- 与 Java 知识文档分块配置一致 ----
 CHUNK_SIZE_TOKENS = 800
 MIN_CHUNK_SIZE_CHARS = 350
-MIN_CHUNK_LENGTH_TO_EMBED = 5
-MAX_NUM_CHUNKS = 10_000
+MIN_CHUNK_LENGTH_TO_EMBED = 0
+MAX_NUM_CHUNKS = sys.maxsize
 KEEP_SEPARATOR = True
 EMBED_BATCH_SIZE = 10
 EMBED_MODEL = "text-embedding-v4"
 EMBED_DIMENSIONS = 1024
 EMBED_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
-SYSTEM_USER_ID = 0
 EMBEDDING_SUCCESS = 3  # KnowledgeEmbeddingStatusEnum.SUCCESS
 # 文档 type：当前 Java 枚举无 MARKDOWN，预导入用 1 占位；content 存稳定路径标识
 DOC_TYPE_PLACEHOLDER = 1
@@ -98,7 +98,7 @@ class Chunk:
 
 
 class TokenTextSplitterCompat:
-    """近似 Spring AI TokenTextSplitter（CL100K_BASE，默认参数）。"""
+    """近似 Spring AI TokenTextSplitter（CL100K_BASE，保留全部非空分块）。"""
 
     def __init__(self) -> None:
         self.enc = tiktoken.get_encoding("cl100k_base")
@@ -138,7 +138,7 @@ class TokenTextSplitterCompat:
                     cut = best + (1 if KEEP_SEPARATOR else 0)
 
             chunk = piece[:cut].strip()
-            if len(chunk) >= MIN_CHUNK_LENGTH_TO_EMBED:
+            if chunk:
                 chunks.append(chunk)
             start += cut if cut > 0 else len(piece)
 
@@ -156,29 +156,6 @@ def infer_doc_category(title: str, content: str, scope: int) -> str:
     return "general"
 
 
-def ensure_knowledge_base(conn, scope: int) -> int:
-    with conn.cursor() as cur:
-        cur.execute(
-            "SELECT id FROM knowledge_bases WHERE scope = %s LIMIT 1",
-            (scope,),
-        )
-        row = cur.fetchone()
-        if row:
-            return row[0]
-        cur.execute(
-            """
-            INSERT INTO knowledge_bases (user_id, scope, created_at, updated_at)
-            VALUES (%s, %s, NOW(), NOW())
-            RETURNING id
-            """,
-            (SYSTEM_USER_ID, scope),
-        )
-        kb_id = cur.fetchone()[0]
-        conn.commit()
-        print(f"已创建 knowledge_bases: id={kb_id}, scope={scope}")
-        return kb_id
-
-
 def embed_batch(client: OpenAI, texts: List[str]) -> List[List[float]]:
     resp = client.embeddings.create(
         model=EMBED_MODEL,
@@ -187,119 +164,51 @@ def embed_batch(client: OpenAI, texts: List[str]) -> List[List[float]]:
     )
     data = sorted(resp.data, key=lambda x: x.index)
     vectors = [list(d.embedding) for d in data]
-    if any(len(v) != EMBED_DIMENSIONS for v in vectors):
-        raise RuntimeError("embedding 维度与配置不一致")
+    if len(vectors) != len(texts) or [d.index for d in data] != list(range(len(texts))):
+        raise RuntimeError("embedding 数量或索引与分块不一致")
+    if any(len(v) != EMBED_DIMENSIONS or not all(math.isfinite(x) for x in v) for v in vectors):
+        raise RuntimeError("embedding 维度或数值与配置不一致")
     return vectors
 
 
-def upsert_document(
-    conn,
-    knowledge_id: int,
-    content_key: str,
-    title: str,
-    metadata: dict,
-) -> int:
-    content_hash = sha256_hex(content_key)
-    meta_json = json.dumps(metadata, ensure_ascii=False)
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT id FROM knowledge_documents
-            WHERE knowledge_id = %s AND content = %s
-            """,
-            (knowledge_id, content_key),
-        )
-        row = cur.fetchone()
-        if row:
-            doc_id = row[0]
+def save_document(conn, scope: int, content_key: str, title: str, raw: str,
+                  metadata: dict, chunks: List[Chunk], vectors: List[List[float]]) -> int:
+    """全部嵌入成功后，单事务保存系统文档及完整分块，保持同路径文档编号。"""
+    if scope not in (2, 3) or not chunks or len(chunks) != len(vectors):
+        raise ValueError("系统文档范围或分块数量非法")
+    with conn:
+        with conn.cursor() as cur:
             cur.execute(
                 """
-                UPDATE knowledge_documents
-                SET title = %s, metadata = %s::jsonb, content_hash = %s,
-                    embedding_status = %s, updated_at = NOW()
-                WHERE id = %s
-                """,
-                (title, meta_json, content_hash, EMBEDDING_SUCCESS, doc_id),
-            )
-        else:
-            cur.execute(
-                """
-                INSERT INTO knowledge_documents (
-                    knowledge_id, user_id, type, content, title, content_hash,
-                    embedding_status, chunk_count, metadata, created_at, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, 0, %s::jsonb, NOW(), NOW())
+                INSERT INTO knowledge_documents(scope,user_id,type,content,title,content_hash,
+                    file_status,embedding_status,chunk_count,metadata,created_at,updated_at)
+                VALUES (%s,NULL,%s,%s,%s,%s,1,3,%s,%s::jsonb,NOW(),NOW())
+                ON CONFLICT (scope,content) WHERE scope IN (2,3)
+                DO UPDATE SET title=EXCLUDED.title,content_hash=EXCLUDED.content_hash,
+                    metadata=EXCLUDED.metadata,file_status=1,embedding_status=3,
+                    chunk_count=EXCLUDED.chunk_count,updated_at=EXCLUDED.updated_at
                 RETURNING id
                 """,
-                (
-                    knowledge_id,
-                    SYSTEM_USER_ID,
-                    DOC_TYPE_PLACEHOLDER,
-                    content_key,
-                    title,
-                    content_hash,
-                    EMBEDDING_SUCCESS,
-                    meta_json,
-                ),
+                (scope, DOC_TYPE_PLACEHOLDER, content_key, title, sha256_hex(raw), len(chunks),
+                 json.dumps(metadata, ensure_ascii=False)),
             )
             doc_id = cur.fetchone()[0]
-    conn.commit()
+            cur.execute("DELETE FROM knowledge_vectors WHERE document_id=%s", (doc_id,))
+            rows = [(doc_id, to_pg_vector(vec), chunk.text,
+                     json.dumps({"DocumentId": str(doc_id), "content": content_key}, ensure_ascii=False),
+                     chunk.index, sha256_hex(chunk.text), estimate_token(chunk.text))
+                    for chunk, vec in zip(chunks, vectors, strict=True)]
+            inserted = psycopg2.extras.execute_values(cur,
+                """INSERT INTO knowledge_vectors(document_id,embedding,content,metadata,
+                       chunk_index,chunk_hash,token_count,created_at) VALUES %s RETURNING id""",
+                rows, template="(%s,%s::vector,%s,%s::jsonb,%s,%s,%s,NOW())", fetch=True)
+            if len(inserted) != len(chunks):
+                raise RuntimeError("向量写入数量与分块数量不一致")
+            cur.execute("""UPDATE knowledge_documents SET last_embedded_at=NOW(),last_error=NULL,
+                           updated_at=NOW() WHERE id=%s AND scope=%s AND user_id IS NULL""", (doc_id, scope))
+            if cur.rowcount != 1:
+                raise RuntimeError("文档完成状态写入数量非法")
     return doc_id
-
-
-def replace_vectors(
-    conn,
-    doc_id: int,
-    knowledge_id: int,
-    source_content_key: str,
-    chunks: List[Chunk],
-    vectors: List[List[float]],
-) -> None:
-    with conn.cursor() as cur:
-        cur.execute(
-            "DELETE FROM knowledge_vectors WHERE document_id = %s AND user_id = %s",
-            (doc_id, SYSTEM_USER_ID),
-        )
-        rows = []
-        for chunk, vec in zip(chunks, vectors):
-            meta = {
-                "DocumentId": str(doc_id),
-                "KnowledgeId": str(knowledge_id),
-                "content": source_content_key,
-            }
-            rows.append(
-                (
-                    knowledge_id,
-                    doc_id,
-                    SYSTEM_USER_ID,
-                    to_pg_vector(vec),
-                    chunk.text,
-                    json.dumps(meta, ensure_ascii=False),
-                    chunk.index,
-                    sha256_hex(chunk.text),
-                    estimate_token(chunk.text),
-                )
-            )
-        psycopg2.extras.execute_batch(
-            cur,
-            """
-            INSERT INTO knowledge_vectors (
-                knowledge_id, document_id, user_id, embedding, content, metadata,
-                chunk_index, chunk_hash, token_count, created_at
-            ) VALUES (%s, %s, %s, CAST(%s AS vector), %s, %s::jsonb, %s, %s, %s, NOW())
-            """,
-            rows,
-            page_size=50,
-        )
-        cur.execute(
-            """
-            UPDATE knowledge_documents
-            SET chunk_count = %s, last_embedded_at = NOW(), last_error = NULL,
-                embedding_status = %s, updated_at = NOW()
-            WHERE id = %s
-            """,
-            (len(chunks), EMBEDDING_SUCCESS, doc_id),
-        )
-    conn.commit()
 
 
 def iter_markdown_files(source_dir: Path) -> Iterable[Path]:
@@ -312,7 +221,6 @@ def iter_markdown_files(source_dir: Path) -> Iterable[Path]:
 def import_file(
     client: OpenAI,
     conn,
-    knowledge_id: int,
     scope: int,
     md_path: Path,
     source_root: Path,
@@ -342,8 +250,6 @@ def import_file(
         "sourcePriority": 1,
         "sourceFile": content_key,
     }
-    doc_id = upsert_document(conn, knowledge_id, content_key, title, metadata)
-
     all_vectors: List[List[float]] = []
     texts = [c.text for c in chunks]
     for i in range(0, len(texts), EMBED_BATCH_SIZE):
@@ -351,10 +257,10 @@ def import_file(
         all_vectors.extend(embed_batch(client, batch))
         time.sleep(0.2)  # 避免触发限流
 
-    replace_vectors(conn, doc_id, knowledge_id, content_key, chunks, all_vectors)
+    save_document(conn, scope, content_key, title, raw, metadata, chunks, all_vectors)
 
 
-def verify_retrieval(conn, knowledge_id: int, query_vec: List[float], top_k: int = 3) -> None:
+def verify_retrieval(conn, scope: int, query_vec: List[float], top_k: int = 3) -> None:
     """用 pgvector 余弦距离验证检索（与 Java searchBySimilarity 一致）。"""
     vec = to_pg_vector(query_vec)
     with conn.cursor() as cur:
@@ -367,12 +273,12 @@ def verify_retrieval(conn, knowledge_id: int, query_vec: List[float], top_k: int
                    kd.title
             FROM knowledge_vectors kv
             CROSS JOIN q
-            LEFT JOIN knowledge_documents kd ON kd.id = kv.document_id
-            WHERE kv.user_id = %s AND kv.knowledge_id = %s
+            JOIN knowledge_documents kd ON kd.id = kv.document_id
+            WHERE kd.user_id IS NULL AND kd.scope = %s AND kd.file_status=1 AND kd.embedding_status=3
             ORDER BY kv.embedding <=> q.v
             LIMIT %s
             """,
-            (vec, SYSTEM_USER_ID, knowledge_id, top_k),
+            (vec, scope, top_k),
         )
         rows = cur.fetchall()
     print("\n--- 检索抽检 ---")
@@ -417,19 +323,12 @@ def main() -> int:
     conn = None if args.dry_run else connect_pg(args)
 
     try:
-        knowledge_id = None if args.dry_run else ensure_knowledge_base(conn, args.scope)
-        if knowledge_id is not None:
-            print(f"使用 knowledge_id={knowledge_id} (scope={args.scope})")
-
         for md in files:
-            import_file(client, conn, knowledge_id, args.scope, md, source_dir, args.dry_run)
+            import_file(client, conn, args.scope, md, source_dir, args.dry_run)
 
         if not args.dry_run and args.verify_query.strip():
-            try:
-                vecs = embed_batch(client, [args.verify_query.strip()])
-                verify_retrieval(conn, knowledge_id, vecs[0])
-            except Exception as exc:
-                print(f"警告：检索抽检失败（数据已导入）: {exc}", file=sys.stderr)
+            vecs = embed_batch(client, [args.verify_query.strip()])
+            verify_retrieval(conn, args.scope, vecs[0])
 
         print("完成。")
         return 0

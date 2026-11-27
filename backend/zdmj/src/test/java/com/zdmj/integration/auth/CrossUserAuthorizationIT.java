@@ -182,7 +182,6 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
 
     @Test
     void 知识文档_其他用户查询修改或删除_返回不存在且标题保持不变() throws Exception {
-        api.post(tokenA, "/knowledge", null);
         long id = ApiClient.dataId(uploadResult(tokenA, "owned.md", "这份文档归属于当前用户，用于校验其他人不能查看或修改。"));
         String hidden = ApiClient.requireOk(api.get(tokenB, "/knowledge-document?page=1&limit=20"));
         assertThat(JsonPath.<Integer>read(hidden, "$.data.total")).isZero();
