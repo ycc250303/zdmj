@@ -454,7 +454,8 @@ class MessageServiceImplTest {
             }
             await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
                     assertTrue(appender.list.stream().anyMatch(event -> event.getFormattedMessage()
-                            .contains("会话结束保存失败") && event.getThrowableProxy().getMessage().equals(expectedMessage))));
+                            .contains("会话结束保存失败 conversationId=404 messageId=905 targetStatus=" + state.getCode())
+                            && event.getThrowableProxy().getMessage().equals(expectedMessage))));
             assertEquals(1, answer.get().getGenerationStatus());
             assertEquals(ErrorCode.CONVERSATION_GENERATING, assertThrows(BusinessException.class,
                     () -> messageService.createStream(actor, request).collectList().block(Duration.ofSeconds(5)))
@@ -616,6 +617,31 @@ class MessageServiceImplTest {
         }
         await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
                 verify(messageMapper).finishAssistant(4L, 1L, 503L, "第二轮", 4));
+    }
+
+    @Test
+    void 结束保存前会话已删除_仅记录删除结束且不记录保存成功() {
+        var request = prepareStream(504L);
+        var conversation = new Conversation();
+        conversation.setId(504L);
+        doReturn(conversation, (Object) null).when(conversationMapper).selectOwnedForUpdate(504L, 1L);
+        doReturn(Flux.just("回复")).when(knowledgeRagService)
+                .streamAnswer(eq(actor), eq(504L), any(), isNull(), eq(false));
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(MessageServiceImpl.class);
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.list = new java.util.concurrent.CopyOnWriteArrayList<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            assertEquals(1, messageService.createStream(actor, request).collectList().block(Duration.ofSeconds(5)).size());
+            verify(messageMapper, never()).finishAssistant(anyLong(), anyLong(), anyLong(), anyString(), anyInt());
+            org.assertj.core.api.Assertions.assertThat(appender.list)
+                    .anyMatch(event -> event.getFormattedMessage().contains("conversationId=504 reason=DELETED"))
+                    .noneMatch(event -> event.getFormattedMessage().contains("会话生成保存完成"));
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
     }
 
     private static Stream<Arguments> terminalSaveFailureCases() {

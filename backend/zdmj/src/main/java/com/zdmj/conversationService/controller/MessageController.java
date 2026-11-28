@@ -2,6 +2,9 @@ package com.zdmj.conversationService.controller;
 
 import io.swagger.v3.oas.annotations.Parameter;
 import com.zdmj.common.context.CurrentActor;
+import com.zdmj.common.context.TraceIdAccessor;
+import com.zdmj.common.config.RequestTraceFilter;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -61,11 +64,15 @@ public class MessageController {
      *
      * @param actor 已认证操作者，包含用户编号
      * @param request 流式对话请求
+     * @param httpRequest 已经过请求追踪过滤器的 HTTP 请求
      * @return 流式消息
      */
     @RateLimit(dimension = RateLimitDimension.USER, count = 30, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ServerSentEvent<String>> chatStream(@Parameter(hidden = true) CurrentActor actor, @Valid @RequestBody ChatStreamRequest request) {
-        return messageService.createStream(actor, request);
+    public Flux<ServerSentEvent<String>> chatStream(@Parameter(hidden = true) CurrentActor actor,
+            @Valid @RequestBody ChatStreamRequest request, HttpServletRequest httpRequest) {
+        String traceId = RequestTraceFilter.requireTraceId(httpRequest);
+        return messageService.createStream(actor, request)
+                .contextWrite(context -> context.put(TraceIdAccessor.KEY, traceId));
     }
 }

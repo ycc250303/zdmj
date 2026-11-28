@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -116,28 +115,27 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
 
     private KnowledgeRetrievalResponse retrieveRanked(CurrentActor actor, String userMessage,
             List<Long> ragDocumentIds, boolean useSystemKnowledge, Long conversationId) {
-        String operationId = UUID.randomUUID().toString();
         long started = System.nanoTime();
         try {
-            KnowledgeRetrievalResponse result = search(actor, userMessage, ragDocumentIds, useSystemKnowledge, operationId);
-            log.info("RAG 检索完成 operationId={} userId={} conversationId={} userKnowledge={} systemKnowledge={} rewriteUsed={} topK={} hitCount={} elapsedMs={}",
-                    operationId, actor.userId(), conversationId, ragDocumentIds == null || !ragDocumentIds.isEmpty(),
+            KnowledgeRetrievalResponse result = search(actor, userMessage, ragDocumentIds, useSystemKnowledge);
+            log.info("RAG 检索完成 userId={} conversationId={} userKnowledge={} systemKnowledge={} rewriteUsed={} topK={} hitCount={} elapsedMs={}",
+                    actor.userId(), conversationId, ragDocumentIds == null || !ragDocumentIds.isEmpty(),
                     useSystemKnowledge, result.rewriteUsed(), result.topK(), result.hits().size(),
                     (System.nanoTime() - started) / 1_000_000);
             for (KnowledgeHit hit : result.hits()) {
-                log.debug("RAG 命中 operationId={} vectorId={} documentId={} chunkIndex={} score={}",
-                        operationId, hit.id(), hit.documentId(), hit.chunkIndex(), hit.score());
+                log.debug("RAG 命中 vectorId={} documentId={} chunkIndex={} score={}",
+                        hit.id(), hit.documentId(), hit.chunkIndex(), hit.score());
             }
             return result;
         } catch (RuntimeException exception) {
-            log.error("RAG 检索失败 operationId={} conversationId={} errorType={} elapsedMs={}",
-                    operationId, conversationId, exception.getClass().getName(), (System.nanoTime() - started) / 1_000_000);
+            log.error("RAG 检索失败 conversationId={} errorType={} elapsedMs={}",
+                    conversationId, exception.getClass().getName(), (System.nanoTime() - started) / 1_000_000);
             throw exception;
         }
     }
 
     private KnowledgeRetrievalResponse search(CurrentActor actor, String userMessage, List<Long> ragDocumentIds,
-            boolean useSystemKnowledge, String operationId) {
+            boolean useSystemKnowledge) {
         Long userId = actor.userId();
 
         // --- 1. 规范化问句，按句长选 topK / minScore ---
@@ -156,13 +154,13 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         // --- 3. 查询改写；与原文相同则只检索一路。改写失败时终止 ---
         String rewritten = query;
         if (ragConfig.getRewrite().isEnabled() && StringUtils.hasText(query)) {
-            rewritten = rewriteQuery(actor, query, operationId);
+            rewritten = rewriteQuery(actor, query);
         }
         boolean dualPath = !query.equals(rewritten);
 
         // --- 4. 原文 / 改写各 embed 一次（同句复用向量） ---
-        String vecRaw = toPgVector(actor, query, operationId);
-        String vecRewritten = dualPath ? toPgVector(actor, rewritten, operationId) : vecRaw;
+        String vecRaw = toPgVector(actor, query);
+        String vecRewritten = dualPath ? toPgVector(actor, rewritten) : vecRaw;
 
         // --- 5. 个人库 + 系统库：每个向量各做一次 ANN ---
         List<KnowledgeRetrivalDTO> combined = new ArrayList<>();
@@ -194,10 +192,9 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
     @Override
     public List<KnowledgeHit> retrieveLearningPaths(CurrentActor actor, String query) {
         java.util.Objects.requireNonNull(actor, "操作者不能为空");
-        String operationId = UUID.randomUUID().toString();
         long started = System.nanoTime();
         try {
-            String vector = toPgVector(actor, query, operationId);
+            String vector = toPgVector(actor, query);
             List<KnowledgeRetrivalDTO> combined = new ArrayList<>();
             addAnnHits(combined, actor.userId(), KnowledgeScopeEnum.USER,
                     null, vector, REPORT_TOP_K, REPORT_MIN_SCORE);
@@ -210,11 +207,11 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
                     .toList();
             List<KnowledgeHit> result = (preferred.isEmpty() ? qualified : preferred).stream()
                     .map(this::publicHit).toList();
-            log.info("报告知识检索完成 operationId={} userId={} hitCount={} elapsedMs={}",
-                    operationId, actor.userId(), result.size(), (System.nanoTime() - started) / 1_000_000);
+            log.info("报告知识检索完成 userId={} hitCount={} elapsedMs={}",
+                    actor.userId(), result.size(), (System.nanoTime() - started) / 1_000_000);
             return result;
         } catch (RuntimeException exception) {
-            log.error("报告知识检索失败 operationId={} errorType={} elapsedMs={}", operationId,
+            log.error("报告知识检索失败 errorType={} elapsedMs={}",
                     exception.getClass().getName(), (System.nanoTime() - started) / 1_000_000);
             throw exception;
         }
@@ -279,10 +276,9 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
      *
      * @param actor 已认证操作者，包含用户编号
      * @param rawText 原始问题，调用前已确认为非空
-     * @param operationId 本次检索的日志关联编号
      * @return 改写后的问题
      */
-    private String rewriteQuery(CurrentActor actor, String rawText, String operationId) {
+    private String rewriteQuery(CurrentActor actor, String rawText) {
         String queryText;
         try {
             queryText = modelGateway.generate(
@@ -293,7 +289,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         } catch (IllegalArgumentException | IllegalStateException | NullPointerException exception) {
             throw exception;
         } catch (RuntimeException exception) {
-            log.error("RAG 外部调用失败 operationId={} stage=rewrite errorType={}", operationId, exception.getClass().getName());
+            log.error("RAG 外部调用失败 stage=rewrite errorType={}", exception.getClass().getName());
             throw new BusinessException(ErrorCode.KNOWLEDGE_RETRIEVAL_FAILED, exception);
         }
         if (!StringUtils.hasText(queryText)) {
@@ -307,17 +303,16 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
      *
      * @param actor 已认证操作者，包含用户编号
      * @param queryText 待嵌入的问题
-     * @param operationId 本次检索的日志关联编号
      * @return pgvector 字面量；文本为空时返回 null
      */
-    private String toPgVector(CurrentActor actor, String queryText, String operationId) {
+    private String toPgVector(CurrentActor actor, String queryText) {
         if (!StringUtils.hasText(queryText)) {
             return null;
         }
-        return KnowledgeEmbeddingServiceImpl.toPgVector(embedQuery(actor, queryText, operationId));
+        return KnowledgeEmbeddingServiceImpl.toPgVector(embedQuery(actor, queryText));
     }
 
-    private float[] embedQuery(CurrentActor actor, String queryText, String operationId) {
+    private float[] embedQuery(CurrentActor actor, String queryText) {
         List<float[]> vectors;
         try {
             vectors = embeddingGateway.embed(actor, List.of(queryText));
@@ -326,7 +321,7 @@ public class KnowledgeRagServiceImpl implements KnowledgeRagService {
         } catch (IllegalArgumentException | IllegalStateException | NullPointerException exception) {
             throw exception;
         } catch (RuntimeException exception) {
-            log.error("RAG 外部调用失败 operationId={} stage=embedding errorType={}", operationId, exception.getClass().getName());
+            log.error("RAG 外部调用失败 stage=embedding errorType={}", exception.getClass().getName());
             throw new BusinessException(ErrorCode.KNOWLEDGE_RETRIEVAL_FAILED, exception);
         }
         if (vectors == null || vectors.isEmpty() || vectors.get(0) == null || vectors.get(0).length == 0) {

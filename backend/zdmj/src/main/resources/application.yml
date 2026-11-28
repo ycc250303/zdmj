@@ -4,6 +4,8 @@ spring:
     import: optional:file:${ZDMJ_ENV_FILE:../../.env}[.properties]
   application:
     name: zdmj
+  reactor:
+    context-propagation: auto
 
   datasource:
     driver-class-name: org.postgresql.Driver
@@ -70,7 +72,7 @@ mybatis-plus:
       table-underline: true
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
 
 server:
   port: 8080
@@ -85,6 +87,8 @@ management:
         include: health,info
 
 logging:
+  pattern:
+    level: "%5p [traceId=%X{traceId}]"
   level:
     org.springframework.ai.chat.client.advisor: DEBUG
     com.zdmj: DEBUG

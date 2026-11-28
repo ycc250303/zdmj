@@ -471,9 +471,9 @@ class KnowledgeRagServiceImplTest {
             org.junit.jupiter.api.Assertions.assertSame(providerFailure, wrapped.getCause());
             assertEquals(ErrorCode.USER_LLM_NOT_CONFIGURED.getMessage(), wrapped.getMessage());
             assertTrue(appender.list.stream().anyMatch(event -> event.getFormattedMessage()
-                    .startsWith("RAG 检索完成 operationId=")));
+                    .startsWith("RAG 检索完成 userId=")));
             assertTrue(appender.list.stream().anyMatch(event -> event.getLevel() == ch.qos.logback.classic.Level.DEBUG
-                    && event.getFormattedMessage().startsWith("RAG 命中 operationId=")));
+                    && event.getFormattedMessage().startsWith("RAG 命中 vectorId=")));
             for (var event : appender.list) {
                 String rendered = event.getFormattedMessage();
                 if (event.getThrowableProxy() != null) {

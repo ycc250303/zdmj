@@ -6,11 +6,15 @@ import com.zdmj.common.web.CurrentActorArgumentResolver;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.Ordered;
 import org.springframework.web.servlet.config.annotation.PathMatchConfigurer;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
+import jakarta.servlet.DispatcherType;
 
 /**
  * 统一配置 Controller 的 API 前缀与操作者参数解析。
@@ -21,6 +25,15 @@ import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 public class WebMvcConfig implements WebMvcConfigurer {
 
     private final CurrentActorArgumentResolver currentActorArgumentResolver;
+
+    /** 在认证与 MVC 之前关联普通请求和容器错误分发的日志。 */
+    @Bean
+    public FilterRegistrationBean<RequestTraceFilter> requestTraceFilter() {
+        var registration = new FilterRegistrationBean<>(new RequestTraceFilter());
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        registration.setDispatcherTypes(DispatcherType.REQUEST, DispatcherType.ERROR, DispatcherType.ASYNC);
+        return registration;
+    }
 
     @Override
     public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
