@@ -1,6 +1,6 @@
 package com.zdmj.matchService.service.impl;
 
-import com.zdmj.resumeService.dto.StudentCapabilitySuggestion;
+import com.zdmj.resumeService.api.StudentCapabilitySuggestion;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -14,16 +14,16 @@ import com.zdmj.common.model.PageDTO;
 import com.zdmj.jobService.api.JobRole;
 import com.zdmj.jobService.api.JobRoleDetectionResult;
 import com.zdmj.jobService.api.JobRoleDetectionService;
-import com.zdmj.jobService.dto.JobListItemResponse;
-import com.zdmj.jobService.service.JobService;
+import com.zdmj.jobService.api.JobListItemResponse;
+import com.zdmj.jobService.api.JobReader;
 import com.zdmj.matchService.dto.DimensionMatchResponse;
 import com.zdmj.matchService.dto.JobStudentMatchResponse;
 import com.zdmj.matchService.dto.JobStudentMatchListItemResponse;
 import com.zdmj.matchService.entity.JobStudentMatch;
 import com.zdmj.matchService.enums.MatchDimension;
 import com.zdmj.matchService.mapper.JobStudentMatchMapper;
-import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
-import com.zdmj.resumeService.service.StudentCapabilityProfileService;
+import com.zdmj.resumeService.api.StudentProfileSnapshot;
+import com.zdmj.resumeService.api.StudentProfileReader;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -64,11 +64,11 @@ class JobStudentMatchServiceImplTest {
     private static final Long USER_ID = 1024L;
 
     @Mock
-    private JobService jobService;
+    private JobReader jobService;
     @Mock
     private JobRoleDetectionService roleDetectionService;
     @Mock
-    private StudentCapabilityProfileService studentCapabilityProfileService;
+    private StudentProfileReader studentCapabilityProfileService;
     @Mock
     private ModelGateway modelGateway;
     @Mock
@@ -82,14 +82,52 @@ class JobStudentMatchServiceImplTest {
     void setUp() {
         lenient().when(transactionManager.getTransaction(any())).thenReturn(org.mockito.Mockito.mock(TransactionStatus.class));
         matchService = spy(new JobStudentMatchServiceImpl(
-                jobService,
+                matchMapper, jobService,
                 roleDetectionService,
                 studentCapabilityProfileService,
                 modelGateway,
                 new ObjectMapper(),
                 new TransactionTemplate(transactionManager)));
-        ReflectionTestUtils.setField(matchService, "baseMapper", matchMapper);
         actor = new CurrentActor(USER_ID);
+    }
+
+    @Test
+    void 公开匹配读取_保留完整JSON并复制可变维度与权重() {
+        var modelResult = buildAiResult();
+        var weights = new com.zdmj.matchService.dto.MatchWeightConfigResponse(
+                new BigDecimal("0.20"), new BigDecimal("0.45"), new BigDecimal("0.15"), new BigDecimal("0.20"));
+        var dimensions = new LinkedHashMap<>(modelResult.dimensions());
+        dimensions.put("reserved", null);
+        var source = new JobStudentMatchResponse(modelResult.id(), modelResult.jobId(), modelResult.targetRoleType(),
+                modelResult.overallScore(), dimensions, weights, modelResult.matchedHighlights(), modelResult.criticalGaps(),
+                modelResult.matchedKeywords(), modelResult.missingKeywords(), modelResult.keySkillMatchRate(), modelResult.summary());
+        var dimension = source.dimensions().get("basic");
+        dimension.setEvidence(new java.util.ArrayList<>(java.util.Arrays.asList("原始证据", null)));
+        doReturn(source).when(matchService).getOrNull(actor, 12L);
+        var snapshot = matchService.getOrGenerate(actor, 12L);
+        var json = new ObjectMapper();
+        org.assertj.core.api.Assertions.assertThat(json.<com.fasterxml.jackson.databind.JsonNode>valueToTree(snapshot)).isEqualTo(json.<com.fasterxml.jackson.databind.JsonNode>valueToTree(source));
+        var savedScore = snapshot.dimensions().get("basic").score();
+        dimension.setScore(1);
+        dimension.getEvidence().clear();
+        weights.setBasic(BigDecimal.ONE);
+        assertEquals(new BigDecimal("0.20"), snapshot.weights().basic());
+        org.assertj.core.api.Assertions.assertThat(snapshot.dimensions()).containsEntry("reserved", null);
+        assertEquals(savedScore, snapshot.dimensions().get("basic").score());
+        org.assertj.core.api.Assertions.assertThat(snapshot.dimensions().get("basic").evidence())
+                .containsExactly("原始证据", null);
+        assertThrows(UnsupportedOperationException.class, () -> snapshot.dimensions().clear());
+        assertThrows(UnsupportedOperationException.class, () -> snapshot.dimensions().get("basic").evidence().clear());
+        verify(modelGateway, never()).generateStructured(any(), any(), any());
+    }
+
+    @Test
+    void 公开匹配读取_缺少记录_使用默认权重生成() {
+        doReturn(null).when(matchService).getOrNull(actor, 12L);
+        doReturn(buildAiResult()).when(matchService).generate(actor, 12L, null);
+        var snapshot = matchService.getOrGenerate(actor, 12L);
+        assertEquals("java-backend", snapshot.targetRoleType());
+        verify(matchService).generate(actor, 12L, null);
     }
 
     @Test
@@ -157,7 +195,7 @@ class JobStudentMatchServiceImplTest {
     void generate_studentProfileMissing_shouldThrow11002_preconditionMissing() {
         Long jobId = 23L;
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
-        doReturn(null).when(studentCapabilityProfileService).getCurrentUserProfileOrNull(actor);
+        doReturn(null).when(studentCapabilityProfileService).findCurrentProfile(actor);
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> matchService.generate(actor, jobId, null));
@@ -184,7 +222,7 @@ class JobStudentMatchServiceImplTest {
         doReturn(buildJobDetail()).doReturn(null).when(jobService).getDetail(jobId);
         stubRole("java-backend");
         doReturn(buildStudentProfile()).when(studentCapabilityProfileService)
-                .getCurrentUserProfileOrNull(actor);
+                .findCurrentProfile(actor);
         doReturn(buildAiResult()).when(modelGateway).generateStructured(any(), any(ModelRequest.class), any());
 
         BusinessException ex = assertThrows(BusinessException.class,
@@ -200,7 +238,7 @@ class JobStudentMatchServiceImplTest {
 
     @Test
     void getOrNull_whenNotFound_shouldReturnNull() {
-        doReturn(null).when(matchService).getOne(any(LambdaQueryWrapper.class));
+        doReturn(null).when(matchMapper).selectOne(any(LambdaQueryWrapper.class));
 
         JobStudentMatchResponse dto = matchService.getOrNull(actor, 99L);
 
@@ -213,7 +251,7 @@ class JobStudentMatchServiceImplTest {
         entity.setJobId(99L);
         entity.setDimensionDetail("  ");
         entity.setWeights(null);
-        doReturn(entity).when(matchService).getOne(any(LambdaQueryWrapper.class));
+        doReturn(entity).when(matchMapper).selectOne(any(LambdaQueryWrapper.class));
 
         JobStudentMatchResponse dto = matchService.getOrNull(actor, 99L);
 
@@ -226,7 +264,7 @@ class JobStudentMatchServiceImplTest {
         JobStudentMatch entity = new JobStudentMatch();
         entity.setJobId(99L);
         entity.setDimensionDetail("{bad-json");
-        doReturn(entity).when(matchService).getOne(any(LambdaQueryWrapper.class));
+        doReturn(entity).when(matchMapper).selectOne(any(LambdaQueryWrapper.class));
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, () -> matchService.getOrNull(actor, 99L));
 
@@ -370,7 +408,7 @@ class JobStudentMatchServiceImplTest {
         doReturn(buildJobDetail()).when(jobService).getDetail(jobId);
         stubRole(roleType);
         doReturn(buildStudentProfile()).when(studentCapabilityProfileService)
-                .getCurrentUserProfileOrNull(actor);
+                .findCurrentProfile(actor);
     }
 
     private void stubRole(String roleType) {
@@ -400,22 +438,11 @@ class JobStudentMatchServiceImplTest {
         return dto;
     }
 
-    private static StudentCapabilityProfileResponse buildStudentProfile() {
-        StudentCapabilityProfileResponse p = new StudentCapabilityProfileResponse();
-        p.setProfessionalSkills("Java、Spring Boot、MySQL");
-        p.setHonorsAndAwards("蓝桥杯省赛二等奖");
-        p.setInnovationAbility("校赛二等奖");
-        p.setLearningAbility("自学 Redis");
-        p.setPressureResistance("曾在比赛 48h 内交付");
-        p.setCommunicationAbility("社团组织活动");
-        p.setPracticalAbility("实习 3 个月");
-        p.setSummary("Java 方向应届生");
-        p.setStrengths(List.of("基础扎实"));
-        StudentCapabilitySuggestion gap = new StudentCapabilitySuggestion("技能缺失",
-                null, "缺少 Kafka 相关实践", "在项目中补充消息队列场景");
-
-        p.setSuggestions(List.of(gap));
-        return p;
+    private static StudentProfileSnapshot buildStudentProfile() {
+        return new StudentProfileSnapshot(null, "Java、Spring Boot、MySQL", "蓝桥杯省赛二等奖", "校赛二等奖",
+                "自学 Redis", "曾在比赛 48h 内交付", "社团组织活动", "实习 3 个月", null, null,
+                List.of("基础扎实"), List.of(new StudentCapabilitySuggestion("技能缺失", null,
+                        "缺少 Kafka 相关实践", "在项目中补充消息队列场景")), "Java 方向应届生");
     }
 
     private static JobStudentMatchResponse buildAiResult() {

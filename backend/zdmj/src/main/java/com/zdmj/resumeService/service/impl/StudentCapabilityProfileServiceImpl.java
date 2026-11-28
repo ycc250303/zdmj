@@ -1,12 +1,13 @@
 package com.zdmj.resumeService.service.impl;
 
-import com.zdmj.resumeService.dto.StudentCapabilitySuggestion;
-import com.zdmj.resumeService.dto.StudentCapabilityScoreDetail;
+import com.zdmj.resumeService.api.StudentProfileSnapshot;
+import com.zdmj.resumeService.api.StudentProfileReader;
+import com.zdmj.resumeService.api.StudentCapabilitySuggestion;
+import com.zdmj.resumeService.api.StudentCapabilityScoreDetail;
 import java.io.InputStream;
 import java.io.IOException;
 import org.springframework.web.multipart.MultipartFile;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,9 +35,9 @@ import org.springframework.util.StringUtils;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class StudentCapabilityProfileServiceImpl
-        extends ServiceImpl<StudentCapabilityProfileMapper, StudentCapabilityProfile>
-        implements StudentCapabilityProfileService {
+public class StudentCapabilityProfileServiceImpl implements StudentCapabilityProfileService, StudentProfileReader {
+
+    private final StudentCapabilityProfileMapper profileMapper;
 
     private static final String PROFILE_PROMPT_DIRECTORY = "resume-analysis/";
 
@@ -56,6 +57,25 @@ public class StudentCapabilityProfileServiceImpl
     private final JobRoleDetectionService roleDetectionService;
 
     @Override
+    public StudentProfileSnapshot findCurrentProfile(CurrentActor actor) {
+        StudentCapabilityProfileResponse profile = getCurrentUserProfileOrNull(actor);
+        return profile == null ? null : new StudentProfileSnapshot(
+                profile.getTargetRoleType(),
+                profile.getProfessionalSkills(),
+                profile.getHonorsAndAwards(),
+                profile.getInnovationAbility(),
+                profile.getLearningAbility(),
+                profile.getPressureResistance(),
+                profile.getCommunicationAbility(),
+                profile.getPracticalAbility(),
+                profile.getCompetitivenessScore(),
+                profile.getScoreDetail(),
+                profile.getStrengths(),
+                profile.getSuggestions(),
+                profile.getSummary());
+    }
+
+    @Override
     public StudentCapabilityProfileResponse getCurrentUserProfile(CurrentActor actor) {
         StudentCapabilityProfileResponse dto = getCurrentUserProfileOrNull(actor);
         if (dto == null) {
@@ -67,7 +87,7 @@ public class StudentCapabilityProfileServiceImpl
     @Override
     public StudentCapabilityProfileResponse getCurrentUserProfileOrNull(CurrentActor actor) {
         Long userId = actor.userId();
-        StudentCapabilityProfile profile = getOne(
+        StudentCapabilityProfile profile = profileMapper.selectOne(
                 new LambdaQueryWrapper<StudentCapabilityProfile>()
                         .eq(StudentCapabilityProfile::getUserId, userId));
         if (profile == null) {
@@ -145,7 +165,7 @@ public class StudentCapabilityProfileServiceImpl
         }
 
         // 3. 落库保存或更新
-        StudentCapabilityProfile existingProfile = getOne(
+        StudentCapabilityProfile existingProfile = profileMapper.selectOne(
                 new LambdaQueryWrapper<StudentCapabilityProfile>()
                         .eq(StudentCapabilityProfile::getUserId, userId));
 
@@ -160,9 +180,9 @@ public class StudentCapabilityProfileServiceImpl
 
         if (existingProfile != null) {
             newProfile.setId(existingProfile.getId());
-            updateById(newProfile);
+            profileMapper.updateById(newProfile);
         } else {
-            save(newProfile);
+            profileMapper.insert(newProfile);
         }
 
         StudentCapabilityProfileResponse responseDto = toDto(newProfile);

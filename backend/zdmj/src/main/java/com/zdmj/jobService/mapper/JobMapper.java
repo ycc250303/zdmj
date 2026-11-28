@@ -2,7 +2,7 @@ package com.zdmj.jobService.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.zdmj.jobService.dto.JobListItemResponse;
+import com.zdmj.jobService.api.JobListItemResponse;
 import com.zdmj.jobService.dto.JobPageQueryDTO;
 import com.zdmj.jobService.entity.Job;
 import org.apache.ibatis.annotations.Mapper;

@@ -25,8 +25,8 @@ import com.zdmj.resumeService.mapper.ResumeContentRow;
 import com.zdmj.resumeService.mapper.ResumeMapper;
 import com.zdmj.resumeService.mapper.SkillMapper;
 import com.zdmj.resumeService.service.AwardService;
-import com.zdmj.userAuthService.dto.UserUpdateRequest;
-import com.zdmj.userAuthService.service.UserLoginService;
+import com.zdmj.userAuthService.api.AccountProfileUpdate;
+import com.zdmj.userAuthService.api.AccountProfileUpdater;
 import com.zdmj.resumeService.service.CareerService;
 import com.zdmj.resumeService.service.EducationService;
 import com.zdmj.resumeService.service.ProjectExperienceService;
@@ -76,7 +76,7 @@ class ResumeServiceImplTest {
     @Mock
     private SkillMapper skillMapper;
     @Mock
-    private UserLoginService userService;
+    private AccountProfileUpdater userService;
     @Mock
     private ModelGateway modelGateway;
     @Mock
@@ -452,7 +452,7 @@ class ResumeServiceImplTest {
 
         verify(skillService).updateOwned(eq(existingSkill), any());
         verify(skillMapper, never()).selectById(any());
-        verify(userService, never()).updateProfile(eq(actor), any(), any());
+        verify(userService, never()).synchronizeProfile(eq(actor), any());
     }
 
     @Test
@@ -540,8 +540,8 @@ class ResumeServiceImplTest {
 
         resumeService.saveMyResumeContent(actor, request);
 
-        ArgumentCaptor<UserUpdateRequest> update = ArgumentCaptor.forClass(UserUpdateRequest.class);
-        verify(userService).updateProfile(eq(actor), eq(1L), update.capture());
+        ArgumentCaptor<AccountProfileUpdate> update = ArgumentCaptor.forClass(AccountProfileUpdate.class);
+        verify(userService).synchronizeProfile(eq(actor), update.capture());
         assertEquals("  张三  ", update.getValue().name());
         assertEquals("", update.getValue().phone());
         assertEquals(" https://example.com ", update.getValue().website());

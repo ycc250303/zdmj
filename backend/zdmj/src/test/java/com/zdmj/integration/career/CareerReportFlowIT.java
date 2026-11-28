@@ -41,6 +41,15 @@ import com.zdmj.userAuthService.entity.User;
 @AutoConfigureMockMvc
 class CareerReportFlowIT extends IntegrationTestBase {
 
+    @Autowired
+    private com.zdmj.matchService.api.JobMatchAnalysis matchAnalysis;
+
+    @Autowired
+    private com.zdmj.jobService.api.JobReader jobReader;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
     @MockitoSpyBean(name = "testModelGateway")
     private ModelGateway modelGateway;
 
@@ -82,6 +91,48 @@ class CareerReportFlowIT extends IntegrationTestBase {
         this.testUsers = testUsers;
         this.testJwt = testJwt;
         this.jdbcTemplate = jdbcTemplate;
+    }
+
+    @Test
+    void 公开协作_缺少匹配时生成并复用本人结果_报告保留原有快照字段() throws Exception {
+        var users = testUsers.createPair();
+        User owner = users.userA();
+        String token = testJwt.authorize(owner);
+        long jobId = createJob(token);
+        ApiClient.requireOk(api.post(token, "/capability-profile/generate",
+                "{\"rawText\":\"Java Spring Boot MySQL Redis 项目经验\"}"));
+        var actor = new CurrentActor(owner.getId());
+        var job = jobReader.getDetail(jobId);
+        String jobBody = ApiClient.requireOk(api.get(token, "/jobs/" + jobId));
+        assertThat(objectMapper.readTree(objectMapper.writeValueAsString(job)))
+                .isEqualTo(objectMapper.readTree(jobBody).get("data"));
+        var generated = matchAnalysis.getOrGenerate(actor, jobId);
+        assertThat(generated.id()).isPositive();
+        assertThat(generated.jobId()).isEqualTo(jobId);
+        assertThat(generated.overallScore()).isEqualTo(ExternalAiStubConfig.FIXED_MATCH_SCORE);
+        String matchBody = ApiClient.requireOk(api.get(token, "/matches/jobs/" + jobId));
+        var expectedMatch = objectMapper.readTree(matchBody).get("data");
+        org.skyscreamer.jsonassert.JSONAssert.assertEquals(expectedMatch.toString(),
+                objectMapper.writeValueAsString(generated), org.skyscreamer.jsonassert.JSONCompareMode.STRICT);
+        ExternalAiStubConfig.clearModelTransactionObservations();
+        var retained = matchAnalysis.getOrGenerate(actor, jobId);
+        org.skyscreamer.jsonassert.JSONAssert.assertEquals(objectMapper.writeValueAsString(generated),
+                objectMapper.writeValueAsString(retained), org.skyscreamer.jsonassert.JSONCompareMode.STRICT);
+        assertThat(ExternalAiStubConfig.modelTransactionObservations()).isEmpty();
+        String reportBody = ApiClient.requireOk(api.post(token, "/career-reports/jobs/" + jobId, "{}"));
+        long reportId = JsonPath.<Number>read(reportBody, "$.data.id").longValue();
+        String matchSnapshot = jdbcTemplate.queryForObject(
+                "SELECT match_snapshot::text FROM career_development_reports WHERE id = ?", String.class, reportId);
+        assertThat(objectMapper.readTree(matchSnapshot)).isEqualTo(expectedMatch);
+        String profileBody = ApiClient.requireOk(api.get(token, "/capability-profile/current/query"));
+        String profileSnapshot = jdbcTemplate.queryForObject(
+                "SELECT student_profile_snapshot::text FROM career_development_reports WHERE id = ?", String.class, reportId);
+        assertThat(objectMapper.readTree(profileSnapshot)).isEqualTo(objectMapper.readTree(profileBody).get("data"));
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM job_student_matches WHERE user_id = ? AND job_id = ?",
+                Integer.class, owner.getId(), jobId)).isEqualTo(1);
+        String otherBody = ApiClient.requireOk(api.get(testJwt.authorize(users.userB()), "/matches/jobs/" + jobId));
+        assertThat(objectMapper.readTree(otherBody).get("data").isNull()).isTrue();
     }
 
     @Test

@@ -8,13 +8,10 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
-import com.tngtech.archunit.library.freeze.FreezingArchRule;
+import com.tngtech.archunit.base.DescribedPredicate;
+import com.tngtech.archunit.core.domain.JavaClass;
 
-/**
- * 模块边界。{@code common} 不依赖业务模块为严格规则。
- * 其余既有违规写入 {@code src/test/resources/archunit_store}，新违规会使测试失败。
- * 修复一项依赖后，从对应冻结文件删除该行。边界重构完成后删除冻结存储，只保留严格规则。
- */
+/** 严格校验模块公开接口、持久化访问和依赖方向。 */
 @AnalyzeClasses(packages = "com.zdmj", importOptions = ImportOption.DoNotIncludeTests.class)
 class ModuleArchitectureTest {
 
@@ -29,38 +26,12 @@ class ModuleArchitectureTest {
             "aiService"
     };
 
-    private static final String[] INTERNAL_LAYERS = {
-            "mapper",
-            "entity",
-            "service.impl",
-            "support"
-    };
-
-    @ArchTest
-    static final ArchRule knowledge_consumers_only_use_api = classes()
-            .that().resideInAPackage("com.zdmj.knowledgeService..")
-            .and().resideOutsideOfPackage("com.zdmj.knowledgeService.api..")
-            .should().onlyHaveDependentClassesThat().resideInAPackage("com.zdmj.knowledgeService..");
-
-    @ArchTest
-    static final ArchRule knowledge_api_does_not_depend_on_internals = noClasses()
-            .that().resideInAPackage("com.zdmj.knowledgeService.api..")
-            .should().dependOnClassesThat().resideInAnyPackage("com.zdmj.knowledgeService.dto..",
-                    "com.zdmj.knowledgeService.mapper..", "com.zdmj.knowledgeService.entity..",
-                    "com.zdmj.knowledgeService.service..", "com.zdmj.knowledgeService.support..");
-
     @ArchTest
     static final ArchRule conversation_stream_has_no_manual_subscription = noClasses()
             .that().resideInAPackage("com.zdmj.conversationService..")
             .should().callMethodWhere(com.tngtech.archunit.base.DescribedPredicate.describe("手工订阅 Reactor 流",
                     call -> call.getTargetOwner().getPackageName().startsWith("reactor.")
                             && (call.getName().equals("subscribe") || call.getName().equals("subscribeWith"))));
-
-    @ArchTest
-    static final ArchRule ai_consumers_only_use_api = classes()
-            .that().resideInAPackage("com.zdmj.aiService..")
-            .and().resideOutsideOfPackage("com.zdmj.aiService.api..")
-            .should().onlyHaveDependentClassesThat().resideInAPackage("com.zdmj.aiService..");
 
     @ArchTest
     static final ArchRule business_receives_identity_explicitly = noClasses()
@@ -118,47 +89,46 @@ class ModuleArchitectureTest {
             .as("common 不依赖业务模块");
 
     @ArchTest
-    static final ArchRule controllers_do_not_depend_on_mappers = FreezingArchRule.freeze(
-            noClasses()
-                    .that().resideInAPackage("..controller..")
-                    .should().dependOnClassesThat().resideInAPackage("..mapper..")
-                    .as("Controller 不直接依赖 Mapper"));
+    static final ArchRule controllers_do_not_depend_on_mappers = noClasses()
+            .that().resideInAPackage("..controller..")
+            .should().dependOnClassesThat().resideInAPackage("..mapper..")
+            .as("Controller 不直接依赖 Mapper");
 
     @ArchTest
-    static final ArchRule user_auth_does_not_access_foreign_internals = freezeForeignInternals("userAuthService");
+    static final ArchRule user_auth_does_not_access_foreign_internals = foreignInternalsRule("userAuthService");
 
     @ArchTest
-    static final ArchRule resume_does_not_access_foreign_internals = freezeForeignInternals("resumeService");
+    static final ArchRule resume_does_not_access_foreign_internals = foreignInternalsRule("resumeService");
 
     @ArchTest
-    static final ArchRule job_does_not_access_foreign_internals = freezeForeignInternals("jobService");
+    static final ArchRule job_does_not_access_foreign_internals = foreignInternalsRule("jobService");
 
     @ArchTest
-    static final ArchRule match_does_not_access_foreign_internals = freezeForeignInternals("matchService");
+    static final ArchRule match_does_not_access_foreign_internals = foreignInternalsRule("matchService");
 
     @ArchTest
-    static final ArchRule knowledge_does_not_access_foreign_internals = freezeForeignInternals("knowledgeService");
+    static final ArchRule knowledge_does_not_access_foreign_internals = foreignInternalsRule("knowledgeService");
 
     @ArchTest
-    static final ArchRule conversation_does_not_access_foreign_internals = freezeForeignInternals("conversationService");
+    static final ArchRule conversation_does_not_access_foreign_internals = foreignInternalsRule("conversationService");
 
     @ArchTest
-    static final ArchRule career_report_does_not_access_foreign_internals = freezeForeignInternals("careerReportService");
+    static final ArchRule career_report_does_not_access_foreign_internals = foreignInternalsRule("careerReportService");
 
     @ArchTest
-    static final ArchRule ai_does_not_access_foreign_internals = freezeForeignInternals("aiService");
+    static final ArchRule ai_does_not_access_foreign_internals = foreignInternalsRule("aiService");
 
     @ArchTest
-    static final ArchRule user_auth_mappers_stay_inside_module = freezeMapperAccess("userAuthService");
+    static final ArchRule user_auth_mappers_stay_inside_module = mapperAccessRule("userAuthService");
 
     @ArchTest
-    static final ArchRule resume_mappers_stay_inside_module = freezeMapperAccess("resumeService");
+    static final ArchRule resume_mappers_stay_inside_module = mapperAccessRule("resumeService");
 
     @ArchTest
-    static final ArchRule job_mappers_stay_inside_module = freezeMapperAccess("jobService");
+    static final ArchRule job_mappers_stay_inside_module = mapperAccessRule("jobService");
 
     @ArchTest
-    static final ArchRule match_mappers_stay_inside_module = freezeMapperAccess("matchService");
+    static final ArchRule match_mappers_stay_inside_module = mapperAccessRule("matchService");
 
     @ArchTest
     static final ArchRule knowledge_mappers_stay_inside_module = classes()
@@ -167,35 +137,61 @@ class ModuleArchitectureTest {
                     "com.zdmj.knowledgeService.service..", "com.zdmj.knowledgeService.support..");
 
     @ArchTest
-    static final ArchRule conversation_mappers_stay_inside_module = freezeMapperAccess("conversationService");
+    static final ArchRule conversation_mappers_stay_inside_module = mapperAccessRule("conversationService");
 
     @ArchTest
-    static final ArchRule career_report_mappers_stay_inside_module = freezeMapperAccess("careerReportService");
+    static final ArchRule career_report_mappers_stay_inside_module = mapperAccessRule("careerReportService");
 
     @ArchTest
-    static final ArchRule modules_are_free_of_cycles = FreezingArchRule.freeze(
-            slices().matching("com.zdmj.(*)..")
-                    .should().beFreeOfCycles()
-                    .as("模块之间不存在循环依赖"));
+    static final ArchRule modules_are_free_of_cycles = slices().matching("com.zdmj.(*)..")
+            .should().beFreeOfCycles()
+            .as("模块之间不存在循环依赖");
 
-    private static ArchRule freezeForeignInternals(String module) {
-        return FreezingArchRule.freeze(noClasses()
-                .that().resideInAPackage("com.zdmj." + module + "..")
-                .should().dependOnClassesThat().resideInAnyPackage(foreignInternals(module))
-                .as(module + " 不访问其他模块的 Mapper、Entity、实现类和适配层"));
+    @ArchTest
+    static void public_interfaces_hide_internal_types(com.tngtech.archunit.core.domain.JavaClasses classes) {
+        for (String module : MODULES) {
+            publicInterfaceRule(module).check(classes);
+        }
     }
 
-    private static ArchRule freezeMapperAccess(String module) {
+    static ArchRule foreignInternalsRule(String module) {
+        return noClasses()
+                .that().resideInAPackage("com.zdmj." + module + "..")
+                .should().dependOnClassesThat(DescribedPredicate.describe("其他模块的内部类型", target -> {
+                    for (String other : MODULES) {
+                        if (!other.equals(module) && isInternal(target, other)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }))
+                .as(module + " 仅通过其他模块的 api 协作");
+    }
+
+    /** 尚无公开能力的模块允许不存在 api 类型；一旦存在即检查全部公开类型。 */
+    static ArchRule publicInterfaceRule(String module) {
+        return noClasses()
+                .that().resideInAPackage("com.zdmj." + module + ".api..")
+                .should().dependOnClassesThat(DescribedPredicate.describe("本模块的内部类型",
+                        target -> isInternal(target, module)))
+                .allowEmptyShould(true)
+                .as(module + " 的 api 不泄漏内部类型");
+    }
+
+    private static boolean isInternal(JavaClass target, String module) {
+        String prefix = "com.zdmj." + module + ".";
+        return (target.getPackageName().equals("com.zdmj." + module) || target.getPackageName().startsWith(prefix))
+                && !target.getPackageName().equals(prefix + "api")
+                && !target.getPackageName().startsWith(prefix + "api.");
+    }
+
+    private static ArchRule mapperAccessRule(String module) {
         String mapperPackage = "com.zdmj." + module + ".mapper..";
-        String[] allowed = {
-                "com.zdmj." + module + ".mapper..",
-                "com.zdmj." + module + ".service..",
-                "com.zdmj." + module + ".support.."
-        };
-        return FreezingArchRule.freeze(classes()
+        return classes()
                 .that().resideInAPackage(mapperPackage)
-                .should().onlyBeAccessed().byAnyPackage(allowed)
-                .as(module + " 的 Mapper 只由本模块应用服务或适配层访问"));
+                .should().onlyBeAccessed().byAnyPackage(mapperPackage,
+                        "com.zdmj." + module + ".service..", "com.zdmj." + module + ".support..")
+                .as(module + " 的 Mapper 只由本模块应用服务或适配层访问");
     }
 
     private static String[] modulePackages() {
@@ -206,23 +202,4 @@ class ModuleArchitectureTest {
         return packages;
     }
 
-    private static String[] foreignInternals(String module) {
-        int count = 0;
-        for (String other : MODULES) {
-            if (!other.equals(module)) {
-                count++;
-            }
-        }
-        String[] packages = new String[count * INTERNAL_LAYERS.length];
-        int index = 0;
-        for (String other : MODULES) {
-            if (other.equals(module)) {
-                continue;
-            }
-            for (String layer : INTERNAL_LAYERS) {
-                packages[index++] = "com.zdmj." + other + "." + layer + "..";
-            }
-        }
-        return packages;
-    }
 }

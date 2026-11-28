@@ -1,5 +1,9 @@
 package com.zdmj.resumeService.dto;
 
+import com.zdmj.resumeService.api.StudentCapabilitySuggestion;
+
+import com.zdmj.resumeService.api.StudentCapabilityScoreDetail;
+
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;

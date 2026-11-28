@@ -24,12 +24,12 @@ import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.util.DateTimeUtil;
-import com.zdmj.jobService.dto.JobListItemResponse;
-import com.zdmj.jobService.service.JobService;
-import com.zdmj.matchService.dto.JobStudentMatchResponse;
-import com.zdmj.matchService.service.JobStudentMatchService;
-import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
-import com.zdmj.resumeService.service.StudentCapabilityProfileService;
+import com.zdmj.jobService.api.JobListItemResponse;
+import com.zdmj.jobService.api.JobReader;
+import com.zdmj.matchService.api.JobMatchSnapshot;
+import com.zdmj.matchService.api.JobMatchAnalysis;
+import com.zdmj.resumeService.api.StudentProfileSnapshot;
+import com.zdmj.resumeService.api.StudentProfileReader;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.time.LocalDate;
@@ -78,9 +78,9 @@ public class CareerDevelopmentReportServiceImpl
 
     private final ObjectMapper objectMapper;
     private final ModelGateway modelGateway;
-    private final JobService jobService;
-    private final JobStudentMatchService jobStudentMatchService;
-    private final StudentCapabilityProfileService studentCapabilityProfileService;
+    private final JobReader jobService;
+    private final JobMatchAnalysis jobStudentMatchService;
+    private final StudentProfileReader studentCapabilityProfileService;
     private final KnowledgeRagService knowledgeRagService;
     private final TransactionTemplate transactionTemplate;
     private final JdbcTemplate jdbcTemplate;
@@ -109,12 +109,12 @@ public class CareerDevelopmentReportServiceImpl
         if (jobDetail == null) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
-        StudentCapabilityProfileResponse studentProfile = studentCapabilityProfileService.getCurrentUserProfileOrNull(actor);
+        StudentProfileSnapshot studentProfile = studentCapabilityProfileService.findCurrentProfile(actor);
         if (studentProfile == null) {
             throw new BusinessException(ErrorCode.MATCH_PRECONDITION_MISSING);
         }
         // 2. 加载或生成人岗匹配
-        JobStudentMatchResponse match = loadOrGenerateMatch(actor, jobId);
+        JobMatchSnapshot match = jobStudentMatchService.getOrGenerate(actor, jobId);
         // 3. 知识库 RAG 检索学习路径片段
         List<KnowledgeHit> ragHits;
         try {
@@ -184,15 +184,10 @@ public class CareerDevelopmentReportServiceImpl
         return toResponse(actor, saveReport(draftFromCurrent(current), req.reportContent(), current.getPromptName()));
     }
 
-    private JobStudentMatchResponse loadOrGenerateMatch(CurrentActor actor, Long jobId) {
-        JobStudentMatchResponse match = jobStudentMatchService.getOrNull(actor, jobId);
-        return match != null ? match : jobStudentMatchService.generate(actor, jobId, null);
-    }
-
     private Map<String, Object> generateStructuredReport(CurrentActor actor,
                                                          JobListItemResponse jobDetail,
-                                                         StudentCapabilityProfileResponse studentProfile,
-                                                         JobStudentMatchResponse match,
+                                                         StudentProfileSnapshot studentProfile,
+                                                         JobMatchSnapshot match,
                                                          List<KnowledgeHit> ragHits,
                                                          CareerReportGenerateRequest req) {
         Map<String, Object> vars = new LinkedHashMap<>();

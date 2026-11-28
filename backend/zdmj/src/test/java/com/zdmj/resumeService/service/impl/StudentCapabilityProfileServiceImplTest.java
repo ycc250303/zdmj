@@ -1,7 +1,7 @@
 package com.zdmj.resumeService.service.impl;
 
-import com.zdmj.resumeService.dto.StudentCapabilitySuggestion;
-import com.zdmj.resumeService.dto.StudentCapabilityScoreDetail;
+import com.zdmj.resumeService.api.StudentCapabilitySuggestion;
+import com.zdmj.resumeService.api.StudentCapabilityScoreDetail;
 import com.zdmj.common.context.CurrentActor;
 import java.io.IOException;
 import java.io.InputStream;
@@ -64,19 +64,50 @@ class StudentCapabilityProfileServiceImplTest {
     @BeforeEach
     void setUp() {
         initMybatisPlusLambdaCache();
-        service = spy(new StudentCapabilityProfileServiceImpl(modelGateway, new ObjectMapper(),
+        service = spy(new StudentCapabilityProfileServiceImpl(studentCapabilityProfileMapper, modelGateway, new ObjectMapper(),
                 pdfParserUtil, new JobRoleDetectionServiceImpl(modelGateway)));
-        ReflectionTestUtils.setField(service, "baseMapper", studentCapabilityProfileMapper);
+    }
+
+    @Test
+    void 公开画像读取_保留全部JSON字段并隔离集合修改() throws Exception {
+        var source = new com.zdmj.resumeService.dto.StudentCapabilityProfileResponse();
+        source.setTargetRoleType("java-backend");
+        source.setProfessionalSkills("Java");
+        source.setHonorsAndAwards("竞赛获奖");
+        source.setInnovationAbility("创新实践");
+        source.setLearningAbility("自主学习");
+        source.setPressureResistance("按期交付");
+        source.setCommunicationAbility("协作沟通");
+        source.setPracticalAbility("实习实践");
+        source.setCompetitivenessScore(80);
+        source.setScoreDetail(new com.zdmj.resumeService.api.StudentCapabilityScoreDetail(30, 20, 10, 10, 10));
+        source.setStrengths(new java.util.ArrayList<>(java.util.Arrays.asList("Java", null)));
+        source.setSuggestions(new java.util.ArrayList<>(java.util.Arrays.asList(
+                new com.zdmj.resumeService.api.StudentCapabilitySuggestion("技能", "高", "缺少证据", "完善项目"), null)));
+        source.setSummary("画像评价");
+        doReturn(source).when(service).getCurrentUserProfileOrNull(actor);
+        var snapshot = service.findCurrentProfile(actor);
+        var json = new ObjectMapper();
+        org.assertj.core.api.Assertions.assertThat(json.<com.fasterxml.jackson.databind.JsonNode>valueToTree(snapshot))
+                .isEqualTo(json.<com.fasterxml.jackson.databind.JsonNode>valueToTree(source));
+        source.getStrengths().clear();
+        source.getSuggestions().clear();
+        org.assertj.core.api.Assertions.assertThat(snapshot.strengths()).containsExactly("Java", null);
+        org.assertj.core.api.Assertions.assertThat(snapshot.suggestions()).hasSize(2);
+        assertThrows(UnsupportedOperationException.class, () -> snapshot.strengths().clear());
+        assertThrows(UnsupportedOperationException.class, () -> snapshot.suggestions().clear());
+        doReturn(null).when(service).getCurrentUserProfileOrNull(actor);
+        org.junit.jupiter.api.Assertions.assertNull(service.findCurrentProfile(actor));
     }
 
     @Test
     void getCurrentUserProfile_notFound_shouldThrow404() {
-        doReturn(null).when(service).getOne(any());
+        doReturn(null).when(studentCapabilityProfileMapper).selectOne(any());
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.getCurrentUserProfile(actor));
 
         assertEquals(ErrorCode.CAPABILITY_PROFILE_NOT_FOUND.getCode(), ex.getCode());
-        verify(service).getOne(any());
+        verify(studentCapabilityProfileMapper).selectOne(any());
     }
 
     @Test
@@ -85,7 +116,7 @@ class StudentCapabilityProfileServiceImplTest {
         profile.setUserId(1L);
         profile.setPromptName("resume-analysis/java-backend");
         profile.setCompetitivenessScore(74);
-        doReturn(profile).when(service).getOne(any());
+        doReturn(profile).when(studentCapabilityProfileMapper).selectOne(any());
 
         StudentCapabilityProfileResponse out = service.getCurrentUserProfile(actor);
 
@@ -147,8 +178,8 @@ class StudentCapabilityProfileServiceImplTest {
 
         ai.setSuggestions(List.of(suggestion));
         doReturn(ai).when(modelGateway).generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
-        doReturn(null).when(service).getOne(any());
-        doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
+        doReturn(null).when(studentCapabilityProfileMapper).selectOne(any());
+        doReturn(1).when(studentCapabilityProfileMapper).insert(any(StudentCapabilityProfile.class));
 
         StudentCapabilityProfileResponse out = service.generateProfile(actor, req);
 
@@ -156,8 +187,8 @@ class StudentCapabilityProfileServiceImplTest {
         assertEquals(7, out.getCompetitivenessScore());
         assertEquals("可投递初级 Java 岗位", out.getSummary());
         assertEquals(1, out.getStrengths().size());
-        verify(service).save(any(StudentCapabilityProfile.class));
-        verify(service, never()).updateById(any(StudentCapabilityProfile.class));
+        verify(studentCapabilityProfileMapper).insert(any(StudentCapabilityProfile.class));
+        verify(studentCapabilityProfileMapper, never()).updateById(any(StudentCapabilityProfile.class));
     }
 
     @Test
@@ -175,8 +206,8 @@ class StudentCapabilityProfileServiceImplTest {
 
         ai.setScoreDetail(detail);
         doReturn(ai).when(modelGateway).generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
-        doReturn(null).when(service).getOne(any());
-        doReturn(true).when(service).save(any(StudentCapabilityProfile.class));
+        doReturn(null).when(studentCapabilityProfileMapper).selectOne(any());
+        doReturn(1).when(studentCapabilityProfileMapper).insert(any(StudentCapabilityProfile.class));
 
         StudentCapabilityProfileResponse out = service.generateProfile(actor, file);
 
@@ -210,15 +241,15 @@ class StudentCapabilityProfileServiceImplTest {
         StudentCapabilityProfile existing = new StudentCapabilityProfile();
         existing.setId(88L);
         existing.setUserId(1L);
-        doReturn(existing).when(service).getOne(any());
-        doReturn(true).when(service).updateById(any(StudentCapabilityProfile.class));
+        doReturn(existing).when(studentCapabilityProfileMapper).selectOne(any());
+        doReturn(1).when(studentCapabilityProfileMapper).updateById(any(StudentCapabilityProfile.class));
 
         StudentCapabilityProfileResponse out = service.generateProfile(actor, req);
 
         assertNotNull(out);
         assertEquals(66, out.getCompetitivenessScore());
-        verify(service).updateById(any(StudentCapabilityProfile.class));
-        verify(service, never()).save(any(StudentCapabilityProfile.class));
+        verify(studentCapabilityProfileMapper).updateById(any(StudentCapabilityProfile.class));
+        verify(studentCapabilityProfileMapper, never()).insert(any(StudentCapabilityProfile.class));
     }
 
     @Test
@@ -233,12 +264,12 @@ class StudentCapabilityProfileServiceImplTest {
 
     @Test
     void getCurrentUserProfileOrNull_notFound_shouldReturnNull() {
-        doReturn(null).when(service).getOne(any());
+        doReturn(null).when(studentCapabilityProfileMapper).selectOne(any());
 
         StudentCapabilityProfileResponse out = service.getCurrentUserProfileOrNull(actor);
 
         assertNull(out);
-        verify(service).getOne(any());
+        verify(studentCapabilityProfileMapper).selectOne(any());
     }
 
     @Test
@@ -249,7 +280,7 @@ class StudentCapabilityProfileServiceImplTest {
         profile.setCompetitivenessScore(72);
         profile.setScoreDetail("{\"contentCompletenessScore\":8}");
         profile.setSuggestions("[{\"category\":\"项目\",\"issue\":\"缺量化\",\"recommendation\":\"补充结果\"}]");
-        doReturn(profile).when(service).getOne(any());
+        doReturn(profile).when(studentCapabilityProfileMapper).selectOne(any());
 
         StudentCapabilityProfileResponse out = service.getCurrentUserProfileOrNull(actor);
 
@@ -258,7 +289,7 @@ class StudentCapabilityProfileServiceImplTest {
         assertEquals(8, out.getScoreDetail().contentCompletenessScore());
         assertEquals(1, out.getSuggestions().size());
         assertEquals("项目", out.getSuggestions().get(0).category());
-        verify(service).getOne(any());
+        verify(studentCapabilityProfileMapper).selectOne(any());
     }
 
     @Test
@@ -268,14 +299,14 @@ class StudentCapabilityProfileServiceImplTest {
         profile.setPromptName("resume-analysis/frontend");
         profile.setCompetitivenessScore(61);
         profile.setScoreDetail("{bad-json");
-        doReturn(profile).when(service).getOne(any());
+        doReturn(profile).when(studentCapabilityProfileMapper).selectOne(any());
 
         IllegalStateException ex = assertThrows(IllegalStateException.class,
                 () -> service.getCurrentUserProfileOrNull(actor));
 
         assertInstanceOf(JsonProcessingException.class, ex.getCause());
-        verify(service, never()).save(any(StudentCapabilityProfile.class));
-        verify(service, never()).updateById(any(StudentCapabilityProfile.class));
+        verify(studentCapabilityProfileMapper, never()).insert(any(StudentCapabilityProfile.class));
+        verify(studentCapabilityProfileMapper, never()).updateById(any(StudentCapabilityProfile.class));
     }
 
     @Test
@@ -368,13 +399,13 @@ class StudentCapabilityProfileServiceImplTest {
 
         ai.setScoreDetail(detail);
         doReturn(ai).when(modelGateway).generateStructured(any(), any(ModelRequest.class), eq(StudentCapabilityProfileResponse.class));
-        doReturn(null).when(service).getOne(any());
+        doReturn(null).when(studentCapabilityProfileMapper).selectOne(any());
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, () -> service.generateProfile(actor, req));
 
         assertInstanceOf(JsonProcessingException.class, ex.getCause());
-        verify(service, never()).save(any(StudentCapabilityProfile.class));
-        verify(service, never()).updateById(any(StudentCapabilityProfile.class));
+        verify(studentCapabilityProfileMapper, never()).insert(any(StudentCapabilityProfile.class));
+        verify(studentCapabilityProfileMapper, never()).updateById(any(StudentCapabilityProfile.class));
     }
 
     @Test

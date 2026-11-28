@@ -17,12 +17,12 @@ import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
-import com.zdmj.jobService.dto.JobListItemResponse;
-import com.zdmj.jobService.service.JobService;
-import com.zdmj.matchService.dto.JobStudentMatchResponse;
-import com.zdmj.matchService.service.JobStudentMatchService;
-import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
-import com.zdmj.resumeService.service.StudentCapabilityProfileService;
+import com.zdmj.jobService.api.JobListItemResponse;
+import com.zdmj.jobService.api.JobReader;
+import com.zdmj.matchService.api.JobMatchSnapshot;
+import com.zdmj.matchService.api.JobMatchAnalysis;
+import com.zdmj.resumeService.api.StudentProfileSnapshot;
+import com.zdmj.resumeService.api.StudentProfileReader;
 import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
 import java.util.Arrays;
@@ -74,11 +74,11 @@ class CareerDevelopmentReportServiceImplTest {
     @Mock
     private ModelGateway modelGateway;
     @Mock
-    private JobService jobService;
+    private JobReader jobService;
     @Mock
-    private JobStudentMatchService jobStudentMatchService;
+    private JobMatchAnalysis jobStudentMatchService;
     @Mock
-    private StudentCapabilityProfileService studentCapabilityProfileService;
+    private StudentProfileReader studentCapabilityProfileService;
     @Mock
     private KnowledgeRagService knowledgeRagService;
     @Mock
@@ -113,8 +113,8 @@ class CareerDevelopmentReportServiceImplTest {
     void generate_shouldSaveReport_whenDependenciesReady() throws Exception {
         Long jobId = 10L;
         doReturn(buildJob()).when(jobService).getDetail(jobId);
-        doReturn(buildStudentProfile()).when(studentCapabilityProfileService).getCurrentUserProfileOrNull(actor);
-        doReturn(buildMatch()).when(jobStudentMatchService).getOrNull(actor, jobId);
+        doReturn(buildStudentProfile()).when(studentCapabilityProfileService).findCurrentProfile(actor);
+        doReturn(buildMatch()).when(jobStudentMatchService).getOrGenerate(actor, jobId);
         stubInsertReport(999L);
 
         doAnswer(invocation -> {
@@ -151,8 +151,8 @@ class CareerDevelopmentReportServiceImplTest {
     void generate_whenRetrievalFails_shouldThrowAndSkipSave() {
         Long jobId = 10L;
         doReturn(buildJob()).when(jobService).getDetail(jobId);
-        doReturn(buildStudentProfile()).when(studentCapabilityProfileService).getCurrentUserProfileOrNull(actor);
-        doReturn(buildMatch()).when(jobStudentMatchService).getOrNull(actor, jobId);
+        doReturn(buildStudentProfile()).when(studentCapabilityProfileService).findCurrentProfile(actor);
+        doReturn(buildMatch()).when(jobStudentMatchService).getOrGenerate(actor, jobId);
         when(knowledgeRagService.retrieveLearningPaths(eq(actor), any())).thenThrow(
                 new BusinessException(ErrorCode.KNOWLEDGE_RETRIEVAL_FAILED, new RuntimeException("embed fail")));
 
@@ -170,8 +170,8 @@ class CareerDevelopmentReportServiceImplTest {
     void generate_whenReportContentSerializationFails_shouldThrowAndSkipSave() throws Exception {
         Long jobId = 10L;
         doReturn(buildJob()).when(jobService).getDetail(jobId);
-        doReturn(buildStudentProfile()).when(studentCapabilityProfileService).getCurrentUserProfileOrNull(actor);
-        doReturn(buildMatch()).when(jobStudentMatchService).getOrNull(actor, jobId);
+        doReturn(buildStudentProfile()).when(studentCapabilityProfileService).findCurrentProfile(actor);
+        doReturn(buildMatch()).when(jobStudentMatchService).getOrGenerate(actor, jobId);
         ReflectionTestUtils.setField(service, "objectMapper", new ObjectMapper() {
             @Override
             public String writeValueAsString(Object value) throws JsonProcessingException {
@@ -407,15 +407,13 @@ class CareerDevelopmentReportServiceImplTest {
         return dto;
     }
 
-    private static StudentCapabilityProfileResponse buildStudentProfile() {
-        StudentCapabilityProfileResponse dto = new StudentCapabilityProfileResponse();
-        dto.setProfessionalSkills("Java, Spring");
-        dto.setLearningAbility("较强");
-        return dto;
+    private static StudentProfileSnapshot buildStudentProfile() {
+        return new StudentProfileSnapshot(null, "Java, Spring", null, null, "较强", null, null, null,
+                null, null, null, null, null);
     }
 
-    private static JobStudentMatchResponse buildMatch() {
-        JobStudentMatchResponse dto = new JobStudentMatchResponse(300L, null, null, 78, null, null, null, null,
+    private static JobMatchSnapshot buildMatch() {
+        JobMatchSnapshot dto = new JobMatchSnapshot(300L, null, null, 78, null, null, null, null,
                 null, null, null, null);
 
         return dto;

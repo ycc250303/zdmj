@@ -29,6 +29,12 @@ import com.zdmj.testsupport.TestUsers;
 @AutoConfigureMockMvc
 class TransactionBoundaryIT extends IntegrationTestBase {
 
+    @Autowired
+    private com.zdmj.userAuthService.api.AccountProfileUpdater accountProfiles;
+
+    @Autowired
+    private org.springframework.transaction.support.TransactionTemplate transactionTemplate;
+
     private final ApiClient api;
     private final MockMvc mockMvc;
     private final TestUsers testUsers;
@@ -44,6 +50,23 @@ class TransactionBoundaryIT extends IntegrationTestBase {
         this.testUsers = testUsers;
         this.testJwt = testJwt;
         this.jdbcTemplate = jdbcTemplate;
+    }
+
+    @Test
+    void 账户公开资料同步_加入调用方事务_失败时全部回滚() {
+        var user = testUsers.createPair().userA();
+        var actor = new com.zdmj.common.context.CurrentActor(user.getId());
+        accountProfiles.synchronizeProfile(actor,
+                new com.zdmj.userAuthService.api.AccountProfileUpdate(" 原姓名 ", null, null, null));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
+            accountProfiles.synchronizeProfile(actor,
+                    new com.zdmj.userAuthService.api.AccountProfileUpdate(" 新姓名 ", "123", null, null));
+            throw new IllegalStateException("模拟调用方失败");
+        })).isInstanceOf(IllegalStateException.class).hasMessage("模拟调用方失败");
+        assertThat(jdbcTemplate.queryForObject("SELECT name FROM users WHERE id = ?", String.class, user.getId()))
+                .isEqualTo("原姓名");
+        assertThat(jdbcTemplate.queryForObject("SELECT phone FROM users WHERE id = ?", String.class, user.getId()))
+                .isEqualTo(user.getPhone());
     }
 
     @Test

@@ -20,6 +20,12 @@ import com.zdmj.userAuthService.entity.User;
 @AutoConfigureMockMvc
 class ProfilePromptFlowIT extends IntegrationTestBase {
 
+    @Autowired
+    private com.zdmj.resumeService.api.StudentProfileReader profileReader;
+
+    @Autowired
+    private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+
     private final ApiClient api;
     private final TestUsers testUsers;
     private final TestJwt testJwt;
@@ -52,7 +58,8 @@ class ProfilePromptFlowIT extends IntegrationTestBase {
 
     @Test
     void 简历画像_关键词识别后_保存规范方向与专属提示词() throws Exception {
-        User owner = testUsers.createPair().userA();
+        var users = testUsers.createPair();
+        User owner = users.userA();
         String token = testJwt.authorize(owner);
         MvcResult generated = api.post(token, "/capability-profile/generate",
                 "{\"rawText\":\"Java Spring Boot MySQL Redis 项目经验\"}");
@@ -66,5 +73,10 @@ class ProfilePromptFlowIT extends IntegrationTestBase {
                 .isEqualTo("resume-analysis/java-backend");
         String body = ApiClient.requireOk(api.get(token, "/capability-profile/current/query"));
         assertThat(JsonPath.<String>read(body, "$.data.professionalSkills")).isEqualTo("Java 简历能力");
+        var snapshot = profileReader.findCurrentProfile(new com.zdmj.common.context.CurrentActor(owner.getId()));
+        assertThat(objectMapper.readTree(objectMapper.writeValueAsString(snapshot)))
+                .isEqualTo(objectMapper.readTree(body).get("data"));
+        var other = users.userB();
+        assertThat(profileReader.findCurrentProfile(new com.zdmj.common.context.CurrentActor(other.getId()))).isNull();
     }
 }

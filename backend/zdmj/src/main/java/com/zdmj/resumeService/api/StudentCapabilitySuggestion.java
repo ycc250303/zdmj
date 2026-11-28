@@ -1,4 +1,4 @@
-package com.zdmj.resumeService.dto;
+package com.zdmj.resumeService.api;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 

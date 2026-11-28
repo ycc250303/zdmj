@@ -1,7 +1,7 @@
 package com.zdmj.jobService.service;
 
 import com.zdmj.common.model.PageDTO;
-import com.zdmj.jobService.dto.JobListItemResponse;
+import com.zdmj.jobService.api.JobListItemResponse;
 import com.zdmj.jobService.dto.JobPageQueryDTO;
 import com.zdmj.jobService.dto.JobRequest;
 import com.zdmj.jobService.dto.JobResponse;

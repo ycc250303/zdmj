@@ -49,6 +49,11 @@ public class ContractProbeController {
         throw new BusinessException(ErrorCode.RESUME_NOT_FOUND);
     }
 
+    @GetMapping("/business/{error}")
+    void businessCode(@org.springframework.web.bind.annotation.PathVariable ErrorCode error) {
+        throw new BusinessException(error);
+    }
+
     @GetMapping("/limited")
     void limited() {
         throw new BusinessException(ErrorCode.RATE_LIMIT_EXCEEDED);

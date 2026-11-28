@@ -27,8 +27,8 @@ import com.zdmj.resumeService.mapper.ResumeContentRow;
 import com.zdmj.resumeService.mapper.ResumeMapper;
 import com.zdmj.resumeService.mapper.SkillMapper;
 import com.zdmj.resumeService.service.AwardService;
-import com.zdmj.userAuthService.dto.UserUpdateRequest;
-import com.zdmj.userAuthService.service.UserLoginService;
+import com.zdmj.userAuthService.api.AccountProfileUpdate;
+import com.zdmj.userAuthService.api.AccountProfileUpdater;
 import com.zdmj.resumeService.service.CareerService;
 import com.zdmj.resumeService.service.EducationService;
 import com.zdmj.resumeService.service.ProjectExperienceService;
@@ -73,7 +73,7 @@ public class ResumeServiceImpl implements ResumeService {
     private final AwardMapper awardMapper;
     private final SkillMapper skillMapper;
     private final ResumeMapper resumeMapper;
-    private final UserLoginService userService;
+    private final AccountProfileUpdater userService;
     private final ModelGateway modelGateway;
     private final EducationService educationService;
     private final CareerService careerService;
@@ -166,14 +166,13 @@ public class ResumeServiceImpl implements ResumeService {
     }
 
     private void syncPersonalInfo(CurrentActor actor, ResumePersonalInfoDTO info) {
-        Long userId = actor.userId();
         if (info == null) {
             return;
         }
-        UserUpdateRequest update = new UserUpdateRequest(info.name(), info.phone(), info.homepageUrl(),
+        AccountProfileUpdate update = new AccountProfileUpdate(info.name(), info.phone(), info.homepageUrl(),
                 info.preferredWorkCity());
 
-        userService.updateProfile(actor, userId, update);
+        userService.synchronizeProfile(actor, update);
     }
 
     /**
