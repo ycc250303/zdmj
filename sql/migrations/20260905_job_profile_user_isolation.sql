@@ -1,6 +1,4 @@
--- 岗位能力画像按用户隔离：旧行仅有 job_id，无法还原归属，清空后由用户重新生成
-DELETE FROM job_capability_profiles;
-
+-- 岗位能力画像增加用户归属及用户、岗位唯一索引。
 ALTER TABLE job_capability_profiles
     ADD COLUMN user_id BIGINT NOT NULL;
 

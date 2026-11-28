@@ -1,8 +1,13 @@
 package com.zdmj.matchService.service.impl;
 
+import com.zdmj.matchService.api.MatchWeightsSnapshot;
+import com.zdmj.matchService.api.MatchDimensionSnapshot;
+import com.zdmj.matchService.api.JobMatchSnapshot;
+import com.zdmj.matchService.api.JobMatchAnalysis;
+import com.zdmj.matchService.dto.KeywordMatchResult;
+import com.zdmj.common.model.PageParameters;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,8 +21,8 @@ import com.zdmj.jobService.api.JobRoleDetectionResult;
 import com.zdmj.jobService.api.JobRoleDetectionService;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.PageRequests;
-import com.zdmj.jobService.dto.JobListItemResponse;
-import com.zdmj.jobService.service.JobService;
+import com.zdmj.jobService.api.JobListItemResponse;
+import com.zdmj.jobService.api.JobReader;
 import com.zdmj.matchService.dto.DimensionMatchResponse;
 import com.zdmj.matchService.dto.JobStudentMatchResponse;
 import com.zdmj.matchService.dto.JobStudentMatchGenerateRequest;
@@ -27,8 +32,8 @@ import com.zdmj.matchService.entity.JobStudentMatch;
 import com.zdmj.matchService.enums.MatchDimension;
 import com.zdmj.matchService.mapper.JobStudentMatchMapper;
 import com.zdmj.matchService.service.JobStudentMatchService;
-import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
-import com.zdmj.resumeService.service.StudentCapabilityProfileService;
+import com.zdmj.resumeService.api.StudentProfileSnapshot;
+import com.zdmj.resumeService.api.StudentProfileReader;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Arrays;
@@ -55,25 +60,48 @@ import org.springframework.util.StringUtils;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class JobStudentMatchServiceImpl
-        extends ServiceImpl<JobStudentMatchMapper, JobStudentMatch>
-        implements JobStudentMatchService {
+public class JobStudentMatchServiceImpl implements JobStudentMatchService, JobMatchAnalysis {
+
+    private final JobStudentMatchMapper matchMapper;
 
     private static final String MATCH_PROMPT_DIRECTORY = "job-student-match/";
 
-    private final JobService jobService;
+    private final JobReader jobService;
     private final JobRoleDetectionService roleDetectionService;
-    private final StudentCapabilityProfileService studentCapabilityProfileService;
+    private final StudentProfileReader studentCapabilityProfileService;
     private final ModelGateway modelGateway;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
 
     @Override
+    public JobMatchSnapshot getOrGenerate(CurrentActor actor, Long jobId) {
+        JobStudentMatchResponse result = getOrNull(actor, jobId);
+        if (result == null) {
+            result = generate(actor, jobId, null);
+        }
+        Map<String, MatchDimensionSnapshot> dimensions = null;
+        if (result.dimensions() != null) {
+            dimensions = new LinkedHashMap<>();
+            for (var entry : result.dimensions().entrySet()) {
+                DimensionMatchResponse value = entry.getValue();
+                dimensions.put(entry.getKey(), value == null ? null : new MatchDimensionSnapshot(
+                        value.getJobSide(), value.getStudentSide(), value.getScore(), value.getGap(), value.getEvidence()));
+            }
+        }
+        MatchWeightConfigResponse weights = result.weights();
+        return new JobMatchSnapshot(result.id(), result.jobId(), result.targetRoleType(),
+                result.overallScore(), dimensions, weights == null ? null : new MatchWeightsSnapshot(
+                        weights.getBasic(), weights.getProfessionalSkill(), weights.getProfessionalQuality(), weights.getDevelopmentPotential()),
+                result.matchedHighlights(), result.criticalGaps(), result.matchedKeywords(), result.missingKeywords(),
+                result.keySkillMatchRate(), result.summary());
+    }
+
+    @Override
     public PageDTO<JobStudentMatchListItemResponse> getMyPage(CurrentActor actor, Integer page, Integer limit) {
         Long userId = actor.userId();
-        PageRequests.Normalized paging = PageRequests.normalize(page, limit);
+        PageParameters paging = PageRequests.normalize(page, limit);
         IPage<JobStudentMatchListItemResponse> result =
-                baseMapper.selectMyMatchPage(PageRequests.toPage(paging), userId);
+                matchMapper.selectMyMatchPage(PageRequests.toPage(paging), userId);
         return PageDTO.from(result);
     }
 
@@ -83,7 +111,7 @@ public class JobStudentMatchServiceImpl
         if (jobId == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "jobId不能为空");
         }
-        JobStudentMatch match = getOne(new LambdaQueryWrapper<JobStudentMatch>()
+        JobStudentMatch match = matchMapper.selectOne(new LambdaQueryWrapper<JobStudentMatch>()
                 .eq(JobStudentMatch::getUserId, userId)
                 .eq(JobStudentMatch::getJobId, jobId));
         if (match == null) {
@@ -112,7 +140,7 @@ public class JobStudentMatchServiceImpl
         if (jobDetail == null) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
-        StudentCapabilityProfileResponse studentProfile = studentCapabilityProfileService.getCurrentUserProfileOrNull(actor);
+        StudentProfileSnapshot studentProfile = studentCapabilityProfileService.findCurrentProfile(actor);
         if (studentProfile == null) {
             throw new BusinessException(ErrorCode.MATCH_PRECONDITION_MISSING);
         }
@@ -160,7 +188,7 @@ public class JobStudentMatchServiceImpl
         JobStudentMatch entity = buildMatch(userId, jobId, role, promptName, weights,
                 basicScore, skillScore, qualityScore, potentialScore, overall,
                 dims, aiResult.matchedHighlights(), aiResult.criticalGaps(),
-                kw.matched, kw.missing, kw.rate, aiResult.summary());
+                kw.matched(), kw.missing(), kw.rate(), aiResult.summary());
         if (jobService.getDetail(jobId) == null) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
@@ -194,7 +222,7 @@ public class JobStudentMatchServiceImpl
      * 把岗位描述、学生画像、权重和关键词拼成模型输入。
      */
     private String buildUserMessage(JobListItemResponse jobDetail,
-                                    StudentCapabilityProfileResponse studentProfile,
+                                    StudentProfileSnapshot studentProfile,
                                     MatchWeightConfigResponse weights,
                                     List<String> jobKeywords) {
         StringBuilder sb = new StringBuilder();
@@ -208,18 +236,18 @@ public class JobStudentMatchServiceImpl
         sb.append("- 岗位关键词：").append(joinList(jobKeywords)).append("\n\n");
 
         sb.append("## 学生就业能力画像（七维）\n");
-        appendCapabilityRow(sb, "专业技能", studentProfile.getProfessionalSkills());
-        appendCapabilityRow(sb, "获奖经历", studentProfile.getHonorsAndAwards());
-        appendCapabilityRow(sb, "创新能力", studentProfile.getInnovationAbility());
-        appendCapabilityRow(sb, "学习能力", studentProfile.getLearningAbility());
-        appendCapabilityRow(sb, "抗压能力", studentProfile.getPressureResistance());
-        appendCapabilityRow(sb, "沟通能力", studentProfile.getCommunicationAbility());
-        appendCapabilityRow(sb, "实习/实践能力", studentProfile.getPracticalAbility());
-        if (studentProfile.getStrengths() != null && !studentProfile.getStrengths().isEmpty()) {
-            sb.append("- 学生优势点：").append(String.join("；", studentProfile.getStrengths())).append('\n');
+        appendCapabilityRow(sb, "专业技能", studentProfile.professionalSkills());
+        appendCapabilityRow(sb, "获奖经历", studentProfile.honorsAndAwards());
+        appendCapabilityRow(sb, "创新能力", studentProfile.innovationAbility());
+        appendCapabilityRow(sb, "学习能力", studentProfile.learningAbility());
+        appendCapabilityRow(sb, "抗压能力", studentProfile.pressureResistance());
+        appendCapabilityRow(sb, "沟通能力", studentProfile.communicationAbility());
+        appendCapabilityRow(sb, "实习/实践能力", studentProfile.practicalAbility());
+        if (studentProfile.strengths() != null && !studentProfile.strengths().isEmpty()) {
+            sb.append("- 学生优势点：").append(String.join("；", studentProfile.strengths())).append('\n');
         }
-        if (studentProfile.getSuggestions() != null && !studentProfile.getSuggestions().isEmpty()) {
-            String gapSummary = studentProfile.getSuggestions().stream()
+        if (studentProfile.suggestions() != null && !studentProfile.suggestions().isEmpty()) {
+            String gapSummary = studentProfile.suggestions().stream()
                     .filter(s -> s != null && StringUtils.hasText(s.issue()))
                     .limit(6)
                     .map(s -> {
@@ -232,8 +260,8 @@ public class JobStudentMatchServiceImpl
                 sb.append("- 学生改进建议摘要：").append(gapSummary).append('\n');
             }
         }
-        if (StringUtils.hasText(studentProfile.getSummary())) {
-            sb.append("- 学生画像总结：").append(studentProfile.getSummary()).append('\n');
+        if (StringUtils.hasText(studentProfile.summary())) {
+            sb.append("- 学生画像总结：").append(studentProfile.summary()).append('\n');
         }
         sb.append('\n');
 
@@ -343,7 +371,7 @@ public class JobStudentMatchServiceImpl
     private KeywordMatchResult recomputeKeywordMatch(
             List<String> jobKeywords,
             List<String> aiMatchedKeywords,
-            StudentCapabilityProfileResponse studentProfile) {
+            StudentProfileSnapshot studentProfile) {
 
         Set<String> jobSet = new LinkedHashSet<>(jobKeywords == null ? List.of() : jobKeywords);
         if (jobSet.isEmpty()) {
@@ -378,23 +406,20 @@ public class JobStudentMatchServiceImpl
         return new KeywordMatchResult(matched, missing, rate);
     }
 
-    private static String buildStudentCorpus(StudentCapabilityProfileResponse p) {
+    private static String buildStudentCorpus(StudentProfileSnapshot p) {
         if (p == null) {
             return "";
         }
         return String.join(" ", Arrays.asList(
-                Objects.toString(p.getProfessionalSkills(), ""),
-                Objects.toString(p.getHonorsAndAwards(), ""),
-                Objects.toString(p.getInnovationAbility(), ""),
-                Objects.toString(p.getLearningAbility(), ""),
-                Objects.toString(p.getPressureResistance(), ""),
-                Objects.toString(p.getCommunicationAbility(), ""),
-                Objects.toString(p.getPracticalAbility(), ""),
-                Objects.toString(p.getSummary(), ""),
-                p.getStrengths() == null ? "" : String.join(" ", p.getStrengths())));
-    }
-
-    private record KeywordMatchResult(List<String> matched, List<String> missing, BigDecimal rate) {
+                Objects.toString(p.professionalSkills(), ""),
+                Objects.toString(p.honorsAndAwards(), ""),
+                Objects.toString(p.innovationAbility(), ""),
+                Objects.toString(p.learningAbility(), ""),
+                Objects.toString(p.pressureResistance(), ""),
+                Objects.toString(p.communicationAbility(), ""),
+                Objects.toString(p.practicalAbility(), ""),
+                Objects.toString(p.summary(), ""),
+                p.strengths() == null ? "" : String.join(" ", p.strengths())));
     }
 
     // ============================================================
@@ -452,7 +477,7 @@ public class JobStudentMatchServiceImpl
             return updateOwned(draft, existing);
         }
         try {
-            if (baseMapper.insert(draft) != 1) {
+            if (matchMapper.insert(draft) != 1) {
                 throw new BusinessException(ErrorCode.MATCH_GENERATION_FAILED);
             }
             return draft;
@@ -470,14 +495,14 @@ public class JobStudentMatchServiceImpl
             throw new BusinessException(ErrorCode.NO_PERMISSION);
         }
         draft.setId(existing.getId());
-        if (baseMapper.updateById(draft) != 1) {
+        if (matchMapper.updateById(draft) != 1) {
             throw new BusinessException(ErrorCode.MATCH_GENERATION_FAILED);
         }
         return draft;
     }
 
     private JobStudentMatch findOwned(Long userId, Long jobId) {
-        return baseMapper.selectOne(new LambdaQueryWrapper<JobStudentMatch>()
+        return matchMapper.selectOne(new LambdaQueryWrapper<JobStudentMatch>()
                 .eq(JobStudentMatch::getUserId, userId)
                 .eq(JobStudentMatch::getJobId, jobId));
     }

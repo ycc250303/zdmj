@@ -31,26 +31,24 @@ class ApiSerializationContractTest {
     private MockMvc mockMvc;
 
     @Test
-    void 成功响应_信封分页任务与空值_按既定JSON写出且不含敏感字段() throws Exception {
+    void 成功响应_会话分页与空值_按既定JSON写出且不含敏感字段() throws Exception {
         mockMvc.perform(get(BASE + "/serialization"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.msg").value("操作成功"))
-                .andExpect(jsonPath("$.data.empty").value(nullValue()))
-                .andExpect(jsonPath("$.data.tasks.page").value(2))
-                .andExpect(jsonPath("$.data.tasks.limit").value(20))
-                .andExpect(jsonPath("$.data.tasks.total").value(1))
-                .andExpect(jsonPath("$.data.tasks.totalPages").value(1))
-                .andExpect(jsonPath("$.data.tasks.list[0].taskId").value(7))
-                .andExpect(jsonPath("$.data.tasks.list[0].taskType").value(8))
-                .andExpect(jsonPath("$.data.tasks.list[0].status").value(3))
-                .andExpect(jsonPath("$.data.tasks.list[0].startedAt").value("2024-09-01T08:30:00"))
-                .andExpect(jsonPath("$.data.tasks.list[0].completedAt").value(nullValue()))
-                .andExpect(jsonPath("$.data.tasks.list[0].errorMessage").value(nullValue()))
-                .andExpect(jsonPath("$.data.tasks.list[0].result").value(nullValue()))
-                .andExpect(jsonPath("$.data.tasks.content").doesNotExist())
-                .andExpect(jsonPath("$.data.tasks.pageable").doesNotExist())
+                .andExpect(jsonPath("$.data.page").value(2))
+                .andExpect(jsonPath("$.data.limit").value(20))
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.totalPages").value(1))
+                .andExpect(jsonPath("$.data.list[0].id").value(7))
+                .andExpect(jsonPath("$.data.list[0].userId").value(1))
+                .andExpect(jsonPath("$.data.list[0].title").value("求职准备"))
+                .andExpect(jsonPath("$.data.list[0].messageCount").value(2))
+                .andExpect(jsonPath("$.data.list[0].lastMessageAt").value("2024-09-01T08:30:00"))
+                .andExpect(jsonPath("$.data.list[0].config").value(nullValue()))
+                .andExpect(jsonPath("$.data.content").doesNotExist())
+                .andExpect(jsonPath("$.data.pageable").doesNotExist())
                 .andExpect(jsonPath("$.password").doesNotExist())
                 .andExpect(jsonPath("$.trace").doesNotExist());
     }

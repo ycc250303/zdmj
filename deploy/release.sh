@@ -28,6 +28,8 @@ if [[ "$DEPLOY_JAVA" != "true" && "$DEPLOY_FRONTEND" != "true" ]]; then
   exit 1
 fi
 
+lock_javaguide_maintenance
+
 sync_script="$SCRIPT_DIR/sync_server_code.sh"
 if [[ ! -f "$sync_script" ]]; then
   echo "错误: 缺少公共同步脚本 $sync_script" >&2

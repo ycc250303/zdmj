@@ -1,6 +1,8 @@
 spring:
   application:
     name: zdmj
+  reactor:
+    context-propagation: auto
 
   # PostgreSQL 数据库配置
   datasource:
@@ -52,6 +54,8 @@ spring:
    
   # 对话使用用户配置；平台密钥只用于嵌入
   ai:
+    retry:
+      max-attempts: 1
     model:
       chat: none
     openai:
@@ -80,8 +84,8 @@ mybatis-plus:
   configuration:
     # 开启驼峰命名转换
     map-underscore-to-camel-case: true
-    # SQL 日志输出（开发环境使用，生产环境建议关闭）
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    # SQL 日志通过 SLF4J 输出，遵循日志级别并携带请求编号
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
 
 
 # 服务器配置
@@ -101,6 +105,8 @@ management:
 
 # 日志配置
 logging:
+  pattern:
+    level: "%5p [traceId=%X{traceId}]"
   level:
     org.springframework.ai.chat.client.advisor: DEBUG
     com.zdmj: DEBUG

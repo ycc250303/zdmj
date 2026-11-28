@@ -1,5 +1,7 @@
 package com.zdmj.knowledgeService.service.impl;
 
+import com.zdmj.aiService.api.ModelMessageRole;
+import com.zdmj.aiService.api.ModelHistoryMessage;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -13,28 +15,23 @@ import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import com.zdmj.aiService.api.EmbeddingGateway;
-
 import com.zdmj.knowledgeService.config.RagConfig;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.context.CurrentActor;
-import com.zdmj.knowledgeService.dto.KnowledgeRetrievalResponse;
+import com.zdmj.knowledgeService.api.KnowledgeRetrievalResponse;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
 import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
-import com.zdmj.knowledgeService.service.KnowledgeBasesService;
-import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
-
+import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
 import reactor.core.publisher.Flux;
 
 class KnowledgeRagServiceImplTest {
@@ -43,18 +40,17 @@ class KnowledgeRagServiceImplTest {
 
     private final EmbeddingGateway embeddingGateway = Mockito.mock(EmbeddingGateway.class);
     private final RagConfig ragConfig = new RagConfig();
-    private final KnowledgeBasesService knowledgeBasesService = Mockito.mock(KnowledgeBasesService.class);
-    private final KnowledgeEmbeddingService knowledgeEmbeddingService = Mockito.mock(KnowledgeEmbeddingService.class);
+    private final KnowledgeDocumentMapper knowledgeDocumentMapper = Mockito.mock(KnowledgeDocumentMapper.class);
     private final KnowledgeVectorMapper knowledgeVectorMapper = Mockito.mock(KnowledgeVectorMapper.class);
     private final ModelGateway modelGateway = Mockito.mock(ModelGateway.class);
 
     @Test
     void streamAnswer_withoutSubscription_shouldNotStartRetrievalOrModel() {
-        var service = new KnowledgeRagServiceImpl(embeddingGateway, ragConfig, knowledgeBasesService,
-                knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+        var service = new KnowledgeRagServiceImpl(embeddingGateway, ragConfig,
+                knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
         service.streamAnswer(actor, 1L, answerRequest("问题", null), null, true);
-        Mockito.verifyNoInteractions(embeddingGateway, knowledgeBasesService,
-                knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+        Mockito.verifyNoInteractions(embeddingGateway,
+                knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
     }
 
     @Test
@@ -75,8 +71,8 @@ class KnowledgeRagServiceImplTest {
             }
             throw new IllegalStateException("检索未中断");
         });
-        var service = new KnowledgeRagServiceImpl(embeddingGateway, ragConfig, knowledgeBasesService,
-                knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+        var service = new KnowledgeRagServiceImpl(embeddingGateway, ragConfig,
+                knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
         var subscription = service.streamAnswer(actor, 1L, answerRequest("问题", null), null, false)
                 .subscribe(ignored -> { }, ignored -> { });
         try {
@@ -84,7 +80,7 @@ class KnowledgeRagServiceImplTest {
             subscription.dispose();
             assertTrue(interrupted.await(5, java.util.concurrent.TimeUnit.SECONDS));
             verify(modelGateway, never()).stream(any(), any());
-            Mockito.verifyNoInteractions(knowledgeBasesService, knowledgeVectorMapper);
+            Mockito.verifyNoInteractions(knowledgeVectorMapper);
         } finally {
             subscription.dispose();
         }
@@ -97,7 +93,7 @@ class KnowledgeRagServiceImplTest {
         ragConfig.getRewrite().setEnabled(false);
         when(embeddingGateway.embed(any(), any())).thenThrow(new RuntimeException("embed fail"));
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+                embeddingGateway, ragConfig, knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.streamAnswer(actor, 13L, answerRequest("hello", null), null, false).collectList().block(java.time.Duration.ofSeconds(5)));
@@ -114,20 +110,18 @@ class KnowledgeRagServiceImplTest {
     void streamAnswer_whenRetrievalMisses_shouldUseSystemPrompt() {
         actor = new CurrentActor(401L);
         ragConfig.getRewrite().setEnabled(false);
-        when(knowledgeBasesService.getOrCreateKnowledgeBaseId(actor)).thenReturn(501L);
-        when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.1,0.2]");
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
-        when(knowledgeVectorMapper.searchBySimilarity(401L, 501L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium()))
+        when(knowledgeVectorMapper.searchBySimilarity(401L, KnowledgeScopeEnum.USER.getCode(), "[0.1,0.2]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of());
         when(modelGateway.stream(same(actor), eq(answerRequest("hello", "system"))))
                 .thenReturn(Flux.just("普通问答回复"));
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+                embeddingGateway, ragConfig, knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
 
         List<String> chunks = service.streamAnswer(actor, 13L, answerRequest("hello", null), null, false).collectList().block();
 
         assertEquals(List.of("普通问答回复"), chunks);
-        verify(knowledgeVectorMapper).searchBySimilarity(401L, 501L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium());
+        verify(knowledgeVectorMapper).searchBySimilarity(401L, KnowledgeScopeEnum.USER.getCode(), "[0.1,0.2]", ragConfig.getSearch().getTopkMedium());
     }
 
     @Test
@@ -135,26 +129,24 @@ class KnowledgeRagServiceImplTest {
     void streamAnswerRagHit_shouldUseRagSystemPromptWithContext() {
         actor = new CurrentActor(402L);
         ragConfig.getRewrite().setEnabled(false);
-        when(knowledgeBasesService.getOrCreateKnowledgeBaseId(actor)).thenReturn(502L);
-        when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.1,0.2]");
 
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
 
         KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO(1L, 900L, 0, "关键知识片段", 0.9, Map.of("source", "test"), null);
 
-        when(knowledgeVectorMapper.searchBySimilarity(402L, 502L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium()))
+        when(knowledgeVectorMapper.searchBySimilarity(402L, KnowledgeScopeEnum.USER.getCode(), "[0.1,0.2]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of(hit));
         when(modelGateway.stream(same(actor), argThat((ModelRequest req) -> "hello question".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName())
                 && req.history().equals(answerRequest("unused", null).history()) && "上一轮生成失败".equals(req.historyNotice()))))
                 .thenReturn(Flux.just("rag-answer"));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+                embeddingGateway, ragConfig, knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
 
         List<String> chunks = service.streamAnswer(actor, 14L, answerRequest("hello question", null), null, false).collectList().block();
 
         assertEquals(List.of("rag-answer"), chunks);
-        verify(knowledgeVectorMapper).searchBySimilarity(402L, 502L, "[0.1,0.2]", ragConfig.getSearch().getTopkMedium());
+        verify(knowledgeVectorMapper).searchBySimilarity(402L, KnowledgeScopeEnum.USER.getCode(), "[0.1,0.2]", ragConfig.getSearch().getTopkMedium());
         verify(embeddingGateway).embed(same(actor), eq(List.of("hello question")));
     }
 
@@ -163,36 +155,34 @@ class KnowledgeRagServiceImplTest {
     void streamAnswerRewriteEnabled_shouldCallRewritePromptThenRag() {
         actor = new CurrentActor(403L);
         ragConfig.getRewrite().setEnabled(true);
-        when(knowledgeBasesService.getOrCreateKnowledgeBaseId(actor)).thenReturn(503L);
         when(modelGateway.generate(same(actor), argThat((ModelRequest req) -> "raw question".equals(req.message()) && "knowledgebase-query-rewrite".equals(req.promptName()))))
                 .thenReturn("rewritten question");
-        when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.3,0.4]");
 
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.3f, 0.4f}));
 
         KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO(2L, 901L, 1, "命中内容", 0.91, null, null);
 
-        when(knowledgeVectorMapper.searchBySimilarity(eq(403L), eq(503L), eq("[0.3,0.4]"), anyInt()))
+        when(knowledgeVectorMapper.searchBySimilarity(eq(403L), eq(KnowledgeScopeEnum.USER.getCode()), eq("[0.3,0.4]"), anyInt()))
                 .thenReturn(List.of(hit));
         when(modelGateway.stream(same(actor), argThat((ModelRequest req) -> "raw question".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName())
                 && req.history().equals(answerRequest("unused", null).history()) && "上一轮生成失败".equals(req.historyNotice()))))
                 .thenReturn(Flux.just("rewritten-rag-answer"));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+                embeddingGateway, ragConfig, knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
 
         List<String> chunks = service.streamAnswer(actor, 15L, answerRequest("raw question", null), null, false).collectList().block();
 
         assertEquals(List.of("rewritten-rag-answer"), chunks);
         verify(embeddingGateway).embed(same(actor), eq(List.of("raw question")));
         verify(embeddingGateway).embed(same(actor), eq(List.of("rewritten question")));
-        verify(knowledgeVectorMapper, Mockito.times(2)).searchBySimilarity(eq(403L), eq(503L), eq("[0.3,0.4]"), anyInt());
+        verify(knowledgeVectorMapper, Mockito.times(2)).searchBySimilarity(eq(403L), eq(KnowledgeScopeEnum.USER.getCode()), eq("[0.3,0.4]"), anyInt());
     }
 
     @Test
     void streamAnswerEmptyDocumentSelection_shouldUseSystemPrompt() {
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+                embeddingGateway, ragConfig, knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
         when(modelGateway.stream(same(actor), eq(answerRequest("hello", "system"))))
                 .thenReturn(Flux.just("no-rag"));
 
@@ -207,38 +197,38 @@ class KnowledgeRagServiceImplTest {
     void streamAnswerSystemKnowledgeOnly_shouldSearchSystemKbWhenUserDocsDisabled() {
         actor = new CurrentActor(404L);
         ragConfig.getRewrite().setEnabled(false);
-        when(knowledgeBasesService.findKnowledgeBaseIdByScope(KnowledgeScopeEnum.SYSTEM.getCode())).thenReturn(11L);
-        when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.5,0.6]");
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.5f, 0.6f}));
 
         KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO(3L, 902L, 0, "系统库片段", 0.88, null, null);
 
         when(knowledgeVectorMapper.searchBySimilarity(
-                KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.5,0.6]", ragConfig.getSearch().getTopkMedium()))
+                null, KnowledgeScopeEnum.SYSTEM.getCode(), "[0.5,0.6]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of(hit));
         when(modelGateway.stream(same(actor), argThat((ModelRequest req) -> "system only".equals(req.message()) && "knowledgebase-rag-system".equals(req.promptName())
                 && req.history().equals(answerRequest("unused", null).history()) && "上一轮生成失败".equals(req.historyNotice()))))
                 .thenReturn(Flux.just("system-rag"));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+                embeddingGateway, ragConfig, knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
 
         List<String> chunks = service.streamAnswer(actor, 17L, answerRequest("system only", null), List.of(), true).collectList().block();
 
         assertEquals(List.of("system-rag"), chunks);
         verify(knowledgeVectorMapper).searchBySimilarity(
-                KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.5,0.6]", ragConfig.getSearch().getTopkMedium());
-        verify(knowledgeBasesService, never()).getOrCreateKnowledgeBaseId(actor);
+                null, KnowledgeScopeEnum.SYSTEM.getCode(), "[0.5,0.6]", ragConfig.getSearch().getTopkMedium());
         verify(knowledgeVectorMapper, never()).searchBySimilarity(eq(404L), any(), any(), anyInt());
     }
 
     @Test
     void retrieveRankedActorMissing_shouldFailFast() {
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+                embeddingGateway, ragConfig, knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
 
         assertThrows(NullPointerException.class,
                 () -> service.retrieveRanked(null, "hello", List.of(), true));
+        assertThrows(NullPointerException.class, () -> service.retrieveLearningPaths(null, "hello"));
+        assertThrows(NullPointerException.class, () -> service.resolveReportReferences(null, List.of()));
+        Mockito.verifyNoInteractions(embeddingGateway, knowledgeDocumentMapper);
         verify(knowledgeVectorMapper, never()).searchBySimilarity(any(), any(), any(), anyInt());
     }
 
@@ -247,7 +237,7 @@ class KnowledgeRagServiceImplTest {
         ragConfig.getRewrite().setEnabled(true);
         when(modelGateway.generate(eq(new CurrentActor(405L)), any())).thenThrow(new RuntimeException("rewrite fail"));
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+                embeddingGateway, ragConfig, knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.retrieveRanked(new CurrentActor(405L), "raw question", null, true));
@@ -264,7 +254,7 @@ class KnowledgeRagServiceImplTest {
         ragConfig.getRewrite().setEnabled(true);
         when(modelGateway.generate(eq(new CurrentActor(405L)), any())).thenReturn("  ");
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+                embeddingGateway, ragConfig, knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.retrieveRanked(new CurrentActor(405L), "raw question", null, true));
@@ -279,7 +269,7 @@ class KnowledgeRagServiceImplTest {
     void retrieveRankedBothSourcesOff_shouldReturnEmptyHits() {
         ragConfig.getRewrite().setEnabled(true);
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+                embeddingGateway, ragConfig, knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
         String longQuery = "this is a long enough query to trigger rewrite if search ran";
 
         KnowledgeRetrievalResponse out = service.retrieveRanked(new CurrentActor(405L), longQuery, List.of(), false);
@@ -297,18 +287,16 @@ class KnowledgeRagServiceImplTest {
     void retrieveRankedSystemKnowledgeOnly_shouldSearchSystemKb() {
         actor = new CurrentActor(406L);
         ragConfig.getRewrite().setEnabled(false);
-        when(knowledgeBasesService.findKnowledgeBaseIdByScope(KnowledgeScopeEnum.SYSTEM.getCode())).thenReturn(11L);
-        when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.5,0.6]");
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.5f, 0.6f}));
 
         KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO(3L, 902L, 0, "系统库片段", 0.88, null, null);
 
         when(knowledgeVectorMapper.searchBySimilarity(
-                KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.5,0.6]", ragConfig.getSearch().getTopkMedium()))
+                null, KnowledgeScopeEnum.SYSTEM.getCode(), "[0.5,0.6]", ragConfig.getSearch().getTopkMedium()))
                 .thenReturn(List.of(hit));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+                embeddingGateway, ragConfig, knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
 
         KnowledgeRetrievalResponse out = service.retrieveRanked(actor, "system only", List.of(), true);
 
@@ -318,8 +306,7 @@ class KnowledgeRagServiceImplTest {
         assertFalse(out.rewriteUsed());
         assertEquals(ragConfig.getSearch().getTopkMedium(), out.topK());
         verify(knowledgeVectorMapper).searchBySimilarity(
-                KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.5,0.6]", ragConfig.getSearch().getTopkMedium());
-        verify(knowledgeBasesService, never()).getOrCreateKnowledgeBaseId(actor);
+                null, KnowledgeScopeEnum.SYSTEM.getCode(), "[0.5,0.6]", ragConfig.getSearch().getTopkMedium());
     }
 
     @Test
@@ -327,10 +314,8 @@ class KnowledgeRagServiceImplTest {
     void retrieveRankedRewriteEnabled_shouldSearchRawAndRewrittenThenMerge() {
         actor = new CurrentActor(407L);
         ragConfig.getRewrite().setEnabled(true);
-        when(knowledgeBasesService.findKnowledgeBaseIdByScope(KnowledgeScopeEnum.SYSTEM.getCode())).thenReturn(11L);
         when(modelGateway.generate(same(actor), argThat((ModelRequest req) -> "raw question".equals(req.message()) && "knowledgebase-query-rewrite".equals(req.promptName()))))
                 .thenReturn("rewritten question");
-        when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.3,0.4]");
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.3f, 0.4f}));
 
         KnowledgeRetrivalDTO rawHit = new KnowledgeRetrivalDTO(21L, 901L, 0, null, 0.80, null, null);
@@ -338,12 +323,12 @@ class KnowledgeRagServiceImplTest {
         KnowledgeRetrivalDTO rewrittenHit = new KnowledgeRetrivalDTO(22L, 901L, 1, null, 0.91, null, null);
 
         when(knowledgeVectorMapper.searchBySimilarity(
-                eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(11L), eq("[0.3,0.4]"), anyInt()))
+                Mockito.isNull(), eq(KnowledgeScopeEnum.SYSTEM.getCode()), eq("[0.3,0.4]"), anyInt()))
                 .thenReturn(List.of(rawHit))
                 .thenReturn(List.of(rewrittenHit));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+                embeddingGateway, ragConfig, knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
 
         KnowledgeRetrievalResponse out = service.retrieveRanked(actor, "raw question", List.of(), true);
 
@@ -353,7 +338,7 @@ class KnowledgeRagServiceImplTest {
         assertEquals(2, out.hits().size());
         assertEquals(22L, out.hits().get(0).id());
         verify(knowledgeVectorMapper, Mockito.times(2)).searchBySimilarity(
-                eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(11L), eq("[0.3,0.4]"), anyInt());
+                Mockito.isNull(), eq(KnowledgeScopeEnum.SYSTEM.getCode()), eq("[0.3,0.4]"), anyInt());
     }
 
     @Test
@@ -361,20 +346,18 @@ class KnowledgeRagServiceImplTest {
     void retrieveRankedShortQuery_shouldRewriteBecauseDualPathKeepsOriginal() {
         actor = new CurrentActor(408L);
         ragConfig.getRewrite().setEnabled(true);
-        when(knowledgeBasesService.findKnowledgeBaseIdByScope(KnowledgeScopeEnum.SYSTEM.getCode())).thenReturn(11L);
         when(modelGateway.generate(same(actor), argThat((ModelRequest req) -> "Java".equals(req.message()) && "knowledgebase-query-rewrite".equals(req.promptName()))))
                 .thenReturn("Java 后端开发");
-        when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.3,0.4]");
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.3f, 0.4f}));
 
         KnowledgeRetrivalDTO hit = new KnowledgeRetrivalDTO(31L, 901L, 0, null, 0.85, null, null);
 
         when(knowledgeVectorMapper.searchBySimilarity(
-                eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(11L), eq("[0.3,0.4]"), anyInt()))
+                Mockito.isNull(), eq(KnowledgeScopeEnum.SYSTEM.getCode()), eq("[0.3,0.4]"), anyInt()))
                 .thenReturn(List.of(hit));
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+                embeddingGateway, ragConfig, knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
 
         KnowledgeRetrievalResponse out = service.retrieveRanked(actor, "Java", List.of(), true);
 
@@ -382,7 +365,7 @@ class KnowledgeRagServiceImplTest {
         assertEquals("Java", out.query());
         assertEquals("Java 后端开发", out.rewrittenQuery());
         verify(knowledgeVectorMapper, Mockito.times(2)).searchBySimilarity(
-                eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(11L), eq("[0.3,0.4]"), anyInt());
+                Mockito.isNull(), eq(KnowledgeScopeEnum.SYSTEM.getCode()), eq("[0.3,0.4]"), anyInt());
     }
 
     @Test
@@ -390,8 +373,6 @@ class KnowledgeRagServiceImplTest {
     void retrieveRankedMergeOverTopK_shouldTruncateToTopK() {
         actor = new CurrentActor(409L);
         ragConfig.getRewrite().setEnabled(false);
-        when(knowledgeBasesService.findKnowledgeBaseIdByScope(KnowledgeScopeEnum.SYSTEM.getCode())).thenReturn(11L);
-        when(knowledgeEmbeddingService.toPgVector(any(float[].class))).thenReturn("[0.1,0.2]");
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
 
         int topK = ragConfig.getSearch().getTopkMedium();
@@ -402,11 +383,11 @@ class KnowledgeRagServiceImplTest {
             overflow.add(hit);
         }
         when(knowledgeVectorMapper.searchBySimilarity(
-                KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID, 11L, "[0.1,0.2]", topK))
+                null, KnowledgeScopeEnum.SYSTEM.getCode(), "[0.1,0.2]", topK))
                 .thenReturn(overflow);
 
         KnowledgeRagServiceImpl service = new KnowledgeRagServiceImpl(
-                embeddingGateway, ragConfig, knowledgeBasesService, knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+                embeddingGateway, ragConfig, knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
 
         KnowledgeRetrievalResponse out = service.retrieveRanked(actor, "hello question", List.of(), true);
 
@@ -463,14 +444,12 @@ class KnowledgeRagServiceImplTest {
             ragConfig.getRewrite().setEnabled(true);
             when(modelGateway.generate(any(), any())).thenReturn("敏感改写标识");
             when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f}));
-            when(knowledgeEmbeddingService.toPgVector(any())).thenReturn("[0.1]");
-            when(knowledgeBasesService.getOrCreateKnowledgeBaseId(actor)).thenReturn(1L);
             when(knowledgeVectorMapper.searchBySimilarity(any(), any(), any(), anyInt()))
                     .thenReturn(List.of(new KnowledgeRetrivalDTO(1L, 1L, 0, "敏感文档标识", 0.9,
                             Map.of("pendingKey", "敏感文件标识"), null)));
             when(modelGateway.stream(any(), any())).thenReturn(Flux.just("回复"));
-            var service = new KnowledgeRagServiceImpl(embeddingGateway, ragConfig, knowledgeBasesService,
-                    knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+            var service = new KnowledgeRagServiceImpl(embeddingGateway, ragConfig,
+                    knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
             service.streamAnswer(actor, 1L, answerRequest(secret, null), null, false).collectList().block();
             for (boolean rewriteFailure : List.of(true, false)) {
                 ragConfig.getRewrite().setEnabled(rewriteFailure);
@@ -492,9 +471,9 @@ class KnowledgeRagServiceImplTest {
             org.junit.jupiter.api.Assertions.assertSame(providerFailure, wrapped.getCause());
             assertEquals(ErrorCode.USER_LLM_NOT_CONFIGURED.getMessage(), wrapped.getMessage());
             assertTrue(appender.list.stream().anyMatch(event -> event.getFormattedMessage()
-                    .startsWith("RAG 检索完成 operationId=")));
+                    .startsWith("RAG 检索完成 userId=")));
             assertTrue(appender.list.stream().anyMatch(event -> event.getLevel() == ch.qos.logback.classic.Level.DEBUG
-                    && event.getFormattedMessage().startsWith("RAG 命中 operationId=")));
+                    && event.getFormattedMessage().startsWith("RAG 命中 vectorId=")));
             for (var event : appender.list) {
                 String rendered = event.getFormattedMessage();
                 if (event.getThrowableProxy() != null) {
@@ -512,8 +491,8 @@ class KnowledgeRagServiceImplTest {
 
     @Test
     void 检索内部不变量错误直接传播() {
-        var service = new KnowledgeRagServiceImpl(embeddingGateway, ragConfig, knowledgeBasesService,
-                knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway);
+        var service = new KnowledgeRagServiceImpl(embeddingGateway, ragConfig,
+                knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
         var defect = new IllegalStateException("内部结果不满足约束");
         when(modelGateway.generate(any(), any())).thenThrow(defect);
         org.junit.jupiter.api.Assertions.assertSame(defect, assertThrows(IllegalStateException.class,
@@ -524,20 +503,112 @@ class KnowledgeRagServiceImplTest {
                 () -> service.retrieveRanked(actor, "问题", null, false)));
     }
 
+    @Test
+    void 报告检索保留私有库学习路线库阈值去重和分类偏好() {
+        when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
+        var low = new KnowledgeRetrivalDTO(1L, 1L, 0, "低分", 0.34, null, "learning_path");
+        var plain = new KnowledgeRetrivalDTO(2L, 2L, 0, "普通", 0.95, null, "technical");
+        var preferred = new KnowledgeRetrivalDTO(3L, 3L, 0, "学习路径", 0.8,
+                Map.of("documentTitle", "学习标题", "pendingKey", "敏感文件"), " LEARNING_PATH ");
+        var duplicate = new KnowledgeRetrivalDTO(4L, 3L, 0, "重复片段", 0.7, null, "learning_path");
+        when(knowledgeVectorMapper.searchBySimilarity(1L, KnowledgeScopeEnum.USER.getCode(), "[0.1,0.2]", 8))
+                .thenReturn(List.of(low, plain, preferred));
+        when(knowledgeVectorMapper.searchBySimilarity(null, KnowledgeScopeEnum.LEARNING_PATH.getCode(), "[0.1,0.2]", 8)).thenReturn(List.of(duplicate));
+        var service = new KnowledgeRagServiceImpl(embeddingGateway, ragConfig,
+                knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
+
+        var hits = service.retrieveLearningPaths(actor, "学习需求");
+
+        assertEquals(List.of(3L), hits.stream().map(com.zdmj.knowledgeService.api.KnowledgeHit::id).toList());
+        assertEquals("学习标题", hits.getFirst().title());
+        assertEquals("学习路径", hits.getFirst().content());
+        assertEquals(0.8, hits.getFirst().reference().score());
+        Mockito.verifyNoInteractions(modelGateway);
+        verify(embeddingGateway).embed(actor, List.of("学习需求"));
+    }
+
+    @Test
+    void 报告检索先截取八条且无优先分类时保留全部合格片段() {
+        when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f}));
+        List<KnowledgeRetrivalDTO> first = new ArrayList<>();
+        for (int index = 0; index < 8; index++) {
+            first.add(new KnowledgeRetrivalDTO((long) index, (long) index + 1, 0, "资料", 0.95 - index * 0.01, null, "technical"));
+        }
+        when(knowledgeVectorMapper.searchBySimilarity(1L, KnowledgeScopeEnum.USER.getCode(), "[0.1]", 8)).thenReturn(first);
+        when(knowledgeVectorMapper.searchBySimilarity(null, KnowledgeScopeEnum.LEARNING_PATH.getCode(), "[0.1]", 8)).thenReturn(List.of(
+                new KnowledgeRetrivalDTO(99L, 99L, 0, "学习", 0.5, null, "learning_path")));
+        var service = new KnowledgeRagServiceImpl(embeddingGateway, ragConfig,
+                knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
+
+        assertEquals(first.stream().map(KnowledgeRetrivalDTO::id).toList(), service.retrieveLearningPaths(actor, "学习")
+                .stream().map(com.zdmj.knowledgeService.api.KnowledgeHit::id).toList());
+        when(knowledgeVectorMapper.searchBySimilarity(any(), any(), any(), anyInt())).thenReturn(List.of());
+        assertTrue(service.retrieveLearningPaths(actor, "学习").isEmpty());
+    }
+
+    @Test
+    void 历史引用重新授权并保留片段快照及重复顺序() throws Exception {
+        var current = new com.zdmj.knowledgeService.api.KnowledgeReference(77L, null, null, "当前标题", null,
+                "learning_path", "/knowledge-document/77/download");
+        when(knowledgeDocumentMapper.selectReportReferences(1L, List.of(77L, 88L))).thenReturn(List.of(current));
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var old = mapper.readValue("""
+                {"documentId":77,"chunkIndex":0,"score":0.8,"title":"user-1/private.md",
+                 "snippet":"生成时的片段","metadata":{"sourceFile":"user-1/private.md","pendingKey":"秘密"}}
+                """, com.zdmj.knowledgeService.api.KnowledgeReference.class);
+        var invisible = new com.zdmj.knowledgeService.api.KnowledgeReference(88L, 0, 0.8, "他人标题", "他人片段", null, null);
+        var service = new KnowledgeRagServiceImpl(embeddingGateway, ragConfig,
+                knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway);
+        var placeholder = new com.zdmj.knowledgeService.api.KnowledgeReference(77L, 1, 0.7, "文档 #77", "旧片段", null, null);
+        var results = service.resolveReportReferences(actor, List.of(old, invisible, placeholder, old));
+
+        assertEquals(3, results.size());
+        org.assertj.core.api.Assertions.assertThat(results)
+                .extracting(com.zdmj.knowledgeService.api.KnowledgeReference::title)
+                .containsExactly("当前标题", "当前标题", "当前标题");
+        assertEquals("旧片段", results.get(1).snippet());
+        assertEquals("生成时的片段", results.getFirst().snippet());
+        assertEquals(current.downloadPath(), results.getFirst().downloadPath());
+        org.assertj.core.api.Assertions.assertThat(mapper.writeValueAsString(results))
+                .doesNotContain("sourceFile", "pendingKey", "user-1/", "downloadPath");
+        assertThrows(UnsupportedOperationException.class, () -> results.clear());
+        assertTrue(service.resolveReportReferences(actor, List.of()).isEmpty());
+        var failure = new IllegalStateException("数据库查询失败");
+        Mockito.doThrow(failure).when(knowledgeDocumentMapper).selectReportReferences(any(), any());
+        org.junit.jupiter.api.Assertions.assertSame(failure, assertThrows(IllegalStateException.class,
+                () -> service.resolveReportReferences(actor, List.of(old))));
+    }
+
+    @Test
+    void 公开命中仅返回白名单且片段保留完整Unicode字符() throws Exception {
+        var hit = new com.zdmj.knowledgeService.api.KnowledgeHit(1L, 2L, 0, "甲".repeat(79) + "😀乙", 0.9,
+                "标题", "learning_path", null);
+        var reference = hit.reference();
+        org.assertj.core.api.Assertions.assertThat(reference.snippet()).endsWith("😀…");
+        String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(hit);
+        org.assertj.core.api.Assertions.assertThat(json).doesNotContain("pendingKey", "sourceFile", "KnowledgeId");
+        assertThrows(IllegalArgumentException.class,
+                () -> new com.zdmj.knowledgeService.api.KnowledgeReference(-1L, 0, 0.8, null, null, null, null));
+        for (double invalid : List.of(Double.NaN, Double.POSITIVE_INFINITY, 1.1, -1.1)) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> new com.zdmj.knowledgeService.api.KnowledgeReference(1L, 0, invalid, null, null, null, null));
+        }
+        assertThrows(IllegalArgumentException.class,
+                () -> new com.zdmj.knowledgeService.api.KnowledgeReference(1L, -1, 0.8, null, null, null, null));
+    }
+
     private String captureContext(int budget, List<KnowledgeRetrivalDTO> hits) {
         ragConfig.getRewrite().setEnabled(false);
         ragConfig.getSearch().setContextBudget(budget);
         when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f}));
-        when(knowledgeEmbeddingService.toPgVector(any())).thenReturn("[0.1]");
-        when(knowledgeBasesService.getOrCreateKnowledgeBaseId(actor)).thenReturn(1L);
         when(knowledgeVectorMapper.searchBySimilarity(any(), any(), any(), anyInt())).thenReturn(hits);
         var captured = new java.util.concurrent.atomic.AtomicReference<ModelRequest>();
         when(modelGateway.stream(any(), any())).thenAnswer(invocation -> {
             captured.set(invocation.getArgument(1));
             return Flux.just("回复");
         });
-        new KnowledgeRagServiceImpl(embeddingGateway, ragConfig, knowledgeBasesService,
-                knowledgeEmbeddingService, knowledgeVectorMapper, modelGateway)
+        new KnowledgeRagServiceImpl(embeddingGateway, ragConfig,
+                knowledgeDocumentMapper, knowledgeVectorMapper, modelGateway)
                 .streamAnswer(actor, 1L, answerRequest("问题", null), null, false).collectList().block();
         ModelRequest request = captured.get();
         String context = request.promptVars() == null ? "" : (String) request.promptVars().get("context");
@@ -551,8 +622,8 @@ class KnowledgeRagServiceImplTest {
 
     private static ModelRequest answerRequest(String message, String prompt) {
         return new ModelRequest(message, prompt, null,
-                List.of(new ModelRequest.HistoryMessage(ModelRequest.HistoryMessage.Role.USER, "之前的任务"),
-                        new ModelRequest.HistoryMessage(ModelRequest.HistoryMessage.Role.ASSISTANT, "部分回复")),
+                List.of(new ModelHistoryMessage(ModelMessageRole.USER, "之前的任务"),
+                        new ModelHistoryMessage(ModelMessageRole.ASSISTANT, "部分回复")),
                 "上一轮生成失败");
     }
 }

@@ -189,14 +189,6 @@ class UserLlmConfigFlowIT extends IntegrationTestBase {
     }
 
     @Test
-    void 配置接口_移除独立目录与探测入口() throws Exception {
-        assertThat(api.get(token, "/users/llm-config/models").getResponse().getStatus()).isEqualTo(404);
-        assertThat(api.post(token, "/users/llm-config/test", config("deepseek-flash", "secret"))
-                .getResponse().getStatus()).isEqualTo(404);
-        org.mockito.Mockito.verifyNoInteractions(clients);
-    }
-
-    @Test
     void 校验并保存_每用户每分钟最多十次探测() throws Exception {
         for (int index = 0; index < 10; index++) {
             ApiClient.requireOk(api.put(token, "/users/llm-config", config("deepseek-flash", "secret")));

@@ -3,6 +3,7 @@ package com.zdmj.matchService.controller;
 import io.swagger.v3.oas.annotations.Parameter;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.annotation.RateLimitDimension;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.Result;
 
@@ -70,7 +71,7 @@ public class JobStudentMatchController {
      * @param req   生成请求体（可选，可携带自定义权重）
      * @return 匹配结果
      */
-    @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimitDimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping("/jobs/{jobId}")
     public Result<JobStudentMatchResponse> generate(@Parameter(hidden = true) CurrentActor actor, @PathVariable Long jobId,
                                                @RequestBody(required = false) JobStudentMatchGenerateRequest req) {

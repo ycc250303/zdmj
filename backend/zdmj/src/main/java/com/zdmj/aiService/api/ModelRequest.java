@@ -14,7 +14,7 @@ import java.util.Objects;
  * @param historyNotice 服务端生成的历史完成情况说明，不包含异常详情
  */
 public record ModelRequest(String message, String promptName, Map<String, Object> promptVars,
-        List<HistoryMessage> history, String historyNotice) {
+        List<ModelHistoryMessage> history, String historyNotice) {
 
     public ModelRequest {
         promptVars = promptVars == null ? null
@@ -26,23 +26,5 @@ public record ModelRequest(String message, String promptName, Map<String, Object
     /** 单次请求显式使用空历史。 */
     public ModelRequest(String message, String promptName, Map<String, Object> promptVars) {
         this(message, promptName, promptVars, List.of(), "");
-    }
-
-    /**
-     * 模型历史消息，只表达角色和原文，不携带持久化类型。
-     *
-     * @param role 用户或助手角色
-     * @param content 非空白的历史原文
-     */
-    public record HistoryMessage(Role role, String content) {
-        public HistoryMessage {
-            Objects.requireNonNull(role, "历史角色不能为空");
-            if (content == null || content.isBlank()) {
-                throw new IllegalArgumentException("历史消息内容不能为空白");
-            }
-        }
-
-        /** 对应模型输入中的 user 和 assistant。 */
-        public enum Role { USER, ASSISTANT }
     }
 }

@@ -14,13 +14,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.annotation.RateLimitDimension;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.exception.ProblemDetailSupport;
 import com.zdmj.common.model.Result;
 import com.zdmj.knowledgeService.dto.KnowledgeRetrievalRequest;
-import com.zdmj.knowledgeService.dto.KnowledgeRetrievalResponse;
-import com.zdmj.knowledgeService.service.KnowledgeRagService;
+import com.zdmj.knowledgeService.api.KnowledgeRetrievalResponse;
+import com.zdmj.knowledgeService.api.KnowledgeRagService;
 
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -45,7 +46,7 @@ public class KnowledgeRagController {
      *
      * @param actor 已认证操作者，包含用户编号
      */
-    @RateLimit(dimension = RateLimit.Dimension.USER, count = 120, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimitDimension.USER, count = 120, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping
     public Result<KnowledgeRetrievalResponse> retrieve(@Parameter(hidden = true) CurrentActor actor, @Valid @RequestBody KnowledgeRetrievalRequest request) {
         return Result.success("检索成功", knowledgeRagService.retrieveRanked(actor,

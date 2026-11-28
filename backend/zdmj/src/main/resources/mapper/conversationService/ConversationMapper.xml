@@ -4,9 +4,6 @@
     <select id="selectOwnedForUpdate" resultMap="mybatis-plus_Conversation">
         SELECT * FROM conversations WHERE id = #{conversationId} AND user_id = #{userId} FOR UPDATE
     </select>
-    <select id="selectByUserId" resultMap="mybatis-plus_Conversation">
-        SELECT * FROM conversations WHERE user_id = #{userId} ORDER BY updated_at DESC
-    </select>
 
     <!--
       PostgreSQL 原子递增并返回最新 message_count
@@ -15,8 +12,8 @@
     <select id="incrementMessageCountAndGet" parameterType="map">
         UPDATE conversations
         SET message_count   = COALESCE(message_count, 0) + #{delta},
-            last_message_at = NOW(),
-            updated_at      = NOW()
+            last_message_at = #{now},
+            updated_at      = #{now}
         WHERE id = #{conversationId}
           AND user_id = #{userId}
         RETURNING message_count
@@ -25,7 +22,7 @@
     <update id="updateTitleByIdAndUserId" parameterType="map">
         UPDATE conversations
         SET title = #{title},
-            updated_at = NOW()
+            updated_at = #{now}
         WHERE id = #{conversationId}
           AND user_id = #{userId}
     </update>
@@ -33,7 +30,7 @@
     <update id="updateConfigByIdAndUserId" parameterType="map">
         UPDATE conversations
         SET config = #{config, typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
-            updated_at = NOW()
+            updated_at = #{now}
         WHERE id = #{conversationId}
           AND user_id = #{userId}
           AND COALESCE(message_count, 0) = 0

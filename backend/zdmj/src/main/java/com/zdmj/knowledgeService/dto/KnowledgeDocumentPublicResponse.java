@@ -4,7 +4,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
- * 知识文档对外视图（单条 GET 与分页 {@code PageDTO#list} 元素结构一致；不含 knowledgeId、userId、contentHash、chunkCount）。
+ * 知识文档对外视图（单条 GET 与分页 {@code PageDTO#list} 元素结构一致）。
  *
  * @param id 文档ID
  * @param type 来源类型：1 上传文件、2 仓库链接、3 外部文档

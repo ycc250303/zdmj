@@ -1,6 +1,7 @@
 package com.zdmj.common.aspect;
 
 import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.annotation.RateLimitDimension;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -14,6 +15,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.lang.reflect.Method;
 import java.util.List;
@@ -46,12 +50,12 @@ class RateLimitAspectTest {
     void singleRuleMethod() {
     }
 
-    @RateLimit(dimension = RateLimit.Dimension.GLOBAL, count = 1)
-    @RateLimit(dimension = RateLimit.Dimension.IP, count = 1)
+    @RateLimit(dimension = RateLimitDimension.GLOBAL, count = 1)
+    @RateLimit(dimension = RateLimitDimension.IP, count = 1)
     void multiRuleMethod() {
     }
 
-    @RateLimit(dimension = RateLimit.Dimension.USER, count = 1)
+    @RateLimit(dimension = RateLimitDimension.USER, count = 1)
     void userRuleMethod(CurrentActor actor) {
     }
 
@@ -101,7 +105,8 @@ class RateLimitAspectTest {
 
         assertEquals("ok", result);
         verify(joinPoint).proceed();
-        verify(redisTemplate, times(1)).execute(any(RedisScript.class), any(List.class), any(), any());
+        verify(redisTemplate).execute(any(RedisScript.class),
+                eq(List.of("ratelimit:{RateLimitAspectTest:singleRuleMethod}:global")), any(), any());
     }
 
     @Test
@@ -139,10 +144,21 @@ class RateLimitAspectTest {
                 .thenReturn(1L, 1L);
         when(joinPoint.proceed()).thenReturn("ok");
 
-        Object result = aspect.around(joinPoint);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("192.0.2.8");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        Object result;
+        try {
+            result = aspect.around(joinPoint);
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
 
         assertEquals("ok", result);
         verify(joinPoint).proceed();
-        verify(redisTemplate, times(2)).execute(any(RedisScript.class), any(List.class), any(), any());
+        verify(redisTemplate).execute(any(RedisScript.class),
+                eq(List.of("ratelimit:{RateLimitAspectTest:multiRuleMethod}:global")), any(), any());
+        verify(redisTemplate).execute(any(RedisScript.class),
+                eq(List.of("ratelimit:{RateLimitAspectTest:multiRuleMethod}:ip:192.0.2.8")), any(), any());
     }
 }

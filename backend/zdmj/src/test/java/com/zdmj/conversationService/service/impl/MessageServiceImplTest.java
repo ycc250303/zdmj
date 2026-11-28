@@ -1,5 +1,7 @@
 package com.zdmj.conversationService.service.impl;
 
+import com.zdmj.conversationService.dto.ConversationDeletedEvent;
+import java.time.LocalDateTime;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.aiService.api.ModelRequest;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -19,12 +21,10 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,7 +42,6 @@ import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -54,8 +53,7 @@ import com.zdmj.conversationService.entity.Message;
 import com.zdmj.conversationService.enums.MessageGenerationStatusEnum;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
-import com.zdmj.knowledgeService.service.KnowledgeRagService;
-
+import com.zdmj.knowledgeService.api.KnowledgeRagService;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 
@@ -96,9 +94,9 @@ class MessageServiceImplTest {
                 conversationService,
                 conversationMapper,
                 knowledgeRagService,
-                transactionTemplate);
-        lenient().doReturn(2).when(conversationMapper).incrementMessageCountAndGet(anyLong(), anyLong(), anyInt());
-        lenient().doReturn(1).when(conversationMapper).updateTitleByIdAndUserId(anyLong(), anyLong(), anyString());
+                transactionTemplate, java.time.Clock.system(java.time.ZoneId.of("Asia/Shanghai")));
+        lenient().doReturn(2).when(conversationMapper).incrementMessageCountAndGet(anyLong(), anyLong(), anyInt(), any(LocalDateTime.class));
+        lenient().doReturn(1).when(conversationMapper).updateTitleByIdAndUserId(anyLong(), anyLong(), anyString(), any(LocalDateTime.class));
     }
 
     @Test
@@ -220,7 +218,7 @@ class MessageServiceImplTest {
         assertEquals("delta", events.get(1).event());
         assertTrue(events.get(1).data().contains("\"llo\""));
         verify(messageMapper).finishAssistant(anyLong(), eq(actor.userId()), eq(302L), eq("hello"), eq(2));
-        verify(conversationMapper).updateTitleByIdAndUserId(302L, 1L, title);
+        verify(conversationMapper).updateTitleByIdAndUserId(eq(302L), eq(1L), eq(title), any(LocalDateTime.class));
     }
 
     private static Stream<Arguments> titleCases() {
@@ -320,7 +318,7 @@ class MessageServiceImplTest {
                 "ragDocumentIds", List.of(9L)));
         doReturn(conversation).when(conversationService).requireOwned(actor, 306L);
         doReturn(conversation).when(conversationMapper).selectOwnedForUpdate(306L, 1L);
-        doReturn(4).when(conversationMapper).incrementMessageCountAndGet(eq(306L), anyLong(), eq(2));
+        doReturn(4).when(conversationMapper).incrementMessageCountAndGet(eq(306L), anyLong(), eq(2), any(LocalDateTime.class));
         org.mockito.Mockito.doAnswer(invocation -> {
             Message m = invocation.getArgument(0);
             m.setId(m.getRole() == 2 ? 903L : 1L);
@@ -456,7 +454,8 @@ class MessageServiceImplTest {
             }
             await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
                     assertTrue(appender.list.stream().anyMatch(event -> event.getFormattedMessage()
-                            .contains("会话结束保存失败") && event.getThrowableProxy().getMessage().equals(expectedMessage))));
+                            .contains("会话结束保存失败 conversationId=404 messageId=905 targetStatus=" + state.getCode())
+                            && event.getThrowableProxy().getMessage().equals(expectedMessage))));
             assertEquals(1, answer.get().getGenerationStatus());
             assertEquals(ErrorCode.CONVERSATION_GENERATING, assertThrows(BusinessException.class,
                     () -> messageService.createStream(actor, request).collectList().block(Duration.ofSeconds(5)))
@@ -568,12 +567,12 @@ class MessageServiceImplTest {
                     () -> messageService.createStream(otherActor, request).collectList()
                             .block(Duration.ofSeconds(5))).getErrorCode());
             verify(knowledgeRagService, never()).streamAnswer(eq(otherActor), anyLong(), any(), any(), eq(false));
-            messageService.cancelDeletedConversation(new ConversationServiceImpl.Deleted(actor, 999L));
+            messageService.cancelDeletedConversation(new ConversationDeletedEvent(actor, 999L));
             assertFalse(cancelled.get());
             assertFalse(completed.isDone());
             assertEquals(ErrorCode.CONVERSATION_GENERATING, assertThrows(BusinessException.class,
                     () -> messageService.createStream(actor, request).collectList().block(Duration.ofSeconds(5))).getErrorCode());
-            messageService.cancelDeletedConversation(new ConversationServiceImpl.Deleted(actor, 502L));
+            messageService.cancelDeletedConversation(new ConversationDeletedEvent(actor, 502L));
             assertEquals(1, completed.get(5, TimeUnit.SECONDS).size());
             assertTrue(cancelled.get());
             verify(messageMapper, never()).finishAssistant(anyLong(), anyLong(), anyLong(), anyString(), anyInt());
@@ -604,7 +603,7 @@ class MessageServiceImplTest {
         Disposable second = null;
         try {
             assertTrue(saving.await(5, TimeUnit.SECONDS));
-            messageService.cancelDeletedConversation(new ConversationServiceImpl.Deleted(actor, 503L));
+            messageService.cancelDeletedConversation(new ConversationDeletedEvent(actor, 503L));
             second = messageService.createStream(actor, request).subscribe(event -> received.countDown());
             assertTrue(received.await(5, TimeUnit.SECONDS));
             release.countDown();
@@ -618,6 +617,31 @@ class MessageServiceImplTest {
         }
         await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
                 verify(messageMapper).finishAssistant(4L, 1L, 503L, "第二轮", 4));
+    }
+
+    @Test
+    void 结束保存前会话已删除_仅记录删除结束且不记录保存成功() {
+        var request = prepareStream(504L);
+        var conversation = new Conversation();
+        conversation.setId(504L);
+        doReturn(conversation, (Object) null).when(conversationMapper).selectOwnedForUpdate(504L, 1L);
+        doReturn(Flux.just("回复")).when(knowledgeRagService)
+                .streamAnswer(eq(actor), eq(504L), any(), isNull(), eq(false));
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(MessageServiceImpl.class);
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.list = new java.util.concurrent.CopyOnWriteArrayList<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            assertEquals(1, messageService.createStream(actor, request).collectList().block(Duration.ofSeconds(5)).size());
+            verify(messageMapper, never()).finishAssistant(anyLong(), anyLong(), anyLong(), anyString(), anyInt());
+            org.assertj.core.api.Assertions.assertThat(appender.list)
+                    .anyMatch(event -> event.getFormattedMessage().contains("conversationId=504 reason=DELETED"))
+                    .noneMatch(event -> event.getFormattedMessage().contains("会话生成保存完成"));
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
     }
 
     private static Stream<Arguments> terminalSaveFailureCases() {

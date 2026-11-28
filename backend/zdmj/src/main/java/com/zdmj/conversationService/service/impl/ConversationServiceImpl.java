@@ -1,7 +1,12 @@
 package com.zdmj.conversationService.service.impl;
 
+import com.zdmj.conversationService.dto.ConversationDeletedEvent;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zdmj.common.context.CurrentActor;
+import com.zdmj.common.model.PageDTO;
+import com.zdmj.common.model.PageRequests;
+import java.time.Clock;
+import java.time.LocalDateTime;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.conversationService.dto.ConversationRequest;
@@ -12,12 +17,9 @@ import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.service.ConversationService;
 import org.springframework.context.ApplicationEventPublisher;
-
 import lombok.RequiredArgsConstructor;
-
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.LinkedHashMap;
@@ -33,6 +35,7 @@ public class ConversationServiceImpl implements ConversationService {
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
     private final ApplicationEventPublisher events;
+    private final Clock clock;
 
     /**
      * 创建会话。
@@ -93,14 +96,19 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     /**
-     * 获取用户会话。
+     * 按用户归属分页查询会话，按更新时间和编号倒序，默认每页20条、上限100条。
      *
      * @param actor 已认证操作者，包含用户编号
-     * @return 用户会话
+     * @param page 页码，缺省或非正数时为1
+     * @param limit 每页数量，缺省或非正数时为20，最多100
+     * @return 当前页会话及分页统计
      */
     @Override
-    public List<ConversationResponse> getByUserId(CurrentActor actor) {
-        return conversationMapper.selectByUserId(actor.userId()).stream().map(this::convertToResponse).toList();
+    public PageDTO<ConversationResponse> getByPage(CurrentActor actor, Integer page, Integer limit) {
+        var result = conversationMapper.selectPage(PageRequests.toPage(PageRequests.normalize(page, limit)),
+                new LambdaQueryWrapper<Conversation>().eq(Conversation::getUserId, actor.userId())
+                        .orderByDesc(Conversation::getUpdatedAt).orderByDesc(Conversation::getId));
+        return PageDTO.from(result, result.getRecords().stream().map(this::convertToResponse).toList());
     }
 
     /**
@@ -110,16 +118,19 @@ public class ConversationServiceImpl implements ConversationService {
      * @param id 会话编号
      * @param title 新标题
      * @return 更新后的会话
-     * @throws BusinessException 标题为空、会话不存在或无权访问
+     * @throws BusinessException 标题为空或超过255个Unicode码点、会话不存在或无权访问
      */
     @Override
     public ConversationResponse updateTitle(CurrentActor actor, Long id, String title) {
         if (title == null || title.trim().isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "会话标题不能为空");
         }
-        requireOwned(actor, id);
         String trimmedTitle = title.trim();
-        int rows = conversationMapper.updateTitleByIdAndUserId(id, actor.userId(), trimmedTitle);
+        if (trimmedTitle.codePointCount(0, trimmedTitle.length()) > 255) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "会话标题最多允许255个字符");
+        }
+        requireOwned(actor, id);
+        int rows = conversationMapper.updateTitleByIdAndUserId(id, actor.userId(), trimmedTitle, LocalDateTime.now(clock));
         if (rows != 1) {
             throw new BusinessException(ErrorCode.CONVERSATION_UPDATE_FAILED);
         }
@@ -167,7 +178,7 @@ public class ConversationServiceImpl implements ConversationService {
 
         Map<String, Object> sanitized = prepareConfig(new ConversationRequest(merged));
 
-        int rows = conversationMapper.updateConfigByIdAndUserId(id, actor.userId(), sanitized);
+        int rows = conversationMapper.updateConfigByIdAndUserId(id, actor.userId(), sanitized, LocalDateTime.now(clock));
         if (rows != 1) {
             throw new IllegalStateException("锁定会话后配置必须更新一条记录，conversationId=" + id + "，rows=" + rows);
         }
@@ -232,16 +243,8 @@ public class ConversationServiceImpl implements ConversationService {
         if (deleted != 1) {
             throw new BusinessException(ErrorCode.CONVERSATION_DELETE_FAILED);
         }
-        events.publishEvent(new Deleted(actor, id));
+        events.publishEvent(new ConversationDeletedEvent(actor, id));
     }
-
-    /**
-     * 会话删除结果，由事务提交后监听器处理活动生成。
-     *
-     * @param actor 已认证操作者，继续传递删除时校验的身份
-     * @param conversationId 已删除会话编号
-     */
-    record Deleted(CurrentActor actor, Long conversationId) { }
 
     private ConversationResponse convertToResponse(Conversation conversation) {
         return new ConversationResponse(conversation.getId(), conversation.getUserId(),

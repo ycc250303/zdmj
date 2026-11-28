@@ -95,11 +95,8 @@ public enum ErrorCode {
     SKILL_NOT_FOUND(7005, "技能不存在", HttpStatus.NOT_FOUND),
 
     // ========== 知识库 8000-8099 ==========
-    KNOWLEDGE_BASE_SAVE_FAILED(8001, "保存知识库失败", HttpStatus.BAD_REQUEST),
-    KNOWLEDGE_BASE_DELETE_FAILED(8004, "删除知识库失败", HttpStatus.BAD_REQUEST),
-    KNOWLEDGE_BASE_NOT_FOUND(8005, "知识库不存在", HttpStatus.NOT_FOUND),
     FILE_TYPE_NOT_EXISTS(8009, "文件类型不支持", HttpStatus.BAD_REQUEST),
-    KNOWLEDGE_BASE_EMBEDDING_FAILED(8010, "向量化任务失败", HttpStatus.BAD_REQUEST),
+    KNOWLEDGE_DOCUMENT_EMBEDDING_FAILED(8010, "向量化任务失败", HttpStatus.BAD_REQUEST),
     KNOWLEDGE_DOCUMENT_CREATE_FAILED(8011, "创建知识文档失败", HttpStatus.BAD_REQUEST),
     KNOWLEDGE_DOCUMENT_NOT_FOUND(8012, "知识文档不存在", HttpStatus.NOT_FOUND),
     KNOWLEDGE_DOCUMENT_UPDATE_FAILED(8013, "更新知识文档失败", HttpStatus.BAD_REQUEST),

@@ -1,7 +1,6 @@
 package com.zdmj.integration.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 
 import java.nio.charset.StandardCharsets;
@@ -170,7 +169,8 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
                 "{\"config\":{\"useSystemKnowledge\":false,\"ragDocumentIds\":[]}}"));
         ApiClient.requireOk(api.put(tokenA, "/conversations/" + id + "/title?title=原标题", null));
         String hidden = ApiClient.requireOk(api.get(tokenB, "/conversations"));
-        assertThat(JsonPath.<Integer>read(hidden, "$.data.length()")).isZero();
+        assertThat(JsonPath.<Integer>read(hidden, "$.data.list.length()")).isZero();
+        assertThat(JsonPath.<Integer>read(hidden, "$.data.total")).isZero();
         ApiClient.assertProblem(api.get(tokenB, "/conversations/" + id), 403, 1003);
         ApiClient.assertProblem(api.put(tokenB, "/conversations/" + id + "/title?title=篡改标题", null), 403, 1003);
         ApiClient.assertProblem(api.get(tokenB, "/messages?conversationId=" + id), 403, 1003);
@@ -182,7 +182,6 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
 
     @Test
     void 知识文档_其他用户查询修改或删除_返回不存在且标题保持不变() throws Exception {
-        api.post(tokenA, "/knowledge", null);
         long id = ApiClient.dataId(uploadResult(tokenA, "owned.md", "这份文档归属于当前用户，用于校验其他人不能查看或修改。"));
         String hidden = ApiClient.requireOk(api.get(tokenB, "/knowledge-document?page=1&limit=20"));
         assertThat(JsonPath.<Integer>read(hidden, "$.data.total")).isZero();
@@ -250,11 +249,6 @@ class CrossUserAuthorizationIT extends IntegrationTestBase {
         assertThat(download.getResponse().getContentAsByteArray()).isEqualTo("用户A的文件".getBytes(StandardCharsets.UTF_8));
         ApiClient.requireOk(api.delete(tokenA, "/knowledge-document/" + id));
         ApiClient.assertProblem(api.get(tokenA, "/knowledge-document/" + id + "/download"), 404, 8012);
-    }
-
-    private void assertAbsentFromList(String token, String path) throws Exception {
-        String body = ApiClient.requireOk(api.get(token, path));
-        assertThat(JsonPath.<Integer>read(body, "$.data.length()")).isZero();
     }
 
     private long createJob(String token) throws Exception {

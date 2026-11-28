@@ -57,6 +57,9 @@ class UserServiceImplTest {
     private CurrentActor actor = new CurrentActor(1L);
 
     @Mock
+    private com.zdmj.userAuthService.mapper.UserMapper userMapper;
+
+    @Mock
     private VerificationCodeService verificationCodeService;
 
     @Mock
@@ -73,7 +76,7 @@ class UserServiceImplTest {
     void setUp() {
         initMybatisPlusLambdaCache();
         userService = spy(new UserLoginServiceImpl(
-                verificationCodeService, jwtSessionStore, new JwtTokenService(TEST_JWT_SECRET)));
+                userMapper, verificationCodeService, jwtSessionStore, new JwtTokenService(TEST_JWT_SECRET)));
     }
 
     @Test
@@ -116,7 +119,7 @@ class UserServiceImplTest {
         assertEquals(ErrorCode.CAPTCHA_ERROR.getCode(), ex.getCode());
         verify(verificationCodeService).verifyAndConsume(eq(dto.email()), eq(dto.verificationCode()),
                 eq(VerificationCodeScene.REGISTER));
-        verify(userService, never()).save(any(User.class));
+        verify(userMapper, never()).insert(any(User.class));
     }
 
     @Test
@@ -124,15 +127,15 @@ class UserServiceImplTest {
         UserRegisterRequest dto = buildRegisterDTO();
         doReturn(false).when(userService).existsByUsername(dto.username());
         doReturn(false).when(userService).existsByEmail(dto.email());
-        doReturn(false).when(userService).save(any(User.class));
+        doReturn(0).when(userMapper).insert(any(User.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.register(dto));
 
         assertEquals(ErrorCode.USER_REGISTER_FAILED.getCode(), ex.getCode());
-        var order = org.mockito.Mockito.inOrder(verificationCodeService, userService);
+        var order = org.mockito.Mockito.inOrder(verificationCodeService, userMapper);
         order.verify(verificationCodeService).verifyAndConsume(dto.email(), dto.verificationCode(),
                 VerificationCodeScene.REGISTER);
-        order.verify(userService).save(any(User.class));
+        order.verify(userMapper).insert(any(User.class));
     }
 
     @Test
@@ -140,7 +143,7 @@ class UserServiceImplTest {
         UserRegisterRequest dto = buildRegisterDTO();
         doReturn(false).when(userService).existsByUsername(dto.username());
         doReturn(false).when(userService).existsByEmail(dto.email());
-        doReturn(true).when(userService).save(any(User.class));
+        doReturn(1).when(userMapper).insert(any(User.class));
 
         UserResponse result = userService.register(dto);
 
@@ -148,7 +151,7 @@ class UserServiceImplTest {
         assertEquals(dto.email(), result.email());
 
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
-        verify(userService).save(userCaptor.capture());
+        verify(userMapper).insert(userCaptor.capture());
         User savedUser = userCaptor.getValue();
         assertEquals(dto.username(), savedUser.getUsername());
         assertEquals(dto.email(), savedUser.getEmail());
@@ -160,12 +163,12 @@ class UserServiceImplTest {
     void login_whenUserNotFound_shouldThrow2006() {
         UserLoginRequest dto = new UserLoginRequest("ghost", "password123");
 
-        doReturn(null).when(userService).getOne(any(LambdaQueryWrapper.class));
+        doReturn(null).when(userMapper).selectOne(any(LambdaQueryWrapper.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.login(dto));
 
         assertEquals(ErrorCode.USER_NOT_FOUND.getCode(), ex.getCode());
-        verify(userService).getOne(any(LambdaQueryWrapper.class));
+        verify(userMapper).selectOne(any(LambdaQueryWrapper.class));
         verify(jwtSessionStore, never()).replace(anyLong(), anyString());
     }
 
@@ -177,12 +180,12 @@ class UserServiceImplTest {
         user.setId(1L);
         user.setUsername("alice");
         user.setPassword(PASSWORD_ENCODER.encode("right-password"));
-        doReturn(user).when(userService).getOne(any(LambdaQueryWrapper.class));
+        doReturn(user).when(userMapper).selectOne(any(LambdaQueryWrapper.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.login(dto));
 
         assertEquals(ErrorCode.USER_PASSWORD_WRONG.getCode(), ex.getCode());
-        verify(userService).getOne(any(LambdaQueryWrapper.class));
+        verify(userMapper).selectOne(any(LambdaQueryWrapper.class));
         verify(jwtSessionStore, never()).replace(anyLong(), anyString());
     }
 
@@ -194,7 +197,7 @@ class UserServiceImplTest {
         user.setId(1L);
         user.setUsername("alice");
         user.setPassword(PASSWORD_ENCODER.encode("right-password"));
-        doReturn(user).when(userService).getOne(any(LambdaQueryWrapper.class));
+        doReturn(user).when(userMapper).selectOne(any(LambdaQueryWrapper.class));
 
         UserLoginResponse response = userService.login(dto);
 
@@ -212,12 +215,12 @@ class UserServiceImplTest {
         user.setUsername("alice");
         user.setEmail("alice@test.com");
         user.setPassword(PASSWORD_ENCODER.encode("right-password"));
-        doReturn(user).when(userService).getOne(any(LambdaQueryWrapper.class));
+        doReturn(user).when(userMapper).selectOne(any(LambdaQueryWrapper.class));
 
         UserLoginResponse response = userService.login(dto);
 
         assertEquals("alice@test.com", response.user().email());
-        verify(userService).getOne(any(LambdaQueryWrapper.class));
+        verify(userMapper).selectOne(any(LambdaQueryWrapper.class));
         verify(jwtSessionStore).replace(eq(2L), eq(response.token()));
     }
 
@@ -229,7 +232,7 @@ class UserServiceImplTest {
         user.setId(1L);
         user.setUsername("alice");
         user.setPassword(PASSWORD_ENCODER.encode("right-password"));
-        doReturn(user).when(userService).getOne(any(LambdaQueryWrapper.class));
+        doReturn(user).when(userMapper).selectOne(any(LambdaQueryWrapper.class));
         doThrow(new RedisConnectionFailureException("down")).when(jwtSessionStore).replace(eq(1L), anyString());
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.login(dto));
@@ -245,25 +248,25 @@ class UserServiceImplTest {
         user.setUsername("u123");
         user.setEmail("u123@test.com");
         loginAs(123L);
-        doReturn(user).when(userService).getById(123L);
+        doReturn(user).when(userMapper).selectById(123L);
 
         UserResponse dto = userService.getUserById(actor, 123L);
 
         assertEquals(123L, dto.id());
         assertEquals("u123", dto.username());
         assertEquals("u123@test.com", dto.email());
-        verify(userService).getById(123L);
+        verify(userMapper).selectById(123L);
     }
 
     @Test
     void getUserById_whenUserMissing_shouldThrow2006() {
         loginAs(404L);
-        doReturn(null).when(userService).getById(404L);
+        doReturn(null).when(userMapper).selectById(404L);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.getUserById(actor, 404L));
 
         assertEquals(ErrorCode.USER_NOT_FOUND.getCode(), ex.getCode());
-        verify(userService).getById(404L);
+        verify(userMapper).selectById(404L);
     }
 
     @Test
@@ -274,30 +277,30 @@ class UserServiceImplTest {
 
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         assertEquals(ErrorCode.NO_PERMISSION.getMessage(), ex.getMessage());
-        verify(userService, never()).getById(anyLong());
+        verify(userMapper, never()).selectById(anyLong());
     }
 
     @Test
     void existsByUsername_andExistsByEmail_shouldReflectCountResult() {
-        doReturn(1L).doReturn(0L).when(userService).count(any(LambdaQueryWrapper.class));
+        doReturn(1L).doReturn(0L).when(userMapper).selectCount(any(LambdaQueryWrapper.class));
 
         boolean usernameExists = userService.existsByUsername("alice");
         boolean emailExists = userService.existsByEmail("alice@test.com");
 
         assertEquals(true, usernameExists);
         assertFalse(emailExists);
-        verify(userService, times(2)).count(any(LambdaQueryWrapper.class));
+        verify(userMapper, times(2)).selectCount(any(LambdaQueryWrapper.class));
     }
 
     @Test
     void resetPassword_whenEmailNotRegistered_shouldThrow2007() {
         UserResetPasswordRequest dto = buildResetDTO();
-        doReturn(null).when(userService).getOne(any(LambdaQueryWrapper.class));
+        doReturn(null).when(userMapper).selectOne(any(LambdaQueryWrapper.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.resetPassword(dto));
 
         assertEquals(ErrorCode.USER_EMAIL_NOT_REGISTERED.getCode(), ex.getCode());
-        verify(userService).getOne(any(LambdaQueryWrapper.class));
+        verify(userMapper).selectOne(any(LambdaQueryWrapper.class));
         verifyNoInteractions(verificationCodeService);
     }
 
@@ -306,7 +309,7 @@ class UserServiceImplTest {
         UserResetPasswordRequest dto = buildResetDTO();
         User user = new User();
         user.setId(99L);
-        doReturn(user).when(userService).getOne(any(LambdaQueryWrapper.class));
+        doReturn(user).when(userMapper).selectOne(any(LambdaQueryWrapper.class));
         doThrow(new BusinessException(ErrorCode.CAPTCHA_ERROR)).when(verificationCodeService)
                 .verifyAndConsume(eq(dto.email()), eq(dto.verificationCode()), eq(VerificationCodeScene.RESET_PASSWORD));
 
@@ -315,7 +318,7 @@ class UserServiceImplTest {
         assertEquals(ErrorCode.CAPTCHA_ERROR.getCode(), ex.getCode());
         verify(verificationCodeService).verifyAndConsume(eq(dto.email()), eq(dto.verificationCode()),
                 eq(VerificationCodeScene.RESET_PASSWORD));
-        verify(userService, never()).update(any(LambdaUpdateWrapper.class));
+        verify(userMapper, never()).update(any(LambdaUpdateWrapper.class));
     }
 
     @Test
@@ -323,16 +326,16 @@ class UserServiceImplTest {
         UserResetPasswordRequest dto = buildResetDTO();
         User user = new User();
         user.setId(88L);
-        doReturn(user).when(userService).getOne(any(LambdaQueryWrapper.class));
-        doReturn(false).when(userService).update(any(LambdaUpdateWrapper.class));
+        doReturn(user).when(userMapper).selectOne(any(LambdaQueryWrapper.class));
+        doReturn(0).when(userMapper).update(any(LambdaUpdateWrapper.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.resetPassword(dto));
 
         assertEquals(ErrorCode.PASSWORD_CHANGE_FAILED.getCode(), ex.getCode());
-        var order = org.mockito.Mockito.inOrder(verificationCodeService, userService);
+        var order = org.mockito.Mockito.inOrder(verificationCodeService, userMapper);
         order.verify(verificationCodeService).verifyAndConsume(dto.email(), dto.verificationCode(),
                 VerificationCodeScene.RESET_PASSWORD);
-        order.verify(userService).update(any(LambdaUpdateWrapper.class));
+        order.verify(userMapper).update(any(LambdaUpdateWrapper.class));
     }
 
     @Test
@@ -340,15 +343,15 @@ class UserServiceImplTest {
         UserResetPasswordRequest dto = buildResetDTO();
         User user = new User();
         user.setId(88L);
-        doReturn(user).when(userService).getOne(any(LambdaQueryWrapper.class));
-        doReturn(true).when(userService).update(any(LambdaUpdateWrapper.class));
+        doReturn(user).when(userMapper).selectOne(any(LambdaQueryWrapper.class));
+        doReturn(1).when(userMapper).update(any(LambdaUpdateWrapper.class));
 
         userService.resetPassword(dto);
 
-        verify(userService).getOne(any(LambdaQueryWrapper.class));
+        verify(userMapper).selectOne(any(LambdaQueryWrapper.class));
         verify(verificationCodeService).verifyAndConsume(eq(dto.email()), eq(dto.verificationCode()),
                 eq(VerificationCodeScene.RESET_PASSWORD));
-        verify(userService).update(any(LambdaUpdateWrapper.class));
+        verify(userMapper).update(any(LambdaUpdateWrapper.class));
     }
 
     @Test
@@ -357,8 +360,8 @@ class UserServiceImplTest {
 
         User existing = profileUser(14L, "old-name", "13800000000", "https://old.site", "上海");
         loginAs(14L);
-        doReturn(existing).when(userService).getById(14L);
-        doReturn(true).when(userService).update(any(LambdaUpdateWrapper.class));
+        doReturn(existing).when(userMapper).selectById(14L);
+        doReturn(1).when(userMapper).update(any(LambdaUpdateWrapper.class));
 
         UserResponse result = userService.updateProfile(actor, 14L, dto);
 
@@ -377,14 +380,14 @@ class UserServiceImplTest {
         UserUpdateRequest dto = new UserUpdateRequest("new-name", null, null, null);
 
         loginAs(12L);
-        doReturn(null).when(userService).getById(12L);
+        doReturn(null).when(userMapper).selectById(12L);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.updateProfile(actor, 12L, dto));
 
         assertEquals(ErrorCode.USER_NOT_FOUND.getCode(), ex.getCode());
-        verify(userService).getById(12L);
-        verify(userService, never()).update(any(LambdaUpdateWrapper.class));
-        verify(userService, never()).updateById(any(User.class));
+        verify(userMapper).selectById(12L);
+        verify(userMapper, never()).update(any(LambdaUpdateWrapper.class));
+        verify(userMapper, never()).updateById(any(User.class));
     }
 
     @Test
@@ -393,14 +396,14 @@ class UserServiceImplTest {
 
         User existing = profileUser(13L, "old", null, null, null);
         loginAs(13L);
-        doReturn(existing).when(userService).getById(13L);
-        doReturn(false).when(userService).update(any(LambdaUpdateWrapper.class));
+        doReturn(existing).when(userMapper).selectById(13L);
+        doReturn(0).when(userMapper).update(any(LambdaUpdateWrapper.class));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> userService.updateProfile(actor, 13L, dto));
 
         assertEquals(ErrorCode.USER_UPDATE_FAILED.getCode(), ex.getCode());
         assertEquals(List.of("name", "updated_at"), columnsOf(captureProfileUpdate()));
-        verify(userService, never()).updateById(any(User.class));
+        verify(userMapper, never()).updateById(any(User.class));
     }
 
     @Test
@@ -409,8 +412,8 @@ class UserServiceImplTest {
 
         User existing = profileUser(15L, "old-name", "13800000000", "https://old.site", "上海");
         loginAs(15L);
-        doReturn(existing).when(userService).getById(15L);
-        doReturn(true).when(userService).update(any(LambdaUpdateWrapper.class));
+        doReturn(existing).when(userMapper).selectById(15L);
+        doReturn(1).when(userMapper).update(any(LambdaUpdateWrapper.class));
 
         UserResponse result = userService.updateProfile(actor, 15L, dto);
 
@@ -422,7 +425,7 @@ class UserServiceImplTest {
         assertEquals(List.of("name", "updated_at"), columnsOf(update));
         assertProfileValues(update, 15L, "new-name");
         assertProfileIdentityUntouched(update, existing);
-        verify(userService, never()).updateById(any(User.class));
+        verify(userMapper, never()).updateById(any(User.class));
     }
 
     @Test
@@ -431,8 +434,8 @@ class UserServiceImplTest {
 
         User existing = profileUser(16L, "old-name", "13800000000", "https://old.site", "上海");
         loginAs(16L);
-        doReturn(existing).when(userService).getById(16L);
-        doReturn(true).when(userService).update(any(LambdaUpdateWrapper.class));
+        doReturn(existing).when(userMapper).selectById(16L);
+        doReturn(1).when(userMapper).update(any(LambdaUpdateWrapper.class));
 
         UserResponse result = userService.updateProfile(actor, 16L, dto);
 
@@ -450,7 +453,7 @@ class UserServiceImplTest {
     void updateProfile_whenNoFieldProvided_shouldNotWrite() {
         User existing = profileUser(17L, "old-name", "13800000000", "https://old.site", "上海");
         loginAs(17L);
-        doReturn(existing).when(userService).getById(17L);
+        doReturn(existing).when(userMapper).selectById(17L);
 
         UserResponse result = userService.updateProfile(actor, 17L, new UserUpdateRequest(null, null, null, null));
 
@@ -460,8 +463,8 @@ class UserServiceImplTest {
         assertEquals("上海", result.preferredWorkCity());
         assertEquals("alice", result.username());
         assertEquals("alice@test.com", result.email());
-        verify(userService, never()).update(any(LambdaUpdateWrapper.class));
-        verify(userService, never()).updateById(any(User.class));
+        verify(userMapper, never()).update(any(LambdaUpdateWrapper.class));
+        verify(userMapper, never()).updateById(any(User.class));
     }
 
     @Test
@@ -473,8 +476,8 @@ class UserServiceImplTest {
 
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         assertEquals(ErrorCode.NO_PERMISSION.getMessage(), ex.getMessage());
-        verify(userService, never()).getById(anyLong());
-        verify(userService, never()).update(any(LambdaUpdateWrapper.class));
+        verify(userMapper, never()).selectById(anyLong());
+        verify(userMapper, never()).update(any(LambdaUpdateWrapper.class));
     }
 
     private UserRegisterRequest buildRegisterDTO() {
@@ -509,7 +512,7 @@ class UserServiceImplTest {
     private LambdaUpdateWrapper<User> captureProfileUpdate() {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<LambdaUpdateWrapper<User>> captor = ArgumentCaptor.forClass(LambdaUpdateWrapper.class);
-        verify(userService).update(captor.capture());
+        verify(userMapper).update(captor.capture());
         return captor.getValue();
     }
 

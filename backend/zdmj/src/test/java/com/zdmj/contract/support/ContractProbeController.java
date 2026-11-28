@@ -22,6 +22,7 @@ import com.zdmj.common.model.CreateGroup;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.Result;
 import com.zdmj.common.model.UpdateGroup;
+import com.zdmj.conversationService.dto.ConversationResponse;
 import com.zdmj.knowledgeService.dto.KnowledgeDocumentRequest;
 import com.zdmj.resumeService.dto.EducationResponse;
 import com.zdmj.resumeService.dto.ResumeContentSaveRequest;
@@ -46,6 +47,11 @@ public class ContractProbeController {
     @GetMapping("/business")
     void business() {
         throw new BusinessException(ErrorCode.RESUME_NOT_FOUND);
+    }
+
+    @GetMapping("/business/{error}")
+    void businessCode(@org.springframework.web.bind.annotation.PathVariable ErrorCode error) {
+        throw new BusinessException(error);
     }
 
     @GetMapping("/limited")
@@ -105,20 +111,10 @@ public class ContractProbeController {
     }
 
     @GetMapping("/serialization")
-    Result<SerializationSample> serialization() {
-        PageItem item = new PageItem();
-        item.setTaskId(7L);
-        item.setTaskType(8);
-        item.setStatus(3);
-        item.setStartedAt(LocalDateTime.of(2024, 9, 1, 8, 30, 0));
-        item.setErrorMessage(null);
-        item.setResult(null);
-        item.setCompletedAt(null);
-
-        SerializationSample sample = new SerializationSample();
-        sample.setTasks(PageDTO.of(List.of(item), 1, 2, 20));
-        sample.setEmpty(null);
-        return Result.success(sample);
+    Result<PageDTO<ConversationResponse>> serialization() {
+        var conversation = new ConversationResponse(7L, 1L, "求职准备", null, 2,
+                LocalDateTime.of(2024, 9, 1, 8, 30, 0));
+        return Result.success(PageDTO.of(List.of(conversation), 1, 2, 20));
     }
 
     @GetMapping("/time")
@@ -149,23 +145,6 @@ public class ContractProbeController {
     public static class ProbeBody {
         @NotBlank
         private String name;
-    }
-
-    @Data
-    public static class PageItem {
-        private Long taskId;
-        private Integer taskType;
-        private Integer status;
-        private LocalDateTime startedAt;
-        private String errorMessage;
-        private String result;
-        private LocalDateTime completedAt;
-    }
-
-    @Data
-    public static class SerializationSample {
-        private PageDTO<PageItem> tasks;
-        private String empty;
     }
 
     @Data

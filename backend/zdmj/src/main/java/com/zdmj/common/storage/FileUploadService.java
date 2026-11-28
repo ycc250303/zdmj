@@ -1,5 +1,7 @@
 package com.zdmj.common.storage;
 
+import static com.zdmj.common.storage.StoredFile.MAX_SIZE;
+
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -25,7 +27,6 @@ import org.springframework.web.multipart.MultipartFile;
 /** 用户原文件存储。路径仅由认证用户编号和服务器生成的 UUID 组成。 */
 @Service
 public class FileUploadService {
-    private static final long MAX_SIZE = 20L * 1024 * 1024;
     private final Path root;
 
     /** 检查已有持久化目录并验证写入、原子移动能力，配置错误立即终止启动。 */
@@ -231,18 +232,6 @@ public class FileUploadService {
             return MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException(exception);
-        }
-    }
-
-    /** 原文件描述：相对标识、下载文件名、字节数和服务器确定的媒体类型。 */
-    public record StoredFile(String key, String fileName, long fileSize, String contentType) {
-        public StoredFile {
-            Objects.requireNonNull(key);
-            Objects.requireNonNull(fileName);
-            Objects.requireNonNull(contentType);
-            if (fileSize <= 0 || fileSize > MAX_SIZE) {
-                throw new IllegalArgumentException("原文件长度无效");
-            }
         }
     }
 }

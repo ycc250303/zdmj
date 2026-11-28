@@ -18,23 +18,6 @@ export type { KnowledgeApi };
  * =====================================================================
  */
 
-// ========== 知识库管理 ==========
-
-/** 创建知识库 */
-export function fetchCreateKnowledgeBases() {
-  return request<KnowledgeApi.KnowledgeBasesDTO>({ url: '/knowledge', method: 'post' });
-}
-
-/** 查询当前用户的知识库 */
-export function fetchGetKnowledgeBases() {
-  return request<KnowledgeApi.KnowledgeBasesDTO>({ url: '/knowledge', method: 'get' });
-}
-
-/** 清空知识库 */
-export function fetchClearKnowledgeBases() {
-  return request<undefined>({ url: '/knowledge', method: 'delete' });
-}
-
 // ========== 知识文档管理 ==========
 
 /** 分页查询知识文档列表 */

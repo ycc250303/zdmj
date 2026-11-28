@@ -108,7 +108,7 @@ public class SecurityConfig {
         configuration.setMaxAge(3600L);
 
         // 暴露的响应头
-        configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
+        configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type", RequestTraceFilter.TRACE_ID_HEADER));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

@@ -35,6 +35,29 @@ class ProblemDetailsContractTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "USER_NOT_LOGIN,401,1002", "NO_PERMISSION,403,1003",
+            "CONVERSATION_CONFIG_LOCKED,409,9006", "CONVERSATION_GENERATING,409,9007",
+            "KNOWLEDGE_DOCUMENT_STATE_CONFLICT,409,8016", "USER_LLM_NOT_CONFIGURED,428,2010",
+            "AUTH_STORE_UNAVAILABLE,503,1012", "FILE_STORAGE_UNAVAILABLE,503,1013",
+            "CAPTCHA_STORE_UNAVAILABLE,503,2015", "CAPTCHA_MAIL_UNAVAILABLE,503,2016"
+    })
+    void 关键业务拒绝与运维故障_保留明确HTTP映射(ErrorCode error, int httpStatus, int code) throws Exception {
+        String path = BASE + "/business/" + error.name();
+        mockMvc.perform(get(path))
+                .andExpect(status().is(httpStatus))
+                .andExpect(content().contentType(ProblemDetailSupport.PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(httpStatus))
+                .andExpect(jsonPath("$.code").value(code))
+                .andExpect(jsonPath("$.title").value(error.getMessage()))
+                .andExpect(jsonPath("$.detail").value(error.getMessage()))
+                .andExpect(jsonPath("$.instance").value(path))
+                .andExpect(jsonPath("$.trace").doesNotExist())
+                .andExpect(jsonPath("$.cause").doesNotExist())
+                .andExpect(jsonPath("$.data").doesNotExist());
+    }
+
     @Test
     void 业务异常_简历不存在_返回404与业务码且不含堆栈() throws Exception {
         mockMvc.perform(get(BASE + "/business"))

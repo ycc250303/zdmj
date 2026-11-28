@@ -9,14 +9,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,12 +27,11 @@ import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
-
 import com.zdmj.aiService.support.ModelClientFactory;
 import com.zdmj.aiService.dto.UserLlmConfigRequest;
 import com.zdmj.aiService.enums.ModelCode;
 import com.zdmj.aiService.mapper.UserLlmConfigMapper;
-import com.zdmj.aiService.support.UserModelConfigurationReader.ResolvedConfiguration;
+import com.zdmj.aiService.dto.ResolvedModelConfiguration;
 import com.zdmj.aiService.support.UserApiKeyCipher;
 import com.zdmj.aiService.support.UserModelConfigurationReader;
 import com.zdmj.common.context.CurrentActor;
@@ -68,7 +65,7 @@ class UserLlmConfigServiceImplTest {
     void getMyConfig_shouldUseSharedReaderAndOnlyExposeMaskedKey() {
         CurrentActor actor = new CurrentActor(7L);
         when(reader.find(actor)).thenReturn(Optional.of(
-                new ResolvedConfiguration(ModelCode.DEEPSEEK_FLASH, "sk-secret-key")));
+                new ResolvedModelConfiguration(ModelCode.DEEPSEEK_FLASH, "sk-secret-key")));
 
         var response = service.getMyConfig(actor);
 

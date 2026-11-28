@@ -1,6 +1,7 @@
 package com.zdmj.careerReportService.service.impl;
 
 import com.zdmj.common.context.CurrentActor;
+import com.zdmj.knowledgeService.api.KnowledgeRagService;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -16,21 +17,19 @@ import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
-import com.zdmj.jobService.dto.JobListItemResponse;
-import com.zdmj.jobService.service.JobService;
-import com.zdmj.knowledgeService.dto.KnowledgeRetrivalDTO;
-import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
-import com.zdmj.knowledgeService.entity.KnowledgeDocument;
-import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
-import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
-import com.zdmj.knowledgeService.service.KnowledgeBasesService;
-import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
-import com.zdmj.matchService.dto.JobStudentMatchResponse;
-import com.zdmj.matchService.service.JobStudentMatchService;
-import com.zdmj.resumeService.dto.StudentCapabilityProfileResponse;
-import com.zdmj.resumeService.service.StudentCapabilityProfileService;
+import com.zdmj.jobService.api.JobListItemResponse;
+import com.zdmj.jobService.api.JobReader;
+import com.zdmj.matchService.api.JobMatchSnapshot;
+import com.zdmj.matchService.api.JobMatchAnalysis;
+import com.zdmj.resumeService.api.StudentProfileSnapshot;
+import com.zdmj.resumeService.api.StudentProfileReader;
 import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
+import java.util.Arrays;
+import java.util.stream.Stream;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import java.util.Map;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -46,7 +45,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
-import com.zdmj.aiService.api.EmbeddingGateway;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -54,7 +52,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -77,21 +74,13 @@ class CareerDevelopmentReportServiceImplTest {
     @Mock
     private ModelGateway modelGateway;
     @Mock
-    private JobService jobService;
+    private JobReader jobService;
     @Mock
-    private JobStudentMatchService jobStudentMatchService;
+    private JobMatchAnalysis jobStudentMatchService;
     @Mock
-    private StudentCapabilityProfileService studentCapabilityProfileService;
+    private StudentProfileReader studentCapabilityProfileService;
     @Mock
-    private KnowledgeBasesService knowledgeBasesService;
-    @Mock
-    private KnowledgeVectorMapper knowledgeVectorMapper;
-    @Mock
-    private KnowledgeDocumentMapper knowledgeDocumentMapper;
-    @Mock
-    private KnowledgeEmbeddingService knowledgeEmbeddingService;
-    @Mock
-    private EmbeddingGateway embeddingGateway;
+    private KnowledgeRagService knowledgeRagService;
     @Mock
     private JdbcTemplate jdbcTemplate;
     @Mock
@@ -113,24 +102,20 @@ class CareerDevelopmentReportServiceImplTest {
                 jobService,
                 jobStudentMatchService,
                 studentCapabilityProfileService,
-                knowledgeBasesService,
-                knowledgeVectorMapper,
-                knowledgeDocumentMapper,
-                knowledgeEmbeddingService,
-                embeddingGateway,
+                knowledgeRagService,
                 executingTemplate(),
                 jdbcTemplate));
         ReflectionTestUtils.setField(service, "baseMapper", reportMapper);
+        lenient().when(knowledgeRagService.resolveReportReferences(eq(actor), any())).thenAnswer(i -> i.getArgument(1));
     }
 
     @Test
-    void generate_shouldCreateV1Report_whenDependenciesReady() throws Exception {
+    void generate_shouldSaveReport_whenDependenciesReady() throws Exception {
         Long jobId = 10L;
         doReturn(buildJob()).when(jobService).getDetail(jobId);
-        doReturn(buildStudentProfile()).when(studentCapabilityProfileService).getCurrentUserProfileOrNull(actor);
-        doReturn(buildMatch()).when(jobStudentMatchService).getOrNull(actor, jobId);
-        when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
-        stubInsertNewVersion(999L);
+        doReturn(buildStudentProfile()).when(studentCapabilityProfileService).findCurrentProfile(actor);
+        doReturn(buildMatch()).when(jobStudentMatchService).getOrGenerate(actor, jobId);
+        stubInsertReport(999L);
 
         doAnswer(invocation -> {
             ModelRequest request = invocation.getArgument(1, ModelRequest.class);
@@ -163,18 +148,19 @@ class CareerDevelopmentReportServiceImplTest {
     }
 
     @Test
-    void generate_whenEmbeddingFails_shouldThrowAndSkipSave() {
+    void generate_whenRetrievalFails_shouldThrowAndSkipSave() {
         Long jobId = 10L;
         doReturn(buildJob()).when(jobService).getDetail(jobId);
-        doReturn(buildStudentProfile()).when(studentCapabilityProfileService).getCurrentUserProfileOrNull(actor);
-        doReturn(buildMatch()).when(jobStudentMatchService).getOrNull(actor, jobId);
-        when(embeddingGateway.embed(any(), any())).thenThrow(new RuntimeException("embed fail"));
+        doReturn(buildStudentProfile()).when(studentCapabilityProfileService).findCurrentProfile(actor);
+        doReturn(buildMatch()).when(jobStudentMatchService).getOrGenerate(actor, jobId);
+        when(knowledgeRagService.retrieveLearningPaths(eq(actor), any())).thenThrow(
+                new BusinessException(ErrorCode.KNOWLEDGE_RETRIEVAL_FAILED, new RuntimeException("embed fail")));
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.generate(actor, jobId, new CareerReportGenerateRequest(null, null)));
 
         assertEquals(ErrorCode.CAREER_REPORT_GENERATION_FAILED.getCode(), ex.getCode());
-        assertEquals("embed fail", ex.getCause().getMessage());
+        assertThat(ex).hasRootCauseMessage("embed fail");
         verify(modelGateway, never()).generateStructured(any(), any(), any());
         verify(reportMapper, never()).insert(any(CareerDevelopmentReport.class));
         verify(jdbcTemplate, never()).execute(any(ConnectionCallback.class));
@@ -184,9 +170,8 @@ class CareerDevelopmentReportServiceImplTest {
     void generate_whenReportContentSerializationFails_shouldThrowAndSkipSave() throws Exception {
         Long jobId = 10L;
         doReturn(buildJob()).when(jobService).getDetail(jobId);
-        doReturn(buildStudentProfile()).when(studentCapabilityProfileService).getCurrentUserProfileOrNull(actor);
-        doReturn(buildMatch()).when(jobStudentMatchService).getOrNull(actor, jobId);
-        when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
+        doReturn(buildStudentProfile()).when(studentCapabilityProfileService).findCurrentProfile(actor);
+        doReturn(buildMatch()).when(jobStudentMatchService).getOrGenerate(actor, jobId);
         ReflectionTestUtils.setField(service, "objectMapper", new ObjectMapper() {
             @Override
             public String writeValueAsString(Object value) throws JsonProcessingException {
@@ -211,75 +196,6 @@ class CareerDevelopmentReportServiceImplTest {
         assertInstanceOf(JsonProcessingException.class, ex.getCause());
         verify(reportMapper, never()).insert(any(CareerDevelopmentReport.class));
         verify(jdbcTemplate, never()).execute(any(ConnectionCallback.class));
-    }
-
-    @Test
-    void generate_shouldSearchUserAndLearningPathKnowledgeBases_whenEmbeddingReady() throws Exception {
-        Long jobId = 10L;
-        doReturn(buildJob()).when(jobService).getDetail(jobId);
-        doReturn(buildStudentProfile()).when(studentCapabilityProfileService).getCurrentUserProfileOrNull(actor);
-        doReturn(buildMatch()).when(jobStudentMatchService).getOrNull(actor, jobId);
-        doReturn(100L).when(knowledgeBasesService).getOrCreateKnowledgeBaseId(actor);
-        doReturn(9L).when(knowledgeBasesService).findKnowledgeBaseIdByScope(KnowledgeScopeEnum.LEARNING_PATH.getCode());
-
-        when(embeddingGateway.embed(any(), any())).thenReturn(List.of(new float[] {0.1f, 0.2f}));
-        when(knowledgeEmbeddingService.toPgVector(org.mockito.ArgumentMatchers.any())).thenReturn("[0.1,0.2]");
-
-        KnowledgeRetrivalDTO learningHit = new KnowledgeRetrivalDTO(null, 27L, 0, "Java 学习路线片段", 0.82, null,
-                "learning_path");
-
-        doReturn(List.of()).when(knowledgeVectorMapper).searchBySimilarity(eq(1L), eq(100L), any(), anyInt());
-        doReturn(List.of(learningHit)).when(knowledgeVectorMapper)
-                .searchBySimilarity(eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(9L), any(), anyInt());
-        stubInsertNewVersion(1000L);
-
-        doAnswer(invocation -> {
-            Class<?> outputClass = invocation.getArgument(2);
-            Object payload = outputClass.getDeclaredConstructor().newInstance();
-            Field f = outputClass.getDeclaredField("reportContent");
-            f.setAccessible(true);
-            Map<String, Object> content = new LinkedHashMap<>();
-            content.put("careerExploration", "探索");
-            content.put("careerGoals", List.of("目标1"));
-            content.put("careerPath", List.of("路径A"));
-            Map<String, Object> actionPlan = new LinkedHashMap<>();
-            actionPlan.put("shortTerm", List.of(Map.of("task", "补齐技能", "cycle", "4周", "deliverable", "Demo")));
-            actionPlan.put("midTerm", List.of(Map.of("task", "实习", "cycle", "8周", "deliverable", "清单")));
-            content.put("actionPlan", actionPlan);
-            content.put("evaluationPlan", Map.of("cycle", "双周", "metrics", List.of("完成率")));
-            content.put("evidence", List.of("证据A"));
-            f.set(payload, content);
-            return payload;
-        }).when(modelGateway).generateStructured(any(), any(), any());
-
-        service.generate(actor, jobId, new CareerReportGenerateRequest(null, null));
-
-        verify(knowledgeVectorMapper).searchBySimilarity(eq(1L), eq(100L), eq("[0.1,0.2]"), eq(8));
-        verify(knowledgeVectorMapper).searchBySimilarity(
-                eq(KnowledgeScopeEnum.SYSTEM_OWNER_USER_ID), eq(9L), eq("[0.1,0.2]"), eq(8));
-    }
-
-    @Test
-    void getLatestOrNull_shouldReplacePlaceholderKnowledgeSourceTitle() throws Exception {
-        KnowledgeDocument doc = new KnowledgeDocument();
-        doc.setId(77L);
-        doc.setTitle("测试开发学习路线");
-        when(knowledgeDocumentMapper.selectBatchIds(List.of(77L))).thenReturn(List.of(doc));
-
-        CareerDevelopmentReport entity = new CareerDevelopmentReport();
-        entity.setId(50L);
-        entity.setUserId(1L);
-        entity.setJobId(10L);
-        entity.setKnowledgeSources(new ObjectMapper().writeValueAsString(List.of(
-                Map.of("documentId", 77, "title", "文档 #77", "score", 0.71, "metadata", Map.of()))));
-
-        doReturn(entity).when(service)
-                .getOne(org.mockito.ArgumentMatchers.<Wrapper<CareerDevelopmentReport>>any());
-
-        CareerReportResponse dto = service.getLatestOrNull(actor, 10L);
-
-        assertThat(dto.knowledgeSources()).isNotEmpty();
-        assertEquals("测试开发学习路线", dto.knowledgeSources().get(0).get("title"));
     }
 
     @Test
@@ -457,7 +373,7 @@ class CareerDevelopmentReportServiceImplTest {
         verify(reportMapper, never()).insert(any(CareerDevelopmentReport.class));
     }
 
-    private void stubInsertNewVersion(long id) {
+    private void stubInsertReport(long id) {
         when(reportMapper.insert(any(CareerDevelopmentReport.class))).thenAnswer(invocation -> {
             CareerDevelopmentReport entity = invocation.getArgument(0);
             entity.setId(id);
@@ -491,17 +407,142 @@ class CareerDevelopmentReportServiceImplTest {
         return dto;
     }
 
-    private static StudentCapabilityProfileResponse buildStudentProfile() {
-        StudentCapabilityProfileResponse dto = new StudentCapabilityProfileResponse();
-        dto.setProfessionalSkills("Java, Spring");
-        dto.setLearningAbility("较强");
-        return dto;
+    private static StudentProfileSnapshot buildStudentProfile() {
+        return new StudentProfileSnapshot(null, "Java, Spring", null, null, "较强", null, null, null,
+                null, null, null, null, null);
     }
 
-    private static JobStudentMatchResponse buildMatch() {
-        JobStudentMatchResponse dto = new JobStudentMatchResponse(300L, null, null, 78, null, null, null, null,
+    private static JobMatchSnapshot buildMatch() {
+        JobMatchSnapshot dto = new JobMatchSnapshot(300L, null, null, 78, null, null, null, null,
                 null, null, null, null);
 
         return dto;
+    }
+    @Test
+    void 完整报告_检查结果通过且保留质量标记契约() {
+        CareerReportCheckResponse check = CareerDevelopmentReportServiceImpl.checkContentIntegrity(completeReport());
+
+        assertThat(check.passed()).isTrue();
+        assertThat(check.completenessScore()).isEqualTo(100);
+        assertThat(CareerDevelopmentReportServiceImpl.qualityFlags(check)).containsExactlyInAnyOrderEntriesOf(Map.of(
+                "missingSections", List.of(), "nonActionableItems", List.of(),
+                "weakEvidenceItems", List.of(), "riskLevel", "low"));
+    }
+
+    @ParameterizedTest
+    @MethodSource("missingValues")
+    void 必备章节为空_标记缺失并保留原有评分(Object emptyValue) {
+        Map<String, Object> report = completeReport();
+        report.put("careerGoals", emptyValue);
+
+        CareerReportCheckResponse check = CareerDevelopmentReportServiceImpl.checkContentIntegrity(report);
+
+        assertThat(check.passed()).isFalse();
+        assertThat(check.missingSections()).containsExactly("职业目标");
+        assertThat(check.completenessScore()).isEqualTo(88);
+    }
+
+    static Stream<Object> missingValues() {
+        return Stream.of(null, "  ", List.of(), Map.of());
+    }
+
+    @Test
+    void 行动项使用周期和交付物别名_列表与分组形式都能校验() {
+        Map<String, Object> report = completeReport();
+        report.put("actionPlan", Map.of(
+                "shortTerm", List.of(
+                        Map.of("period", "两周", "milestone", "作品"),
+                        Map.of("timeWindow", "四周", "output", List.of("报告"))),
+                "midTerm", Map.of("items", List.of("复盘"))));
+
+        assertThat(CareerDevelopmentReportServiceImpl.checkContentIntegrity(report).nonActionableItems()).isEmpty();
+        assertThat(CareerDevelopmentReportServiceImpl.checkContentIntegrity(report).completenessScore()).isEqualTo(100);
+    }
+
+    @Test
+    void 行动项形状或字段无效_标记具体位置并拒绝通过() {
+        Map<String, Object> report = completeReport();
+        report.put("actionPlan", Map.of(
+                "shortTerm", List.of("模糊建议", Map.of("cycle", 2, "deliverable", " ")),
+                "midTerm", Map.of("tasks", List.of())));
+
+        CareerReportCheckResponse check = CareerDevelopmentReportServiceImpl.checkContentIntegrity(report);
+
+        assertThat(check.nonActionableItems()).containsExactly(
+                "shortTerm#1", "shortTerm#2:missingCycle", "shortTerm#2:missingDeliverable", "midTerm:missingTasks");
+        assertThat(check.passed()).isFalse();
+        assertThat(check.completenessScore()).isEqualTo(68);
+        assertThat(check.riskLevel()).isEqualTo("medium");
+    }
+
+    @Test
+    void 空报告_返回完整缺失列表及低完整度() {
+        CareerReportCheckResponse check = CareerDevelopmentReportServiceImpl.checkContentIntegrity(Map.of());
+
+        assertThat(check.missingSections()).containsExactly("职业探索", "职业目标", "职业路径", "行动计划", "评估计划");
+        assertThat(check.nonActionableItems()).containsExactly("actionPlan");
+        assertThat(check.weakEvidenceItems()).containsExactly("evidence");
+        assertThat(check.completenessScore()).isEqualTo(26);
+        assertThat(check.riskLevel()).isEqualTo("high");
+    }
+
+    @ParameterizedTest
+    @MethodSource("missingValues")
+    void 行动阶段为空_记录阶段名称(Object emptyValue) {
+        Map<String, Object> plan = new LinkedHashMap<>();
+        plan.put("shortTerm", emptyValue);
+        plan.put("midTerm", List.of(Map.of("cycle", "四周", "output", "清单")));
+        Map<String, Object> report = completeReport();
+        report.put("actionPlan", plan);
+
+        String issue = emptyValue instanceof Map<?, ?> ? "shortTerm:missingTasks" : "shortTerm";
+        assertThat(CareerDevelopmentReportServiceImpl.checkContentIntegrity(report).nonActionableItems()).containsExactly(issue);
+    }
+
+    @Test
+    void 合并检查_问题按出现顺序去重并保留任一未通过结论() {
+        CareerReportCheckResponse local = CareerDevelopmentReportServiceImpl.checkContentIntegrity(Map.of());
+        CareerReportCheckResponse model = new CareerReportCheckResponse(true, 80, null,
+                Arrays.asList("职业探索", "引用说明", null), List.of("actionPlan", "验收标准"), null);
+
+        CareerReportCheckResponse check = CareerDevelopmentReportServiceImpl.mergeIntegrityChecks(local, model);
+
+        assertThat(check.passed()).isFalse();
+        assertThat(check.completenessScore()).isEqualTo(53);
+        assertThat(check.missingSections()).containsExactly("职业探索", "职业目标", "职业路径", "行动计划", "评估计划", "引用说明");
+        assertThat(check.nonActionableItems()).containsExactly("actionPlan", "验收标准");
+        assertThat(check.weakEvidenceItems()).containsExactly("evidence");
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidModelChecks")
+    void 模型检查缺少必要字段或评分越界_立即终止(CareerReportCheckResponse model) {
+        assertThatThrownBy(() -> CareerDevelopmentReportServiceImpl.mergeIntegrityChecks(CareerDevelopmentReportServiceImpl.checkContentIntegrity(completeReport()), model))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.CAREER_REPORT_INVALID));
+    }
+
+    static Stream<CareerReportCheckResponse> invalidModelChecks() {
+        Stream<CareerReportCheckResponse> scores = Stream.of(-1, 101, null).map(score -> {
+            CareerReportCheckResponse check = new CareerReportCheckResponse(true, score, null, null, null, null);
+
+            return check;
+        });
+        CareerReportCheckResponse missingPassed = new CareerReportCheckResponse(null, 80, null, null, null, null);
+
+        return Stream.concat(Stream.of(null, missingPassed), scores);
+    }
+
+    private static Map<String, Object> completeReport() {
+        Map<String, Object> report = new LinkedHashMap<>();
+        report.put("careerExploration", "岗位分析");
+        report.put("careerGoals", List.of("目标"));
+        report.put("careerPath", List.of("路径"));
+        report.put("actionPlan", Map.of(
+                "shortTerm", List.of(Map.of("cycle", "两周", "deliverable", "作品")),
+                "midTerm", List.of(Map.of("cycle", "四周", "deliverable", "投递清单"))));
+        report.put("evaluationPlan", Map.of("cycle", "双周"));
+        report.put("evidence", Map.of("technicalEvidence", List.of("项目经历")));
+        return report;
     }
 }

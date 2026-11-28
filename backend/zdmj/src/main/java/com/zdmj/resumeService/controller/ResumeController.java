@@ -3,6 +3,7 @@ package com.zdmj.resumeService.controller;
 import io.swagger.v3.oas.annotations.Parameter;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.annotation.RateLimitDimension;
 import com.zdmj.common.model.Result;
 import com.zdmj.resumeService.dto.ResumeContentResponse;
 import com.zdmj.resumeService.dto.ResumeContentSaveRequest;
@@ -48,7 +49,7 @@ public class ResumeController {
         return Result.success("查询简历完整内容成功", resumeService.getResumeContentList(actor));
     }
 
-    @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimitDimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping(value = "/import/parse", consumes = MediaType.APPLICATION_JSON_VALUE)
     public Result<ResumeImportParseResponse> parseResumeImport(@Parameter(hidden = true) CurrentActor actor,
             @Validated @RequestBody ResumeImportParseRequest request) {
@@ -62,7 +63,7 @@ public class ResumeController {
      * @param file 简历文件
      * @return 识别结果
      */
-    @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimitDimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping(value = "/import/parse", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Result<ResumeImportParseResponse> parseResumeImportFile(@Parameter(hidden = true) CurrentActor actor,
             @RequestParam("file") MultipartFile file) {

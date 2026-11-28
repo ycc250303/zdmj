@@ -1,5 +1,6 @@
 package com.zdmj.jobService.service.impl;
 
+import com.zdmj.jobService.dto.JobRoleModelResponse;
 import com.zdmj.aiService.api.ModelGateway;
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.common.context.CurrentActor;
@@ -40,12 +41,9 @@ class JobRoleDetectionServiceImplTest {
     }
 
     private void response(String code, Double confidence) {
-        var response = new JobRoleDetectionServiceImpl.RoleDetectLLMResult();
-        response.setRoleCode(code);
-        response.setConfidence(confidence);
-        response.setReason("识别依据");
+        var response = new JobRoleModelResponse(code, confidence, "识别依据");
         doReturn(response).when(gateway).generateStructured(eq(actor), argThat((ModelRequest request) ->
-                request.promptName().equals("job-detect") && request.promptVars() == null), eq(JobRoleDetectionServiceImpl.RoleDetectLLMResult.class));
+                request.promptName().equals("job-detect") && request.promptVars() == null), eq(JobRoleModelResponse.class));
     }
 
     @Test

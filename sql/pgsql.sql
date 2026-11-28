@@ -27,7 +27,6 @@ DROP TABLE IF EXISTS companies;
 DROP TABLE IF EXISTS job_student_matches;
 DROP TABLE IF EXISTS career_development_reports;
 DROP TABLE IF EXISTS knowledge_documents;
-DROP TABLE IF EXISTS knowledge_bases;
 DROP TABLE IF EXISTS knowledge_vectors;
 DROP TABLE IF EXISTS conversations;
 DROP TABLE IF EXISTS messages;
@@ -415,33 +414,14 @@ CREATE INDEX IF NOT EXISTS idx_career_reports_status_updated
 --
 -- ==========================4 知识库模块==========================
 --
--- 4.1 知识库表（每个用户仅一个用户私有库 + 一个系统默认库；向量化汇总见 knowledge_documents）
-CREATE TABLE IF NOT EXISTS knowledge_bases (
-    id BIGSERIAL PRIMARY KEY,
-    -- 知识库ID
-    user_id BIGINT NOT NULL DEFAULT 0,
-    -- 用户ID（逻辑外键：users.id）
-    scope SMALLINT NOT NULL DEFAULT 1,
-    -- 知识库范围（枚举：1=USER用户私有/2=SYSTEM系统通用/3=学习路线）
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    -- 创建时间
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 更新时间
-);
-CREATE INDEX IF NOT EXISTS idx_knowledge_bases_user_id ON knowledge_bases (user_id);
--- 约束：每个用户最多一个 USER 知识库
-CREATE UNIQUE INDEX IF NOT EXISTS uk_knowledge_bases_user_single ON knowledge_bases (user_id)
-WHERE scope = 1;
--- 约束：系统默认知识库最多一个
-CREATE UNIQUE INDEX IF NOT EXISTS uk_knowledge_bases_system_default_single ON knowledge_bases (scope)
-WHERE scope = 2;
--- 4.2 知识文档表（一个知识库可关联多个文件/链接）
+-- 4.1 知识文档表：归属与使用范围直接保存在文档
 CREATE TABLE IF NOT EXISTS knowledge_documents (
     id BIGSERIAL PRIMARY KEY,
     -- 文档ID
-    knowledge_id BIGINT NOT NULL,
-    -- 知识库ID（逻辑外键：knowledge_bases.id）
-    user_id BIGINT NOT NULL DEFAULT 0,
-    -- 用户ID（逻辑外键：users.id）
+    scope SMALLINT NOT NULL,
+    -- 使用范围：1用户私有、2系统通用、3学习路径
+    user_id BIGINT,
+    -- 私有文档引用 users.id，系统资料为空
     type SMALLINT NOT NULL,
     -- 来源类型（枚举：1=上传PDF或Markdown文件/2=GitHub仓库/3=DeepWiki）
     content TEXT NOT NULL,
@@ -465,11 +445,14 @@ CREATE TABLE IF NOT EXISTS knowledge_documents (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX IF NOT EXISTS idx_knowledge_documents_user_id ON knowledge_documents (user_id);
-CREATE INDEX IF NOT EXISTS idx_knowledge_documents_type ON knowledge_documents (type);
-CREATE INDEX IF NOT EXISTS idx_knowledge_documents_embedding_status ON knowledge_documents (knowledge_id, embedding_status);
-CREATE INDEX IF NOT EXISTS idx_knowledge_documents_content_hash ON knowledge_documents (content_hash);
-CREATE UNIQUE INDEX IF NOT EXISTS uk_knowledge_documents_kid_content ON knowledge_documents (knowledge_id, content);
+ALTER TABLE knowledge_documents ADD CONSTRAINT ck_knowledge_documents_scope_owner CHECK (
+    (scope = 1 AND user_id IS NOT NULL AND user_id > 0)
+    OR (scope IN (2, 3) AND user_id IS NULL)
+);
+CREATE UNIQUE INDEX uk_knowledge_documents_user_content ON knowledge_documents(user_id, content) WHERE scope = 1;
+CREATE UNIQUE INDEX uk_knowledge_documents_system_content ON knowledge_documents(scope, content) WHERE scope IN (2, 3);
+CREATE INDEX idx_knowledge_documents_user_page ON knowledge_documents(user_id, created_at DESC, id DESC) WHERE scope = 1;
+CREATE INDEX idx_knowledge_documents_ready_scope ON knowledge_documents(scope, id) WHERE file_status = 1 AND embedding_status = 3;
 --
 -- ==========================5 向量检索模块==========================
 --
@@ -477,12 +460,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_knowledge_documents_kid_content ON knowledg
 CREATE TABLE IF NOT EXISTS knowledge_vectors (
     id BIGSERIAL PRIMARY KEY,
     -- 向量ID
-    knowledge_id BIGINT NOT NULL,
-    -- 知识库ID（逻辑外键：knowledge_bases.id）
-    document_id BIGINT,
-    -- 文档ID（逻辑外键：knowledge_documents.id）
-    user_id BIGINT NOT NULL DEFAULT 0,
-    -- 用户ID（逻辑外键：users.id）
+    document_id BIGINT NOT NULL,
+    -- 所属文档编号（逻辑外键：knowledge_documents.id），归属由文档确定
     embedding VECTOR(1024) NOT NULL,
     -- 文档块向量（1024维，使用text-embedding-v4模型）
     content TEXT,
@@ -494,7 +473,7 @@ CREATE TABLE IF NOT EXISTS knowledge_vectors (
     --   "knowledgeDocumentId": "知识文档ID",
     --   "source": "文档来源（文件名、URL等）"
     -- }
-    chunk_index INTEGER,
+    chunk_index INTEGER NOT NULL CONSTRAINT ck_knowledge_vectors_chunk_index CHECK (chunk_index >= 0),
     -- 文档块索引
     chunk_hash VARCHAR(64),
     -- 文档块哈希（用于去重）
@@ -502,14 +481,8 @@ CREATE TABLE IF NOT EXISTS knowledge_vectors (
     -- 文档块Token数量（用于上下文预算控制）
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- 创建时间
 );
-CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_user_id_knowledge_id ON knowledge_vectors (user_id, knowledge_id);
-CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_document_id ON knowledge_vectors (document_id);
+CREATE UNIQUE INDEX uk_knowledge_vectors_document_chunk ON knowledge_vectors(document_id, chunk_index);
 CREATE INDEX IF NOT EXISTS idx_knowledge_vectors_embedding ON knowledge_vectors USING HNSW (embedding vector_cosine_ops) WITH (M = 16, ef_construction = 100);
-CREATE UNIQUE INDEX IF NOT EXISTS uk_knowledge_vectors_kid_did_chunk ON knowledge_vectors (
-    knowledge_id,
-    COALESCE(document_id, 0),
-    chunk_index
-);
 --
 -- ==========================6 AI对话模块==========================
 --

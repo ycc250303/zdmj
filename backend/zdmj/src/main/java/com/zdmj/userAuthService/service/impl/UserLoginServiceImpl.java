@@ -1,9 +1,10 @@
 package com.zdmj.userAuthService.service.impl;
 
+import com.zdmj.userAuthService.api.AccountProfileUpdate;
+import com.zdmj.userAuthService.api.AccountProfileUpdater;
 import com.zdmj.common.context.CurrentActor;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.DateTimeUtil;
@@ -34,13 +35,22 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @RequiredArgsConstructor
 @Service
-public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implements UserLoginService {
+public class UserLoginServiceImpl implements UserLoginService, AccountProfileUpdater {
+
+    private final UserMapper userMapper;
 
     private static final PasswordEncoder PASSWORD_ENCODER = new BCryptPasswordEncoder();
 
     private final VerificationCodeService verificationCodeService;
     private final JwtSessionStore jwtSessionStore;
     private final JwtTokenService jwtTokenService;
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void synchronizeProfile(CurrentActor actor, AccountProfileUpdate update) {
+        updateProfile(actor, actor.userId(), new UserUpdateRequest(
+                update.name(), update.phone(), update.website(), update.preferredWorkCity()));
+    }
 
     /**
      * 注册用户
@@ -73,7 +83,7 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
                 VerificationCodeScene.REGISTER);
 
         // 5. 保存用户
-        if (!save(user)) {
+        if (userMapper.insert(user) != 1) {
             throw new BusinessException(ErrorCode.USER_REGISTER_FAILED);
         }
         log.info("用户注册成功: {}", user.getUsername());
@@ -95,7 +105,7 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
         // 判断是用户名还是邮箱（简单判断：包含@符号则为邮箱）
         User user = usernameOrEmail.contains("@")
                 ? getUserByEmail(usernameOrEmail)
-                : getOne(new LambdaQueryWrapper<User>().eq(User::getUsername, usernameOrEmail));
+                : userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getUsername, usernameOrEmail));
 
         // 2. 检查用户是否存在
         if (user == null) {
@@ -135,13 +145,13 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
 
     @Override
     public boolean existsByUsername(String username) {
-        return count(new LambdaQueryWrapper<User>()
+        return userMapper.selectCount(new LambdaQueryWrapper<User>()
                 .eq(User::getUsername, username)) > 0;
     }
 
     @Override
     public boolean existsByEmail(String email) {
-        return count(new LambdaQueryWrapper<User>()
+        return userMapper.selectCount(new LambdaQueryWrapper<User>()
                 .eq(User::getEmail, email)) > 0;
     }
 
@@ -164,10 +174,10 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
         String encodedPassword = PASSWORD_ENCODER.encode(resetPasswordDTO.newPassword());
         verificationCodeService.verifyAndConsume(resetPasswordDTO.email(), resetPasswordDTO.verificationCode(),
                 VerificationCodeScene.RESET_PASSWORD);
-        boolean updated = update(new LambdaUpdateWrapper<User>()
+        boolean updated = userMapper.update(new LambdaUpdateWrapper<User>()
                 .eq(User::getId, user.getId())
                 .set(User::getPassword, encodedPassword)
-                .set(User::getUpdatedAt, DateTimeUtil.now()));
+                .set(User::getUpdatedAt, DateTimeUtil.now())) == 1;
         if (!updated) {
             throw new BusinessException(ErrorCode.PASSWORD_CHANGE_FAILED);
         }
@@ -224,7 +234,7 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
 
         // 3. 定向更新资料字段和更新时间
         update.set(User::getUpdatedAt, DateTimeUtil.now());
-        if (!update(update)) {
+        if (userMapper.update(update) != 1) {
             throw new BusinessException(ErrorCode.USER_UPDATE_FAILED);
         }
         log.info("用户信息更新成功: userId={}", userId);
@@ -245,7 +255,7 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
         if (userId == null || !userId.equals(currentUserId)) {
             throw new BusinessException(ErrorCode.NO_PERMISSION);
         }
-        User user = getById(userId);
+        User user = userMapper.selectById(userId);
         if (user == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
@@ -259,7 +269,7 @@ public class UserLoginServiceImpl extends ServiceImpl<UserMapper, User> implemen
      * @return 用户；不存在时返回 {@code null}
      */
     private User getUserByEmail(String email) {
-        return getOne(new LambdaQueryWrapper<User>()
+        return userMapper.selectOne(new LambdaQueryWrapper<User>()
                 .eq(User::getEmail, email));
     }
 

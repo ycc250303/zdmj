@@ -1,5 +1,10 @@
 package com.zdmj.resumeService.service.impl;
 
+import com.zdmj.resumeService.dto.ResumeImportSkillItem;
+import com.zdmj.resumeService.dto.ResumeImportProjectItem;
+import com.zdmj.resumeService.dto.ResumeImportEducationItem;
+import com.zdmj.resumeService.dto.ResumeImportCareerItem;
+import com.zdmj.resumeService.dto.ResumeImportAwardItem;
 import java.io.InputStream;
 import java.io.IOException;
 import org.springframework.web.multipart.MultipartFile;
@@ -22,8 +27,8 @@ import com.zdmj.resumeService.mapper.ResumeContentRow;
 import com.zdmj.resumeService.mapper.ResumeMapper;
 import com.zdmj.resumeService.mapper.SkillMapper;
 import com.zdmj.resumeService.service.AwardService;
-import com.zdmj.userAuthService.dto.UserUpdateRequest;
-import com.zdmj.userAuthService.service.UserLoginService;
+import com.zdmj.userAuthService.api.AccountProfileUpdate;
+import com.zdmj.userAuthService.api.AccountProfileUpdater;
 import com.zdmj.resumeService.service.CareerService;
 import com.zdmj.resumeService.service.EducationService;
 import com.zdmj.resumeService.service.ProjectExperienceService;
@@ -36,7 +41,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
@@ -69,7 +73,7 @@ public class ResumeServiceImpl implements ResumeService {
     private final AwardMapper awardMapper;
     private final SkillMapper skillMapper;
     private final ResumeMapper resumeMapper;
-    private final UserLoginService userService;
+    private final AccountProfileUpdater userService;
     private final ModelGateway modelGateway;
     private final EducationService educationService;
     private final CareerService careerService;
@@ -162,14 +166,13 @@ public class ResumeServiceImpl implements ResumeService {
     }
 
     private void syncPersonalInfo(CurrentActor actor, ResumePersonalInfoDTO info) {
-        Long userId = actor.userId();
         if (info == null) {
             return;
         }
-        UserUpdateRequest update = new UserUpdateRequest(info.name(), info.phone(), info.homepageUrl(),
+        AccountProfileUpdate update = new AccountProfileUpdate(info.name(), info.phone(), info.homepageUrl(),
                 info.preferredWorkCity());
 
-        userService.updateProfile(actor, userId, update);
+        userService.synchronizeProfile(actor, update);
     }
 
     /**
@@ -453,8 +456,8 @@ public class ResumeServiceImpl implements ResumeService {
             result.setAwards(new ArrayList<>());
         }
 
-        List<ResumeImportParseResponse.EducationItem> educations = new ArrayList<>();
-        for (ResumeImportParseResponse.EducationItem item : result.getEducations()) {
+        List<ResumeImportEducationItem> educations = new ArrayList<>();
+        for (ResumeImportEducationItem item : result.getEducations()) {
             if (item == null || !StringUtils.hasText(item.getSchool())) {
                 continue;
             }
@@ -465,8 +468,8 @@ public class ResumeServiceImpl implements ResumeService {
         }
         result.setEducations(educations);
 
-        List<ResumeImportParseResponse.CareerItem> careers = new ArrayList<>();
-        for (ResumeImportParseResponse.CareerItem item : result.getCareers()) {
+        List<ResumeImportCareerItem> careers = new ArrayList<>();
+        for (ResumeImportCareerItem item : result.getCareers()) {
             if (item == null || !StringUtils.hasText(item.getCompany())) {
                 continue;
             }
@@ -476,8 +479,8 @@ public class ResumeServiceImpl implements ResumeService {
         }
         result.setCareers(careers);
 
-        List<ResumeImportParseResponse.ProjectItem> projects = new ArrayList<>();
-        for (ResumeImportParseResponse.ProjectItem item : result.getProjects()) {
+        List<ResumeImportProjectItem> projects = new ArrayList<>();
+        for (ResumeImportProjectItem item : result.getProjects()) {
             if (item == null || !StringUtils.hasText(item.getName())) {
                 continue;
             }
@@ -487,8 +490,8 @@ public class ResumeServiceImpl implements ResumeService {
         }
         result.setProjects(projects);
 
-        List<ResumeImportParseResponse.AwardItem> awards = new ArrayList<>();
-        for (ResumeImportParseResponse.AwardItem item : result.getAwards()) {
+        List<ResumeImportAwardItem> awards = new ArrayList<>();
+        for (ResumeImportAwardItem item : result.getAwards()) {
             if (item == null) {
                 continue;
             }
@@ -508,8 +511,8 @@ public class ResumeServiceImpl implements ResumeService {
         if (result.getSkills() == null) {
             result.setSkills(new ArrayList<>());
         }
-        List<ResumeImportParseResponse.SkillImportItem> skills = new ArrayList<>();
-        for (ResumeImportParseResponse.SkillImportItem item : result.getSkills()) {
+        List<ResumeImportSkillItem> skills = new ArrayList<>();
+        for (ResumeImportSkillItem item : result.getSkills()) {
             if (item == null || !StringUtils.hasText(item.getName())) {
                 continue;
             }
@@ -533,7 +536,7 @@ public class ResumeServiceImpl implements ResumeService {
      * @param item 奖项
      * @return 解析后的日期，无法识别时返回 null
      */
-    private LocalDate parseAwardDate(ResumeImportParseResponse.AwardItem item) {
+    private LocalDate parseAwardDate(ResumeImportAwardItem item) {
         LocalDate date = parseFlexibleDate(item.getAwardDate());
         if (date != null) {
             return date;
@@ -656,5 +659,4 @@ public class ResumeServiceImpl implements ResumeService {
     private String formatDateString(LocalDate date) {
         return date == null ? null : date.format(DateTimeFormatter.ISO_LOCAL_DATE);
     }
-
 }

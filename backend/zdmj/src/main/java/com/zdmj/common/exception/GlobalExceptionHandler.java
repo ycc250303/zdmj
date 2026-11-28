@@ -103,6 +103,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             @NonNull WebRequest request) {
         if (body instanceof ProblemDetail problem) {
             applyInstance(problem, request);
+            ProblemDetailSupport.attachTraceId(problem);
         }
         HttpHeaders responseHeaders = new HttpHeaders();
         responseHeaders.putAll(headers);

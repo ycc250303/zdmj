@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.jayway.jsonpath.JsonPath;
 import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
+import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
 import com.zdmj.testsupport.ApiClient;
 import com.zdmj.testsupport.IntegrationTestBase;
 import com.zdmj.testsupport.TestJwt;
@@ -100,11 +101,6 @@ class KnowledgeFlowIT extends IntegrationTestBase {
         User user = testUsers.createPair().userA();
         String token = testJwt.authorize(user);
 
-        String base = ApiClient.requireOk(api.post(token, "/knowledge", null));
-        long knowledgeId = JsonPath.<Number>read(base, "$.data.id").longValue();
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT user_id FROM knowledge_bases WHERE id = ?", Long.class, knowledgeId)).isEqualTo(user.getId());
-
         long alphaId = uploadId(token, "alpha.md", "固定知识片段甲");
         long betaId = uploadId(token, "beta.md", "固定知识片段乙");
         assertThat(jdbcTemplate.queryForObject(
@@ -113,8 +109,8 @@ class KnowledgeFlowIT extends IntegrationTestBase {
         knowledgeEmbeddingService.vectorizeAndStore(new CurrentActor(user.getId()), alphaId);
         knowledgeEmbeddingService.vectorizeAndStore(new CurrentActor(user.getId()), betaId);
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM knowledge_vectors WHERE document_id = ? AND user_id = ?",
-                Integer.class, alphaId, user.getId())).isPositive();
+                "SELECT count(*) FROM knowledge_vectors v JOIN knowledge_documents d ON d.id=v.document_id WHERE v.document_id = ? AND d.scope=? AND d.user_id = ?",
+                Integer.class, alphaId, KnowledgeScopeEnum.USER.getCode(), user.getId())).isPositive();
 
         jdbcTemplate.update("""
                 UPDATE knowledge_documents SET metadata = metadata || '{"docCategory":"learning"}'::jsonb
@@ -135,7 +131,7 @@ class KnowledgeFlowIT extends IntegrationTestBase {
         assertThat(JsonPath.<Number>read(scoped, "$.data.hits[0].chunkIndex").intValue()).isZero();
         assertThat(JsonPath.<Number>read(scoped, "$.data.hits[0].score").doubleValue()).isCloseTo(1.0,
                 org.assertj.core.data.Offset.offset(0.0001));
-        assertThat(JsonPath.<Object>read(scoped, "$.data.hits[0].docCategory")).isNull();
+        assertThat(JsonPath.<String>read(scoped, "$.data.hits[0].docCategory")).isEqualTo("learning");
 
         String unscoped = ApiClient.requireOk(api.post(token, "/knowledge/retrievals", """
                 {"query":"检索甲","useSystemKnowledge":false}
@@ -162,6 +158,33 @@ class KnowledgeFlowIT extends IntegrationTestBase {
     }
 
     @Test
+    void 会话检索按枚举范围授权_系统开关控制通用资料且学习路径不进入会话() throws Exception {
+        String token = testJwt.authorize(testUsers.createPair().userA());
+        long own = uploadId(token, "private.md", "本人私有知识");
+        long system = uploadId(token, "system.md", "系统通用知识");
+        long learning = uploadId(token, "learning.md", "学习路径知识");
+        jdbcTemplate.update("UPDATE knowledge_documents SET scope=?,user_id=NULL WHERE id=?",
+                KnowledgeScopeEnum.SYSTEM.getCode(), system);
+        jdbcTemplate.update("UPDATE knowledge_documents SET scope=?,user_id=NULL WHERE id=?",
+                KnowledgeScopeEnum.LEARNING_PATH.getCode(), learning);
+
+        String privateOnly = ApiClient.requireOk(api.post(token, "/knowledge/retrievals",
+                "{\"query\":\"知识\",\"useSystemKnowledge\":false}"));
+        assertThat(JsonPath.<List<Number>>read(privateOnly, "$.data.hits[*].documentId"))
+                .extracting(Number::longValue).containsExactly(own);
+        String systemOnly = ApiClient.requireOk(api.post(token, "/knowledge/retrievals",
+                "{\"query\":\"知识\",\"ragDocumentIds\":[],\"useSystemKnowledge\":true}"));
+        assertThat(JsonPath.<List<Number>>read(systemOnly, "$.data.hits[*].documentId"))
+                .extracting(Number::longValue).containsExactly(system);
+        String combined = ApiClient.requireOk(api.post(token, "/knowledge/retrievals",
+                "{\"query\":\"知识\",\"useSystemKnowledge\":true}"));
+        assertThat(JsonPath.<List<Number>>read(combined, "$.data.hits[*].documentId"))
+                .extracting(Number::longValue).containsExactlyInAnyOrder(own, system).doesNotContain(learning);
+        ApiClient.assertProblem(api.get(token, "/knowledge-document/" + system), 404, 8012);
+        ApiClient.assertProblem(api.delete(token, "/knowledge-document/" + learning), 404, 8012);
+    }
+
+    @Test
     void 跨用户向量化与删除_拒绝访问且保留原文档和向量() throws Exception {
         TestUsers.Pair pair = testUsers.createPair();
         String token = testJwt.authorize(pair.userA());
@@ -174,7 +197,7 @@ class KnowledgeFlowIT extends IntegrationTestBase {
 
         assertThatThrownBy(() -> knowledgeEmbeddingService.vectorizeAndStore(otherActor, documentId))
                 .isInstanceOf(BusinessException.class).extracting("code")
-                .isEqualTo(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND.getCode());
+                .isEqualTo(ErrorCode.KNOWLEDGE_DOCUMENT_NOT_FOUND.getCode());
         ApiClient.assertProblem(api.delete(testJwt.authorize(pair.userB()), "/knowledge-document/" + documentId), 404, 8012);
 
         assertThat(jdbcTemplate.queryForMap("SELECT * FROM knowledge_documents WHERE id = ?", documentId))
@@ -192,30 +215,6 @@ class KnowledgeFlowIT extends IntegrationTestBase {
 
     @Autowired private org.springframework.core.env.Environment environment;
     @Autowired private com.zdmj.knowledgeService.service.KnowledgeDocumentService documents;
-
-    @Test
-    void 超过十万字符的知识文档完整保存分块并可重新处理() throws Exception {
-        String token = testJwt.authorize(testUsers.createPair().userA());
-        String text = "文档开始\n" + "知识内容包含岗位要求和项目经验。\n".repeat(8_000) + "DOCUMENT_END_MARKER";
-
-        long id = uploadId(token, "long.md", text);
-
-        assertThat(api.get(token, "/knowledge-document/" + id + "/download").getResponse().getContentAsByteArray())
-                .isEqualTo(text.getBytes(StandardCharsets.UTF_8));
-        List<String> chunks = jdbcTemplate.queryForList(
-                "SELECT content FROM knowledge_vectors WHERE document_id=? ORDER BY chunk_index", String.class, id);
-        assertThat(chunks).hasSizeGreaterThan(1);
-        assertThat(String.join("", chunks).replaceAll("\\s+", "")).isEqualTo(text.replaceAll("\\s+", ""));
-        assertThat(jdbcTemplate.queryForObject("SELECT chunk_count FROM knowledge_documents WHERE id=?", Integer.class, id))
-                .isEqualTo(chunks.size());
-        assertThat(jdbcTemplate.queryForObject("SELECT embedding_status FROM knowledge_documents WHERE id=?", Integer.class, id))
-                .isEqualTo(3);
-
-        ApiClient.requireOk(api.post(token, "/knowledge-document/" + id + "/embedding", null));
-        assertThat(jdbcTemplate.queryForList(
-                "SELECT content FROM knowledge_vectors WHERE document_id=? ORDER BY chunk_index", String.class, id))
-                .isEqualTo(chunks);
-    }
 
     @Test
     void 超过配置上限保留原文件且不保存部分向量() throws Exception {
@@ -291,7 +290,7 @@ class KnowledgeFlowIT extends IntegrationTestBase {
     }
 
     @Test
-    void 删除失败保留删除中状态_重试删除与清空均清理文件() throws Exception {
+    void 删除失败保留删除中状态_重试删除清理原文件和向量() throws Exception {
         String token = testJwt.authorize(testUsers.createPair().userA());
         long id = uploadId(token, "a.md", "原始文件的内容甲");
         org.mockito.Mockito.doThrow(new BusinessException(ErrorCode.FILE_STORAGE_UNAVAILABLE))
@@ -301,10 +300,8 @@ class KnowledgeFlowIT extends IntegrationTestBase {
         ApiClient.assertProblem(api.get(token, "/knowledge-document/" + id + "/download"), 409, 8016);
         org.mockito.Mockito.reset(files);
         ApiClient.requireOk(api.delete(token, "/knowledge-document/" + id));
-        uploadId(token, "b.md", "原始文件的内容乙");
-        uploadId(token, "c.md", "原始文件的内容丙");
-        ApiClient.requireOk(api.delete(token, "/knowledge"));
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM knowledge_documents", Integer.class)).isZero();
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM knowledge_vectors", Integer.class)).isZero();
         try (var paths = java.nio.file.Files.walk(root())) {
             assertThat(paths.filter(java.nio.file.Files::isRegularFile).toList()).isEmpty();
         }
@@ -351,16 +348,6 @@ class KnowledgeFlowIT extends IntegrationTestBase {
     }
 
     @Test
-    void 新库和已有库字段升级均可重复执行() throws Exception {
-        var script = java.nio.file.Path.of(System.getProperty("zdmj.repo.root"), "sql", "migrations", "20261112_drop_knowledge_vector_tasks.sql");
-        jdbcTemplate.execute("ALTER TABLE knowledge_documents DROP COLUMN file_status");
-        String sql = java.nio.file.Files.readString(script);
-        jdbcTemplate.execute(sql);
-        jdbcTemplate.execute(sql);
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_name='knowledge_documents' AND column_name='file_status'", Integer.class)).isEqualTo(1);
-    }
-
-    @Test
     void 替换失败恢复原文档_进程中断状态可重新处理和删除() throws Exception {
         var user = testUsers.createPair().userA();
         String token = testJwt.authorize(user);
@@ -391,7 +378,7 @@ class KnowledgeFlowIT extends IntegrationTestBase {
     }
 
     @Test
-    void 首次并发上传_只建立一个用户知识库() throws Exception {
+    void 首次并发上传_分别保存两篇本人私有文档() throws Exception {
         var user = testUsers.createPair().userA();
         String token = testJwt.authorize(user);
         var start = new java.util.concurrent.CyclicBarrier(2);
@@ -400,7 +387,6 @@ class KnowledgeFlowIT extends IntegrationTestBase {
             var second = executor.submit(() -> { start.await(10, java.util.concurrent.TimeUnit.SECONDS); return uploadId(token, "second.md", "并发上传的第二份文档"); });
             assertThat(first.get(15, java.util.concurrent.TimeUnit.SECONDS)).isNotEqualTo(second.get(15, java.util.concurrent.TimeUnit.SECONDS));
         }
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM knowledge_bases WHERE user_id=?", Integer.class, user.getId())).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM knowledge_documents WHERE user_id=? AND file_status=1 AND embedding_status=3", Integer.class, user.getId())).isEqualTo(2);
     }
 

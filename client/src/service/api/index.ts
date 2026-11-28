@@ -1,9 +1,6 @@
 export * from './auth';
 export * from './route';
 export {
-  fetchCreateKnowledgeBases,
-  fetchGetKnowledgeBases,
-  fetchClearKnowledgeBases,
   fetchGetKnowledgeDocumentList,
   fetchGetKnowledgeDocumentDetail,
   fetchCreateKnowledgeDocument,

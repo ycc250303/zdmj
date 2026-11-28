@@ -14,17 +14,24 @@
     </constructor>
   </resultMap>
 
-  <!-- 根据知识库ID删除向量 -->
-  <delete id="deleteByDocumentIdAndUserId" parameterType="long">
-    DELETE FROM knowledge_vectors WHERE document_id = #{DocumentId} AND user_id = #{userId}
-    RETURNING id
+  <!-- 通过文档限制用户归属 -->
+  <delete id="deleteByDocumentIdAndUserId">
+    <bind name="userScope" value="@com.zdmj.knowledgeService.enums.KnowledgeScopeEnum@USER.getCode()" />
+    DELETE FROM knowledge_vectors kv USING knowledge_documents kd
+    WHERE kv.document_id = kd.id AND kd.id = #{documentId}
+      AND kd.scope = #{userScope} AND kd.user_id = #{userId}
+  </delete>
+
+  <delete id="deleteSystemByDocumentId">
+    <bind name="systemScope" value="@com.zdmj.knowledgeService.enums.KnowledgeScopeEnum@SYSTEM.getCode()" />
+    DELETE FROM knowledge_vectors kv USING knowledge_documents kd
+    WHERE kv.document_id = kd.id AND kd.id = #{documentId}
+      AND kd.scope = #{systemScope} AND kd.user_id IS NULL AND kd.content LIKE 'javaguide:docs/%'
   </delete>
 
   <insert id="batchInsert">
     INSERT INTO knowledge_vectors (
-      knowledge_id,
       document_id,
-      user_id,
       embedding,
       content,
       metadata,
@@ -35,9 +42,7 @@
     VALUES
     <foreach collection="rows" item="r" separator=",">
       (
-        #{r.knowledgeId},
         #{r.documentId},
-        #{r.userId},
         CAST(#{r.embedding} AS vector),
         #{r.content},
         #{r.metadata, typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler},
@@ -48,45 +53,54 @@
     </foreach>
   </insert>
 
-  <!-- 根据知识库ID删除向量 -->
-  <delete id="deleteByKnowledgeId"> DELETE FROM knowledge_vectors WHERE knowledge_id = #{knowledgeId} </delete>
-
    <!--
       pgvector 运算符 <=> 表示余弦距离（与索引 vector_cosine_ops 一致）。
       相似度常用写法：score = 1 - distance，便于设阈值（如 0.28）。
     -->
     <select id="searchBySimilarity" resultMap="KnowledgeRetrievalMap">
+      <bind name="userScope" value="@com.zdmj.knowledgeService.enums.KnowledgeScopeEnum@USER.getCode()" />
+      <bind name="systemScope" value="@com.zdmj.knowledgeService.enums.KnowledgeScopeEnum@SYSTEM.getCode()" />
+      <bind name="learningPathScope" value="@com.zdmj.knowledgeService.enums.KnowledgeScopeEnum@LEARNING_PATH.getCode()" />
       SELECT
           kv.id,
           kv.document_id AS documentId,
           kv.chunk_index AS chunkIndex,
           kv.content,
-          kv.metadata,
+          jsonb_build_object('documentTitle', kd.title,
+              'source', CASE WHEN kd.scope = #{userScope} AND kd.user_id IS NOT NULL AND kd.type = 1 AND kd.file_status = 1
+                  THEN '/knowledge-document/' || kd.id || '/download' ELSE NULL END) AS metadata,
           kd.metadata->>'docCategory' AS docCategory,
           (1 - (kv.embedding <![CDATA[ <=> ]]> CAST(#{queryEmbedding} AS vector))) AS score
       FROM knowledge_vectors kv
-      LEFT JOIN knowledge_documents kd ON kd.id = kv.document_id
-      WHERE (kv.user_id = 0 OR (kd.file_status = 1 AND kd.embedding_status = 3 AND kd.user_id = kv.user_id))
-        AND kv.user_id = #{userId}
-        AND kv.knowledge_id = #{knowledgeId}
+      JOIN knowledge_documents kd ON kd.id = kv.document_id
+      WHERE kd.file_status = 1 AND kd.embedding_status = 3
+        AND kd.scope = #{scope}
+        AND ((#{scope} = #{userScope} AND kd.user_id = #{userId})
+          OR (#{scope} IN (#{systemScope}, #{learningPathScope}) AND kd.user_id IS NULL))
       ORDER BY kv.embedding <![CDATA[ <=> ]]> CAST(#{queryEmbedding} AS vector)
       LIMIT #{limit}
   </select>
 
   <select id="searchBySimilarityInDocuments" resultMap="KnowledgeRetrievalMap">
+      <bind name="userScope" value="@com.zdmj.knowledgeService.enums.KnowledgeScopeEnum@USER.getCode()" />
+      <bind name="systemScope" value="@com.zdmj.knowledgeService.enums.KnowledgeScopeEnum@SYSTEM.getCode()" />
+      <bind name="learningPathScope" value="@com.zdmj.knowledgeService.enums.KnowledgeScopeEnum@LEARNING_PATH.getCode()" />
       SELECT
           kv.id,
           kv.document_id AS documentId,
           kv.chunk_index AS chunkIndex,
           kv.content,
-          kv.metadata,
-          NULL::text AS docCategory,
+          jsonb_build_object('documentTitle', kd.title,
+              'source', CASE WHEN kd.scope = #{userScope} AND kd.user_id IS NOT NULL AND kd.type = 1 AND kd.file_status = 1
+                  THEN '/knowledge-document/' || kd.id || '/download' ELSE NULL END) AS metadata,
+          kd.metadata->>'docCategory' AS docCategory,
           (1 - (kv.embedding <![CDATA[ <=> ]]> CAST(#{queryEmbedding} AS vector))) AS score
       FROM knowledge_vectors kv
       JOIN knowledge_documents kd ON kd.id = kv.document_id
-      WHERE (kv.user_id = 0 OR (kd.file_status = 1 AND kd.embedding_status = 3 AND kd.user_id = kv.user_id))
-        AND kv.user_id = #{userId}
-        AND kv.knowledge_id = #{knowledgeId}
+      WHERE kd.file_status = 1 AND kd.embedding_status = 3
+        AND kd.scope = #{scope}
+        AND ((#{scope} = #{userScope} AND kd.user_id = #{userId})
+          OR (#{scope} IN (#{systemScope}, #{learningPathScope}) AND kd.user_id IS NULL))
         AND kv.document_id IN
       <foreach collection="documentIds" item="did" open="(" separator="," close=")">
         #{did}

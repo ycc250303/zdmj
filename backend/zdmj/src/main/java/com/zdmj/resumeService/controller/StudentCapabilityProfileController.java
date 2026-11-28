@@ -3,6 +3,7 @@ package com.zdmj.resumeService.controller;
 import io.swagger.v3.oas.annotations.Parameter;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.annotation.RateLimit;
+import com.zdmj.common.annotation.RateLimitDimension;
 import com.zdmj.common.model.Result;
 
 import java.util.concurrent.TimeUnit;
@@ -58,7 +59,7 @@ public class StudentCapabilityProfileController {
      * @param reqDTO 生成参数
      * @return 生成的能力画像
      */
-    @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimitDimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping(value = "/generate", consumes = MediaType.APPLICATION_JSON_VALUE)
     public Result<StudentCapabilityProfileResponse> generateProfile(@Parameter(hidden = true) CurrentActor actor, @Validated @RequestBody CapabilityProfileGenerateRequest reqDTO) {
         log.info("生成学生能力画像");
@@ -72,7 +73,7 @@ public class StudentCapabilityProfileController {
      * @param file 简历文件
      * @return 生成的能力画像
      */
-    @RateLimit(dimension = RateLimit.Dimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
+    @RateLimit(dimension = RateLimitDimension.USER, count = 10, interval = 1, timeUnit = TimeUnit.MINUTES)
     @PostMapping(value = "/generate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Result<StudentCapabilityProfileResponse> generateProfileFromFile(@Parameter(hidden = true) CurrentActor actor,
             @RequestParam("file") MultipartFile file) {

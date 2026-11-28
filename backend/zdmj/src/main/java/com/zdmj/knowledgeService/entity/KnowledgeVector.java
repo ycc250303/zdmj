@@ -12,7 +12,7 @@ import lombok.EqualsAndHashCode;
 import java.util.Map;
 
 /**
- * 知识库向量实体类
+ * 文档分块向量实体类
  * 对应数据库表：knowledge_vectors
  */
 @Data
@@ -20,25 +20,15 @@ import java.util.Map;
 @TableName(value = "knowledge_vectors", autoResultMap = true)
 public class KnowledgeVector extends BaseEntity {
     /**
-     * 知识库向量ID
+     * 文档分块向量ID
      */
     @TableId(type = IdType.AUTO)
     private Long id;
 
     /**
-     * 知识库ID
-     */
-    private Long knowledgeId;
-
-    /**
-     * 文档ID
+     * 所属文档编号，对应 document_id，必填；归属及可见范围由文档确定
      */
     private Long documentId;
-
-    /**
-     * 用户ID
-     */
-    private Long userId;
 
     /**
      * 向量
@@ -57,7 +47,7 @@ public class KnowledgeVector extends BaseEntity {
     private Map<String, Object> metadata;
 
     /**
-     * 文档块索引
+     * 文档内分块编号，对应 chunk_index，必填且非负，同一文档内唯一
      */
     private Integer chunkIndex;
 

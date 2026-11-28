@@ -23,7 +23,7 @@ import java.util.List;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.common.model.Result;
 import com.zdmj.common.model.UpdateGroup;
-import com.zdmj.jobService.dto.JobListItemResponse;
+import com.zdmj.jobService.api.JobListItemResponse;
 import com.zdmj.jobService.dto.JobRequest;
 import com.zdmj.jobService.dto.JobResponse;
 import com.zdmj.jobService.dto.JobPageQueryDTO;

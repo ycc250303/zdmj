@@ -1,5 +1,7 @@
 package com.zdmj.aiService.service.impl;
 
+import com.zdmj.aiService.api.ModelMessageRole;
+import com.zdmj.aiService.api.ModelHistoryMessage;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -7,11 +9,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
-
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -23,17 +23,15 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
-
 import com.zdmj.aiService.api.ModelRequest;
 import com.zdmj.aiService.enums.ModelCode;
 import com.zdmj.aiService.support.ModelClientFactory;
-import com.zdmj.aiService.support.UserModelConfigurationReader.ResolvedConfiguration;
+import com.zdmj.aiService.dto.ResolvedModelConfiguration;
 import com.zdmj.aiService.support.UserModelConfigurationReader;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.prompt.PromptLoader;
-
 import reactor.core.publisher.Flux;
 
 /**
@@ -90,9 +88,9 @@ class ModelGatewayImplTest {
     @Test
     void calls_shouldReadCurrentConfigurationAndUseExplicitHistoryWithoutLeaking() {
         CurrentActor actor = new CurrentActor(1L);
-        var first = new ResolvedConfiguration(
+        var first = new ResolvedModelConfiguration(
                 ModelCode.DEEPSEEK_FLASH, "first-key");
-        var updated = new ResolvedConfiguration(
+        var updated = new ResolvedModelConfiguration(
                 ModelCode.QWEN_PLUS, "updated-key");
         when(configurationReader.find(actor)).thenReturn(Optional.of(first), Optional.of(updated),
                 Optional.of(updated), Optional.empty());
@@ -107,8 +105,8 @@ class ModelGatewayImplTest {
         var gateway = new ModelGatewayImpl(promptLoader, configurationReader, clients);
 
         assertEquals("reply", gateway.stream(actor, new ModelRequest("first", null, null,
-                List.of(new ModelRequest.HistoryMessage(ModelRequest.HistoryMessage.Role.USER, "previous"),
-                        new ModelRequest.HistoryMessage(ModelRequest.HistoryMessage.Role.ASSISTANT, "partial")),
+                List.of(new ModelHistoryMessage(ModelMessageRole.USER, "previous"),
+                        new ModelHistoryMessage(ModelMessageRole.ASSISTANT, "partial")),
                 "历史回复生成失败"))
                 .collectList().block(Duration.ofSeconds(5)).getFirst());
         assertEquals("reply", gateway.generate(actor, new ModelRequest("plain", null, null)));
@@ -131,26 +129,6 @@ class ModelGatewayImplTest {
         verify(clients, org.mockito.Mockito.times(2)).buildUserModel(updated.model(), updated.apiKey());
         assertEquals(ErrorCode.USER_LLM_NOT_CONFIGURED, assertThrows(BusinessException.class,
                 () -> gateway.generate(actor, new ModelRequest("deleted", null, null))).getErrorCode());
-    }
-
-    @Test
-    void modelRequest_shouldCopyHistoryAndVariablesAndRejectInvalidHistory() {
-        var history = new java.util.ArrayList<ModelRequest.HistoryMessage>();
-        history.add(new ModelRequest.HistoryMessage(ModelRequest.HistoryMessage.Role.USER, "任务"));
-        var variables = new java.util.HashMap<String, Object>();
-        variables.put("context", "资料");
-        var request = new ModelRequest("继续", "system", variables, history, "生成失败");
-        history.clear();
-        variables.clear();
-        assertEquals(1, request.history().size());
-        assertEquals("资料", request.promptVars().get("context"));
-        assertThrows(UnsupportedOperationException.class, () -> request.history().clear());
-        assertThrows(UnsupportedOperationException.class, () -> request.promptVars().clear());
-        assertThrows(NullPointerException.class, () -> new ModelRequest("继续", null, null, null, ""));
-        assertThrows(NullPointerException.class, () -> new ModelRequest("继续", null, null, List.of(), null));
-        assertThrows(NullPointerException.class, () -> new ModelRequest.HistoryMessage(null, "任务"));
-        assertThrows(IllegalArgumentException.class,
-                () -> new ModelRequest.HistoryMessage(ModelRequest.HistoryMessage.Role.USER, " "));
     }
 
     private ModelGatewayImpl gateway() {

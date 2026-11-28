@@ -14,21 +14,17 @@ public final class PageRequests {
     private PageRequests() {
     }
 
-    /** 规范化后的 page / limit */
-    public record Normalized(int page, int limit) {
-    }
-
-    public static Normalized normalize(Integer page, Integer limit) {
+    public static PageParameters normalize(Integer page, Integer limit) {
         return normalize(page, limit, MAX_LIMIT);
     }
 
-    public static Normalized normalize(Integer page, Integer limit, int maxLimit) {
+    public static PageParameters normalize(Integer page, Integer limit, int maxLimit) {
         int p = (page == null || page < 1) ? DEFAULT_PAGE : page;
         int l = (limit == null || limit < 1) ? DEFAULT_LIMIT : Math.min(limit, maxLimit);
-        return new Normalized(p, l);
+        return new PageParameters(p, l);
     }
 
-    public static <T> Page<T> toPage(Normalized normalized) {
+    public static <T> Page<T> toPage(PageParameters normalized) {
         return new Page<>(normalized.page(), normalized.limit());
     }
 }

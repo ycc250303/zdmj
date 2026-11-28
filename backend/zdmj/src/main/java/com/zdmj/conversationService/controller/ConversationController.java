@@ -2,7 +2,7 @@ package com.zdmj.conversationService.controller;
 
 import io.swagger.v3.oas.annotations.Parameter;
 import com.zdmj.common.context.CurrentActor;
-import java.util.List;
+import com.zdmj.common.model.PageDTO;
 import java.util.Map;
 
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -59,14 +59,17 @@ public class ConversationController {
     }
 
     /**
-     * 查询所有会话列表
+     * 分页查询会话列表，默认每页20条，上限100条，按更新时间与编号倒序
      *
      * @param actor 已认证操作者，包含用户编号
-     * @return 查询的会话列表
+     * @param page 页码，默认1，非正数按默认处理
+     * @param limit 每页数量，默认20，上限100
+     * @return 当前页会话及总数量
      */
     @GetMapping
-    public Result<List<ConversationResponse>> getConversations(@Parameter(hidden = true) CurrentActor actor) {
-        return Result.success("会话列表查询成功", conversationService.getByUserId(actor));
+    public Result<PageDTO<ConversationResponse>> getConversations(@Parameter(hidden = true) CurrentActor actor,
+            @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer limit) {
+        return Result.success("会话列表查询成功", conversationService.getByPage(actor, page, limit));
     }
 
     /**

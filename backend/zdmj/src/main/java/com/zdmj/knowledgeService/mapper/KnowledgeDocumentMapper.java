@@ -12,9 +12,9 @@ public interface KnowledgeDocumentMapper extends BaseMapper<KnowledgeDocument> {
     KnowledgeDocument selectOwnedForUpdate(@org.apache.ibatis.annotations.Param("id") Long id,
             @org.apache.ibatis.annotations.Param("userId") Long userId);
 
-    /**
-     * 根据知识库ID删除知识文档
-     * @param knowledgeId 知识库ID
-     */
-    void deleteByKnowledgeId(Long knowledgeId);
+    /** 按报告可读范围批量查询来源，本人私有库及系统学习路线库可见。 */
+    java.util.List<com.zdmj.knowledgeService.api.KnowledgeReference> selectReportReferences(
+            @org.apache.ibatis.annotations.Param("userId") Long userId,
+            @org.apache.ibatis.annotations.Param("documentIds") java.util.List<Long> documentIds);
+
 }

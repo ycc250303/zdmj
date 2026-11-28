@@ -72,6 +72,13 @@ class EmbeddingGatewayImplTest {
         assertEquals("嵌入结果数量与文本数量不一致", ex.getMessage());
     }
 
+    @Test
+    void 系统资料复用平台模型() {
+        when(embeddingModel.embed(List.of("系统资料"))).thenReturn(List.of(new float[] {1}));
+        assertEquals(1, gateway().embedSystem(List.of("系统资料")).size());
+        verify(embeddingModel).embed(List.of("系统资料"));
+    }
+
     private EmbeddingGatewayImpl gateway() {
         return new EmbeddingGatewayImpl(embeddingModel);
     }

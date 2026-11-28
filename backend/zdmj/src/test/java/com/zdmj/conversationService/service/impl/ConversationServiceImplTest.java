@@ -1,5 +1,7 @@
 package com.zdmj.conversationService.service.impl;
 
+import com.zdmj.conversationService.dto.ConversationDeletedEvent;
+import java.time.LocalDateTime;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
@@ -15,7 +17,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
 import java.math.BigInteger;
 import java.math.BigDecimal;
 import java.util.Arrays;
@@ -26,7 +27,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -57,7 +57,7 @@ class ConversationServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        conversationService = new ConversationServiceImpl(conversationMapper, messageMapper, events);
+        conversationService = new ConversationServiceImpl(conversationMapper, messageMapper, events, java.time.Clock.system(java.time.ZoneId.of("Asia/Shanghai")));
     }
 
     @Test
@@ -156,6 +156,15 @@ class ConversationServiceImplTest {
         verify(conversationMapper).selectById(13L);
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"标", "😀"})
+    void 手工标题超过容量_返回参数错误并且不访问数据库(String unit) {
+        BusinessException failure = assertThrows(BusinessException.class,
+                () -> conversationService.updateTitle(actor, 1L, unit.repeat(256)));
+        assertEquals(1001, failure.getCode());
+        org.mockito.Mockito.verifyNoInteractions(conversationMapper);
+    }
+
     @Test
     void updateTitle_titleBlank_shouldThrow1001() {
         BusinessException ex = assertThrows(BusinessException.class,
@@ -163,7 +172,7 @@ class ConversationServiceImplTest {
 
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), ex.getCode());
         assertEquals("会话标题不能为空", ex.getMessage());
-        verify(conversationMapper, never()).updateTitleByIdAndUserId(any(), any(), any());
+        verify(conversationMapper, never()).updateTitleByIdAndUserId(any(), any(), any(), any(LocalDateTime.class));
     }
 
     @Test
@@ -173,13 +182,13 @@ class ConversationServiceImplTest {
         owned.setUserId(1L);
         owned.setMessageCount(4);
         when(conversationMapper.selectById(15L)).thenReturn(owned, refreshedTitle());
-        when(conversationMapper.updateTitleByIdAndUserId(15L, 1L, "new title")).thenReturn(1);
+        when(conversationMapper.updateTitleByIdAndUserId(eq(15L), eq(1L), eq("new title"), any(LocalDateTime.class))).thenReturn(1);
 
         ConversationResponse out = conversationService.updateTitle(actor, 15L, "  new title  ");
 
         assertEquals("new title", out.title());
         assertEquals(4, out.messageCount());
-        verify(conversationMapper).updateTitleByIdAndUserId(15L, 1L, "new title");
+        verify(conversationMapper).updateTitleByIdAndUserId(eq(15L), eq(1L), eq("new title"), any(LocalDateTime.class));
     }
 
     @Test
@@ -194,7 +203,7 @@ class ConversationServiceImplTest {
 
         assertEquals(ErrorCode.NO_PERMISSION.getCode(), ex.getCode());
         assertEquals(ErrorCode.NO_PERMISSION.getMessage(), ex.getMessage());
-        verify(conversationMapper, never()).updateTitleByIdAndUserId(any(), any(), any());
+        verify(conversationMapper, never()).updateTitleByIdAndUserId(any(), any(), any(), any(LocalDateTime.class));
     }
 
     @Test
@@ -203,14 +212,14 @@ class ConversationServiceImplTest {
         owned.setId(17L);
         owned.setUserId(1L);
         when(conversationMapper.selectById(17L)).thenReturn(owned);
-        when(conversationMapper.updateTitleByIdAndUserId(17L, 1L, "updated")).thenReturn(0);
+        when(conversationMapper.updateTitleByIdAndUserId(eq(17L), eq(1L), eq("updated"), any(LocalDateTime.class))).thenReturn(0);
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> conversationService.updateTitle(actor, 17L, "updated"));
 
         assertEquals(ErrorCode.CONVERSATION_UPDATE_FAILED.getCode(), ex.getCode());
         assertEquals(ErrorCode.CONVERSATION_UPDATE_FAILED.getMessage(), ex.getMessage());
-        verify(conversationMapper).updateTitleByIdAndUserId(17L, 1L, "updated");
+        verify(conversationMapper).updateTitleByIdAndUserId(eq(17L), eq(1L), eq("updated"), any(LocalDateTime.class));
     }
 
     @Test
@@ -242,7 +251,7 @@ class ConversationServiceImplTest {
 
         when(conversationMapper.selectOwnedForUpdate(24L, 1L)).thenReturn(owned);
         conversationService.delete(actor, 24L);
-        verify(events).publishEvent(new ConversationServiceImpl.Deleted(actor, 24L));
+        verify(events).publishEvent(new ConversationDeletedEvent(actor, 24L));
 
         verify(conversationMapper).selectOwnedForUpdate(24L, 1L);
         verify(messageMapper).delete(any(Wrapper.class));
@@ -285,7 +294,7 @@ class ConversationServiceImplTest {
                 "ragDocumentIds", List.of(1L, 2L)));
         when(conversationMapper.selectById(23L)).thenReturn(owned, refreshed);
         when(conversationMapper.selectOwnedForUpdate(23L, 1L)).thenReturn(locked);
-        when(conversationMapper.updateConfigByIdAndUserId(eq(23L), eq(1L), any())).thenReturn(1);
+        when(conversationMapper.updateConfigByIdAndUserId(eq(23L), eq(1L), any(), any(LocalDateTime.class))).thenReturn(1);
 
         ConversationResponse out = conversationService.updateConfig(actor, 23L, Map.of(
                 "ragDocumentIds", List.of(1L, 2L),
@@ -293,13 +302,13 @@ class ConversationServiceImplTest {
 
         assertTrue(Boolean.TRUE.equals(out.config().get("useSystemKnowledge")));
         ArgumentCaptor<Map<String, Object>> configCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(conversationMapper).updateConfigByIdAndUserId(eq(23L), eq(1L), configCaptor.capture());
+        verify(conversationMapper).updateConfigByIdAndUserId(eq(23L), eq(1L), configCaptor.capture(), any(LocalDateTime.class));
         assertEquals(Map.of("useSystemKnowledge", true, "ragDocumentIds", List.of(1L, 2L)), configCaptor.getValue());
         assertEquals(Map.of("useSystemKnowledge", false), owned.getConfig());
         var order = org.mockito.Mockito.inOrder(conversationMapper);
         order.verify(conversationMapper).selectById(23L);
         order.verify(conversationMapper).selectOwnedForUpdate(23L, 1L);
-        order.verify(conversationMapper).updateConfigByIdAndUserId(eq(23L), eq(1L), any());
+        order.verify(conversationMapper).updateConfigByIdAndUserId(eq(23L), eq(1L), any(), any(LocalDateTime.class));
         order.verify(conversationMapper).selectById(23L);
     }
 
@@ -318,7 +327,7 @@ class ConversationServiceImplTest {
                 () -> conversationService.updateConfig(actor, 25L, Map.of("useSystemKnowledge", true)));
 
         assertEquals(ErrorCode.CONVERSATION_CONFIG_LOCKED.getCode(), ex.getCode());
-        verify(conversationMapper, never()).updateConfigByIdAndUserId(any(), any(), any());
+        verify(conversationMapper, never()).updateConfigByIdAndUserId(any(), any(), any(), any(LocalDateTime.class));
     }
 
     @Test
@@ -332,7 +341,7 @@ class ConversationServiceImplTest {
 
         assertEquals(ErrorCode.CONVERSATION_NOT_FOUND.getCode(), failure.getCode());
         verify(conversationMapper).selectOwnedForUpdate(23L, 1L);
-        verify(conversationMapper, never()).updateConfigByIdAndUserId(any(), any(), any());
+        verify(conversationMapper, never()).updateConfigByIdAndUserId(any(), any(), any(), any(LocalDateTime.class));
     }
 
     @ParameterizedTest
@@ -342,7 +351,7 @@ class ConversationServiceImplTest {
         owned.setUserId(actor.userId());
         when(conversationMapper.selectById(23L)).thenReturn(owned);
         when(conversationMapper.selectOwnedForUpdate(23L, 1L)).thenReturn(owned);
-        when(conversationMapper.updateConfigByIdAndUserId(eq(23L), eq(1L), any())).thenReturn(rows);
+        when(conversationMapper.updateConfigByIdAndUserId(eq(23L), eq(1L), any(), any(LocalDateTime.class))).thenReturn(rows);
 
         IllegalStateException failure = assertThrows(IllegalStateException.class,
                 () -> conversationService.updateConfig(actor, 23L, Map.of("useSystemKnowledge", true)));
@@ -368,7 +377,7 @@ class ConversationServiceImplTest {
         BusinessException updateError = assertThrows(BusinessException.class,
                 () -> conversationService.updateConfig(actor, 23L, Map.of("useSystemKnowledge", "true")));
         assertEquals(ErrorCode.VALIDATION_ERROR.getCode(), updateError.getCode());
-        verify(conversationMapper, never()).updateConfigByIdAndUserId(any(), any(), any());
+        verify(conversationMapper, never()).updateConfigByIdAndUserId(any(), any(), any(), any(LocalDateTime.class));
         assertEquals(Map.of("useSystemKnowledge", true, "ragDocumentIds", List.of(2L)), owned.getConfig());
     }
 
@@ -386,7 +395,7 @@ class ConversationServiceImplTest {
                         Map.of("useSystemKnowledge", false, "ragDocumentIds", List.of())));
         assertTrue(error.getMessage().contains("conversationId=23"));
         assertTrue(error.getCause() instanceof IllegalArgumentException);
-        verify(conversationMapper, never()).updateConfigByIdAndUserId(any(), any(), any());
+        verify(conversationMapper, never()).updateConfigByIdAndUserId(any(), any(), any(), any(LocalDateTime.class));
         assertEquals(Map.of(key, "invalid"), owned.getConfig());
     }
 
@@ -421,7 +430,7 @@ class ConversationServiceImplTest {
         assertTrue(storedError.getMessage().contains("conversationId=23"));
         assertInstanceOf(IllegalArgumentException.class, storedError.getCause());
         assertEquals(detail, storedError.getCause().getMessage());
-        verify(conversationMapper, never()).updateConfigByIdAndUserId(any(), any(), any());
+        verify(conversationMapper, never()).updateConfigByIdAndUserId(any(), any(), any(), any(LocalDateTime.class));
         if (value instanceof List<?> list && !list.isEmpty() && list.get(0) instanceof BigInteger) {
             assertInstanceOf(ArithmeticException.class, fieldError.getCause());
             assertInstanceOf(ArithmeticException.class, requestError.getCause().getCause());

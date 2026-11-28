@@ -9,7 +9,7 @@ import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.model.PageDTO;
 import com.zdmj.jobService.dto.JobRequest;
-import com.zdmj.jobService.dto.JobListItemResponse;
+import com.zdmj.jobService.api.JobListItemResponse;
 import com.zdmj.jobService.dto.JobPageQueryDTO;
 import com.zdmj.jobService.dto.JobResponse;
 import com.zdmj.jobService.entity.Company;
@@ -63,8 +63,7 @@ class JobServiceImplTest {
     @BeforeEach
     void setUp() {
         initMybatisPlusLambdaCache();
-        jobService = spy(new JobServiceImpl(companyMapper, redisTemplate, objectMapper));
-        ReflectionTestUtils.setField(jobService, "baseMapper", jobMapper);
+        jobService = spy(new JobServiceImpl(jobMapper, companyMapper, redisTemplate, objectMapper));
     }
 
     @Test
@@ -164,7 +163,7 @@ class JobServiceImplTest {
         company.setId(88L);
         company.setName("ZDMJ");
         doReturn(company).when(companyMapper).selectOne(any());
-        doReturn(true).when(jobService).save(any(Job.class));
+        doReturn(1).when(jobMapper).insert(any(Job.class));
 
         JobResponse created = jobService.create(dto);
 
@@ -172,7 +171,7 @@ class JobServiceImplTest {
         assertEquals("desc", created.description());
         assertNotNull(created.keywords());
         assertEquals("", created.link());
-        verify(jobService).save(any(Job.class));
+        verify(jobMapper).insert(any(Job.class));
     }
 
     @Test
@@ -184,18 +183,18 @@ class JobServiceImplTest {
         company.setId(88L);
         company.setName("ZDMJ");
         doReturn(company).when(companyMapper).selectOne(any());
-        doReturn(true).when(jobService).save(any(Job.class));
+        doReturn(1).when(jobMapper).insert(any(Job.class));
 
         JobResponse created = jobService.create(dto);
 
         assertEquals("https://example.com/jobs/1", created.link());
-        verify(jobService).save(any(Job.class));
+        verify(jobMapper).insert(any(Job.class));
     }
 
     @Test
     void delete_whenSuccess_shouldDeleteCacheAndNullMarker() {
         Long jobId = 501L;
-        doReturn(true).when(jobService).removeById(jobId);
+        doReturn(1).when(jobMapper).deleteById(jobId);
 
         jobService.delete(jobId);
 
@@ -214,13 +213,13 @@ class JobServiceImplTest {
             c.setId(900L);
             return 1;
         }).when(companyMapper).insert(any(Company.class));
-        doReturn(true).when(jobService).save(any(Job.class));
+        doReturn(1).when(jobMapper).insert(any(Job.class));
 
         JobResponse created = jobService.create(dto);
 
         assertEquals(900L, created.companyId());
         verify(companyMapper).insert(any(Company.class));
-        verify(jobService).save(any(Job.class));
+        verify(jobMapper).insert(any(Job.class));
     }
 
     @Test
@@ -237,7 +236,7 @@ class JobServiceImplTest {
 
         assertEquals("insert fail", ex.getMessage());
         verify(companyMapper).insert(any(Company.class));
-        verify(jobService, never()).save(any(Job.class));
+        verify(jobMapper, never()).insert(any(Job.class));
     }
 
     @Test
@@ -250,14 +249,14 @@ class JobServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> jobService.update(dto));
 
         assertEquals(ErrorCode.JOB_NOT_FOUND.getCode(), ex.getCode());
-        verify(jobService, never()).updateById(any(Job.class));
+        verify(jobMapper, never()).updateById(any(Job.class));
         verify(redisTemplate, never()).delete(anyString());
     }
 
     @Test
     void delete_notFound_shouldThrow10001AndSkipCacheEvict() {
         Long jobId = 502L;
-        doReturn(false).when(jobService).removeById(jobId);
+        doReturn(0).when(jobMapper).deleteById(jobId);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> jobService.delete(jobId));
 

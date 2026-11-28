@@ -1,10 +1,13 @@
 package com.zdmj.resumeService.service.impl;
 
+import com.zdmj.resumeService.api.StudentProfileSnapshot;
+import com.zdmj.resumeService.api.StudentProfileReader;
+import com.zdmj.resumeService.api.StudentCapabilitySuggestion;
+import com.zdmj.resumeService.api.StudentCapabilityScoreDetail;
 import java.io.InputStream;
 import java.io.IOException;
 import org.springframework.web.multipart.MultipartFile;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,19 +27,17 @@ import com.zdmj.resumeService.mapper.StudentCapabilityProfileMapper;
 import com.zdmj.resumeService.service.StudentCapabilityProfileService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
 import java.util.List;
 import java.math.BigDecimal;
-
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class StudentCapabilityProfileServiceImpl
-        extends ServiceImpl<StudentCapabilityProfileMapper, StudentCapabilityProfile>
-        implements StudentCapabilityProfileService {
+public class StudentCapabilityProfileServiceImpl implements StudentCapabilityProfileService, StudentProfileReader {
+
+    private final StudentCapabilityProfileMapper profileMapper;
 
     private static final String PROFILE_PROMPT_DIRECTORY = "resume-analysis/";
 
@@ -56,6 +57,25 @@ public class StudentCapabilityProfileServiceImpl
     private final JobRoleDetectionService roleDetectionService;
 
     @Override
+    public StudentProfileSnapshot findCurrentProfile(CurrentActor actor) {
+        StudentCapabilityProfileResponse profile = getCurrentUserProfileOrNull(actor);
+        return profile == null ? null : new StudentProfileSnapshot(
+                profile.getTargetRoleType(),
+                profile.getProfessionalSkills(),
+                profile.getHonorsAndAwards(),
+                profile.getInnovationAbility(),
+                profile.getLearningAbility(),
+                profile.getPressureResistance(),
+                profile.getCommunicationAbility(),
+                profile.getPracticalAbility(),
+                profile.getCompetitivenessScore(),
+                profile.getScoreDetail(),
+                profile.getStrengths(),
+                profile.getSuggestions(),
+                profile.getSummary());
+    }
+
+    @Override
     public StudentCapabilityProfileResponse getCurrentUserProfile(CurrentActor actor) {
         StudentCapabilityProfileResponse dto = getCurrentUserProfileOrNull(actor);
         if (dto == null) {
@@ -67,7 +87,7 @@ public class StudentCapabilityProfileServiceImpl
     @Override
     public StudentCapabilityProfileResponse getCurrentUserProfileOrNull(CurrentActor actor) {
         Long userId = actor.userId();
-        StudentCapabilityProfile profile = getOne(
+        StudentCapabilityProfile profile = profileMapper.selectOne(
                 new LambdaQueryWrapper<StudentCapabilityProfile>()
                         .eq(StudentCapabilityProfile::getUserId, userId));
         if (profile == null) {
@@ -145,7 +165,7 @@ public class StudentCapabilityProfileServiceImpl
         }
 
         // 3. 落库保存或更新
-        StudentCapabilityProfile existingProfile = getOne(
+        StudentCapabilityProfile existingProfile = profileMapper.selectOne(
                 new LambdaQueryWrapper<StudentCapabilityProfile>()
                         .eq(StudentCapabilityProfile::getUserId, userId));
 
@@ -160,9 +180,9 @@ public class StudentCapabilityProfileServiceImpl
 
         if (existingProfile != null) {
             newProfile.setId(existingProfile.getId());
-            updateById(newProfile);
+            profileMapper.updateById(newProfile);
         } else {
-            save(newProfile);
+            profileMapper.insert(newProfile);
         }
 
         StudentCapabilityProfileResponse responseDto = toDto(newProfile);
@@ -216,11 +236,11 @@ public class StudentCapabilityProfileServiceImpl
             return;
         }
         if (StringUtils.hasText(entity.getScoreDetail())) {
-            dto.setScoreDetail(readJson(entity.getScoreDetail(), StudentCapabilityProfileResponse.ScoreDetail.class));
+            dto.setScoreDetail(readJson(entity.getScoreDetail(), StudentCapabilityScoreDetail.class));
         }
         if (StringUtils.hasText(entity.getSuggestions())) {
             dto.setSuggestions(readJson(entity.getSuggestions(),
-                    new TypeReference<List<StudentCapabilityProfileResponse.Suggestion>>() {}));
+                    new TypeReference<List<StudentCapabilitySuggestion>>() {}));
         }
     }
 
@@ -278,7 +298,7 @@ public class StudentCapabilityProfileServiceImpl
      * 校验 scoreDetail 各分项是否落在 40-20-15-15-10 合法区间；越界则抛出业务异常。
      */
     private void validateScoreDetail(StudentCapabilityProfileResponse dto) {
-        StudentCapabilityProfileResponse.ScoreDetail detail = dto.getScoreDetail();
+        StudentCapabilityScoreDetail detail = dto.getScoreDetail();
         if (detail == null) {
             return;
         }
@@ -308,7 +328,7 @@ public class StudentCapabilityProfileServiceImpl
         if (dto == null) {
             return;
         }
-        StudentCapabilityProfileResponse.ScoreDetail detail = dto.getScoreDetail();
+        StudentCapabilityScoreDetail detail = dto.getScoreDetail();
         if (detail != null && hasAnyScoreDetailValue(detail)) {
             int sum = safeScore(detail.projectExperienceScore())
                     + safeScore(detail.skillMatchScore())
@@ -328,7 +348,7 @@ public class StudentCapabilityProfileServiceImpl
         dto.setCompetitivenessScore(0);
     }
 
-    private static boolean hasAnyScoreDetailValue(StudentCapabilityProfileResponse.ScoreDetail detail) {
+    private static boolean hasAnyScoreDetailValue(StudentCapabilityScoreDetail detail) {
         return detail.projectExperienceScore() != null
                 || detail.skillMatchScore() != null
                 || detail.contentCompletenessScore() != null

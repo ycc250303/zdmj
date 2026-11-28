@@ -1,0 +1,4 @@
+# 服务器时区须为 Asia/Shanghai，每周一 00:00 获取、清理并增量向量化系统资料。
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+0 0 * * 1 root /usr/bin/timeout --signal=TERM --kill-after=30s 7h /bin/bash /opt/zdmj/knowledge-tools/javaguide/deploy/update_javaguide.sh > /opt/zdmj/data/knowledge-sync/javaguide/scheduler.log 2>&1

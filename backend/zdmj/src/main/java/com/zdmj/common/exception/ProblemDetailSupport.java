@@ -1,5 +1,6 @@
 package com.zdmj.common.exception;
 
+import org.slf4j.MDC;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 
@@ -22,6 +23,15 @@ public final class ProblemDetailSupport {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(errorCode.getHttpStatus(), detail);
         problem.setTitle(errorCode.getMessage());
         problem.setProperty("code", errorCode.getCode());
+        attachTraceId(problem);
         return problem;
+    }
+
+    /** 为业务、鉴权和框架错误响应附加当前请求的日志关联编号。 */
+    public static void attachTraceId(ProblemDetail problem) {
+        String traceId = MDC.get("traceId");
+        if (traceId != null) {
+            problem.setProperty("traceId", traceId);
+        }
     }
 }

@@ -6,9 +6,8 @@
 ### 脚本约定（与 `pgsql.sql` 一致）
 
 - **扩展**：`vector`（pgvector，同时提供 HNSW 索引）；`pg_trgm`（岗位/公司名称模糊搜索 GIN 索引）。
-- **删表顺序**（与脚本 `DROP TABLE` 自上而下一致）：`users` → `user_profiles` → `user_behavior_logs` → `educations` → `skills` → `careers` → `project_experiences` → `job_student_matches` / 相关岗位侧表 → `jobs` → `companies` → `knowledge_documents` → `knowledge_bases` → `knowledge_vectors` → `conversations` → `messages`。
-- **知识库模型（当前）**：每用户**一个** `scope=1` 的用户私有库；全系统**一个** `scope=2` 的系统默认库。`knowledge_bases` **仅存标识**（`user_id`、`scope`）；向量化状态、分块数等均在 **`knowledge_documents`**。
-- **系统库占位**：`knowledge_bases` / `knowledge_documents` / `knowledge_vectors` 在系统场景下 `user_id` 约定为 `0`（与真实用户 ID 区分）。
+- **删表顺序**（与脚本 `DROP TABLE` 自上而下一致）：`users` → `user_profiles` → `user_behavior_logs` → `educations` → `skills` → `careers` → `project_experiences` → `job_student_matches` / 相关岗位侧表 → `jobs` → `companies` → `knowledge_documents` → `knowledge_vectors` → `conversations` → `messages`。
+- **知识资料模型**：文档直接保存 `scope` 与 `user_id`；私有文档为范围1且用户编号为正数，系统通用与学习路径分别为范围2、3且用户编号为空。向量通过文档取得归属。
 
 ## 1 用户与模型配置
 
@@ -214,36 +213,15 @@
 
 ## 4 知识库模块
 
-### 4.1 表 `knowledge_bases`
+### 4.1 表 `knowledge_documents`
 
-> 仅存知识库**标识**：用户与范围。不向量化汇总在此表维护（见 `knowledge_documents`）。
-
-| 字段名称       | 字段类型      | 字段含义 | 约束                          | 枚举/JSON字段含义                                               |
-| -------------- | ------------- | -------- | ----------------------------- | --------------------------------------------------------------- |
-| `id`         | `BIGSERIAL` | 知识库ID | `PK`                        | -                                                               |
-| `user_id`    | `BIGINT`    | 归属用户 | `NOT NULL, DEFAULT 0`       | `scope=1` 时为真实 `users.id`；`scope=2` 系统库约定 `0` |
-| `scope`      | `SMALLINT`  | 范围     | `NOT NULL, DEFAULT 1`       | `1=USER 用户私有, 2=SYSTEM 系统通用`                          |
-| `created_at` | `TIMESTAMP` | 创建时间 | `DEFAULT CURRENT_TIMESTAMP` | -                                                               |
-| `updated_at` | `TIMESTAMP` | 更新时间 | `DEFAULT CURRENT_TIMESTAMP` | -                                                               |
-
-**唯一索引**
-
-- `uk_knowledge_bases_user_single`：`UNIQUE (user_id) WHERE scope = 1` — 每用户最多一条用户知识库。
-- `uk_knowledge_bases_system_default_single`：`UNIQUE (scope) WHERE scope = 2` — 系统默认知识库最多一条。
-
-**其他索引**：`idx_knowledge_bases_user_id`。
-
-> 从旧版（含 `vector_task_id`、`embedding_status` 等列）升级时，可参考 `pgsql.sql` 中注释的 `DROP INDEX` / `ALTER TABLE ... DROP COLUMN` 语句。
-
-### 4.2 表 `knowledge_documents`
-
-> 一个 `knowledge_bases` 下挂多条文档；**来源类型**为 `type`，**文件标识或来源地址**为 `content`（与 Java 实体字段名一致）。
+使用范围的业务码值由 `KnowledgeScopeEnum` 维护；Java 条件和 MyBatis 查询均引用该枚举。文档保存使用范围、用户归属和来源标识；用户上传及管理仅操作本人私有范围。
 
 | 字段名称             | 字段类型         | 字段含义                           | 约束                                          | 枚举/JSON字段含义                               |
 | -------------------- | ---------------- | ---------------------------------- | --------------------------------------------- | ----------------------------------------------- |
 | `id`               | `BIGSERIAL`    | 文档ID                             | `PK`                                        | -                                               |
-| `knowledge_id`     | `BIGINT`       | 知识库ID                           | `NOT NULL`，逻辑外键 `knowledge_bases.id` | -                                               |
-| `user_id`          | `BIGINT`       | 归属用户                           | `NOT NULL, DEFAULT 0`                       | 用户文档为真实 `users.id`；系统库下约定 `0` |
+| `scope` | `SMALLINT` | 使用范围 | `NOT NULL` | `1=用户私有, 2=系统通用, 3=学习路径` |
+| `user_id` | `BIGINT` | 归属用户 | 私有范围为正数，系统范围为空 | 逻辑引用 `users.id` |
 | `type`             | `SMALLINT`     | 来源类型                           | `NOT NULL`                                  | `1=上传文件, 2=GitHub仓库, 3=DeepWiki`        |
 | `content`          | `TEXT`         | 上传原文件的用户目录相对标识；其他类型为来源地址 | `NOT NULL`                                  | -                                               |
 | `title`            | `VARCHAR(500)` | 文档标题                           | 可空                                          | -                                               |
@@ -259,9 +237,11 @@
 
 原文件标识采用 `user-{id}/{32位UUID}.pdf|md`；metadata 的 `fileName/fileSize/contentType` 用于下载，内部 `pendingKey/pendingFile/pendingTitle/retiredFile` 用于替换与故障清理。文件与嵌入状态独立；首次写入失败保留记录，失败替换可恢复原件，删除失败保留删除中状态。发布前检查原文件、长度和摘要。
 
-**唯一索引**：`uk_knowledge_documents_kid_content` — `UNIQUE (knowledge_id, content)`，同一库内相同文件标识只保留一条。
+**归属约束**：`ck_knowledge_documents_scope_owner` 检查私有正数用户及系统空用户组合，范围只允许1、2、3。
 
-**其他索引**：`idx_knowledge_documents_user_id`、`idx_knowledge_documents_type`、`idx_knowledge_documents_embedding_status`（`(knowledge_id, embedding_status)`）、`idx_knowledge_documents_content_hash`。`knowledge_id` 单列条件使用唯一索引和向量化状态索引的前缀。
+**唯一索引**：`uk_knowledge_documents_user_content (user_id,content) WHERE scope=1`；`uk_knowledge_documents_system_content (scope,content) WHERE scope IN (2,3)`。
+
+**其他索引**：`idx_knowledge_documents_user_page (user_id,created_at DESC,id DESC) WHERE scope=1`；`idx_knowledge_documents_ready_scope (scope,id) WHERE file_status=1 AND embedding_status=3`。含主键共5个索引。
 
 ## 5 向量检索模块
 
@@ -270,22 +250,20 @@
 | 字段名称         | 字段类型         | 字段含义     | 约束                                          | 枚举/JSON字段含义                                                 |
 | ---------------- | ---------------- | ------------ | --------------------------------------------- | ----------------------------------------------------------------- |
 | `id`           | `BIGSERIAL`    | 向量ID       | `PK`                                        | -                                                                 |
-| `knowledge_id` | `BIGINT`       | 知识库ID     | `NOT NULL`，逻辑外键 `knowledge_bases.id` | -                                                                 |
-| `document_id`  | `BIGINT`       | 文档ID       | 可空，逻辑外键 `knowledge_documents.id`     | 新数据建议始终写入，便于按文档删改向量                            |
-| `user_id`      | `BIGINT`       | 用户ID       | `NOT NULL, DEFAULT 0`                       | 与知识库归属一致；系统场景为 `0`                                |
+| `document_id`  | `BIGINT`       | 文档ID       | `NOT NULL`，逻辑外键 `knowledge_documents.id` | 归属由文档确定                            |
 | `embedding`    | `VECTOR(1024)` | 文档块向量   | `NOT NULL`                                  | 维度 `1024`（与 `text-embedding-v4` 配置一致）                |
 | `content`      | `TEXT`         | 文档块内容   | 可空                                          | -                                                                 |
 | `metadata`     | `JSONB`        | 文档块元数据 | 可空                                          | 示例：`{"knowledgeDocumentId":"文档ID","source":"文件名或URL"}` |
-| `chunk_index`  | `INTEGER`      | 分块序号     | 可空                                          | -                                                                 |
+| `chunk_index`  | `INTEGER`      | 分块序号     | `NOT NULL CHECK >=0`                                          | -                                                                 |
 | `chunk_hash`   | `VARCHAR(64)`  | 分块哈希     | 可空                                          | -                                                                 |
 | `token_count`  | `INTEGER`      | Token 数量   | 可空                                          | -                                                                 |
 | `created_at`   | `TIMESTAMP`    | 创建时间     | `DEFAULT CURRENT_TIMESTAMP`                 | -                                                                 |
 
-**唯一索引**：`uk_knowledge_vectors_kid_did_chunk` — `UNIQUE (knowledge_id, COALESCE(document_id, 0), chunk_index)`（兼容历史 `document_id` 为空行）。
+**唯一索引**：`uk_knowledge_vectors_document_chunk (document_id,chunk_index)`，同时支持按文档清理分块。
 
-**向量索引**：`idx_knowledge_vectors_embedding` — `HNSW (embedding vector_cosine_ops) WITH (M = 16, ef_construction = 100)`。
+**向量索引**：`idx_knowledge_vectors_embedding` 使用 HNSW 余弦距离。新库参数为 `M=16,ef_construction=100`，结构变更保留已有索引及参数。含主键共3个索引。
 
-**其他索引**：`idx_knowledge_vectors_user_id_knowledge_id`、`idx_knowledge_vectors_document_id`。按用户和知识库过滤使用复合索引；按知识库删除使用唯一索引前缀。
+向量查询连接文档并检查范围、归属、原文件与向量化状态。系统导入在模型调用结束后，用单事务保存或替换文档和全部分块；同范围同路径保留文档编号。继续采用逻辑外键。
 
 ## 6 AI对话模块
 
@@ -325,6 +303,4 @@
 
 `messages` 同时保存对话记录与模型上下文原文。模型输入由服务读取最近20轮用户问题及关联助手回复组成，失败、取消和历史未知记录均参与；空助手内容省略，用户问题保留。当前问题单独追加。
 
-已有数据库执行 `sql/migrations/20261122_unify_conversation_memory.sql`：停止应用写入、完成数据库备份后执行 `psql -v ON_ERROR_STOP=1 -f sql/migrations/20261122_unify_conversation_memory.sql`，连接参数从环境注入。脚本在同一事务中添加字段、按同用户同会话相邻序号建立历史关联、校验旧记忆内容、添加约束与索引，并删除独立记忆表；重复执行保留已有状态。
-
-旧助手回复标记为 `5`，保留原文；无法关联问题或旧记忆存在消息表未保存的用户问题、助手回复时立即终止，整笔回滚。已删除会话的孤立记忆随旧表清理。执行成功后启动新版本后端，验证发送、继续任务和删除会话。新环境直接使用 `sql/pgsql.sql`。
+结构脚本 `sql/migrations/20261122_unify_conversation_memory.sql` 在同一事务中添加回复关联与生成状态字段、约束及索引，删除独立记忆表。执行前停止应用写入并备份，已有数据须满足目标约束；结构脚本不生成历史问答关联或回填状态。新环境直接使用 `sql/pgsql.sql`。

@@ -2,6 +2,7 @@ package com.zdmj.careerReportService.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
+import com.zdmj.knowledgeService.api.KnowledgeReference;
 import java.util.Map;
 
 /**
@@ -25,7 +26,7 @@ public record CareerReportResponse(
         String promptName,
         Map<String, Object> reportContent,
         Map<String, Object> qualityFlags,
-        List<Map<String, Object>> knowledgeSources) {
+        List<KnowledgeReference> knowledgeSources) {
 
     /** 复制集合结构，保留既有空值和元素语义。 */
     public CareerReportResponse {

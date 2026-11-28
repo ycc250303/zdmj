@@ -1,19 +1,23 @@
 package com.zdmj.knowledgeService.service.impl;
 
 import com.zdmj.common.storage.FileUploadService;
-import java.io.InputStream;
-import java.io.IOException;
+import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.LocalDateTime;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import java.util.HexFormat;
 import java.util.Map;
-import java.util.Objects;
-
+import java.util.function.Function;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.transformer.splitter.TextSplitter;
+import java.io.InputStream;
+import java.io.IOException;
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Objects;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -26,11 +30,11 @@ import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.util.PdfParserUtil;
 import com.zdmj.knowledgeService.config.KnowledgeDocumentConfig;
 import com.zdmj.knowledgeService.entity.KnowledgeDocument;
+import com.zdmj.knowledgeService.enums.KnowledgeScopeEnum;
 import com.zdmj.knowledgeService.entity.KnowledgeVector;
 import com.zdmj.knowledgeService.enums.KnowledgeTypeEnum;
 import com.zdmj.knowledgeService.enums.KnowledgeEmbeddingStatusEnum;
 import com.zdmj.knowledgeService.mapper.KnowledgeDocumentMapper;
-import com.zdmj.knowledgeService.mapper.KnowledgeVectorMapper;
 import com.zdmj.knowledgeService.service.KnowledgeEmbeddingService;
 
 import lombok.AllArgsConstructor;
@@ -41,7 +45,8 @@ import lombok.extern.slf4j.Slf4j;
 @AllArgsConstructor
 public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService {
 
-    private static final int MAX_BATCH_SIZE = 10;
+    private static final int EMBEDDING_BATCH_SIZE = 10;
+    private static final int INSERT_BATCH_SIZE = 500;
 
     private final TextSplitter textSplitter;
     private final EmbeddingGateway embeddingGateway;
@@ -51,6 +56,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
     private final FileUploadService fileUploadService;
     private final TransactionTemplate transactionTemplate;
     private final KnowledgeDocumentConfig documentConfig;
+    private final Clock clock;
 
     /**
      * 向量化一篇知识文档。
@@ -65,8 +71,8 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
     public void vectorizeAndStore(CurrentActor actor, Long documentId) {
         // 1. 获取知识文档
         KnowledgeDocument loaded = knowledgeDocumentMapper.selectById(documentId);
-        if (loaded == null || !actor.userId().equals(loaded.getUserId()) || loaded.getKnowledgeId() == null) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
+        if (loaded == null || !actor.userId().equals(loaded.getUserId()) || !Objects.equals(loaded.getScope(), KnowledgeScopeEnum.USER.getCode())) {
+            throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_NOT_FOUND);
         }
         Long userId = loaded.getUserId();
         String contentSnapshot = loaded.getContent();
@@ -80,16 +86,12 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
         try {
             // 3. 抽文本
             String rawText = extractText(actor, loaded);
-            // 4. 切块
-            List<Document> chunks = textSplitter.apply(List.of(new Document(rawText)));
-            if (chunks.isEmpty()) {
-                throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "分块结果为空");
-            }
-            List<KnowledgeVector> rows = embedChunks(actor, loaded, chunks);
+            List<KnowledgeVector> rows = generateVectors(textSplitter, rawText, texts -> embeddingGateway.embed(actor, texts));
             transactionTemplate.execute(status -> {
                 saveVectors(documentId, userId, contentSnapshot, rows);
                 return null;
             });
+            log.info("向量化完成: documentId={}, chunks={}", documentId, rows.size());
         } catch (RuntimeException exception) {
             try {
                 markStatus(documentId, userId, contentSnapshot,
@@ -114,11 +116,12 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
     private int markStatus(Long documentId, Long userId, String contentSnapshot, Integer embeddingStatus, String lastError) {
         var update = new LambdaUpdateWrapper<KnowledgeDocument>()
                         .eq(KnowledgeDocument::getId, documentId)
+                        .eq(KnowledgeDocument::getScope, KnowledgeScopeEnum.USER.getCode())
                         .eq(KnowledgeDocument::getUserId, userId)
                         .eq(KnowledgeDocument::getContent, contentSnapshot)
                         .set(KnowledgeDocument::getEmbeddingStatus, embeddingStatus)
                         .eq(KnowledgeDocument::getFileStatus, 1)
-                        .set(KnowledgeDocument::getUpdatedAt, com.zdmj.common.util.DateTimeUtil.now())
+                        .set(KnowledgeDocument::getUpdatedAt, LocalDateTime.now(clock))
                         .set(KnowledgeDocument::getLastError, lastError);
         if (embeddingStatus.equals(KnowledgeEmbeddingStatusEnum.RUNNING.getCode())) {
             update.ne(KnowledgeDocument::getEmbeddingStatus, KnowledgeEmbeddingStatusEnum.RUNNING.getCode());
@@ -130,42 +133,21 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
     }
 
     /**
-     * 调用嵌入模型并组装待写入的向量行，不访问数据库。
+     * 将有限且非空的向量转换为 PostgreSQL 字面量，供入库与检索共用。
      *
-     * @param actor 已认证操作者，包含用户编号
-     * @param source 开始向量化时读到的文档
-     * @param chunks 文本分块
-     * @return 与分块顺序一致的向量行
+     * @param vector 非空且各元素均为有限数值的向量
+     * @return pgvector 格式的向量字面量
+     * @throws IllegalArgumentException 向量为空或包含非有限数值
      */
-    private List<KnowledgeVector> embedChunks(CurrentActor actor, KnowledgeDocument source, List<Document> chunks) {
-        int totalChunks = chunks.size();
-        int batchCount = (totalChunks + MAX_BATCH_SIZE - 1) / MAX_BATCH_SIZE;
-        List<KnowledgeVector> rows = new ArrayList<>(totalChunks);
-        for (int batchIndex = 0; batchIndex < batchCount; batchIndex++) {
-            int start = batchIndex * MAX_BATCH_SIZE;
-            int end = Math.min(start + MAX_BATCH_SIZE, totalChunks);
-            List<String> batchTexts = chunks.subList(start, end).stream().map(Document::getText).toList();
-            List<float[]> batchVectors = embeddingGateway.embed(actor, batchTexts);
-            for (int j = 0; j < batchTexts.size(); j++) {
-                String chunkText = batchTexts.get(j);
-                KnowledgeVector row = new KnowledgeVector();
-                row.setDocumentId(source.getId());
-                row.setKnowledgeId(source.getKnowledgeId());
-                row.setUserId(source.getUserId());
-                row.setEmbedding(toPgVector(batchVectors.get(j)));
-                row.setContent(chunkText);
-                row.setChunkIndex(start + j);
-                row.setChunkHash(sha256(chunkText));
-                row.setTokenCount(estimateToken(chunkText));
-                Map<String, Object> meta = new HashMap<>();
-                meta.put("DocumentId", String.valueOf(source.getId()));
-                meta.put("KnowledgeId", String.valueOf(source.getKnowledgeId()));
-                meta.put("source", "/knowledge-document/" + source.getId() + "/download");
-                row.setMetadata(meta);
-                rows.add(row);
-            }
+    static String toPgVector(float[] vector) {
+        if (vector == null || vector.length == 0) { throw new IllegalArgumentException("查询向量不能为空"); }
+        StringBuilder result = new StringBuilder("[");
+        for (int index = 0; index < vector.length; index++) {
+            if (!Float.isFinite(vector[index])) { throw new IllegalArgumentException("向量必须为有限数值"); }
+            if (index > 0) { result.append(','); }
+            result.append(vector[index]);
         }
-        return rows;
+        return result.append(']').toString();
     }
 
     /**
@@ -178,46 +160,32 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
      */
     private void saveVectors(Long documentId, Long userId, String contentSnapshot, List<KnowledgeVector> rows) {
         KnowledgeDocument current = knowledgeDocumentMapper.selectOwnedForUpdate(documentId, userId);
-        if (current == null || !userId.equals(current.getUserId()) || current.getKnowledgeId() == null) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_NOT_FOUND);
+        if (current == null || !userId.equals(current.getUserId()) || !Objects.equals(current.getScope(), KnowledgeScopeEnum.USER.getCode())) {
+            throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_NOT_FOUND);
         }
         if (!Objects.equals(contentSnapshot, current.getContent()) || !Objects.equals(current.getFileStatus(), 1)
                 || !Objects.equals(current.getEmbeddingStatus(), KnowledgeEmbeddingStatusEnum.RUNNING.getCode())) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "文档内容已变化");
+            throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_EMBEDDING_FAILED, "文档内容已变化");
         }
-        knowledgeVectorMapper.deleteByDocumentIdAndUserId(documentId, userId);
-        knowledgeVectorMapper.batchInsert(rows);
+        replaceUser(knowledgeVectorMapper, documentId, userId, rows);
+        LocalDateTime completedAt = LocalDateTime.now(clock);
         current.setEmbeddingStatus(KnowledgeEmbeddingStatusEnum.SUCCESS.getCode());
         current.setChunkCount(rows.size());
-        current.setLastEmbeddedAt(LocalDateTime.now());
+        current.setLastEmbeddedAt(completedAt);
         current.setLastError(null);
         if (knowledgeDocumentMapper.update(null, new LambdaUpdateWrapper<KnowledgeDocument>()
-                .eq(KnowledgeDocument::getId, documentId).eq(KnowledgeDocument::getUserId, userId)
-                .eq(KnowledgeDocument::getContent, contentSnapshot).eq(KnowledgeDocument::getFileStatus, 1)
+                .eq(KnowledgeDocument::getId, documentId)
+                .eq(KnowledgeDocument::getScope, KnowledgeScopeEnum.USER.getCode()).eq(KnowledgeDocument::getUserId, userId)
+                .eq(KnowledgeDocument::getContent, contentSnapshot)
+                .eq(KnowledgeDocument::getFileStatus, 1)
                 .eq(KnowledgeDocument::getEmbeddingStatus, KnowledgeEmbeddingStatusEnum.RUNNING.getCode())
                 .set(KnowledgeDocument::getEmbeddingStatus, current.getEmbeddingStatus())
                 .set(KnowledgeDocument::getChunkCount, rows.size())
                 .set(KnowledgeDocument::getLastEmbeddedAt, current.getLastEmbeddedAt())
                 .set(KnowledgeDocument::getLastError, null)
-                .set(KnowledgeDocument::getUpdatedAt, com.zdmj.common.util.DateTimeUtil.now())) != 1) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED);
+                .set(KnowledgeDocument::getUpdatedAt, completedAt)) != 1) {
+            throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_EMBEDDING_FAILED);
         }
-        log.info("向量化完成: documentId={}, chunks={}", documentId, rows.size());
-    }
-
-    @Override
-    public String toPgVector(float[] vector) {
-        if (vector == null || vector.length == 0) {
-            return null;
-        }
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < vector.length; i++) {
-            if (i > 0)
-                sb.append(",");
-            sb.append(vector[i]);
-        }
-        sb.append("]");
-        return sb.toString();
     }
 
     /**
@@ -230,7 +198,7 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
      */
     private String extractText(CurrentActor actor, KnowledgeDocument document) {
         if (!Objects.equals(document.getType(), KnowledgeTypeEnum.PROJECT_DOCUMENT.getCode())) {
-            throw new BusinessException(ErrorCode.KNOWLEDGE_BASE_EMBEDDING_FAILED, "当前知识类型暂不支持向量化");
+            throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_EMBEDDING_FAILED, "当前知识类型暂不支持向量化");
         }
         try (InputStream input = fileUploadService.openInputStream(actor, document.getContent())) {
             return pdfParserUtil.extractText(input, documentConfig.maxExtractedChars());
@@ -239,28 +207,93 @@ public class KnowledgeEmbeddingServiceImpl implements KnowledgeEmbeddingService 
         }
     }
 
-    private static String sha256(String input) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] digest = md.digest(input.getBytes(StandardCharsets.UTF_8));
-            StringBuilder hex = new StringBuilder();
-            for (byte b : digest)
-                hex.append(String.format("%02x", b));
-            return hex.toString();
-        } catch (java.security.NoSuchAlgorithmException exception) {
-            throw new IllegalStateException(exception);
+    /**
+     * 在事务外完成全文分块、分批嵌入与片段组装，任意批次失败立即终止。
+     * @param textSplitter 两种文档流程共用的分块器
+     * @param text 统一解析器规范化后的全文
+     * @param embed 用户业务或服务器命令行提供的嵌入调用
+     * @return 按正文顺序生成的片段，文档关联及来源在保存时设置
+     * @throws BusinessException 分块结果为空
+     * @throws IllegalStateException 模型返回的向量数量与文本数量不一致
+     */
+    static List<KnowledgeVector> generateVectors(TextSplitter textSplitter, String text, Function<List<String>, List<float[]>> embed) {
+        List<Document> chunks = textSplitter.apply(List.of(new Document(text)));
+        if (chunks.isEmpty()) {
+            throw new BusinessException(ErrorCode.KNOWLEDGE_DOCUMENT_EMBEDDING_FAILED, "分块结果为空");
         }
+        List<KnowledgeVector> rows = new ArrayList<>(chunks.size());
+        for (int start = 0; start < chunks.size(); start += EMBEDDING_BATCH_SIZE) {
+            var texts = chunks.subList(start, Math.min(start + EMBEDDING_BATCH_SIZE, chunks.size()))
+                    .stream().map(Document::getText).toList();
+            var embeddings = embed.apply(texts);
+            if (embeddings == null || embeddings.size() != texts.size()) {
+                throw new IllegalStateException("嵌入结果数量与文本数量不一致");
+            }
+            for (int index = 0; index < texts.size(); index++) {
+                String content = texts.get(index);
+                var row = new KnowledgeVector();
+                row.setEmbedding(toPgVector(embeddings.get(index)));
+                row.setContent(content);
+                row.setChunkIndex(start + index);
+                row.setChunkHash(hash(content));
+                row.setTokenCount(content.isBlank() ? 0 : Math.max(1, content.length() / 4));
+                rows.add(row);
+            }
+        }
+        return rows;
+    }
+
+    /** 在调用方事务内替换已锁定的本人文档片段，删除同时限定私有范围与用户归属。 */
+    static void replaceUser(KnowledgeVectorMapper vectors, Long documentId, Long userId, List<KnowledgeVector> rows) {
+        requireRows(rows);
+        vectors.deleteByDocumentIdAndUserId(documentId, userId);
+        write(vectors, documentId, rows, Map.of("DocumentId", String.valueOf(documentId),
+                "source", "/knowledge-document/" + documentId + "/download"));
     }
 
     /**
-     * 估计文本的token数量
-     *
-     * @param text 输入文本
-     * @return token数量
+     * 在调用方事务内替换已锁定的系统文档片段，核对删除数量后写入全部批次。
+     * @param vectors 当前事务使用的片段Mapper
+     * @param documentId 已锁定或本事务新增的系统文档编号
+     * @param expectedChunks 比较阶段读取的旧片段数量，零表示没有旧片段
+     * @param sourceUrl 已校验的原文地址
+     * @param rows 已完成嵌入的非空片段
+     * @throws IllegalArgumentException 待写入片段为空
+     * @throws IllegalStateException 删除或任意批次插入数量异常，由调用方事务回滚
      */
-    private static int estimateToken(String text) {
-        if (text == null || text.isBlank())
-            return 0;
-        return Math.max(1, text.length() / 4);
+    static void replaceSystem(KnowledgeVectorMapper vectors, Long documentId, int expectedChunks, String sourceUrl, List<KnowledgeVector> rows) {
+        requireRows(rows);
+        if (expectedChunks > 0) { deleteSystem(vectors, documentId, expectedChunks); }
+        write(vectors, documentId, rows, Map.of("source", sourceUrl));
+    }
+
+    /** 删除已锁定系统文档的旧片段，SQL限定受控来源，数量异常由调用方事务回滚。 */
+    static void deleteSystem(KnowledgeVectorMapper vectors, Long documentId, int expectedChunks) {
+        if (vectors.deleteSystemByDocumentId(documentId) != expectedChunks) {
+            throw new IllegalStateException("系统旧片段删除数量与读取数量不一致，文档编号=" + documentId);
+        }
+    }
+
+    private static void write(KnowledgeVectorMapper vectors, Long documentId, List<KnowledgeVector> rows, Map<String, Object> metadata) {
+        for (var row : rows) {
+            row.setDocumentId(documentId);
+            row.setMetadata(metadata);
+        }
+        for (int start = 0; start < rows.size(); start += INSERT_BATCH_SIZE) {
+            var batch = rows.subList(start, Math.min(start + INSERT_BATCH_SIZE, rows.size()));
+            int inserted = vectors.batchInsert(batch);
+            if (inserted != batch.size()) {
+                throw new IllegalStateException("向量写入数量与分块数量不一致，expected=" + batch.size() + "，actual=" + inserted);
+            }
+        }
+    }
+
+    private static void requireRows(List<KnowledgeVector> rows) {
+        if (rows == null || rows.isEmpty()) { throw new IllegalArgumentException("待写入片段不能为空"); }
+    }
+
+    private static String hash(String text) {
+        try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8))); }
+        catch (NoSuchAlgorithmException exception) { throw new IllegalStateException(exception); }
     }
 }

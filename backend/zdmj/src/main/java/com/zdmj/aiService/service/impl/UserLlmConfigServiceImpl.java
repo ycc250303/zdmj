@@ -1,9 +1,9 @@
 package com.zdmj.aiService.service.impl;
 
+import com.zdmj.aiService.dto.ModelOption;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Arrays;
-
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.retry.NonTransientAiException;
 import org.springframework.ai.retry.TransientAiException;
@@ -12,7 +12,6 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.client.RestClientException;
-
 import com.zdmj.aiService.dto.UserLlmConfigRequest;
 import com.zdmj.aiService.dto.UserLlmConfigResponse;
 import com.zdmj.aiService.entity.UserLlmConfig;
@@ -25,7 +24,6 @@ import com.zdmj.aiService.support.UserModelConfigurationReader;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -52,7 +50,7 @@ public class UserLlmConfigServiceImpl implements UserLlmConfigService {
     @Override
     public UserLlmConfigResponse getMyConfig(CurrentActor actor) {
         var models = Arrays.stream(ModelCode.values())
-                .map(model -> new UserLlmConfigResponse.ModelOption(model.code(), model.displayName())).toList();
+                .map(model -> new ModelOption(model.code(), model.displayName())).toList();
         return configurationReader.find(actor)
                 .map(config -> new UserLlmConfigResponse(true, config.model().code(), config.model().displayName(),
                         UserApiKeyCipher.mask(config.apiKey()), models))

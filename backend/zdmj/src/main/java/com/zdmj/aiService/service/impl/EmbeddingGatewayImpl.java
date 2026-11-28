@@ -15,6 +15,7 @@ import com.zdmj.common.exception.ErrorCode;
  * {@link EmbeddingGateway} 的实现：校验身份和文本后，委托平台 {@link EmbeddingModel}。
  */
 @Service
+@org.springframework.context.annotation.Import(com.zdmj.common.config.EmbeddingHttpConfig.class)
 public class EmbeddingGatewayImpl implements EmbeddingGateway {
 
     private final EmbeddingModel embeddingModel;
@@ -31,6 +32,15 @@ public class EmbeddingGatewayImpl implements EmbeddingGateway {
     @Override
     public List<float[]> embed(CurrentActor actor, List<String> texts) {
         requireUserId(actor);
+        return embedTexts(texts);
+    }
+
+    @Override
+    public List<float[]> embedSystem(List<String> texts) {
+        return embedTexts(texts);
+    }
+
+    private List<float[]> embedTexts(List<String> texts) {
         if (texts == null || texts.isEmpty() || texts.stream().anyMatch(text -> !StringUtils.hasText(text))) {
             throw new IllegalArgumentException("嵌入文本不能为空");
         }

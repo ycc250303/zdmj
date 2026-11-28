@@ -18,15 +18,6 @@ public record UserLlmConfigResponse(
         String apiKeyMasked,
         List<ModelOption> models) {
 
-    /**
-     * 可选模型目录项。
-     *
-     * @param code 保存时使用的模型目录编号
-     * @param displayName 模型目录中的展示名称
-     */
-    public record ModelOption(String code, String displayName) {
-    }
-
     /** 复制集合结构，保留既有空值和元素语义。 */
     public UserLlmConfigResponse {
         models = models == null ? null

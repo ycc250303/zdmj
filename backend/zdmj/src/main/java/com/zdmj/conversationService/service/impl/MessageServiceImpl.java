@@ -1,10 +1,15 @@
 package com.zdmj.conversationService.service.impl;
 
+import com.zdmj.conversationService.dto.PreparedConversationMessages;
+import com.zdmj.conversationService.dto.ConversationGeneration;
+import com.zdmj.common.context.TraceIdAccessor;
+import com.zdmj.conversationService.dto.ConversationDeletedEvent;
+import com.zdmj.common.model.PageParameters;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.aiService.api.ModelRequest;
-import com.zdmj.aiService.api.ModelRequest.HistoryMessage;
-import com.zdmj.aiService.api.ModelRequest.HistoryMessage.Role;
+import com.zdmj.aiService.api.ModelHistoryMessage;
+import com.zdmj.aiService.api.ModelMessageRole;
 import com.zdmj.common.context.CurrentActor;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
@@ -20,11 +25,11 @@ import com.zdmj.conversationService.enums.MessageRoleEnum;
 import com.zdmj.conversationService.mapper.ConversationMapper;
 import com.zdmj.conversationService.mapper.MessageMapper;
 import com.zdmj.conversationService.service.MessageService;
-import com.zdmj.knowledgeService.service.KnowledgeRagService;
+import com.zdmj.knowledgeService.api.KnowledgeRagService;
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import lombok.RequiredArgsConstructor;
@@ -52,7 +57,8 @@ public class MessageServiceImpl implements MessageService {
     private final ConversationMapper conversationMapper;
     private final KnowledgeRagService knowledgeRagService;
     private final TransactionTemplate transactionTemplate;
-    private final ConcurrentMap<Long, Generation> generations = new ConcurrentHashMap<>();
+    private final Clock clock;
+    private final ConcurrentMap<Long, ConversationGeneration> generations = new ConcurrentHashMap<>();
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     /**
@@ -65,29 +71,22 @@ public class MessageServiceImpl implements MessageService {
      */
     @Override
     public Flux<ServerSentEvent<String>> createStream(CurrentActor actor, ChatStreamRequest request) {
-        return Flux.defer(() -> {
-            Generation generation = new Generation(actor, request.conversationId());
-            /*
-             * Flux.usingWhen(
-             * 取得本轮对象,
-             * 使用本轮对象执行主体流程,
-             * 正常完成后的处理,
-             * 发生错误后的处理,
-             * 订阅取消后的处理
-             * )
-             */
+        return Flux.deferContextual(context -> {
+            ConversationGeneration generation = new ConversationGeneration(actor, request.conversationId(),
+                    context.getOrDefault(TraceIdAccessor.KEY, null));
+            log.info("会话生成开始 conversationId={}", generation.getConversationId());
             return Flux.usingWhen(
                     Mono.just(generation),
                     current -> prepareAnswer(current, request),
                     current -> finishAssistant(current, MessageGenerationStatusEnum.COMPLETED, null),
                     (current, failure) -> finishAssistant(current, MessageGenerationStatusEnum.FAILED, failure),
                     current -> {
-                        current.cancelled = true;
+                        current.setCancelled(true);
                         return finishAssistant(current, MessageGenerationStatusEnum.CANCELLED, null);
                     })
-                    .onErrorMap(failure -> generation.persistenceFailure != null
-                            && failure.getCause() == generation.persistenceFailure
-                                    ? generation.persistenceFailure
+                    .onErrorMap(failure -> generation.getPersistenceFailure() != null
+                            && failure.getCause() == generation.getPersistenceFailure()
+                                    ? generation.getPersistenceFailure()
                                     : failure);
         }).subscribeOn(Schedulers.boundedElastic());
     }
@@ -99,30 +98,33 @@ public class MessageServiceImpl implements MessageService {
      * @param request    会话编号和当前问题，当前问题仅由模型网关追加一次
      * @return 保持现有格式的 SSE 增量事件
      */
-    private Flux<ServerSentEvent<String>> prepareAnswer(Generation generation, ChatStreamRequest request) {
+    private Flux<ServerSentEvent<String>> prepareAnswer(ConversationGeneration generation, ChatStreamRequest request) {
         // 1.锁住本轮会话生成
         synchronized (generation) {
             // 2.如果本轮生成已取消，则返回空
-            if (generation.cancelled) {
+            if (generation.isCancelled()) {
                 return Flux.empty();
             }
             // 3.检查会话归属
-            conversationService.requireOwned(generation.actor, request.conversationId());
+            conversationService.requireOwned(generation.getActor(), request.conversationId());
             // 4.如果本轮会话生成已存在，则抛出异常
-            if (generations.putIfAbsent(generation.conversationId, generation) != null) {
+            if (generations.putIfAbsent(generation.getConversationId(), generation) != null) {
                 throw new BusinessException(ErrorCode.CONVERSATION_GENERATING);
             }
             // 5.插入消息
-            generation.prepared = transactionTemplate
-                    .execute(status -> insertMessages(request, generation.actor.userId()));
+            generation.setPrepared(transactionTemplate
+                    .execute(status -> insertMessages(request, generation.getActor().userId())));
             // 6.如果本轮会话生成未返回结果，则抛出异常
-            if (generation.prepared == null) {
+            if (generation.getPrepared() == null) {
                 throw new IllegalStateException("消息写入未返回结果");
             }
+            log.info("会话消息准备完成 conversationId={} messageId={}",
+                    generation.getConversationId(),
+                    generation.getPrepared().assistantMsg().getId());
         }
         // 7.返回本轮会话生成的流式消息
         return Flux.defer(() -> {
-            PreparedMessages prepared = generation.prepared;
+            PreparedConversationMessages prepared = generation.getPrepared();
             ConversationRequest config = new ConversationRequest(prepared.conversation().getConfig());
             List<Long> documentIds;
             boolean useSystemKnowledge;
@@ -130,20 +132,20 @@ public class MessageServiceImpl implements MessageService {
                 documentIds = config.ragDocumentIds();
                 useSystemKnowledge = config.useSystemKnowledge();
             } catch (IllegalArgumentException exception) {
-                throw new IllegalStateException("会话检索配置非法，conversationId=" + generation.conversationId, exception);
+                throw new IllegalStateException("会话检索配置非法，conversationId=" + generation.getConversationId(), exception);
             }
             return knowledgeRagService.streamAnswer(
-                    generation.actor,
-                    generation.conversationId,
+                    generation.getActor(),
+                    generation.getConversationId(),
                     prepared.request(),
                     documentIds,
                     useSystemKnowledge);
         })
-                .takeUntilOther(Mono.fromFuture(generation.deletion, true))
+                .takeUntilOther(Mono.fromFuture(generation.getDeletion(), true))
                 .<String>handle((chunk, sink) -> {
                     synchronized (generation) {
-                        if (!generation.cancelled && !generation.deletion.isDone() && !chunk.isEmpty()) {
-                            generation.full.append(chunk);
+                        if (!generation.isCancelled() && !generation.getDeletion().isDone() && !chunk.isEmpty()) {
+                            generation.getFull().append(chunk);
                             sink.next(chunk);
                         }
                     }
@@ -157,7 +159,7 @@ public class MessageServiceImpl implements MessageService {
     }
 
     /** 锁定会话后读取历史并建立关联问答，所有写入共同提交或回滚。 */
-    private PreparedMessages insertMessages(ChatStreamRequest request, Long userId) {
+    private PreparedConversationMessages insertMessages(ChatStreamRequest request, Long userId) {
         // 1.获取会话
         Conversation conversation = conversationMapper.selectOwnedForUpdate(request.conversationId(), userId);
         if (conversation == null) {
@@ -168,19 +170,19 @@ public class MessageServiceImpl implements MessageService {
         }
         // 2.获取最近20条对话消息记录
         List<Message> history = messageMapper.selectContextHistory(userId, request.conversationId(), 20);
-        List<HistoryMessage> input = new ArrayList<>();
+        List<ModelHistoryMessage> input = new ArrayList<>();
         StringBuilder notice = new StringBuilder();
         // 3.遍历历史消息记录，构建输入和提示
         for (Message message : history) {
             if (message.getRole() == MessageRoleEnum.USER.getCode()) {
-                input.add(new HistoryMessage(Role.USER, message.getContent()));
+                input.add(new ModelHistoryMessage(ModelMessageRole.USER, message.getContent()));
             } else {
                 var state = MessageGenerationStatusEnum.fromCode(message.getGenerationStatus());
                 if (state == MessageGenerationStatusEnum.PROCESSING) {
                     throw new IllegalStateException("历史回复仍在生成");
                 }
                 if (!message.getContent().isBlank()) {
-                    input.add(new HistoryMessage(Role.ASSISTANT, message.getContent()));
+                    input.add(new ModelHistoryMessage(ModelMessageRole.ASSISTANT, message.getContent()));
                 }
                 if (state != MessageGenerationStatusEnum.COMPLETED) {
                     String description = switch (state) {
@@ -195,7 +197,8 @@ public class MessageServiceImpl implements MessageService {
             }
         }
         // 4.更新会话消息计数
-        Integer newCount = conversationMapper.incrementMessageCountAndGet(request.conversationId(), userId, 2);
+        LocalDateTime now = LocalDateTime.now(clock);
+        Integer newCount = conversationMapper.incrementMessageCountAndGet(request.conversationId(), userId, 2, now);
         if (newCount == null || newCount < 2) {
             throw new IllegalStateException("锁定会话后消息计数必须更新成功");
         }
@@ -225,12 +228,12 @@ public class MessageServiceImpl implements MessageService {
             if (title.codePointCount(0, title.length()) > 30) {
                 title = title.substring(0, title.offsetByCodePoints(0, 30)) + "…";
             }
-            if (conversationMapper.updateTitleByIdAndUserId(request.conversationId(), userId, title) != 1) {
+            if (conversationMapper.updateTitleByIdAndUserId(request.conversationId(), userId, title, now) != 1) {
                 throw new IllegalStateException("首次会话标题必须更新一条记录");
             }
         }
         // 8.返回准备好的消息
-        return new PreparedMessages(
+        return new PreparedConversationMessages(
                 answer,
                 conversation,
                 new ModelRequest(
@@ -260,50 +263,70 @@ public class MessageServiceImpl implements MessageService {
      * @param sourceFailure 检索或模型异常，保存也失败时保留为 suppressed 原因
      * @return 在独立线程执行的短事务保存
      */
-    private Mono<Void> finishAssistant(Generation generation, MessageGenerationStatusEnum state,
+    private Mono<Void> finishAssistant(ConversationGeneration generation, MessageGenerationStatusEnum state,
             Throwable sourceFailure) {
         return Mono.<Void>fromRunnable(() -> {
             synchronized (generation) {
-                if (generation.prepared == null || generation.deletion.isDone()) {
-                    generations.remove(generation.conversationId, generation);
+                if (generation.getPrepared() == null || generation.getDeletion().isDone()) {
+                    generations.remove(generation.getConversationId(), generation);
+                    log.info("会话生成结束 conversationId={} reason={} elapsedMs={}",
+                            generation.getConversationId(),
+                            generation.getDeletion().isDone() ? "DELETED" : "UNPREPARED",
+                            (System.nanoTime() - generation.getStartedNanos()) / 1_000_000);
                     return;
                 }
-                Message answer = generation.prepared.assistantMsg();
+                Message answer = generation.getPrepared().assistantMsg();
                 try {
-                    transactionTemplate.executeWithoutResult(status -> {
+                    Boolean saved = transactionTemplate.execute(status -> {
                         if (conversationMapper.selectOwnedForUpdate(answer.getConversationId(),
                                 answer.getUserId()) == null) {
-                            return;
+                            return false;
                         }
                         int rows = messageMapper.finishAssistant(answer.getId(), answer.getUserId(),
                                 answer.getConversationId(),
-                                generation.full.toString(), state.getCode());
+                                generation.getFull().toString(), state.getCode());
                         if (rows != 1) {
                             throw new IllegalStateException("生成中的助手回复必须更新一条记录");
                         }
+                        return true;
                     });
+                    if (saved == null) {
+                        throw new IllegalStateException("结束保存事务未返回结果");
+                    }
                     answer.setGenerationStatus(state.getCode());
-                    generations.remove(generation.conversationId, generation);
+                    generations.remove(generation.getConversationId(), generation);
+                    if (saved) {
+                        log.info("会话生成保存完成 conversationId={} messageId={} status={} elapsedMs={}",
+                                generation.getConversationId(), answer.getId(), state.name(),
+                                (System.nanoTime() - generation.getStartedNanos()) / 1_000_000);
+                    } else {
+                        log.info("会话生成结束 conversationId={} reason=DELETED elapsedMs={}",
+                                generation.getConversationId(),
+                                (System.nanoTime() - generation.getStartedNanos()) / 1_000_000);
+                    }
                 } catch (RuntimeException failure) {
-                    generation.persistenceFailure = failure;
+                    generation.setPersistenceFailure(failure);
                     if (sourceFailure != null && sourceFailure != failure) {
                         failure.addSuppressed(sourceFailure);
                     }
-                    log.error("会话结束保存失败 operationId={} conversationId={} messageId={} targetStatus={}",
-                            generation.operationId, generation.conversationId, answer.getId(), state.getCode(),
+                    log.error("会话结束保存失败 conversationId={} messageId={} targetStatus={}",
+                            generation.getConversationId(), answer.getId(), state.getCode(),
                             failure);
                     throw failure;
                 }
             }
-        }).subscribeOn(Schedulers.boundedElastic());
+        }).subscribeOn(Schedulers.boundedElastic())
+                .contextWrite(context -> generation.getTraceId() == null
+                        ? context.delete(TraceIdAccessor.KEY)
+                        : context.put(TraceIdAccessor.KEY, generation.getTraceId()));
     }
 
     /** 删除提交后取消对应生成；回滚时监听器不执行，通知不访问数据库。 */
     @TransactionalEventListener
-    public void cancelDeletedConversation(ConversationServiceImpl.Deleted event) {
-        Generation generation = generations.remove(event.conversationId());
+    public void cancelDeletedConversation(ConversationDeletedEvent event) {
+        ConversationGeneration generation = generations.remove(event.conversationId());
         if (generation != null) {
-            generation.deletion.complete(null);
+            generation.getDeletion().complete(null);
         }
     }
 
@@ -311,38 +334,6 @@ public class MessageServiceImpl implements MessageService {
     @EventListener(ApplicationStartedEvent.class)
     public void recoverInterruptedGenerations() {
         transactionTemplate.executeWithoutResult(status -> messageMapper.recoverInterrupted());
-    }
-
-    /** 短事务提交的问答与模型输入快照，只在本轮生成内部使用。 */
-    private record PreparedMessages(Message assistantMsg, Conversation conversation, ModelRequest request) {
-    }
-
-    /**
-     * 一轮生成的内容和结束标记
-     * 
-     * @param actor              操作者
-     * @param conversationId     会话ID
-     * @param operationId        操作ID
-     * @param full               生成的内容
-     * @param deletion           删除信号
-     * @param cancelled          是否取消
-     * @param persistenceFailure 持久化失败记录
-     * @param prepared           准备好的消息
-     */
-    private static final class Generation {
-        private final CurrentActor actor;
-        private final Long conversationId;
-        private final String operationId = UUID.randomUUID().toString();
-        private final StringBuilder full = new StringBuilder(256);
-        private final CompletableFuture<Void> deletion = new CompletableFuture<>();
-        private volatile boolean cancelled;
-        private volatile RuntimeException persistenceFailure;
-        private PreparedMessages prepared;
-
-        private Generation(CurrentActor actor, Long conversationId) {
-            this.actor = actor;
-            this.conversationId = conversationId;
-        }
     }
 
     /**
@@ -358,7 +349,7 @@ public class MessageServiceImpl implements MessageService {
     public PageDTO<MessageResponse> getMessagesByConversationId(CurrentActor actor, Long conversationId, Integer page,
             Integer limit) {
         conversationService.requireOwned(actor, conversationId);
-        PageRequests.Normalized paging = PageRequests.normalize(page, limit);
+        PageParameters paging = PageRequests.normalize(page, limit);
         var mpPage = messageMapper.selectPageByConversationId(PageRequests.toPage(paging), conversationId);
         List<MessageResponse> list = mpPage.getRecords().stream().map(this::convertToResponse).toList();
         return PageDTO.from(mpPage, list);

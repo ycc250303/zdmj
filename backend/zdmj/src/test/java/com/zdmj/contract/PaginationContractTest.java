@@ -1,10 +1,9 @@
 package com.zdmj.contract;
 
+import com.zdmj.common.model.PageParameters;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import org.junit.jupiter.api.Test;
-
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
 import com.zdmj.common.model.PageRequests;
@@ -15,7 +14,7 @@ class PaginationContractTest {
     @Test
     void 分页参数_缺省零和超上限_规范为默认页并截断limit() {
         assertThat(PageRequests.normalize(null, null))
-                .isEqualTo(new PageRequests.Normalized(PageRequests.DEFAULT_PAGE, PageRequests.DEFAULT_LIMIT));
+                .isEqualTo(new PageParameters(PageRequests.DEFAULT_PAGE, PageRequests.DEFAULT_LIMIT));
         assertThat(PageRequests.normalize(0, 0).page()).isEqualTo(1);
         assertThat(PageRequests.normalize(-3, -1).limit()).isEqualTo(PageRequests.DEFAULT_LIMIT);
         assertThat(PageRequests.normalize(2, PageRequests.MAX_LIMIT).limit()).isEqualTo(PageRequests.MAX_LIMIT);
@@ -24,7 +23,7 @@ class PaginationContractTest {
         JobPageQueryDTO query = new JobPageQueryDTO();
         query.setPage("0");
         query.setLimit("500");
-        PageRequests.Normalized normalized = PageRequests.normalize(query.getPage(), query.getLimit());
+        PageParameters normalized = PageRequests.normalize(query.getPage(), query.getLimit());
         assertThat(normalized.page()).isEqualTo(1);
         assertThat(normalized.limit()).isEqualTo(100);
 

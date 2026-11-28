@@ -33,15 +33,6 @@ export interface KnowledgeDocumentDTO {
   updatedAt?: string;
 }
 
-/** 知识库响应 DTO */
-export interface KnowledgeBasesDTO {
-  id: number;
-  userId: number;
-  scope: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
 /** 分页查询参数 */
 export type KnowledgeQueryParams = Api.Common.PageQueryParams;
 

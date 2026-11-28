@@ -1,11 +1,12 @@
 package com.zdmj.jobService.service.impl;
 
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.zdmj.jobService.api.JobReader;
+import com.zdmj.common.model.PageParameters;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zdmj.common.exception.BusinessException;
 import com.zdmj.common.exception.ErrorCode;
-import com.zdmj.jobService.dto.JobListItemResponse;
+import com.zdmj.jobService.api.JobListItemResponse;
 import com.zdmj.jobService.dto.JobPageQueryDTO;
 import com.zdmj.jobService.dto.JobRequest;
 import com.zdmj.jobService.dto.JobResponse;
@@ -23,7 +24,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
-public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobService {
+public class JobServiceImpl implements JobService, JobReader {
 
     /** 详情缓存键前缀，完整键为 {@code job:detail:v2:{id}}。 */
     private static final String DETAIL_KEY_PREFIX = "job:detail:v2:";
@@ -45,6 +45,7 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
     /** 岗位不存在时的空值标记有效期，单位秒。 */
     private static final long NULL_TTL_SECONDS = 60L;
 
+    private final JobMapper jobMapper;
     private final CompanyMapper companyMapper;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
@@ -73,7 +74,7 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
                 throw new IllegalStateException("岗位详情缓存无法解析: " + detailKey, exception);
             }
         }
-        JobListItemResponse dto = baseMapper.selectDetailById(id);
+        JobListItemResponse dto = jobMapper.selectDetailById(id);
         if (dto == null) {
             redisTemplate.opsForValue().set(nullMarkerKey, "1", NULL_TTL_SECONDS, TimeUnit.SECONDS);
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
@@ -93,7 +94,7 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
     @Override
     public PageDTO<JobListItemResponse> getPage(JobPageQueryDTO query) {
         JobPageQueryDTO q = query != null ? query : new JobPageQueryDTO();
-        PageRequests.Normalized paging = PageRequests.normalize(q.getPage(), q.getLimit());
+        PageParameters paging = PageRequests.normalize(q.getPage(), q.getLimit());
 
         q.setCompanySizes(emptyToNull(q.getCompanySizes()));
         q.setFundingTypes(emptyToNull(q.getFundingTypes()));
@@ -102,7 +103,7 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
         q.setJobName(StringUtils.hasText(q.getJobName()) ? q.getJobName().trim() : null);
         resolveSalaryQuery(q);
 
-        return PageDTO.from(baseMapper.selectJobPage(PageRequests.toPage(paging), q));
+        return PageDTO.from(jobMapper.selectJobPage(PageRequests.toPage(paging), q));
     }
 
     /**
@@ -155,20 +156,20 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
         Company company = resolveCompanyByName(dto);
         Job job = new Job();
         fillJobFromDto(job, dto, company);
-        save(job);
+        jobMapper.insert(job);
         return convertToResponse(job);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public JobResponse update(JobRequest dto) {
-        Job existing = baseMapper.selectById(dto.id());
+        Job existing = jobMapper.selectById(dto.id());
         if (existing == null) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
         Company company = resolveCompanyByName(dto);
         fillJobFromDto(existing, dto, company);
-        updateById(existing);
+        jobMapper.updateById(existing);
         deleteDetailCache(dto.id());
         return convertToResponse(existing);
     }
@@ -176,7 +177,7 @@ public class JobServiceImpl extends ServiceImpl<JobMapper, Job> implements JobSe
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void delete(Long id) {
-        if (!removeById(id)) {
+        if (jobMapper.deleteById(id) == 0) {
             throw new BusinessException(ErrorCode.JOB_NOT_FOUND);
         }
         deleteDetailCache(id);

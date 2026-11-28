@@ -80,6 +80,38 @@ services:
         bind:
           create_host_path: false
 
+  knowledge-import:
+    image: ${JAVAGUIDE_IMPORT_IMAGE:-zdmj-backend:latest}
+    profiles: [knowledge-import]
+    restart: "no"
+    networks: [backend]
+    user: "10001:10001"
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      TZ: Asia/Shanghai
+      SPRING_DATASOURCE_URL: ${DATASOURCE_URL}
+      SPRING_DATASOURCE_USERNAME: ${PG_USER}
+      SPRING_DATASOURCE_PASSWORD: ${PG_PASSWORD}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+      KNOWLEDGE_SYSTEM_IMPORT_ROOT: /app/data/knowledge-sync/javaguide
+    entrypoint:
+      - java
+      - -Duser.timezone=Asia/Shanghai
+      - -Dloader.main=com.zdmj.knowledgeService.config.SystemKnowledgeImportApplication
+      - -cp
+      - app.jar
+      - org.springframework.boot.loader.launch.PropertiesLauncher
+    volumes:
+      - type: bind
+        source: ${JAVAGUIDE_DATA_ROOT:-/opt/zdmj/data/knowledge-sync/javaguide}
+        target: /app/data/knowledge-sync/javaguide
+        read_only: true
+        bind:
+          create_host_path: false
+
   frontend-main:
     build:
       context: ..
